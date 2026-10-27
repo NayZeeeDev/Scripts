@@ -651,52 +651,44 @@ end
 
 -- one album cover on the label of the nearest record (the texture is shared by every record)
 local function urlencode(s)
-    return (s:gsub('[^%w%-%._~]', function(ch) return ('%%%02X'):format(ch:byte()) end))
+    return (tostring(s or ''):gsub('[^%w%-%._~]', function(ch) return ('%%%02X'):format(ch:byte()) end))
 end
 
-local function html(s)
-    return (tostring(s or ''):gsub('[&<>"\']', { ['&'] = '&amp;', ['<'] = '&lt;', ['>'] = '&gt;', ['"'] = '&quot;', ["'"] = '&#39;' }))
-end
-
+-- html/dui/label.html: a DUI only opens http(s)://, nui:// and about: links (FiveM puts https:// in
+-- front of anything else, so a data: page never loads)
 local function labelPage(vin)
-    local px = LABEL_PX
-    return 'data:text/html;charset=utf-8,' .. urlencode(([[<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{margin:0;width:%dpx;height:%dpx;overflow:hidden;background:#0e1011}
-.l{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-background:radial-gradient(circle,#15181a 0 30%%,#08afa2 30.5%% 33%%,#15181a 33.5%%);color:#fff;font:600 %dpx sans-serif;
-text-align:center;letter-spacing:.08em;text-transform:uppercase}
-.l b{display:block;max-width:60%%;margin-top:%dpx}.l span{opacity:.6;font-size:.7em;display:block;max-width:60%%}
-img{position:absolute;inset:0;width:100%%;height:100%%;object-fit:cover}
-.r{position:absolute;inset:0;border-radius:50%%;box-shadow:inset 0 0 0 %dpx rgba(0,0,0,.28)}
-.h{position:absolute;left:50%%;top:50%%;width:%dpx;height:%dpx;margin:-%dpx;border-radius:50%%;background:#050505}
-</style></head><body><div class="l"><b>%s</b><span>%s</span></div>
-<img src="%s" onerror="this.remove()"><div class="r"></div><div class="h"></div></body></html>]]):format(
-        px, px, math.floor(px * 0.045), math.floor(px * 0.2), math.floor(px * 0.018),
-        math.floor(px * 0.075), math.floor(px * 0.075), math.floor(px * 0.0375),
-        html(vin.album), html(vin.artist), html(vin.cover)))
+    return ('nui://%s/html/dui/label.html?cover=%s&album=%s&artist=%s'):format(
+        RES, urlencode(vin.cover), urlencode(vin.album), urlencode(vin.artist))
 end
 
+-- The DUI's browser comes up a moment after CreateDui and SetDuiUrl does nothing until it has, so
+-- the first page goes in with CreateDui and a later one only counts as shown once it was really sent:
+-- until then label.url stays as it was and pickLabel (every 0.5 - 1 s) sends it again.
 local function setLabel(vin)
-    local url = vin and vin.cover or nil
-    if url == label.url then return end
-    label.url = url
-    if url then
+    local page = vin and vin.cover and labelPage(vin) or nil
+    if page == label.url then return end
+    if page then
         if not label.dui then
-            label.dui = CreateDui('about:blank', LABEL_PX, LABEL_PX)
+            label.dui = CreateDui(page, LABEL_PX, LABEL_PX)
             local txd = CreateRuntimeTxd('nzspk_vinyl_label')
             CreateRuntimeTextureFromDuiHandle(txd, 'label', GetDuiHandle(label.dui))
+        elseif IsDuiAvailable(label.dui) then
+            SetDuiUrl(label.dui, page)
+        else
+            return
         end
-        SetDuiUrl(label.dui, labelPage(vin))
+        label.url = page
         if not label.replaced then
             AddReplaceTexture(TXD, 'nayzeee_vinyl_label', 'nzspk_vinyl_label', 'label')
             label.replaced = true
         end
     else
+        label.url = nil
         if label.replaced then
             RemoveReplaceTexture(TXD, 'nayzeee_vinyl_label')
             label.replaced = false
         end
-        if label.dui then SetDuiUrl(label.dui, 'about:blank') end
+        if label.dui and IsDuiAvailable(label.dui) then SetDuiUrl(label.dui, 'about:blank') end
     end
 end
 

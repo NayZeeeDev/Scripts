@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'nayzeee-speaker'
 author 'NAYZEEE Development'
-description 'Speakers, boomboxes, a record console, a record shop and CarPlay with synced 3D audio'
+description 'Speakers, boomboxes, a turntable, a record shop and CarPlay with synced 3D audio'
 version '2.0.0'
 
 shared_scripts {
@@ -62,6 +62,7 @@ files {
     'html/phone/app.js',
     'html/phone/icon.png',
     'html/img/*.png',
+    'html/dui/*.html',                    -- in-world pages: the console's record label, the shop's sleeves
     'html/looks/**/*',                    -- speaker looks: colour / design images, the RGB light and record pages
 }
 

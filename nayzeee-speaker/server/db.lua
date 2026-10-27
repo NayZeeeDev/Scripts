@@ -140,10 +140,13 @@ function DB.CarplayInstalled(plate)
     return MySQL.scalar.await('SELECT 1 FROM nayzeee_speaker_carplay WHERE plate = ?', { plate }) ~= nil
 end
 
+-- how many rows it changed: 1 = installed / removed, 0 = there already was one / there was none
 function DB.CarplaySet(plate, identifier, on)
+    local n
     if on then
-        MySQL.insert.await('INSERT IGNORE INTO nayzeee_speaker_carplay (plate, installed_by) VALUES (?, ?)', { plate, identifier })
+        n = MySQL.update.await('INSERT IGNORE INTO nayzeee_speaker_carplay (plate, installed_by) VALUES (?, ?)', { plate, identifier })
     else
-        MySQL.query.await('DELETE FROM nayzeee_speaker_carplay WHERE plate = ?', { plate })
+        n = MySQL.update.await('DELETE FROM nayzeee_speaker_carplay WHERE plate = ?', { plate })
     end
+    return tonumber(n) or 0
 end

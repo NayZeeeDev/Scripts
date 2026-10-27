@@ -4,8 +4,9 @@
 ]]
 Emitters = {}               -- id -> emitter
 local carrying = {}         -- src -> id of the boombox they carry
-local lastSong, lastAction = {}, {}
+local lastSong, lastAction, lastButton = {}, {}, {}
 local idSeq = 0
+local BUTTON_COOLDOWN = 0.25    -- seconds between button actions (play, skip, stop...); sliders use Config.Limits.actionCooldown
 
 local function now() return GetGameTimer() end
 
@@ -110,15 +111,37 @@ local function near(src, pos, max)
     return #(GetEntityCoords(ped) - pos) <= max
 end
 
+-- the player carries this speaker or stands close enough to touch it
+function InReach(src, e)
+    return e.carrier == src or near(src, EmitterPosition(e), Config.Actions.useRange + 2.0)
+end
+
+local function shut(src, e)
+    return e.access == 'owner' and e.owner ~= Bridge.GetIdentifier(src) and not Bridge.IsAdmin(src)
+end
+
 --[[
-    Can this player act on this emitter? control = change the music, false = only be near it
-    (pick up, pack up). Tells the player why not and returns nil, or returns the emitter.
+    Is this speaker locked against this player? Music actions on a linked speaker act on its group's
+    leader, so a locked leader locks the music of every speaker linked to it. own = only this
+    speaker's own lock counts (its volume / range, which belong to it alone).
+]]
+function LockedFor(src, e, own)
+    if shut(src, e) then return true end
+    if own or not e.group then return false end
+    local lead = Links.Leader(e)
+    return lead ~= e and shut(src, lead)
+end
+
+--[[
+    Can this player act on this emitter? control = change the music, 'self' = change only this
+    speaker (volume / range), false = only be near it (pick up, pack up). Tells the player why not and
+    returns nil, or returns the emitter. A speaker whose prop is still being made can't be touched.
     server/phone.lua's PhonePass lets one checked remote command through without standing there.
 ]]
 function Guard(src, id, control)
-    if PhonePass and PhonePass(src, id, control) then return Emitters[id] end
     local e = Emitters[id]
-    if not e then return nil end
+    if not e or e.spawning then return nil end
+    if PhonePass and PhonePass(src, id, control) then return e end
     local ped = GetPlayerPed(src)
     if ped == 0 then return nil end
 
@@ -140,10 +163,10 @@ function Guard(src, id, control)
         return e
     end
 
-    if e.carrier ~= src and not near(src, EmitterPosition(e), Config.Actions.useRange + 2.0) then
+    if not InReach(src, e) then
         Notify(src, 'too_far') return nil
     end
-    if control and e.access == 'owner' and e.owner ~= Bridge.GetIdentifier(src) and not Bridge.IsAdmin(src) then
+    if control and LockedFor(src, e, control == 'self') then
         Notify(src, 'no_access') return nil
     end
     return e
@@ -157,6 +180,44 @@ local function hears(src, e)
     return near(src, EmitterPosition(e), (e.range or 0) * unload + 15.0)
 end
 
+-- how many players have this group's song loaded right now
+local function earshot(lead)
+    local members = Links.Members(lead)
+    local n = 0
+    for _, s in ipairs(GetPlayers()) do
+        s = tonumber(s)
+        for _, m in ipairs(members) do
+            if s and hears(s, m) then n = n + 1 break end
+        end
+    end
+    return n
+end
+
+--[[
+    Song reports (length, end, can't be played) come from the players' games, so they are weighed:
+    one counts at once when it comes from a player who may control the speaker (passes its lock),
+    otherwise only once more than half of the players in earshot have sent it. A modded client can't
+    cut or skip songs on a speaker it isn't allowed to touch, and a song only counts as unplayable
+    when most of the people listening can't play it (trust = false).
+    Returns the value to use (for lengths: the reporter's, or the middle one of everyone's), or nil.
+]]
+local function vouch(lead, src, kind, value, trust)
+    local key = trackKey(lead.track)
+    local r = lead.reports
+    if not r or r.key ~= key then r = { key = key } lead.reports = r end
+    local k = r[kind]
+    if not k then k = { n = 0, by = {} } r[kind] = k end
+    if k.by[src] == nil then k.n = k.n + 1 end
+    k.by[src] = value
+    if trust then return value end
+    if k.n * 2 <= earshot(lead) then return nil end
+    if type(value) ~= 'number' then return value end
+    local list = {}
+    for _, v in pairs(k.by) do list[#list + 1] = v end
+    table.sort(list)
+    return list[(#list + 1) // 2]
+end
+
 ---------------------------------------------------------------- playback core
 -- at  = start this many seconds into the song
 -- cue = start this many seconds from now: every client waits silently at 0:00 and starts on the
@@ -166,7 +227,7 @@ function StartTrack(e, track, at, cue)
     e.playing = true
     e.pos = 0
     e.startedAt = now() - math.floor((at or 0) * 1000) + math.floor((cue or 0) * 1000)
-    e.endReported = nil
+    e.endReported, e.reports = nil, nil
     e.xfade = nil
 end
 
@@ -205,6 +266,9 @@ local function mixFade(e)
 end
 
 function StopEmitter(e)
+    -- a record's next song may still be being looked up (server/vinyl.lua): it must not start
+    -- by itself once it is found
+    if e.vinyl then e.vinyl.token, e.vinyl.loading = nil, false end
     e.track, e.playing, e.pos, e.queue = nil, false, 0, {}
     Broadcast(e)
 end
@@ -256,11 +320,23 @@ local function nextId()
     return ('b%d'):format(idSeq)
 end
 
+--[[
+    true once the speaker's prop stands. false when it couldn't be made, false + 'gone' when the
+    speaker was removed while it was being made (its prop is deleted again, nothing is handed back).
+    While it is being made (`spawning`) nobody can touch the speaker (Guard, damage), so it can't be
+    packed up or picked up halfway and leave a prop behind that nothing knows about.
+]]
 local function spawnObject(e)
+    e.spawning = true
     local obj = CreateObjectNoOffset(joaat(e.model), e.coords.x, e.coords.y, e.coords.z, true, true, false)
     -- the server creates it on the next tick or two; give up after 3 s
     local t = now()
     while not DoesEntityExist(obj) and now() - t < 3000 do Wait(0) end
+    e.spawning = nil
+    if Emitters[e.id] ~= e then
+        if DoesEntityExist(obj) then DeleteEntity(obj) end
+        return false, 'gone'
+    end
     if not DoesEntityExist(obj) then return false end
     SetEntityHeading(obj, e.heading + 0.0)
     FreezeEntityPosition(obj, true)
@@ -376,16 +452,26 @@ function PlaySavedFor(src, id, saved, mode)
     handlePlay(src, id, Tracks.FromSaved, saved, mode)
 end
 
--- Music actions act on the group's leader so linked speakers stay in step.
+--[[
+    Music actions act on the group's leader so linked speakers stay in step. Volume and range belong
+    to the one speaker (nothing to copy to the rest of the group). They are sliders and may come in
+    quick succession; buttons get a firmer limit, since every change is sent to every player.
+]]
 local actions = {}
+local OWN = { volume = true, range = true }
 local function runAction(name, src, id, ...)
     local fn = actions[name]
-    if not fn or not cooldown(lastAction, src, Config.Limits.actionCooldown) then return end
-    local e = Guard(src, id, true)
+    if not fn then return end
+    local slider = OWN[name]
+    local ok = slider and cooldown(lastAction, src, Config.Limits.actionCooldown)
+        or not slider and cooldown(lastButton, src, math.max(Config.Limits.actionCooldown, BUTTON_COOLDOWN))
+    if not ok then return end
+    local e = Guard(src, id, slider and 'self' or true)
     if not e then return end
-    local target = (name == 'volume' or name == 'range') and e or Links.Leader(e)
+    if slider then return fn(src, e, ...) end
+    local target = Links.Leader(e)
     fn(src, target, ...)
-    if target ~= e or target.group then Links.Sync(Links.Leader(e)) end
+    if target.group then Links.Sync(target) end
 end
 
 function ActionFor(src, name, id, ...) runAction(name, src, id, ...) end
@@ -398,6 +484,9 @@ local function action(name, fn)
 end
 
 action('toggle', function(_, e)
+    -- a record's next song is being looked up and starts by itself once it is found: e.track is
+    -- still the song before it (stopped), which must not come back on
+    if e.vinyl and e.vinyl.loading then return end
     if not e.track then
         if e.vinyl then Vinyl.PlayIndex(e, e.vinyl.idx or 1) end
         return
@@ -471,34 +560,48 @@ RegisterNetEvent(RES .. ':access', function(id, mode)
     Broadcast(e)
 end)
 
--- clients tell us each song's length once it loads
+-- clients tell us each song's length once it loads (weighed, see vouch)
 RegisterNetEvent(RES .. ':duration', function(id, key, dur)
     local src = source
     local e = Emitters[id]
     dur = tonumber(dur)
-    if not e or not e.track or not dur or dur ~= dur or dur <= 0 or dur > 36000 then return end
-    if (e.track.duration or 0) > 0 or trackKey(e.track) ~= key or not hears(src, e) then return end
+    if not e or not dur or dur ~= dur or dur <= 0 or dur > 36000 or not hears(src, e) then return end
     -- linked speakers share one track table, so this sets it for the whole group
     local lead = Links.Leader(e)
+    if not lead.track or (lead.track.duration or 0) > 0 or trackKey(lead.track) ~= key then return end
+    dur = vouch(lead, src, 'duration', dur, not LockedFor(src, e))
+    if not dur then return end
     if Config.Limits.maxDuration > 0 and dur > Config.Limits.maxDuration then
         Notify(src, 'too_long', 'error', math.floor(Config.Limits.maxDuration / 60))
         return Advance(lead, true)
     end
-    e.track.duration = math.floor(dur)
+    lead.track.duration = math.floor(dur)
     Broadcast(lead)
     if lead.group then Links.Sync(lead) end
 end)
 
-RegisterNetEvent(RES .. ':ended', function(id, key)
+--[[
+    A client's song ended, or (failed) its game can't play the song at all: the video was removed or
+    may not be embedded, or a direct link is dead. That happens a moment after the song starts, so it
+    can't wait for the 3 s an ordinary end report needs; it moves on once most listeners have said so.
+]]
+RegisterNetEvent(RES .. ':ended', function(id, key, failed)
+    local src = source
     local e = Emitters[id]
-    if not e or not hears(source, e) then return end
-    e = Links.Leader(e)
-    if not e.track or not e.playing then return end
-    if trackKey(e.track) ~= key or e.endReported then return end
-    if (e.track.duration or 0) > 0 and Elapsed(e) < e.track.duration - 3 then return end
-    if Elapsed(e) < 3 then return end
-    e.endReported = true
-    Advance(e)
+    if not e or not hears(src, e) then return end
+    local lead = Links.Leader(e)
+    if not lead.track or not lead.playing then return end
+    if trackKey(lead.track) ~= key or lead.endReported then return end
+    if failed == true then
+        if not vouch(lead, src, 'failed', true, false) then return end
+        lead.endReported = true
+        return Advance(lead, true)       -- skips a looped song too: it would only fail again
+    end
+    if (lead.track.duration or 0) > 0 and Elapsed(lead) < lead.track.duration - 3 then return end
+    if Elapsed(lead) < 3 then return end
+    if not vouch(lead, src, 'ended', true, not LockedFor(src, e)) then return end
+    lead.endReported = true
+    Advance(lead)
 end)
 
 ---------------------------------------------------------------- boombox lifecycle
@@ -531,11 +634,15 @@ RegisterNetEvent(RES .. ':place', function(item, coords, heading, hold)
         e.state, e.carrier = 'carried', src
         carrying[src] = e.id
         TriggerClientEvent(RES .. ':client:startCarry', src, e.id, item)
-    elseif not spawnObject(e) then
-        Emitters[e.id] = nil
-        Bridge.AddItem(src, item)
-        return
     else
+        local ok, why = spawnObject(e)
+        if not ok then
+            if why ~= 'gone' then
+                Emitters[e.id] = nil
+                Bridge.GiveOrDrop(src, item)
+            end
+            return
+        end
         Notify(src, 'placed', 'success')
     end
     Broadcast(e)
@@ -567,17 +674,31 @@ RegisterNetEvent(RES .. ':drop', function(id, coords, heading)
     if not e or e.carrier ~= src then return end
     -- set down where the client says, unless that isn't right next to the player
     if not near(src, coords, 6.0) then coords = GetEntityCoords(GetPlayerPed(src)) end
+    -- no setting it down in a blacklisted zone either: it stays in their hands (their game already
+    -- let go of it, so it is handed back)
+    if NZ.InBlacklistedZone(coords) then
+        Notify(src, 'blacklisted_zone')
+        return TriggerClientEvent(RES .. ':client:startCarry', src, e.id, e.item)
+    end
     carrying[src] = nil
     e.state, e.carrier = 'placed', nil
     e.coords, e.heading = coords, toHeading(heading)
     e.bucket = GetPlayerRoutingBucket(src)
-    if not spawnObject(e) then
-        Bridge.AddItem(src, e.item)
-        return RemoveEmitter(e)
+    local ok, why = spawnObject(e)
+    if not ok then
+        if why ~= 'gone' then
+            Bridge.GiveOrDrop(src, e.item)
+            RemoveEmitter(e)
+        end
+        return
     end
     Broadcast(e)
 end)
 
+--[[
+    Packing up hands the speaker (and a record on it) back, so it only goes ahead when there is room
+    in the player's pockets: otherwise it stays where it is, nothing is taken off or lost.
+]]
 RegisterNetEvent(RES .. ':pack', function(id)
     local src = source
     local e = Emitters[id]
@@ -587,9 +708,13 @@ RegisterNetEvent(RES .. ':pack', function(id)
         if e.carrier then return end
         if not canPickup(src, e) then return Notify(src, 'not_owner') end
     end
-    if e.vinyl then Vinyl.Return(e, src) end
+    if not Bridge.CanCarry(src, e.item, 1) then return Notify(src, 'shop_full') end
+    if e.vinyl and not Vinyl.Return(e, Vinyl.Taker(e, src), nil, true) then return Notify(src, 'shop_full') end
+    if not Bridge.AddItem(src, e.item) then
+        Broadcast(e)            -- its record may be off already
+        return Notify(src, 'shop_full')
+    end
     RemoveEmitter(e)
-    Bridge.AddItem(src, e.item)
     Notify(src, 'packed', 'success')
     Log('Boombox packed', ('**%s** (%s) packed `%s` (%s)'):format(GetPlayerName(src), src, e.label, e.id))
 end)
@@ -604,7 +729,7 @@ end
 AddEventHandler('playerDropped', function()
     local src = source
     local ident = Bridge.GetIdentifier(src)
-    lastSong[src], lastAction[src] = nil, nil
+    lastSong[src], lastAction[src], lastButton[src] = nil, nil, nil
     for _, e in pairs(Emitters) do
         if e.kind == 'boombox' then
             local mine = e.ownerSrc == src or e.owner == ident
@@ -619,7 +744,7 @@ AddEventHandler('playerDropped', function()
                 e.state, e.carrier = 'placed', nil
                 if pos then
                     e.coords = pos - vector3(0.0, 0.0, 0.95)
-                    if spawnObject(e) then Broadcast(e) else RemoveEmitter(e) end
+                    if spawnObject(e) then Broadcast(e) elseif Emitters[e.id] == e then RemoveEmitter(e) end
                 else
                     RemoveEmitter(e)
                 end
@@ -637,7 +762,7 @@ AddEventHandler('onResourceStop', function(res)
     for _, e in pairs(Emitters) do
         if e.entity and DoesEntityExist(e.entity) then DeleteEntity(e.entity) end
         pcall(returnRecord, e)
-        if e.kind == 'boombox' and e.ownerSrc and GetPlayerName(e.ownerSrc) then pcall(Bridge.AddItem, e.ownerSrc, e.item) end
+        if e.kind == 'boombox' and e.ownerSrc and GetPlayerName(e.ownerSrc) then pcall(Bridge.GiveOrDrop, e.ownerSrc, e.item) end
     end
 end)
 
@@ -666,7 +791,8 @@ RegisterCommand('speakerstop', function(src, args)
     local n = 0
     for _, e in pairs(Emitters) do
         local pos = EmitterPosition(e)
-        if e.track and pos and #(origin - pos) <= radius then StopEmitter(e) n = n + 1 end
+        local busy = e.track or (e.vinyl and e.vinyl.loading)      -- a record's song still being looked up too
+        if busy and pos and #(origin - pos) <= radius then StopEmitter(e) n = n + 1 end
     end
     Notify(src, 'admin_cleared', 'success', n)
 end, false)

@@ -44,6 +44,7 @@ function NuiPack(e)
         portable = e.item and Config.Boomboxes[e.item] and Config.Boomboxes[e.item].portable or false,
         unit = e.kind == 'vehicle' and Config.Carplay.install.use or false,
         turntable = e.turntable or false, vinyl = e.vinyl,
+        group = e.group, groupSize = e.groupSize or 0,
         xfade = e.xfade,
     }
 end
@@ -181,7 +182,8 @@ RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function() CreateThread(boot) e
 ---------------------------------------------------------------- ui open / close
 local lookThread = false
 
-function OpenUI(id)
+-- view = the tab to open on (nil = the one the player had open last)
+function OpenUI(id, view)
     local e = Emitters[id]
     if not e then return end
     UI.open, UI.id = true, id
@@ -189,7 +191,7 @@ function OpenUI(id)
     UI.keep, UI.typing = keep, false
     SetNuiFocus(true, true)
     SetNuiFocusKeepInput(keep)
-    SendNUIMessage({ action = 'open', id = id, compact = Settings.compact })
+    SendNUIMessage({ action = 'open', id = id, compact = Settings.compact, view = view })
 
     if keep and not lookThread then
         lookThread = true
@@ -311,8 +313,9 @@ RegisterNUICallback('duration', function(data, cb)
     cb(1)
 end)
 
+-- failed = this game can't play the song at all (removed / not embeddable video, dead direct link)
 RegisterNUICallback('ended', function(data, cb)
-    TriggerServerEvent(RES .. ':ended', data.id, data.key)
+    TriggerServerEvent(RES .. ':ended', data.id, data.key, data.failed == true)
     cb(1)
 end)
 
@@ -417,6 +420,33 @@ RegisterNUICallback('jamLeave', function(_, cb) NZ.Callback('jam:leave') cb(1) e
 
 RegisterNetEvent(RES .. ':client:jam', function(view)
     SendNUIMessage({ action = 'jam', data = view or false })
+end)
+
+-- the speaker of the jam this player is in, or nil (server/social.lua lists every member in listeners)
+function MyJam()
+    for id, e in pairs(Emitters) do
+        if e.kind == 'jam' and type(e.listeners) == 'table' then
+            for _, s in ipairs(e.listeners) do
+                if s == MyServerId then return id end
+            end
+        end
+    end
+    return nil
+end
+
+-- A jam's music lives on its own speaker: the player opens on it, so songs searched for and
+-- played there go to the jam (not to the boombox or car the player was opened at).
+RegisterNUICallback('jamOpen', function(data, cb)
+    cb(1)
+    local id = type(data) == 'table' and data.id or nil
+    if type(id) ~= 'string' then return end
+    CreateThread(function()
+        -- a jam that was just started: its speaker is still on its way
+        local t = GetGameTimer()
+        while not Emitters[id] and GetGameTimer() - t < 2000 do Wait(50) end
+        local e = Emitters[id]
+        if e and e.kind == 'jam' then OpenUI(id, 'queue') end
+    end)
 end)
 
 ---------------------------------------------------------------- vinyl

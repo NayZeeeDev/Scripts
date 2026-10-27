@@ -74,6 +74,9 @@ local function countMine(ident)
     return MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_speaker_playlists WHERE owner = ?', { ident }) or 0
 end
 
+-- true when the player owns as many playlists as Config.Playlists.perPlayer allows (blend / prompted use it too)
+function Playlists.Full(ident) return countMine(ident) >= Config.Playlists.perPlayer end
+
 ---------------------------------------------------------------- callbacks
 NZ.RegisterCallback('pl:list', function(src)
     if not Config.Playlists.enabled then return {}, {} end
@@ -84,7 +87,7 @@ NZ.RegisterCallback('pl:list', function(src)
 end)
 
 NZ.RegisterCallback('pl:create', function(src, name)
-    if not Config.Playlists.enabled then return nil end
+    if not Config.Playlists.enabled then Notify(src, 'feature_off', 'inform') return nil end
     local id = Bridge.GetIdentifier(src)
     name = NZ.Trim(name, 60)
     if #name == 0 then return nil end
@@ -96,7 +99,7 @@ NZ.RegisterCallback('pl:create', function(src, name)
 end)
 
 NZ.RegisterCallback('pl:add', function(src, plId, track)
-    if not Config.Playlists.enabled then return nil end
+    if not Config.Playlists.enabled then Notify(src, 'feature_off', 'inform') return nil end
     local slim = DB.Slim(track)
     local id = Bridge.GetIdentifier(src)
     local r = slim and Playlists.Get(plId)
@@ -127,7 +130,7 @@ NZ.RegisterCallback('pl:remove', function(src, plId, idx)
 end)
 
 NZ.RegisterCallback('pl:share', function(src, plId, on)
-    if not Config.Playlists.sharing then return nil end
+    if not Config.Playlists.sharing then Notify(src, 'feature_off', 'inform') return nil end
     local id = Bridge.GetIdentifier(src)
     local r = Playlists.Get(plId)
     if not r or r.owner ~= id then return nil end
@@ -158,7 +161,8 @@ end)
 -- an import is a lot of web requests)
 local importing = {}
 NZ.RegisterCallback('pl:import', function(src, link)
-    if not Config.Playlists.enabled or importing[src] then return nil end
+    if not Config.Playlists.enabled then Notify(src, 'feature_off', 'inform') return nil end
+    if importing[src] then return nil end
     link = NZ.Trim(link, 500)
     local id = Bridge.GetIdentifier(src)
     if countMine(id) >= Config.Playlists.perPlayer then Notify(src, 'pl_full') return nil end
@@ -205,7 +209,7 @@ local function loadList(src, which)
         local name = pack.phone and pack.phone.liked or 'Liked Songs'
         return DB.GetList(ident, 'fav', Config.Limits.favorites), name, nil
     end
-    if not Config.Playlists.enabled then return nil end
+    if not Config.Playlists.enabled then Notify(src, 'feature_off', 'inform') return nil end
     local r = Playlists.Get(which)
     if not r then return nil end
     if r.owner ~= ident and not flag(r.shared) and not isCollaborator(r, ident) then Notify(src, 'no_access') return nil end

@@ -225,7 +225,8 @@ RegisterNUICallback('phoneState', function(data, cb)
         if a.d ~= b.d then return a.d < b.d end
         return a.id < b.id
     end)
-    cb({ now = ServerTime(), devices = out })
+    -- streamer mode (client/main.lua) can change while the app is open: no song names or covers then
+    cb({ now = ServerTime(), devices = out, streamer = Settings.streamer == true })
 end)
 
 -- lb-phone can message its custom apps: nudge the app to refresh as soon as one of its speakers changes
@@ -255,6 +256,7 @@ RegisterNUICallback('phoneInit', function(_, cb)
     local B = Config.Brand
     cb({
         name = P.name, phone = phone or 'none', insets = insets(), strings = phoneStrings(),
+        streamer = Settings.streamer == true,
         brand = { watermark = B.watermark ~= false, logo = (B.logo or '') ~= '' and ('../' .. B.logo) or '', name = B.name or '' },
         features = {
             search = Config.Search.enabled ~= false,

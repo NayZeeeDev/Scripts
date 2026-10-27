@@ -152,7 +152,7 @@ Config.DisableGTARadio            = true  -- turns the GTA radio off and hides t
 
 Config.Carplay = {
     enabled    = true,           -- music in vehicles
-    key        = 'J',            -- opens the car player (players can rebind in FiveM key bindings)
+    key        = 'J',            -- opens the car player, a boombox you carry or your jam (players can rebind in FiveM key bindings)
     keepInput  = true,           -- keep driving while the player is open (mouse still works)
     controlBy  = 'occupants',    -- driver | occupants  (who can change the music)
 
@@ -484,7 +484,7 @@ Config.Turntable = {
     consoleModel = 'nayzeee_console',   -- the upgrade's model: platter / tonearm / record only appear on this one
     visuals    = true,           -- show the platter, tonearm and record on placed consoles
     distance   = 35.0,           -- metres around you that turntable props exist
-    needleDrop = 'auto',         -- music waits for the needle to land: 'auto' (once the upgrade's parts are in stream/) | true | false
+    needleDrop = 'auto',         -- music on a console waits for the needle to land: 'auto' (once the upgrade's parts are in stream/) | true | false
     labelArt   = true,           -- album cover on the record label of the nearest playing console
     labelSize  = 512,            -- label texture size in px (256 = lighter, 1024 = sharper)
     putAnim    = { dict = 'mp_common', clip = 'givetake1_a', flag = 48, duration = 1400 },  -- putting a record on

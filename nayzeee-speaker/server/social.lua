@@ -96,7 +96,7 @@ local function leaveJam(src, dropped)
 end
 
 NZ.RegisterCallback('jam:create', function(src, name)
-    if not Config.Social.jam then return nil end
+    if not Config.Social.jam then Notify(src, 'feature_off', 'inform') return nil end
     if jamOf[src] then leaveJam(src) end
     local j = createJam(src, name)
     Notify(src, 'jam_started', 'success', j.name)
@@ -114,7 +114,7 @@ NZ.RegisterCallback('jam:list', function(src)
 end)
 
 NZ.RegisterCallback('jam:join', function(src, id)
-    if not Config.Social.jam then return nil end
+    if not Config.Social.jam then Notify(src, 'feature_off', 'inform') return nil end
     local j = jams[tonumber(id) or 0]
     if not j then return nil end
     if jamOf[src] == j.id then return view(j, src) end
@@ -141,70 +141,98 @@ end
 
 AddEventHandler('playerDropped', function() leaveJam(source, true) end)
 
+--[[
+    Blend and Prompted each make a new playlist, so they count towards Config.Playlists.perPlayer like
+    any other playlist. One is made at a time per player, and the next of the same kind has to wait
+    a little after the last one finished (a prompt is four web searches).
+]]
+local busy = {}                                         -- src -> true while one is being made
+local lastMade = { blend = {}, prompted = {} }          -- kind -> src -> when the last one finished
+local MAKE_COOLDOWN = { blend = 10000, prompted = 30000 }    -- ms
+
+-- runs make() for the player if they may make one now (nil and a notify otherwise)
+local function making(src, kind, ident, make)
+    if busy[src] then Notify(src, 'shop_busy', 'inform') return nil end
+    local last = lastMade[kind][src]
+    if last and GetGameTimer() - last < MAKE_COOLDOWN[kind] then Notify(src, 'shop_slow', 'inform') return nil end
+    busy[src] = true
+    local started = false
+    local ok, res = pcall(function()
+        if Playlists.Full(ident) then Notify(src, 'pl_full') return nil end
+        started = true
+        return make()
+    end)
+    busy[src] = nil
+    if started then lastMade[kind][src] = GetGameTimer() end
+    if not ok then error(res, 0) end
+    return res
+end
+
+AddEventHandler('playerDropped', function()
+    busy[source], lastMade.blend[source], lastMade.prompted[source] = nil, nil, nil
+end)
+
 ---------------------------------------------------------------- blend
 NZ.RegisterCallback('pl:blend', function(src, targetSrc)
-    if not Config.Social.blend then return nil end
+    if not Config.Social.blend then Notify(src, 'feature_off', 'inform') return nil end
     targetSrc = tonumber(targetSrc)
     if not targetSrc or not GetPlayerName(targetSrc) or targetSrc == src then return nil end
     local a, b = Bridge.GetIdentifier(src), Bridge.GetIdentifier(targetSrc)
-    local mine = DB.GetList(a, 'fav', Config.Limits.favorites)
-    local theirs = DB.GetList(b, 'fav', Config.Limits.favorites)
-    if #mine == 0 and #theirs == 0 then Notify(src, 'blend_empty') return nil end
+    return making(src, 'blend', a, function()
+        local mine = DB.GetList(a, 'fav', Config.Limits.favorites)
+        local theirs = DB.GetList(b, 'fav', Config.Limits.favorites)
+        if #mine == 0 and #theirs == 0 then Notify(src, 'blend_empty') return nil end
 
-    -- alternate between the two libraries so the result really is a mix
-    local out, seen = {}, {}
-    local function add(t)
-        local k = t and (t.id or t.url or t.search)
-        if k and not seen[k] and #out < Config.Playlists.maxTracks then
-            seen[k] = true
-            out[#out + 1] = t
+        -- alternate between the two libraries so the result really is a mix
+        local out, seen = {}, {}
+        local function add(t)
+            local k = t and (t.id or t.url or t.search)
+            if k and not seen[k] and #out < Config.Playlists.maxTracks then
+                seen[k] = true
+                out[#out + 1] = t
+            end
         end
-    end
-    for i = 1, math.max(#mine, #theirs) do add(mine[i]) add(theirs[i]) end
+        for i = 1, math.max(#mine, #theirs) do add(mine[i]) add(theirs[i]) end
 
-    local first = function(s) return Bridge.GetName(s):match('^%S+') end
-    local name = ('%s x %s'):format(first(src) or 'You', first(targetSrc) or 'Them')
-    MySQL.insert.await('INSERT INTO nayzeee_speaker_playlists (owner, owner_name, name, tracks, kind) VALUES (?, ?, ?, ?, ?)',
-        { a, Bridge.GetName(src), name:sub(1, 60), json.encode(out), 'blend' })
-    Notify(src, 'blend_made', 'success', #out, name)
-    return Playlists.Mine(a)
+        local first = function(s) return Bridge.GetName(s):match('^%S+') end
+        local name = ('%s x %s'):format(first(src) or 'You', first(targetSrc) or 'Them')
+        MySQL.insert.await('INSERT INTO nayzeee_speaker_playlists (owner, owner_name, name, tracks, kind) VALUES (?, ?, ?, ?, ?)',
+            { a, Bridge.GetName(src), name:sub(1, 60), json.encode(out), 'blend' })
+        Notify(src, 'blend_made', 'success', #out, name)
+        return Playlists.Mine(a)
+    end)
 end)
 
 ---------------------------------------------------------------- prompted
-local prompting = {}        -- src -> true while their searches run (one prompt at a time)
-
 NZ.RegisterCallback('pl:prompted', function(src, prompt)
-    if not Config.Social.prompted or prompting[src] then return nil end
+    if not Config.Social.prompted then Notify(src, 'feature_off', 'inform') return nil end
     prompt = NZ.Trim(prompt, 80)
     if #prompt < 3 then return nil end
     local id = Bridge.GetIdentifier(src)
-
-    -- a few angles on the same idea so the list isn't 20 versions of one song
-    prompting[src] = true
-    local out, seen = {}, {}
-    for _, shape in ipairs({ '%s songs', '%s playlist', 'best %s', '%s mix' }) do
-        local ok, res = pcall(Search.Query, shape:format(prompt), 8)
-        for _, r in ipairs(ok and res or {}) do
-            if not seen[r.id] and #out < Config.Social.promptedSize then
-                seen[r.id] = true
-                out[#out + 1] = { src = 'yt', id = r.id, title = r.title, author = r.author, duration = r.duration, thumb = r.thumb }
+    return making(src, 'prompted', id, function()
+        -- a few angles on the same idea so the list isn't 20 versions of one song
+        local out, seen = {}, {}
+        for _, shape in ipairs({ '%s songs', '%s playlist', 'best %s', '%s mix' }) do
+            local ok, res = pcall(Search.Query, shape:format(prompt), 8)
+            for _, r in ipairs(ok and res or {}) do
+                if not seen[r.id] and #out < Config.Social.promptedSize then
+                    seen[r.id] = true
+                    out[#out + 1] = { src = 'yt', id = r.id, title = r.title, author = r.author, duration = r.duration, thumb = r.thumb }
+                end
             end
+            if #out >= Config.Social.promptedSize then break end
         end
-        if #out >= Config.Social.promptedSize then break end
-    end
-    prompting[src] = nil
-    if #out == 0 then Notify(src, 'resolve_failed') return nil end
-    MySQL.insert.await('INSERT INTO nayzeee_speaker_playlists (owner, owner_name, name, tracks, kind) VALUES (?, ?, ?, ?, ?)',
-        { id, Bridge.GetName(src), prompt:sub(1, 60), json.encode(out), 'prompted' })
-    Notify(src, 'prompted_made', 'success', #out)
-    return Playlists.Mine(id)
+        if #out == 0 then Notify(src, 'resolve_failed') return nil end
+        MySQL.insert.await('INSERT INTO nayzeee_speaker_playlists (owner, owner_name, name, tracks, kind) VALUES (?, ?, ?, ?, ?)',
+            { id, Bridge.GetName(src), prompt:sub(1, 60), json.encode(out), 'prompted' })
+        Notify(src, 'prompted_made', 'success', #out)
+        return Playlists.Mine(id)
+    end)
 end)
-
-AddEventHandler('playerDropped', function() prompting[source] = nil end)
 
 ---------------------------------------------------------------- collaborative
 NZ.RegisterCallback('pl:collab', function(src, plId, targetSrc)
-    if not Config.Social.collab then return nil end
+    if not Config.Social.collab then Notify(src, 'feature_off', 'inform') return nil end
     local id = Bridge.GetIdentifier(src)
     local r = Playlists.Get(plId)
     if not r or r.owner ~= id then return nil end
@@ -230,7 +258,7 @@ end)
 
 ---------------------------------------------------------------- mixed
 NZ.RegisterCallback('pl:mixed', function(src, plId, on)
-    if not Config.Social.mixed then return nil end
+    if not Config.Social.mixed then Notify(src, 'feature_off', 'inform') return nil end
     local r = Playlists.Get(plId)
     local id = Bridge.GetIdentifier(src)
     if not r or r.owner ~= id then return nil end

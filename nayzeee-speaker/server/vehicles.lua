@@ -1,13 +1,21 @@
 -- CarPlay: music in a vehicle, optionally only once a unit is installed in it (remembered by plate).
 local cp = Config.Carplay
 local noUnit = NZ.Cache(60)         -- plates just checked and found without a unit (saves a query per open)
+--[[
+    vehicle -> the plate the database had a unit for. The nzCarplay state bag is only for the
+    players' games to read: the car's owner can write to it, and the plate comes from its owner's
+    game too, so neither decides anything here on its own.
+]]
+local confirmed = {}
 
 local function hasUnit(veh)
     if not cp.install.use then return true end
-    if Entity(veh).state.nzCarplay then return true end
     local plate = NZ.Trim(GetVehicleNumberPlateText(veh))
-    if plate == '' or noUnit.get(plate) then return false end
+    if plate == '' then return false end
+    if confirmed[veh] == plate then return true end
+    if noUnit.get(plate) then return false end
     if DB.CarplayInstalled(plate) then
+        confirmed[veh] = plate
         Entity(veh).state:set('nzCarplay', true, true)
         return true
     end
@@ -61,8 +69,13 @@ RegisterNetEvent(RES .. ':carplay:install', function(netId)
     if hasUnit(veh) then return Notify(src, 'carplay_already') end
     local plate = NZ.Trim(GetVehicleNumberPlateText(veh))
     if not Bridge.HasItem(src, cp.install.item) or not Bridge.RemoveItem(src, cp.install.item) then return Notify(src, 'no_item') end
-    DB.CarplaySet(plate, Bridge.GetIdentifier(src), true)
+    -- 0 rows: someone installed one in this car a moment ago (both were checked before either finished)
+    if DB.CarplaySet(plate, Bridge.GetIdentifier(src), true) ~= 1 then
+        Bridge.GiveOrDrop(src, cp.install.item)
+        return Notify(src, 'carplay_already')
+    end
     noUnit.set(plate, false)
+    confirmed[veh] = plate
     Entity(veh).state:set('nzCarplay', true, true)
     Notify(src, 'carplay_installed', 'success')
     Log('CarPlay installed', ('**%s** (%s) installed a unit in `%s`'):format(GetPlayerName(src), src, plate))
@@ -78,11 +91,15 @@ RegisterNetEvent(RES .. ':carplay:remove', function(netId)
     if cp.install.ownerOnly and not Bridge.OwnsVehicle(src, plate) and not Bridge.IsAdmin(src) then
         return Notify(src, 'carplay_not_owner')
     end
-    DB.CarplaySet(plate, nil, false)
+    if not Bridge.CanCarry(src, cp.install.item, 1) then return Notify(src, 'shop_full') end
+    -- the unit item comes back only for a unit that really was in the database (and only once)
+    local removed = DB.CarplaySet(plate, nil, false) == 1
+    confirmed[veh] = nil
     Entity(veh).state:set('nzCarplay', false, true)
     local e = Emitters['v' .. tonumber(netId)]
     if e then RemoveEmitter(e) end
-    Bridge.AddItem(src, cp.install.item)
+    if not removed then return end
+    Bridge.GiveOrDrop(src, cp.install.item)
     Notify(src, 'carplay_removed', 'success')
 end)
 
@@ -94,6 +111,9 @@ end
 CreateThread(function()
     while true do
         Wait(3000)
+        for veh in pairs(confirmed) do
+            if not DoesEntityExist(veh) then confirmed[veh] = nil end
+        end
         for _, e in pairs(Emitters) do
             if e.kind == 'vehicle' then
                 local veh = NetworkGetEntityFromNetworkId(e.vehNet)

@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+  The record console's record label (client/turntable.lua shows this page as nayzeee_vinyl_label while
+  an album is on the nearest console): the album cover over the label, a ring and the spindle hole.
+  ?cover=<image link>  &album=  &artist=  (the text shows when there is no cover or it can't be loaded)
+
+  FiveM only opens http(s)://, nui:// and about: links in a DUI, so this is a file and not a data: link.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>nzspk label</title>
+<style>
+  @font-face{font-family:'Lexend';src:url(../fonts/lexend.woff2) format('woff2');font-weight:100 900}
+  html,body{margin:0;width:100vw;height:100vh;overflow:hidden;background:#0e1011}
+  .l{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(circle,#15181a 0 30%,#08afa2 30.5% 33%,#15181a 33.5%);color:#fff;
+    font:600 4.5vw Lexend,system-ui,sans-serif;text-align:center;letter-spacing:.08em;text-transform:uppercase}
+  .l b{display:block;max-width:60%;margin-top:20vw;font-weight:600}
+  .l span{display:block;max-width:60%;opacity:.6;font-size:.7em}
+  img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .r{position:absolute;inset:0;border-radius:50%;box-shadow:inset 0 0 0 1.8vw rgba(0,0,0,.28)}
+  .h{position:absolute;left:50%;top:50%;width:7.5vw;height:7.5vw;margin:-3.75vw;border-radius:50%;background:#050505}
+</style>
+</head>
+<body>
+<div class="l"><b id="t"></b><span id="a"></span></div>
+<div class="r"></div><div class="h"></div>
+<script>
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  document.getElementById('t').textContent = (q.get('album') || '').slice(0, 60);
+  document.getElementById('a').textContent = (q.get('artist') || '').slice(0, 60);
+  var cover = q.get('cover') || '';
+  if (!/^https?:\/\//i.test(cover)) return;
+  var img = new Image();
+  img.alt = '';
+  img.onerror = function () { img.remove(); };
+  img.src = cover;
+  document.body.insertBefore(img, document.querySelector('.r'));
+})();
+</script>
+</body>
+</html>

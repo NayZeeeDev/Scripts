@@ -302,7 +302,7 @@ function Vinyl.Advance(e, manual)
     -- end of the record: the arm goes home
     e.track, e.playing, e.pos = nil, false, 0
     e.vinyl.idx = 1
-    e.vinyl.loading = false
+    e.vinyl.loading, e.vinyl.token = false, nil      -- nor does a song still being looked up start
     push(e)
 end
 
@@ -313,22 +313,46 @@ function Vinyl.Prev(e, pos)
 end
 
 --[[
-    Takes the record off a deck and hands the item back. usedId = the deck the player actually used
-    (players near it see the record go back to that player's hand).
+    Who gets the record when player `src` takes it off deck `e` (nil: nobody can, so it stays on).
+    The player (Config.VinylReturn = 'ejector'), or whoever put it on ('owner', while they are here).
+    A player working the deck through a linked speaker from further away than arm's reach never gets
+    someone else's record: it goes back to whoever put it on, so a link can't pocket records from afar.
+]]
+function Vinyl.Taker(e, src)
+    local v = e.vinyl
+    if not v then return nil end
+    if src and v.owner == Bridge.GetIdentifier(src) then return src end
+    local owner = v.ownerSrc and GetPlayerName(v.ownerSrc) and v.ownerSrc or nil
+    if Config.VinylReturn == 'owner' and owner then return owner end
+    if src and InReach(src, e) then return src end
+    return owner
+end
+
+--[[
+    Takes the record off a deck and hands the item to `to` (nil = nobody is there to take it).
+    strict = a player is taking it: when it doesn't fit in `to`'s pockets nothing happens and false
+    comes back (the record stays on). Otherwise one that doesn't fit lands at their feet (see
+    Bridge.GiveOrDrop). usedId = the deck the player actually used (players near it see the record go
+    back to that player's hand).
     A linked deck only mirrors its leader's record: clearing the mirror hands nothing back, and the
     leader's record clears every mirror, so one record can never come back twice.
 ]]
-function Vinyl.Return(e, src, usedId)
+function Vinyl.Return(e, to, usedId, strict)
     local v = e.vinyl
-    if not v then return end
+    if not v then return true end
     local lead = Links and Links.Leader(e) or e
     if lead ~= e and lead.vinyl == v then
         e.vinyl = nil
-        return
+        return true
     end
-    local to = src
-    if Config.VinylReturn == 'owner' and v.ownerSrc and GetPlayerName(v.ownerSrc) then to = v.ownerSrc end
-    if to and GetPlayerName(to) then Bridge.AddItem(to, v.item) else to = nil end
+    if to and not GetPlayerName(to) then to = nil end
+    if to then
+        if strict then
+            if not Bridge.AddItem(to, v.item) then return false end
+        elseif Bridge.GiveOrDrop(to, v.item) ~= 'added' then
+            to = nil        -- not into their hand
+        end
+    end
     -- linked speakers played this record too: they stop with it (told here, because a deck that is
     -- packed up or broken leaves its group without telling anyone)
     if e.group and Links then
@@ -342,6 +366,7 @@ function Vinyl.Return(e, src, usedId)
     e.vinyl, v.token = nil, nil
     e.track, e.playing, e.pos = nil, false, 0
     TriggerClientEvent(RES .. ':client:vinylOff', -1, usedId or e.id, to or false, now())
+    return true
 end
 
 ---------------------------------------------------------------- putting records on
@@ -362,19 +387,24 @@ end
 -- true when the record went on
 function Vinyl.Insert(src, e, item)
     if not Records[item] then return false end
-    if not Bridge.HasItem(src, item) or not Bridge.RemoveItem(src, item) then return Notify(src, 'no_item') end
     -- linked decks share one record: it goes on the deck that leads the music (a deck following
     -- an ordinary speaker leaves that group to play it)
     local lead = Links and Links.Leader(e) or e
-    if lead ~= e and not IsTurntable(lead) then
-        Links.Detach(e)
-        lead = e
-    end
+    local leave = lead ~= e and not IsTurntable(lead)
+    if leave then lead = e end
+    -- a record already on comes off first, and someone has to take it
+    local taker = lead.vinyl and Vinyl.Taker(lead, src)
+    if lead.vinyl and not taker then return Notify(src, 'too_far') end
+    if not Bridge.HasItem(src, item) or not Bridge.RemoveItem(src, item) then return Notify(src, 'no_item') end
     local at = now()
     if lead.vinyl then
-        Vinyl.Return(lead, src, e.id)
+        if not Vinyl.Return(lead, taker, e.id, true) then
+            Bridge.GiveOrDrop(src, item)        -- back where it was a moment ago
+            return Notify(src, 'shop_full')
+        end
         if needle(lead) then at = at + math.floor(SWAP_DELAY * 1000) end
     end
+    if leave then Links.Detach(e) end
     lead.track, lead.playing, lead.pos = nil, false, 0
     lead.vinyl = {
         item = item, owner = Bridge.GetIdentifier(src), ownerSrc = src, idx = 1,
@@ -400,7 +430,10 @@ RegisterNetEvent(RES .. ':vinyl:eject', function(id)
     if not e then return end
     local lead = Links and Links.Leader(e) or e
     if not lead.vinyl then return end
-    Vinyl.Return(lead, src, e.id)
+    local taker = Vinyl.Taker(lead, src)
+    if not taker then return Notify(src, 'too_far') end
+    -- no room for it: the record stays on rather than vanish
+    if not Vinyl.Return(lead, taker, e.id, true) then return Notify(src, 'shop_full') end
     changed(src, id)
     Notify(src, 'vinyl_off', 'inform')
     push(lead)

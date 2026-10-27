@@ -147,38 +147,11 @@ local function urlencode(s)
     return (tostring(s):gsub('[^%w%-%._~]', function(c) return ('%%%02X'):format(c:byte()) end))
 end
 
--- The page shows the cover from its #fragment (JSON: s = { c = url, t = album, a = artist },
+-- html/dui/sleeve.html shows the cover from its #fragment (JSON: s = { c = url, t = album, a = artist },
 -- p = urls to warm up). Changing only the fragment doesn't reload it, so a cached cover swaps instantly.
-local PAGE = 'data:text/html;charset=utf-8,' .. urlencode([[<!doctype html><html><head><meta charset="utf-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100vw;height:100vh;overflow:hidden;background:#0b0c0d}
-#f{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:8vw;color:#f2f4f5;
-font-family:'Segoe UI',Arial,sans-serif;background:radial-gradient(120% 90% at 18% 8%,#1c2326 0,#0e1011 55%,#08090a 100%)}
-#f:before{content:'';position:absolute;left:50%;top:40%;width:62vw;height:62vw;margin:-31vw 0 0 -31vw;border-radius:50%;
-background:repeating-radial-gradient(circle,#0b0c0d 0 .5vw,#151a1c .5vw .75vw);box-shadow:0 0 0 .5vw rgba(8,175,162,.45),0 2vw 6vw rgba(0,0,0,.6)}
-#f:after{content:'';position:absolute;left:50%;top:40%;width:19vw;height:19vw;margin:-9.5vw 0 0 -9.5vw;border-radius:50%;
-background:radial-gradient(circle,#0b0c0d 0 9%,#08afa2 10% 100%);box-shadow:inset 0 0 0 3.4vw #067d74}
-#m{position:absolute;left:8vw;top:8vw;width:8vw;height:8vw;background:linear-gradient(155deg,#0fd4c4,#067d74);
-clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%)}
-#t{position:relative;z-index:1;font-size:7vw;font-weight:700;line-height:1.05;letter-spacing:-.02em;max-height:15vw;overflow:hidden}
-#a{position:relative;z-index:1;margin-top:1.6vw;font-size:3.6vw;font-weight:600;color:#0fd4c4;letter-spacing:.14em;text-transform:uppercase;
-white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#i{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
-#i.on{display:block}
-</style></head><body><div id="f"><i id="m"></i><b id="t"></b><span id="a"></span></div><img id="i" alt="">
-<script>
-var C={},Q=[],cur='';
-function get(u){var m=C[u];if(m)return m;m=new Image();m.src=u;C[u]=m;Q.push(u);
-while(Q.length>12){var o=Q.shift();if(o!==cur)delete C[o];}return m}
-function show(s){var img=document.getElementById('i');
-document.getElementById('t').textContent=s.t||'';document.getElementById('a').textContent=s.a||'';
-cur=s.c||'';if(!cur){img.className='';img.removeAttribute('src');return}
-var m=get(cur),u=cur;function on(){if(cur!==u)return;img.src=u;img.className='on'}
-if(m.complete&&m.naturalWidth)on();else{img.className='';m.addEventListener('load',on);}}
-function apply(){var d;try{d=JSON.parse(decodeURIComponent(location.hash.slice(1)))}catch(e){return}
-if(Array.isArray(d.p))d.p.forEach(function(u){if(u)get(u)});if(d.s)show(d.s)}
-window.addEventListener('hashchange',apply);apply();
-</script></body></html>]])
+-- (A DUI only opens http(s)://, nui:// and about: links: FiveM puts https:// in front of anything
+-- else, so the page is a file and not a data: link.)
+local PAGE = ('nui://%s/html/dui/sleeve.html'):format(RES)
 
 local function coverOf(item) return item and catalog[item] and catalog[item].cover or nil end
 
@@ -190,8 +163,10 @@ local function syncDui(s)
     for _, item in ipairs(s.warm or {}) do warm[#warm + 1] = coverOf(item) end
     if s.pending then warm[#warm + 1] = coverOf(s.pending.item) end
     local state = json.encode({ s = { c = c.cover or '', t = c.album or '', a = c.artist or '' }, p = warm })
-    if state == s.duiState then return end
-    s.duiState = state
+    if state == s.duiState then s.duiLate = nil return end
+    -- the page's browser isn't up yet and would drop it: frame() sends it again once it is
+    if not IsDuiAvailable(s.dui) then s.duiLate = true return end
+    s.duiState, s.duiLate = state, nil
     SetDuiUrl(s.dui, PAGE .. '#' .. urlencode(state))
 end
 
@@ -368,6 +343,7 @@ local function frame(now, dt)
     local sway = math.sin(now / 9000.0 * 2.0 * math.pi) * SWAY
 
     for _, s in ipairs(slots) do
+        if s.duiLate and IsDuiAvailable(s.dui) then syncDui(s) end
         if s.item then
             local o = s.to
             if anim and not anim.rise then o = s.from + (s.to - s.from) * e end

@@ -47,6 +47,7 @@ const T = {
   join: 'Join', liveJam: 'Live jam', start: 'Start',
   cancel: 'Cancel', done: 'Done', sentTo: 'Sent to %s', addedQueue: 'Added to the queue', addedTo: 'Added to %s',
   offline: "Can't reach the speakers", offlineSub: 'Close the app and open it again.',
+  hiddenSong: 'Hidden in streamer mode',
 };
 const t = (k, ...a) => {
   let s = T[k] != null ? String(T[k]) : k;
@@ -56,9 +57,13 @@ const t = (k, ...a) => {
 const countText = n => (n === 1 ? t('song') : t('songs', n || 0));
 
 /* ───────── game bridge ───────── */
+// How long a request may take before the app gives up on it (16 s unless listed). A search can keep
+// the server busy for up to a minute when the music sites are slow (shared/callbacks.lua waits 60 s
+// for it), so the app waits longer than that instead of showing "Nothing found" early.
+const PATIENCE = { phoneSearch: 65000 };
 function post(name, data) {
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
-  const timer = ctl ? setTimeout(() => ctl.abort(), 16000) : 0;
+  const timer = ctl ? setTimeout(() => ctl.abort(), PATIENCE[name] || 16000) : 0;
   return fetch(`https://${RES}/${name}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' },
     body: JSON.stringify(data || {}), signal: ctl ? ctl.signal : undefined,
@@ -84,6 +89,7 @@ const S = {
   query: '', results: null, searching: false,
   jams: null, jam: null,
   np: false, sheet: null, scrollPos: {}, lastTouch: performance.now(),
+  streamer: false,      // the player's streamer mode (client/main.lua): no song names or covers
 };
 
 const serverNow = () => S.clock.server + (performance.now() - S.clock.perf);
@@ -116,10 +122,13 @@ function nowTrack(d) {
   if (d.record) return { title: d.record.album, author: d.record.artist, thumb: d.record.cover, duration: 0, record: true };
   return null;
 }
+// what the app shows of a song: nothing that names it in streamer mode (covers: see cover())
+const songTitle = tr => (S.streamer ? t('hiddenSong') : (tr && tr.title) || t('unknown'));
+const songBy = tr => (S.streamer ? '' : (tr && tr.author) || '');
 
 /* ───────── markup helpers ───────── */
 function cover(u, big) {
-  if (!u || typeof u !== 'string') return null;
+  if (!u || typeof u !== 'string' || S.streamer) return null;
   const m = /^https?:\/\/i\d?\.ytimg\.com\/vi(?:_webp)?\/([\w-]{6,})\//.exec(u);
   // YouTube: hq (4:3 with bars, zoomed past them) for big art, mq (16:9, no bars) for small
   if (m) return big ? { src: `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg`, cls: 'yt' } : { src: `https://i.ytimg.com/vi/${m[1]}/mqdefault.jpg`, cls: '' };
@@ -203,8 +212,8 @@ function heroCard(d) {
     if (d.shuffle && !d.turntable) chips.push(`<span class="chip teal"><i class="fa-solid fa-shuffle"></i>${esc(t('shuffle'))}</span>`);
     body = `<div class="hero-main" data-a="openNp">${art(tr.thumb, { big: true, icon: tr.record ? 'fa-record-vinyl' : 'fa-music' })}
         <div class="hero-info"><span class="micro">${esc(t(tr.record ? 'onDeck' : 'nowPlaying'))}</span>
-          <div class="hero-title">${esc(tr.title || t('unknown'))}</div>
-          <div class="hero-artist ell">${esc(tr.author || '')}</div>
+          <div class="hero-title">${esc(songTitle(tr))}</div>
+          <div class="hero-artist ell">${esc(songBy(tr))}</div>
           ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}</div></div>
       ${seekBar(d)}${transport(d)}${volBar(d)}`;
   }
@@ -226,7 +235,7 @@ function quickActions(d) {
 
 function otherRow(d) {
   const tr = nowTrack(d), live = d.playing && !!d.track;
-  const sub = tr ? `${live ? eq(true) : ''}${esc(tr.title || '')} · ${esc(devWhere(d))}` : `${esc(t('idle'))} · ${esc(devWhere(d))}`;
+  const sub = tr ? `${live ? eq(true) : ''}${esc(songTitle(tr))} · ${esc(devWhere(d))}` : `${esc(t('idle'))} · ${esc(devWhere(d))}`;
   return `<div class="row" data-a="pickDev" data-dev="${esc(d.id)}">
     ${tr ? art(tr.thumb, { icon: devIcon(d), lazy: true }) : art('', { icon: devIcon(d) })}
     <div class="rt"><b>${esc(d.label)}</b><span>${sub}</span></div>
@@ -236,10 +245,10 @@ function otherRow(d) {
 
 function trackRow(tr, i, from, o = {}) {
   const fav = isFav(tr);
-  const sub = [tr.author, tr.duration ? fmt(tr.duration) : ''].filter(Boolean).map(esc).join(' · ');
+  const sub = [songBy(tr), tr.duration ? fmt(tr.duration) : ''].filter(Boolean).map(esc).join(' · ');
   return `<div class="row${o.now ? ' now' : ''}" data-a="play" data-from="${from}" data-i="${i}">
     ${o.num ? `<span class="num">${o.now ? eq(o.live) : i + 1}</span>` : ''}${art(tr.thumb, { lazy: true })}
-    <div class="rt"><b>${esc(tr.title || t('unknown'))}</b><span>${sub || '&nbsp;'}</span></div>
+    <div class="rt"><b>${esc(songTitle(tr))}</b><span>${sub || '&nbsp;'}</span></div>
     <div class="acts">
       ${canHeart(tr) ? `<button class="ib sm${fav ? ' liked' : ''}" data-a="heart" data-from="${from}" data-i="${i}" aria-label="${esc(t(fav ? 'unlike' : 'like'))}"><i class="fa-${fav ? 'solid' : 'regular'} fa-heart"></i></button>` : ''}
       <button class="ib sm" data-a="more" data-from="${from}" data-i="${i}" aria-label="More"><i class="fa-solid fa-ellipsis"></i></button>
@@ -364,7 +373,7 @@ function miniHTML() {
   if (!d || !tr) return '';
   const live = d.playing && !!d.track;
   return `<div class="ambient">${ambient(tr.thumb)}</div>${art(tr.thumb, { icon: tr.record ? 'fa-record-vinyl' : 'fa-music' })}
-    <div class="mt"><b>${esc(tr.title || t('unknown'))}</b><span><i class="fa-solid ${devIcon(d)}"></i><em>${esc(d.label)}</em></span></div>
+    <div class="mt"><b>${esc(songTitle(tr))}</b><span><i class="fa-solid ${devIcon(d)}"></i><em>${esc(d.label)}</em></span></div>
     <button class="ib" data-a="devices" aria-label="${esc(t('chooseSpeaker'))}"><i class="fa-solid fa-tower-broadcast"></i></button>
     <button class="ib" data-a="toggle" data-dev="${esc(d.id)}" aria-label="${live ? 'Pause' : 'Play'}"><i class="fa-solid fa-${live ? 'pause' : 'play'}"></i></button>
     <div class="mini-bar" data-live="bar" data-dev="${esc(d.id)}"><i></i></div>`;
@@ -378,13 +387,13 @@ function queueHTML(d) {
       const now = i + 1 === d.record.idx;
       return `<div class="row${now ? ' now' : ''}" data-a="qPlay" data-dev="${id}" data-i="${i + 1}">
         <span class="num">${now ? eq(d.playing) : i + 1}</span>
-        <div class="rt"><b>${esc(title)}</b><span>${esc(d.record.artist || '')}</span></div></div>`;
+        <div class="rt"><b>${esc(songTitle({ title }))}</b><span>${esc(songBy({ author: d.record.artist }))}</span></div></div>`;
     }).join('');
   }
   const q = asList(d.queue) || [];
   return sec(t('upNext'), q.length || '') + (q.length
     ? q.map((tr, i) => `<div class="row" data-a="qPlay" data-dev="${id}" data-i="${i + 1}">${art(tr.thumb, { lazy: true })}
-        <div class="rt"><b>${esc(tr.title || t('unknown'))}</b><span>${esc(tr.author || '')}</span></div>
+        <div class="rt"><b>${esc(songTitle(tr))}</b><span>${esc(songBy(tr))}</span></div>
         <div class="acts"><button class="ib sm" data-a="qRemove" data-dev="${id}" data-i="${i + 1}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button></div></div>`).join('')
     : `<div class="empty"><span>${esc(t('queueEmpty'))}</span></div>`);
 }
@@ -398,8 +407,8 @@ function npHTML() {
   if (!d) return '';
   const tr = nowTrack(d), fav = isFav(d.track);
   return `<div class="np-art">${art(tr && tr.thumb, { big: true, icon: tr ? (tr.record ? 'fa-record-vinyl' : 'fa-music') : devIcon(d) })}</div>
-    <div class="np-meta"><div class="mt"><b>${esc(tr ? tr.title || t('unknown') : t('nothingPlaying'))}</b>
-      <span>${esc(tr ? tr.author || '' : t(d.turntable ? 'idleRecord' : 'idleHint'))}</span></div>
+    <div class="np-meta"><div class="mt"><b>${esc(tr ? songTitle(tr) : t('nothingPlaying'))}</b>
+      <span>${esc(tr ? songBy(tr) : t(d.turntable ? 'idleRecord' : 'idleHint'))}</span></div>
       ${canHeart(d.track) ? `<button class="ib${fav ? ' liked' : ''}" data-a="heartNow" data-dev="${esc(d.id)}" aria-label="${esc(t(fav ? 'unlike' : 'like'))}"><i class="fa-${fav ? 'solid' : 'regular'} fa-heart"></i></button>
       <button class="ib" data-a="moreNow" data-dev="${esc(d.id)}" aria-label="More"><i class="fa-solid fa-ellipsis"></i></button>` : ''}</div>
     ${seekBar(d)}${transport(d)}${volBar(d)}
@@ -413,7 +422,7 @@ function devicesSheet(sh) {
     const tr = nowTrack(d), cur = d.id === S.active, live = d.playing && !!d.track, off = sh.pick && d.turntable;
     return `<button class="dev${cur ? ' cur' : ''}${live ? ' playing' : ''}${off ? ' off' : ''}" data-a="pickDev" data-dev="${esc(d.id)}"${off ? ' disabled' : ''}>
       <span class="di"><i class="fa-solid ${devIcon(d)}"></i></span>
-      <span class="dt"><b>${esc(d.label)}</b><span>${esc(devWhere(d))}${tr ? ` · <em>${esc(tr.title || '')}</em>` : ''}</span></span>
+      <span class="dt"><b>${esc(d.label)}</b><span>${esc(devWhere(d))}${tr ? ` · <em>${esc(songTitle(tr))}</em>` : ''}</span></span>
       <span class="tick">${cur ? '<i class="fa-solid fa-check"></i>' : live ? eq(true) : ''}</span></button>`;
   }).join('');
   return `<div class="grab"></div>
@@ -437,8 +446,8 @@ function trackSheet(sh) {
       + (S.features.playlists && canHeart(tr) ? opt('sPlaylists', 'solid fa-circle-plus', t('addPl')) : '');
   }
   return `<div class="grab"></div>
-    <div class="sheet-head">${art(tr.thumb)}<div class="st"><h3 class="ell">${esc(sh.step === 'playlists' ? t('addPl') : tr.title || t('unknown'))}</h3>
-      <p class="ell">${esc(sh.step === 'playlists' ? tr.title || '' : tr.author || '')}</p></div></div>
+    <div class="sheet-head">${art(tr.thumb)}<div class="st"><h3 class="ell">${esc(sh.step === 'playlists' ? t('addPl') : songTitle(tr))}</h3>
+      <p class="ell">${esc(sh.step === 'playlists' ? songTitle(tr) : songBy(tr))}</p></div></div>
     <div class="sheet-body">${body}</div>`;
 }
 
@@ -601,6 +610,7 @@ async function poll(fresh) {
 
 function apply(data) {
   S.clock = { server: +data.now || 0, perf: performance.now() };
+  S.streamer = data.streamer === true;   // streamer mode can be switched while the app is open
   const now = performance.now(), list = [], byId = new Map();
   for (const d of asList(data.devices) || []) {
     if (!d || typeof d.id !== 'string') continue;
@@ -912,11 +922,11 @@ function dragTo(ev) {
   g.v = clamp01((ev.clientX - r.left) / (r.width || 1));
   g.el.style.setProperty('--v', g.v.toFixed(4));
   g.el._v = null;
+  // volume shows here while dragging and is sent once, on release (like the main player's slider):
+  // every change is a full speaker update to every player on the server
   if (g.kind === 'vol') {
     const d = S.byId.get(g.id);
     if (d) hold(d, { volume: g.v }, 1600);
-    const now = performance.now();
-    if (now - g.sent > 140) { g.sent = now; post('phoneAction', { id: g.id, what: 'volume', value: +g.v.toFixed(3) }); }
   }
   tick();
 }
@@ -926,7 +936,7 @@ document.addEventListener('pointerdown', ev => {
   const d = S.byId.get(el.dataset.dev);
   if (!d) return;
   ev.preventDefault();
-  S.drag = { el, id: d.id, kind: el.dataset.sl, v: 0, sent: 0 };
+  S.drag = { el, id: d.id, kind: el.dataset.sl, v: 0 };
   el.classList.add('drag');
   try { el.setPointerCapture(ev.pointerId); } catch (_) { /* old CEF */ }
   dragTo(ev);
@@ -1014,6 +1024,7 @@ async function init() {
       for (const k of Object.keys(info.strings)) if (typeof info.strings[k] === 'string') T[k] = info.strings[k];
     }
     if (typeof info.name === 'string' && info.name) S.name = info.name;
+    if (typeof info.streamer === 'boolean') S.streamer = info.streamer;
     if (info.features && typeof info.features === 'object') Object.assign(S.features, info.features);
     if (info.insets && typeof info.insets === 'object') {
       if (!QS.has('top')) setInset('--st', info.insets.top);

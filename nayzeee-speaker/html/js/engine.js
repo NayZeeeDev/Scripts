@@ -306,6 +306,8 @@ const Engine = (() => {
       if (em && em.track && em.track.id && keyOf(em.track) === k) {
         S.nodes.set(id, mountYT(id, em, k));
         post('fellback', { id, key: k });
+      } else if (em && em.track && keyOf(em.track) === k) {
+        post('ended', { id, key: k, failed: true });   // a direct link with nothing to fall back to
       }
     });
 
@@ -402,7 +404,8 @@ const Engine = (() => {
             if (ev.data === 0 && !n.leaving && !n.dead) post('ended', { id, key: k });
             if (ev.data === 1) { reportDuration(id, k, n.player.getDuration()); onPlaying(n); }
           },
-          onError: () => { if (!n.leaving && !n.dead) post('ended', { id, key: k }); },
+          // removed / private / not embeddable: tell the server it can't be played (it moves on once most listeners say so)
+          onError: () => { if (!n.leaving && !n.dead) post('ended', { id, key: k, failed: true }); },
         },
       });
     });

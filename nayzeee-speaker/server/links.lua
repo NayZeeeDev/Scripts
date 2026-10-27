@@ -128,10 +128,10 @@ end
 --[[
     Picks the leader of a group that just grew. Followers copy the leader, so whatever else was on a
     follower is overwritten: a deck holding a record leads (a playing record first), otherwise
-    whichever speaker has music. Any other record in the group goes back to `to`, or to whoever put
-    it on, instead of disappearing.
+    whichever speaker has music. Any other record in the group goes back to whoever put it on (never
+    to the player linking, who may not be anywhere near it), instead of disappearing.
 ]]
-local function settle(g, from, to)
+local function settle(g, from)
     local function weight(m) return (m.vinyl and 2 or 0) + (m.track and 1 or 0) end
     local members = Links.Members(from)
     local lead = Emitters[g.leader] or from
@@ -140,7 +140,7 @@ local function settle(g, from, to)
     end
     g.leader = lead.id
     for _, m in ipairs(members) do
-        if m ~= lead and m.vinyl and m.vinyl ~= lead.vinyl then Vinyl.Return(m, to or m.vinyl.ownerSrc, m.id) end
+        if m ~= lead and m.vinyl and m.vinyl ~= lead.vinyl then Vinyl.Return(m, m.vinyl.ownerSrc, m.id) end
     end
     return lead
 end
@@ -151,17 +151,40 @@ local function canLink(src, e)
     return e.owner == Bridge.GetIdentifier(src) or Bridge.IsAdmin(src)
 end
 
+-- one link / unlink per player every 0.6 s (each one is sent to everyone, and logged)
+local lastLink = {}
+local function tooSoon(src)
+    local t = GetGameTimer()
+    if lastLink[src] and t - lastLink[src] < 600 then
+        Notify(src, 'shop_slow', 'inform')
+        return true
+    end
+    lastLink[src] = t
+    return false
+end
+AddEventHandler('playerDropped', function() lastLink[source] = nil end)
+
+--[[
+    The player stands at speaker `id` and links `otherId` to it. Someone else's speaker only links
+    while you are standing at it too: a link lets either speaker control the other's music (and its
+    record), so it must not reach further than walking up to it would.
+]]
 RegisterNetEvent(RES .. ':link', function(id, otherId)
     local src = source
-    if not Config.Links.enabled then return end
+    if not Config.Links.enabled then return Notify(src, 'feature_off', 'inform') end
+    if tooSoon(src) then return end
     local a = Guard(src, id, true)
     local b = Emitters[otherId]
-    if not a or not b or a.id == b.id then return end
+    if not a or not b or a.id == b.id or b.spawning then return end
     if a.kind == 'vehicle' or b.kind == 'vehicle' then return Notify(src, 'link_vehicle') end
     if not canLink(src, a) or not canLink(src, b) then return Notify(src, 'not_owner') end
 
     local pa, pb = EmitterPosition(a), EmitterPosition(b)
     if not pa or not pb or #(pa - pb) > Config.Links.distance then return Notify(src, 'link_far') end
+    if b.owner ~= Bridge.GetIdentifier(src) and not Bridge.IsAdmin(src) then
+        if not InReach(src, b) then return Notify(src, 'too_far') end
+        if LockedFor(src, b) then return Notify(src, 'no_access') end
+    end
 
     local ga, gb = Links.GroupOf(a), Links.GroupOf(b)
     if ga and gb and ga.id == gb.id then return end
@@ -169,7 +192,7 @@ RegisterNetEvent(RES .. ':link', function(id, otherId)
     local g = ga or gb or groupFor(a)
     if not join(g, a) or not join(g, b) then return Notify(src, 'link_full') end
 
-    local lead = settle(g, a, src)
+    local lead = settle(g, a)
     Broadcast(a) Broadcast(b)
     Links.Sync(lead)
     Notify(src, 'linked', 'success', #g.members)
@@ -178,6 +201,7 @@ end)
 
 RegisterNetEvent(RES .. ':unlink', function(id)
     local src = source
+    if tooSoon(src) then return end
     local e = Guard(src, id, true)
     if not e or not e.group then return end
     if not canLink(src, e) then return Notify(src, 'not_owner') end
@@ -215,7 +239,7 @@ exports('LinkSpeakers', function(idA, idB)
     if not a or not b or a == b then return false end
     local g = groupFor(a)
     if not join(g, a) or not join(g, b) then return false end
-    local lead = settle(g, a, nil)
+    local lead = settle(g, a)
     Broadcast(a) Broadcast(b)
     Links.Sync(lead)
     return true

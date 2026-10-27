@@ -99,6 +99,15 @@ function Search.Encode(s)
     end))
 end
 
+--[[
+    Lookups on the web at once, server-wide: more wait for a free slot, so a burst of searches can't
+    run through the API key's daily quota in a minute or get the audio hosts (Config.Audio.instances,
+    which also serve the songs) to rate-limit this server. The same query asked again while it is
+    still being looked up waits for that answer instead of asking the web twice.
+]]
+local MAX_LOOKUPS = 6
+local running, pending = 0, {}      -- lookups on the web right now / key -> promise of the answer
+
 -- list of { src, id, title, author, duration, thumb }
 function Search.Query(query, limit)
     query = NZ.Trim(query, 120)
@@ -107,9 +116,18 @@ function Search.Query(query, limit)
     local key = query:lower() .. '|' .. limit
     local hit = results.get(key)
     if hit then return hit end
+    if pending[key] then return Citizen.Await(pending[key]) end
+    local p = promise.new()
+    pending[key] = p
+    while running >= MAX_LOOKUPS do Wait(100) end
+    running = running + 1
+    local ok, list = pcall(function() return viaDataApi(query, limit) or viaInstance(query, limit) or viaScrape(query, limit) end)
+    running = running - 1
+    pending[key] = nil
     -- nothing found is not remembered: it is usually every provider being down for a moment
-    local list = viaDataApi(query, limit) or viaInstance(query, limit) or viaScrape(query, limit)
-    return list and results.set(key, list) or {}
+    list = ok and list and results.set(key, list) or {}
+    p:resolve(list)
+    return list
 end
 
 -- best single match, used by records and imported playlists
@@ -118,17 +136,27 @@ function Search.Song(query)
     return list[1] and list[1].id or nil
 end
 
--- the search box (main player and phone app)
-local lastSearch = {}
+--[[
+    The search box (main player and phone app): one search at a time per player, at least 0.7 s
+    apart and at most PER_MINUTE a minute.
+]]
+local PER_MINUTE = 20
+local lastSearch, searching, budget = {}, {}, {}
 NZ.RegisterCallback('search', function(src, query)
-    if not Config.Search.enabled then return {} end
+    if not Config.Search.enabled then Notify(src, 'feature_off', 'inform') return {} end
     local t = GetGameTimer()
     if lastSearch[src] and t - lastSearch[src] < 700 then return {} end
-    lastSearch[src] = t
-    return Search.Query(query, Config.Search.results)
+    local b = budget[src]
+    if not b or t - b.from >= 60000 then b = { from = t, n = 0 } budget[src] = b end
+    if searching[src] or b.n >= PER_MINUTE then Notify(src, 'rate_limited_search', 'inform') return {} end
+    lastSearch[src], searching[src], b.n = t, true, b.n + 1
+    local ok, list = pcall(Search.Query, query, Config.Search.results)
+    searching[src] = nil
+    if not ok then error(list, 0) end
+    return list
 end)
 
-AddEventHandler('playerDropped', function() lastSearch[source] = nil end)
+AddEventHandler('playerDropped', function() lastSearch[source], searching[source], budget[source] = nil, nil, nil end)
 
 ---------------------------------------------------------------- YouTube playlists
 -- { title = ..., tracks = { { title, id } } } or nil, errorKey

@@ -49,12 +49,17 @@ local function reachable(me, e)
     end
     local mine = e.owner == me.id
     if e.access == 'owner' and not mine and not isAdmin(me) then return false, 'no_access' end
+    -- music commands go to the group's leader, so a locked leader locks its linked speakers too, and
+    -- a speaker of mine that follows someone else's is theirs to reach (no remote control through a link)
+    local lead = e.group and Links.Leader(e) or e
+    local theirs = lead ~= e and lead.owner ~= me.id
+    if theirs and lead.access == 'owner' and not isAdmin(me) then return false, 'no_access' end
     local range = tonumber(P.range) or 0
     if range <= 0 then
-        if mine or isAdmin(me) then return true end
+        if (mine and not theirs) or isAdmin(me) then return true end
         range = OTHERS_RANGE
     end
-    local pos = EmitterPosition(e)
+    local pos = EmitterPosition(theirs and lead or e)
     if not pos or not me.coords or not (#(me.coords - pos) <= range) then return false, 'too_far' end
     return true
 end

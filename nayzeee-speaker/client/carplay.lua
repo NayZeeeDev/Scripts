@@ -24,7 +24,12 @@ local function openPlayer()
 
     local ped = PlayerPedId()
     local veh = GetVehiclePedIsIn(ped, false)
-    if veh == 0 then return end
+    if veh == 0 then
+        -- on foot with nothing in your hands: the jam you are in, if any (client/main.lua)
+        local jam = MyJam()
+        if jam then OpenUI(jam) end
+        return
+    end
     if not cp.enabled then return Notify(NZ.L('carplay_disabled'), 'error') end
     if not NZ.VehicleAllowed(GetEntityModel(veh), GetVehicleClass(veh)) then
         return Notify(NZ.L('blacklisted_vehicle'), 'error')

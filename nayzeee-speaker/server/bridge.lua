@@ -92,6 +92,33 @@ function Bridge.AddItem(src, item, count)
     return true
 end
 
+--[[
+    Hands back something the player is owed when nothing can wait for them to make room (a record a
+    link took off, a speaker that broke, the resource stopping): into their pockets, else on the
+    ground at their feet (ox_inventory), else it is logged so staff can give it to them.
+    Returns 'added', 'dropped' or false.
+]]
+function Bridge.GiveOrDrop(src, item, count)
+    count = count or 1
+    local online = src and GetPlayerName(src) ~= nil
+    if online then
+        local ok, added = pcall(Bridge.AddItem, src, item, count)
+        if ok and added then return 'added' end
+        if useOx then
+            local ok2, dropId = pcall(function()
+                return exports.ox_inventory:CustomDrop('Drop', { { item, count } }, GetEntityCoords(GetPlayerPed(src)),
+                    1, nil, GetPlayerRoutingBucket(src))
+            end)
+            if ok2 and dropId then return 'dropped' end
+        end
+    end
+    local msg = ('could not hand %dx %s to player %s (%s); give it to them by hand'):format(count, item, tostring(src),
+        online and 'no room' or 'offline')
+    print(('^3[%s] %s^7'):format(RES, msg))
+    if Log then Log('Item not handed back', msg) end
+    return false
+end
+
 function Bridge.RegisterUsable(item, cb)
     Bridge.OnUse[item] = cb
     if FW == 'esx' then

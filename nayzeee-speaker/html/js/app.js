@@ -25,7 +25,7 @@ const App = {
 };
 
 // English for keys a server's locale file may not have yet, so a raw key never shows
-const EN = { pl_empty: 'Nothing in here yet', rgb_lights: 'RGB lights', rgb_lights_s: 'Animated lights on the speakers' };
+const EN = { pl_empty: 'Nothing in here yet', rgb_lights: 'RGB lights', rgb_lights_s: 'Animated lights on the speakers', jam_play: 'Open the jam player' };
 const t = (k, ...a) => { let s = App.L[k] ?? EN[k] ?? k; a.forEach(v => { s = s.replace('%s', () => v); }); return s; };
 
 const fmt = s => {
@@ -79,14 +79,21 @@ function playAnim(kind) {
   else np.classList.add('anim-out', 'out-' + (s.animOut || 'fade'));
 }
 
+// The built-in mark shows until the logo has actually loaded: the default Config.Brand.logo
+// (img/logo.png) isn't shipped, and a missing file would leave an empty square.
 function applyBrand() {
   const b = App.brand || {};
-  document.querySelectorAll('.mark').forEach(el => {
+  const logo = b.watermark !== false && typeof b.logo === 'string' && b.logo;
+  const paint = ok => document.querySelectorAll('.mark').forEach(el => {
     el.classList.toggle('hidden', b.watermark === false);
-    const logo = b.watermark !== false && typeof b.logo === 'string' && b.logo;
-    el.style.backgroundImage = logo ? cssUrl(logo) : '';
-    el.classList.toggle('custom', !!logo);
+    el.style.backgroundImage = ok ? cssUrl(logo) : '';
+    el.classList.toggle('custom', ok);
   });
+  paint(false);
+  if (!logo) return;
+  const img = new Image();
+  img.onload = () => { if (App.brand === b) paint(true); };
+  img.src = logo;
 }
 
 /* ─────────── locale ─────────── */
@@ -135,7 +142,7 @@ function setCompact(on, save) {
 }
 const entryHidden = (e, view) => !!(e && e.turntable) || (!App.compact && !['queue', 'search'].includes(view));
 
-function openUI(id, compact) {
+function openUI(id, compact, view) {
   dropTyping();
   App.id = id; App.open = true;
   App.compact = !!compact;
@@ -151,6 +158,7 @@ function openUI(id, compact) {
   $('ctxSub').textContent = (label.toLowerCase() !== title.toLowerCase() && label) || brandName();
   $('urlIn').value = '';
   Engine.unlock();
+  if (typeof view === 'string' && RENDER[view]) App.view = view;   // the game asked for a tab (the jam's player)
   if (vin && !['tracks','records','settings'].includes(App.view)) App.view = 'tracks';
   if (!vin && ['tracks','records'].includes(App.view)) App.view = 'queue';
   render();
@@ -470,7 +478,8 @@ const RENDER = {
       h += `<div class="jam-card">
         <div class="jam-h"><b>${esc(App.jam.name)}</b><span>${esc(t('jam_host', App.jam.host))}</span></div>
         <div class="jam-m">${(App.jam.members || []).map(m => `<span class="tag ${m.host ? 'teal' : ''}">${esc(m.name)}${m.host ? ' ★' : ''}</span>`).join('')}</div>
-        <button class="btn-red" data-a="jamLeave"><i class="fa-solid fa-right-from-bracket"></i>${esc(t('jam_leave'))}</button>
+        <div class="head-acts">${App.jam.emitter && App.jam.emitter !== App.id ? `<button class="btn-teal" data-a="jamOpen"><i class="fa-solid fa-sliders"></i>${esc(t('jam_play'))}</button>` : ''}
+          <button class="btn-red" data-a="jamLeave"><i class="fa-solid fa-right-from-bracket"></i>${esc(t('jam_leave'))}</button></div>
       </div>
       <div class="audio-note ok"><i class="fa-solid fa-headphones"></i><span>${esc(t('jam_note'))}</span></div>`;
     }
@@ -626,6 +635,15 @@ async function loadJams() {
   App.jam = (d && d.mine) || null;
   if (App.view === 'jam') renderView();
 }
+// after starting or joining a jam the player switches to the jam's own speaker, so what is played
+// next goes to everyone in the jam (view = the server's answer, false when it said no)
+function joinedJam(view) {
+  if (view && typeof view === 'object' && typeof view.emitter === 'string') {
+    App.jam = view;
+    if (view.emitter !== App.id) post('jamOpen', { id: view.emitter });
+  }
+  loadJams();
+}
 
 async function runSearch(query) {
   App.searchQ = query;
@@ -765,11 +783,17 @@ const ACTIONS = {
   jamStart: async () => {
     const name = await askText(t('jam_name'));
     if (name === null) return;
-    await post('jamCreate', { name });
+    joinedJam(await post('jamCreate', { name }));
+  },
+  jamJoin: async (b) => joinedJam(await post('jamJoin', { id: +b.dataset.id })),
+  // the jam's music lives on its own speaker: this opens the player on it (client/main.lua)
+  jamOpen: () => { if (App.jam && App.jam.emitter) post('jamOpen', { id: App.jam.emitter }); },
+  jamLeave: async () => {
+    const was = App.jam && App.jam.emitter;
+    await post('jamLeave');
+    if (was && App.id === was) return closeUI(true);   // its player is no use to you any more
     loadJams();
   },
-  jamJoin: (b) => post('jamJoin', { id: +b.dataset.id }).then(loadJams),
-  jamLeave: () => post('jamLeave').then(loadJams),
 
   // settings
   tog: (b) => {
@@ -1199,7 +1223,7 @@ window.addEventListener('message', ({ data: m }) => {
       if (App.hud === m.id) refreshHud();
       break;
     case 'spatial': Engine.spatial(m.list || []); break;
-    case 'open': openUI(m.id, m.compact); break;
+    case 'open': openUI(m.id, m.compact, m.view); break;
     case 'close': closeUI(false); break;
     case 'lists':
       takeFavs(m.favs);

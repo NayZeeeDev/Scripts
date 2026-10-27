@@ -153,6 +153,11 @@ local function dropCarried(pack)
         return TriggerServerEvent(RES .. ':pack', id)
     end
     local spot = groundAt(GetOffsetFromEntityInWorldCoords(ped, 0.0, 0.55, 0.0))
+    -- never set down in a blacklisted zone: it stays in your hands (dying there packs it instead)
+    if NZ.InBlacklistedZone(spot) then
+        if IsEntityDead(ped) then return dropCarried(true) end
+        return Notify(NZ.L('blacklisted_zone'), 'error')
+    end
     local heading = (GetEntityHeading(ped) + 180.0) % 360.0
     stopCarryLocal()
     if not IsEntityDead(ped) then setDown(700, 6.0) end
