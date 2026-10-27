@@ -441,7 +441,7 @@ Config.Looks = {
         sp1   = 'violet',        -- fabric of the Pulse Tower
         sp2   = 'honeycomb',     -- fabric of the Echo Column AND the Carry Cube (one texture, so they always match)
         sp3   = 'cobalt',        -- fabric of the Drum Hub
-        sp4   = 'teal',          -- fabric of the Orb
+        sp4   = 'sunset',        -- fabric of the Orb
         sp5   = 'crimson',       -- fabric of the Roll Bar
         repro = 'chrome',        -- drivers on both ends of the Roll Bar
     },
