@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" data-shape="cut">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE Radio</title>
+<!--
+  NAYZEEE RADIO · NUI
+  One page, many apps. Each app lives in apps/<name>/ and renders into its own
+  <section id="app-<name>">. Lua drives them through NZR.UI (client/core/ui.lua).
+  Browser preview: index.html (gallery) · index.html?app=<name> · index.html?app=kit
+  No web fonts or CDN: everything loads from this resource (core/fonts).
+-->
+<link rel="stylesheet" href="core/nz-core.css">
+<link rel="stylesheet" href="core/nzr.css">
+<link rel="stylesheet" href="apps/overlay/app.css">
+<link rel="stylesheet" href="apps/roster/app.css">
+<link rel="stylesheet" href="apps/vhud/app.css">
+<link rel="stylesheet" href="apps/alert/app.css">
+<link rel="stylesheet" href="apps/headunit/app.css">
+<link rel="stylesheet" href="apps/hack/app.css">
+<link rel="stylesheet" href="apps/admin/app.css">
+</head>
+<body>
+<div id="nzr-root">
+  <!-- HUD apps (never take focus) -->
+  <section id="app-overlay" class="nzr-app" data-app="overlay"></section>
+  <section id="app-roster" class="nzr-app" data-app="roster"></section>
+  <section id="app-vhud" class="nzr-app" data-app="vhud"></section>
+  <section id="app-alert" class="nzr-app" data-app="alert"></section>
+  <!-- focused apps -->
+  <section id="app-headunit" class="nzr-app" data-app="headunit"></section>
+  <section id="app-hack" class="nzr-app" data-app="hack"></section>
+  <section id="app-admin" class="nzr-app" data-app="admin"></section>
+</div>
+<!-- core layers (nzr.js): [E] prompts on the right edge, toasts top right -->
+<div id="nzr-layer-prompt"></div>
+<div id="nzr-layer-toasts"></div>
+
+<script src="core/nzr-input.js"></script>
+<script src="core/nz-core.js"></script>
+<script src="core/nzr.js"></script>
+<script src="core/sfx.js"></script>
+<script src="apps/overlay/app.js"></script>
+<script src="apps/roster/app.js"></script>
+<script src="apps/vhud/app.js"></script>
+<script src="apps/alert/app.js"></script>
+<script src="apps/headunit/app.js"></script>
+<script src="apps/hack/app.js"></script>
+<script src="apps/admin/app.js"></script>
+<script>NZR.boot();</script>
+</body>
+</html>

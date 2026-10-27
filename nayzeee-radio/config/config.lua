@@ -38,6 +38,18 @@ Config.Framework = 'auto'       -- 'auto' | 'esx' | 'qbcore' | 'qbox' | 'standal
 Config.PropsResource = 'nayzeee-radio-props'
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- WINDOWS & HUD (the NUI: admin panel, roster, head unit, hack, notifications)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+Config.UI = {
+    font      = 'Lexend',  -- 'Lexend' ships with the resource (works offline)
+    shape     = 'cut',     -- window silhouette: cut twin mirror bevel crest flip step blade notch round
+    scale     = 1.0,       -- 0.8 - 1.2, on top of the automatic scale for the screen height
+    sounds    = true,      -- soft clicks on notifications (radio sounds are in config/modules/signal.lua)
+    signature = true,      -- small NAYZEEE signature on windows (never on the radios themselves)
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- ADMIN
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -61,7 +73,7 @@ Config.Commands = {
 -- Default keys. Every one is a FiveM key mapping: players can rebind them in
 -- Settings > Key Bindings > FiveM. '' = no default key (the binding still exists).
 Config.Keys = {
-    ptt       = 'LMENU',    -- hold to talk on your TX channel (left Alt)
+    ptt       = 'CAPITAL',  -- hold to talk on your TX channel (Caps Lock; Left Alt clashes with ox_target and pma-voice)
     raise     = 'F10',      -- raise the radio in front of you (in a radio car: open the head unit)
     handsfree = '',         -- toggle an open mic
     mute      = '',         -- mute / unmute everything you receive

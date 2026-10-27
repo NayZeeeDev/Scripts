@@ -22,9 +22,9 @@ Config = Config or {}
 
 Config.Bridge = {
 
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
     -- WHICH SCRIPTS TO USE   ('auto' = detect what is started)
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
 
     framework = 'auto',   -- 'auto' (uses Config.Framework) | 'esx' | 'qbcore' | 'qbox' | 'standalone'
 
@@ -37,36 +37,40 @@ Config.Bridge = {
     notify    = 'auto',   -- 'auto' = our own NUI toasts (recommended)
                           -- 'nayzeee' | 'ox_lib' | 'okok' | 'codem' | 'mythic' | 'brutal' | 't-notify' | 'qb' | 'esx' | 'native'
 
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
     -- STANDALONE (no framework)
     -- Jobs come from aces. The first job in this list the player has is theirs:
     --   add_ace identifier.license:xxxx nzr.job.police allow
-    --   add_ace identifier.license:xxxx nzr.job.police.3 allow   (grade 3, optional)
+    --   add_ace identifier.license:xxxx nzr.grade.police.3 allow     (grade 3, optional)
+    --   add_ace identifier.license:xxxx nzr.grade.police.boss allow  (boss, optional)
+    -- Grades are not written as nzr.job.police.3: aces are inherited, so that one
+    -- would come with nzr.job.police itself and everyone would get the top grade.
     -- Job-locked channels then work exactly as on a framework server.
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
 
     standaloneJobs = {
         { name = 'police',    label = 'Police' },
         { name = 'sheriff',   label = 'Sheriff' },
         { name = 'ambulance', label = 'EMS' },
     },
-    standaloneJobAce   = 'nzr.job',   -- prefix of the job aces above
-    standaloneMaxGrade = 10,          -- highest nzr.job.<name>.<n> grade that is checked
+    standaloneJobAce   = 'nzr.job',     -- prefix of the job aces above
+    standaloneGradeAce = 'nzr.grade',   -- prefix of the grade / boss aces above
+    standaloneMaxGrade = 10,            -- highest nzr.grade.<name>.<n> that is checked
     standaloneOnDuty   = true,        -- standalone jobs count as on duty
 
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
     -- ESX DUTY
     -- Older ESX servers put off-duty officers on a job called 'offpolice'.
     -- That job counts as 'police' + off duty, for the jobs listed here.
     -- New ESX (job.onDuty) works as is.
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
 
     offDutyPrefix = 'off',
     offDutyJobs   = { 'police', 'sheriff', 'ambulance' },   -- true = every job
 
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
     -- BUILT-IN TARGET (used when no target script is running, or target = 'builtin')
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
 
     builtinTarget = {
         key      = 38,     -- control id (38 = E)
@@ -76,13 +80,18 @@ Config.Bridge = {
         markers  = false,  -- small dot above what you can interact with
     },
 
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
     -- ITEMS
-    -- ═══════════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════════════
 
     -- Item pictures: use the inventory's own image when it exists, else ours
     -- (html/img/items/<name>.png).
     preferInventoryImages = true,
+
+    -- Standalone without any inventory: act as if every item in config/items.lua is
+    -- always there (everyone owns all three radios, the earpiece and endless jammers).
+    -- false = without an inventory nobody owns a radio.
+    standaloneFreeItems = false,
 
     debug = false,          -- print what was detected and every adapter error
 }
