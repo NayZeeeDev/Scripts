@@ -47,29 +47,63 @@ function Links.Sync(leader)
     end
 end
 
--- silent = the speaker is going away (packed / broken), so nobody needs to hear about it
-function Links.Detach(e, silent)
+--[[
+    A speaker that stops following its group keeps nothing of the group's: followers share the
+    leader's record, queue and song tables (Links.Sync), and two speakers that are no longer linked
+    must never share them, or one record could be handed back twice and two speakers would take
+    songs off each other's queue.
+]]
+local function release(m)
+    m.vinyl, m.track, m.playing, m.pos, m.queue = nil, nil, false, 0, {}
+    m.xfade, m.endReported = nil, nil
+end
+
+--[[
+    Takes a speaker out of its group. The music stays with the group and the speaker that leaves goes
+    quiet, except that a record stays on the deck that holds it: a leader that leaves with a record on
+    keeps it (and its music), and the speakers it leaves behind go quiet.
+      how  nil     a player unlinked it (everyone involved hears about it)
+           'move'  it is about to join another group (the caller tells everyone afterwards)
+           'gone'  it is being packed up / broken / removed, so the group simply carries on without it
+]]
+function Links.Detach(e, how)
     local g = Links.GroupOf(e)
     if not g then return end
     for i, id in ipairs(g.members) do
         if id == e.id then table.remove(g.members, i) break end
     end
     e.group = nil
-    if #g.members <= 1 then
-        for _, id in ipairs(g.members) do
-            local m = Emitters[id]
-            if m then m.group = nil if not silent then Broadcast(m) end end
-        end
+    local rest = {}
+    for _, id in ipairs(g.members) do
+        local m = Emitters[id]
+        if m then rest[#rest + 1] = m end
+    end
+
+    local heir = rest[1]
+    if g.leader ~= e.id then
+        if how ~= 'gone' then release(e) end
+    elseif how ~= 'gone' and e.vinyl then
+        for _, m in ipairs(rest) do release(m) end
+    else
+        -- the next speaker carries on with the music it was already mirroring
+        if heir then heir.xfade, heir.endReported = e.xfade, e.endReported end
+        if how ~= 'gone' then release(e) end
+    end
+
+    if #rest <= 1 then
+        for _, m in ipairs(rest) do m.group = nil Broadcast(m) end
         groups[g.id] = nil
     elseif g.leader == e.id then
-        g.leader = g.members[1]
-        local lead = Emitters[g.leader]
-        if lead then Links.Sync(lead) end
+        g.leader = heir.id
+        Broadcast(heir)
+        Links.Sync(heir)
+    else
+        for _, m in ipairs(rest) do Broadcast(m) end      -- one fewer in the group
     end
-    if not silent then Broadcast(e) end
+    if not how then Broadcast(e) end
 end
 
-function Links.RemoveFrom(e) Links.Detach(e, true) end
+function Links.RemoveFrom(e) Links.Detach(e, 'gone') end
 
 -- the group `a` is in, or a new one it leads
 local function groupFor(a)
@@ -85,7 +119,7 @@ end
 local function join(g, m)
     if m.group == g.id then return true end
     if #g.members >= Config.Links.maxGroup then return false end
-    if m.group then Links.Detach(m, true) end
+    if m.group then Links.Detach(m, 'move') end
     m.group = g.id
     g.members[#g.members + 1] = m.id
     return true

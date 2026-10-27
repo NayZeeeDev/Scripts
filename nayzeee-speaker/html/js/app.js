@@ -14,6 +14,7 @@ const App = {
   favs: [], recent: [], records: null, playlists: null, links: null, jam: null, jams: null,
   search: null, searchQ: '', busy: false, loadingId: null, cueT: 0,
   hud: null, hudEdit: false, hudTok: 0, dragSeek: null, confirmFn: null, promptRes: null, openPl: null,
+  typing: false, typingT: 0,
   brand: { watermark: true, logo: '', name: '' },
   settings: {
     master: 1, effects: true, streamer: false, compact: false,
@@ -95,6 +96,28 @@ function applyLocale() {
   $('ver').textContent = 'v' + App.version;
 }
 
+/* ─────────── typing ───────────
+   The car player keeps game input on so you can drive with it open. While a text box has focus Lua
+   turns that off, or every key typed would reach the game too (F leaves the car, J closes the player). */
+const TEXT_TYPES = ['text', 'search', 'url', 'email', 'number', 'password', 'tel'];
+const isTextBox = el => !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && TEXT_TYPES.includes(el.type)));
+function syncTyping() {
+  const el = document.activeElement;
+  const on = App.open && isTextBox(el) && el.isConnected && el.getClientRects().length > 0;
+  if (on === App.typing) return;
+  App.typing = on;
+  clearInterval(App.typingT);
+  // a focused box that is re-rendered away or hidden doesn't always fire focusout: look again while typing
+  if (on) App.typingT = setInterval(syncTyping, 400);
+  post('typing', { on });
+}
+// Lua starts every open / close with typing off; a box still focused from before would disagree
+function dropTyping() {
+  if (isTextBox(document.activeElement)) document.activeElement.blur();
+  clearInterval(App.typingT);
+  App.typing = false;
+}
+
 /* ─────────── open / close ─────────── */
 // Compact shows only the now-playing rail, so the link / search row rides along with it.
 function applyCompact() {
@@ -113,6 +136,7 @@ function setCompact(on, save) {
 const entryHidden = (e, view) => !!(e && e.turntable) || (!App.compact && !['queue', 'search'].includes(view));
 
 function openUI(id, compact) {
+  dropTyping();
   App.id = id; App.open = true;
   App.compact = !!compact;
   const e = cur();
@@ -137,6 +161,7 @@ function openUI(id, compact) {
 function closeUI(tell) {
   if (!App.open) return;
   App.open = false; App.id = null; App.hudEdit = false;
+  dropTyping();
   clearTimeout(App.cueT);
   $('player').hidden = true;
   $('scrim').hidden = true;
@@ -1129,6 +1154,10 @@ function bind() {
     if (ev.target.id === 'plLink') ACTIONS.plImport();
     if (ev.target.id === 'plPrompt') ACTIONS.plPrompt();
   });
+
+  document.addEventListener('focusin', syncTyping);
+  // moving from one box to another blurs the first before focusing the second: settle first
+  document.addEventListener('focusout', () => setTimeout(syncTyping, 0));
 
   document.addEventListener('keydown', ev => {
     if (!App.open || ev.key !== 'Escape') return;

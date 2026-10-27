@@ -21,12 +21,15 @@ end
 
 local function canEdit(r, ident) return r.owner == ident or isCollaborator(r, ident) end
 
+-- a TINYINT(1) column: oxmysql hands these over as true / false, other drivers as 1 / 0
+local function flag(v) return v == true or v == 1 or v == '1' end
+
 local function row(r, me)
     local tracks, collab = decode(r.tracks), Playlists.Collaborators(r)
     return {
-        id = r.id, name = r.name, shared = r.shared == 1,
+        id = r.id, name = r.name, shared = flag(r.shared),
         owner = r.owner_name or 'Someone', mine = r.owner == me,
-        kind = r.kind or 'normal', mixed = r.mixed == 1, collabs = #collab, canEdit = canEdit(r, me),
+        kind = r.kind or 'normal', mixed = flag(r.mixed), collabs = #collab, canEdit = canEdit(r, me),
         count = #tracks, tracks = tracks,
     }
 end
@@ -110,10 +113,11 @@ NZ.RegisterCallback('pl:add', function(src, plId, track)
     return Playlists.Mine(id)
 end)
 
+-- collaborators may take songs off as well as add them (the UI offers both to anyone who can edit)
 NZ.RegisterCallback('pl:remove', function(src, plId, idx)
     local id = Bridge.GetIdentifier(src)
     local r = Playlists.Get(plId)
-    if not r or r.owner ~= id then return nil end
+    if not r or not canEdit(r, id) then return nil end
     local tracks = decode(r.tracks)
     idx = tonumber(idx)
     if not idx or not tracks[idx] then return nil end
@@ -204,9 +208,9 @@ local function loadList(src, which)
     if not Config.Playlists.enabled then return nil end
     local r = Playlists.Get(which)
     if not r then return nil end
-    if r.owner ~= ident and r.shared ~= 1 and not isCollaborator(r, ident) then Notify(src, 'no_access') return nil end
+    if r.owner ~= ident and not flag(r.shared) and not isCollaborator(r, ident) then Notify(src, 'no_access') return nil end
     -- songs from a mixed playlist carry their crossfade length; the end watcher hands over early
-    local mix = r.mixed == 1 and Config.Social.mixed ~= false and (Config.Social.mixedFade or 4.0) or nil
+    local mix = flag(r.mixed) and Config.Social.mixed ~= false and (Config.Social.mixedFade or 4.0) or nil
     return decode(r.tracks), r.name, mix
 end
 

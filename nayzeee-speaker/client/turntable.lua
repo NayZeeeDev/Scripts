@@ -153,7 +153,14 @@ local function releaseModels()
     loaded = false
 end
 
+-- Model requests are per resource, not per file: the record shop releasing nayzeee_vinyl when it
+-- closes lets the game drop it while no record is out here. Ask again and try on a later frame
+-- (every caller retries each frame until it gets the object).
 local function spawn(hash, x, y, z, yaw)
+    if not HasModelLoaded(hash) then
+        RequestModel(hash)
+        return nil
+    end
     local obj = CreateObjectNoOffset(hash, x, y, z, false, false, false)
     if not obj or obj == 0 then return nil end
     SetEntityCollision(obj, false, false)

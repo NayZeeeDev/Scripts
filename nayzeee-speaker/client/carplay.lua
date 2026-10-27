@@ -16,7 +16,10 @@ end
 local opening = false   -- a car player is being asked for: mashing the key doesn't stack requests
 
 local function openPlayer()
-    if UI.open then return CloseUI() end
+    if UI.open then
+        if UI.typing then return end      -- the key was typed into a text box of the car player
+        return CloseUI()
+    end
     if Carrying then return OpenUI(Carrying.id) end
 
     local ped = PlayerPedId()

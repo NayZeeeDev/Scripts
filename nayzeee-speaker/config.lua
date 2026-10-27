@@ -599,7 +599,7 @@ Config.Actions = {
     place = {
         selectLocation = true,   -- true = aim a preview to place it, false = drops in front of you
         timeout        = 30000,  -- ms before placement cancels itself
-        offset         = vector4(0.75, 0.0, 0.0, 180.0), -- used when selectLocation = false
+        offset         = vector4(0.0, 0.75, 0.0, 180.0), -- used when selectLocation = false (x right, y forward, z up, w turn)
         distance       = 8.0,    -- furthest you can place from yourself
         keys           = { accept = 38, cancel = 47, hold = 74 },  -- E / G / H (control ids)
         anim           = { dict = 'amb@medic@standing@tendtodead@base', clip = 'base', flag = 1, duration = 1500 },

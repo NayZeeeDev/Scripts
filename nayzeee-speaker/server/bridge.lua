@@ -82,7 +82,8 @@ function Bridge.AddItem(src, item, count)
     if useOx then return exports.ox_inventory:AddItem(src, item, count) end
     if FW == 'esx' then
         local x = Core.GetPlayerFromId(src)
-        if not x then return false end
+        -- ESX's own inventory lists every registered item; one that isn't there would be dropped silently
+        if not x or not x.getInventoryItem(item) then return false end
         x.addInventoryItem(item, count) return true
     elseif FW == 'qb' or FW == 'qbox' then
         local p = qbPlayer(src)
@@ -182,6 +183,11 @@ function Bridge.ItemExists(item)
         return not ok or data ~= nil
     end
     if FW == 'qb' and Core.Shared and Core.Shared.Items then return Core.Shared.Items[item] ~= nil end
+    -- asked live (the shared object is a copy, made before ESX may have read its items table)
+    if FW == 'esx' and Core.GetItemLabel then
+        local ok, label = pcall(Core.GetItemLabel, item)
+        return not ok or label ~= nil
+    end
     return true
 end
 
@@ -287,4 +293,24 @@ if useOx then
             return false -- item is only removed when actually placed / installed
         end
     end)
+
+    --[[
+        With ESX / QBCore / Qbox, ox_inventory hands item use to the framework, where RegisterUsable put
+        it. Without one, only an item defined with server = { export = '<this resource>.useItem' } ever
+        reaches the export above (ox_inventory gives such an item consume = 1), so say which aren't.
+    ]]
+    if FW == 'standalone' then
+        CreateThread(function()
+            Wait(10000)         -- records register once the database has been read
+            local missing = {}
+            for item in pairs(Bridge.OnUse) do
+                local ok, data = pcall(function() return exports.ox_inventory:Items(item) end)
+                if ok and type(data) == 'table' and not data.consume then missing[#missing + 1] = item end
+            end
+            if #missing == 0 then return end
+            table.sort(missing)
+            print(("^3[%s] ox_inventory without ESX / QBCore / Qbox: these items do nothing when used until their entry in ox_inventory/data/items.lua has server = { export = '%s.useItem' } (see install/items.md): %s^7")
+                :format(RES, RES, table.concat(missing, ', ')))
+        end)
+    end
 end

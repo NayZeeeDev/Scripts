@@ -1,6 +1,6 @@
 -- RES comes from shared/callbacks.lua (loaded before every client file)
 Emitters = {}                 -- id -> emitter snapshot from the server
-UI = { open = false, id = nil }
+UI = { open = false, id = nil, keep = false, typing = false }   -- keep = game input stays on (car player)
 Settings = {
     master = 1.0, effects = true, streamer = false, compact = false,
     hud = true, hudX = Config.NowPlaying.x, hudY = Config.NowPlaying.y, hudScale = Config.NowPlaying.scale,
@@ -173,8 +173,9 @@ CreateThread(function()
     end
 end)
 
--- a fresh snapshot after a character switch / respawn keeps everything in step
-AddEventHandler('esx:playerLoaded', function() CreateThread(boot) end)
+-- a fresh snapshot after a character switch / respawn keeps everything in step. Both come from the
+-- server, so they must be registered as net events here (es_extended's own registration doesn't count)
+RegisterNetEvent('esx:playerLoaded', function() CreateThread(boot) end)
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function() CreateThread(boot) end)
 
 ---------------------------------------------------------------- ui open / close
@@ -184,7 +185,8 @@ function OpenUI(id)
     local e = Emitters[id]
     if not e then return end
     UI.open, UI.id = true, id
-    local keep = e.kind == 'vehicle' and Config.Carplay.keepInput
+    local keep = (e.kind == 'vehicle' and Config.Carplay.keepInput) and true or false
+    UI.keep, UI.typing = keep, false
     SetNuiFocus(true, true)
     SetNuiFocusKeepInput(keep)
     SendNUIMessage({ action = 'open', id = id, compact = Settings.compact })
@@ -221,13 +223,25 @@ end
 
 function CloseUI()
     if not UI.open then return end
-    UI.open = false
+    UI.open, UI.keep, UI.typing = false, false, false
     SetNuiFocus(false, false)
     SetNuiFocusKeepInput(false)
     SendNUIMessage({ action = 'close' })
 end
 
 RegisterNUICallback('close', function(_, cb) CloseUI() cb(1) end)
+
+-- The car player keeps game input on so you can drive with it open, but then every key typed in a
+-- text box would reach the game too (F leaves the car, the player key closes it). While a text box
+-- has focus the game gets nothing; clicking out of it hands the controls back.
+RegisterNUICallback('typing', function(data, cb)
+    local on = type(data) == 'table' and data.on == true
+    if UI.open and UI.keep and on ~= UI.typing then
+        UI.typing = on
+        SetNuiFocusKeepInput(not on)
+    end
+    cb(1)
+end)
 
 ---------------------------------------------------------------- nui -> server relays
 for _, name in ipairs({ 'toggle', 'pause', 'seek', 'next', 'prev', 'volume', 'range', 'loop', 'shuffle', 'stop', 'queueRemove', 'queuePlay', 'access' }) do

@@ -466,7 +466,9 @@ end
 ---------------------------------------------------------------- clear the counter
 -- Tills, monitors and the like around the display are hidden for the shopper only, and come back
 -- when they leave. Props baked into an MLO need their model in hideProps.models.
-local hiddenEnts, modelHides = {}, {}
+-- A prop that has become networked (knocked over, moved) syncs its visibility to everyone, so it is
+-- hidden locally every frame instead (frameLoop).
+local hiddenEnts, localHides, modelHides = {}, {}, {}
 
 local function hideCounterProps()
     local h = cfg.hideProps
@@ -484,8 +486,12 @@ local function hideCounterProps()
                 if #(c - p) < radius then
                     local mn, mx = GetModelDimensions(GetEntityModel(obj))
                     if #(mx - mn) <= maxSize then
-                        SetEntityVisible(obj, false, false)
-                        hiddenEnts[#hiddenEnts + 1] = obj
+                        if NetworkGetEntityIsNetworked(obj) then
+                            localHides[#localHides + 1] = obj
+                        else
+                            SetEntityVisible(obj, false, false)
+                            hiddenEnts[#hiddenEnts + 1] = obj
+                        end
                     end
                     break
                 end
@@ -506,7 +512,7 @@ local function restoreCounterProps()
     for _, obj in ipairs(hiddenEnts) do
         if DoesEntityExist(obj) then SetEntityVisible(obj, true, false) end
     end
-    hiddenEnts = {}
+    hiddenEnts, localHides = {}, {}
     if view then
         local a = view.anchor
         local r = ((cfg.hideProps and cfg.hideProps.radius) or 1.6) + 0.6
@@ -609,6 +615,10 @@ local function frameLoop()
         -- the camera stands where the shopper is, so hide them for themselves only
         SetLocalPlayerInvisibleLocally(true)
         SetEntityLocallyInvisible(ped)
+        for i = 1, #localHides do
+            local obj = localHides[i]
+            if DoesEntityExist(obj) then SetEntityLocallyInvisible(obj) end
+        end
         if mode3d then frame(now, dt) sendLabel(now) end
         if IsEntityDead(ped) then closeShop(true) end
         Wait(0)
