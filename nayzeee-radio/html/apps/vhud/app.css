@@ -1,1 +1,76 @@
-/* NAYZEEE RADIO · vhud app styles (stub from the foundation - the app engineer fills this file) */
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE RADIO · vhud — passenger mini HUD (no focus)
+   One capsule at the top centre (transient status, ORIGINAL.md): head-unit glyph, MV-90,
+   the rolling frequency, the channel label chip and the current talker sliding in on the
+   right. Settles into a smaller capsule after a few quiet seconds. Never near the minimap.
+   ═══════════════════════════════════════════════════════════ */
+#app-vhud,#app-vhud *{pointer-events:none!important}
+#app-vhud .vh{position:absolute;left:50%;top:16px;transform:translateX(-50%);filter:drop-shadow(0 8px 20px rgba(0,0,0,.38))}
+#app-vhud.nzr-on .vh{animation:vh-in 320ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes vh-in{from{opacity:0;transform:translate(-50%,-18px)}to{opacity:1;transform:translateX(-50%)}}
+#app-vhud .vh-cap{--cut:9px;position:relative;display:flex;align-items:center;height:40px;padding:0 12px 0 6px;gap:10px;
+  background:rgba(9,10,12,.9);clip-path:var(--nz-shape);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),inset 0 1px 0 rgba(255,255,255,.05);
+  transition:opacity 400ms ease}
+#app-vhud .vh-cap::before{content:'';position:absolute;left:0;top:0;width:18px;height:2px;background:var(--teal-hi);box-shadow:0 0 8px var(--teal)}
+#app-vhud .vh-cap::after{content:'';position:absolute;left:0;top:0;width:2px;height:14px;background:var(--teal-hi)}
+#app-vhud .vh-ic{position:relative;width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:7px;color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge);transition:all 260ms ease}
+#app-vhud .vh-ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linejoin:miter}
+#app-vhud .vh-ic svg .a{stroke:#fff}
+#app-vhud .vh-id{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0}
+#app-vhud .vh-mod{display:flex;align-items:center;gap:6px;font-size:8.5px;font-weight:800;letter-spacing:.18em;color:var(--ink-3);line-height:1;white-space:nowrap}
+#app-vhud .vh-mod em{font-style:normal;font-weight:600;letter-spacing:.08em;color:var(--teal-hi)}
+#app-vhud .vh.mute .vh-mod em{color:#f3c35a}
+#app-vhud .vh.off .vh-mod em,#app-vhud .vh.idle .vh-mod em{color:var(--ink-3)}
+#app-vhud .vh-f{display:flex;align-items:baseline;gap:4px;white-space:nowrap;line-height:1}
+#app-vhud .vh-f .odo{font-size:17px;color:var(--white)}
+#app-vhud .vh-f .odo .c{width:.3em}
+#app-vhud .vh-f small{font-size:9.5px;font-weight:500;color:var(--ink-3)}
+#app-vhud .vh-off{display:none;font:700 15px/1 var(--mono);letter-spacing:.12em;color:var(--ink-3)}
+#app-vhud .vh-lab{max-width:190px;overflow:hidden;white-space:nowrap;transition:max-width 360ms cubic-bezier(.2,.7,.2,1),opacity 260ms ease,padding 360ms ease,margin 360ms ease}
+#app-vhud .vh-lab .nzr-chip{height:21px;padding:0 8px;font-size:10.5px;max-width:190px;overflow:hidden;text-overflow:ellipsis;display:inline-flex}
+#app-vhud .vh-lab:empty{display:none}
+#app-vhud .vh-mu{display:none;align-items:center;gap:5px;height:21px;padding:0 7px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:#f3c35a;background:var(--amber-wash);border:1px solid var(--amber-edge);white-space:nowrap}
+#app-vhud .vh-mu .nz-ic{width:12px;height:12px}
+
+/* talker: slides in from the right end of the capsule */
+#app-vhud .vh-tk{display:flex;align-items:center;gap:8px;max-width:0;opacity:0;overflow:hidden;white-space:nowrap;margin-left:-10px;
+  transition:max-width 380ms cubic-bezier(.2,.7,.2,1),opacity 240ms ease,margin 380ms cubic-bezier(.2,.7,.2,1)}
+#app-vhud .vh.talk .vh-tk{max-width:300px;opacity:1;margin-left:0}
+#app-vhud .vh-tk-in{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px 0 8px;border-radius:7px;
+  background:linear-gradient(90deg,rgba(8,175,162,.22),rgba(8,175,162,.08));border:1px solid var(--teal-edge)}
+#app-vhud .vh-tk-in.swap{animation:vh-swap 300ms cubic-bezier(.2,.7,.2,1)}
+@keyframes vh-swap{from{opacity:.2;transform:translateX(10px)}to{opacity:1;transform:none}}
+#app-vhud .vh-rip{position:relative;width:14px;height:14px;flex:none}
+#app-vhud .vh-rip b{position:absolute;left:4px;top:4px;width:6px;height:6px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 8px var(--teal)}
+#app-vhud .vh-rip i{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--teal-hi);opacity:0;animation:vh-rip 1.3s ease-out infinite}
+#app-vhud .vh-rip i + i{animation-delay:.65s}
+@keyframes vh-rip{0%{opacity:.9;transform:scale(.3)}100%{opacity:0;transform:scale(1.35)}}
+#app-vhud .vh-cs{font:700 10.5px/1 var(--mono);color:var(--teal-hi);padding:3px 5px;border-radius:4px;background:rgba(8,175,162,.14);border:1px solid var(--teal-edge)}
+#app-vhud .vh-cs:empty{display:none}
+#app-vhud .vh-nm{font-size:12.5px;font-weight:600;color:var(--white);max-width:150px;overflow:hidden;text-overflow:ellipsis}
+#app-vhud .vh-sig{width:14px;height:14px;flex:none}
+#app-vhud .vh-sig svg{width:14px;height:14px;overflow:visible}
+#app-vhud .vh-sig path{fill:none;stroke:rgba(255,255,255,.18);stroke-width:2.2;stroke-linecap:round}
+#app-vhud .vh-sig path.on{stroke:var(--teal-hi)}
+#app-vhud .vh-sig.t2 path.on{stroke:#f3c35a}
+#app-vhud .vh-sig.t1 path.on,#app-vhud .vh-sig.t0 path.on{stroke:#ff6b70}
+#app-vhud .vh-sig:empty{display:none}
+
+/* settled: label folds away, the capsule steps back a little */
+#app-vhud .vh.calm .vh-lab{max-width:0;opacity:0;margin-left:-10px}
+#app-vhud .vh.calm .vh-cap{opacity:.84}
+/* muted */
+#app-vhud .vh.mute .vh-mu{display:inline-flex}
+#app-vhud .vh.mute .vh-f .odo{color:var(--ink-2)}
+#app-vhud .vh.mute .vh-ic{color:#f3c35a;background:var(--amber-wash);border-color:var(--amber-edge)}
+#app-vhud .vh.mute .vh-cap::before,#app-vhud .vh.mute .vh-cap::after{background:#f3c35a;box-shadow:none}
+/* untuned */
+#app-vhud .vh.idle .vh-f .odo{color:var(--ink-3);opacity:.7}
+/* off */
+#app-vhud .vh.off .vh-f{display:none}
+#app-vhud .vh.off .vh-off{display:block}
+#app-vhud .vh.off .vh-lab,#app-vhud .vh.off .vh-mu,#app-vhud .vh.off .vh-tk{display:none}
+#app-vhud .vh.off .vh-ic{color:var(--ink-3);background:rgba(255,255,255,.04);border-color:var(--line)}
+#app-vhud .vh.off .vh-cap{opacity:.8}
+#app-vhud .vh.off .vh-cap::before,#app-vhud .vh.off .vh-cap::after{background:var(--ink-3);box-shadow:none}

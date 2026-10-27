@@ -1,0 +1,231 @@
+{
+ "name": "nzr_fieldpro_body",
+ "module": "props.fieldpro",
+ "dims": [
+  0.065,
+  0.0386,
+  0.1854
+ ],
+ "geoMin": [
+  -0.03381,
+  -0.02271,
+  -0.03894
+ ],
+ "geoMax": [
+  0.0312,
+  0.01585,
+  0.1465
+ ],
+ "bbMin": [
+  -0.0338,
+  -0.0227,
+  -0.0389
+ ],
+ "bbMax": [
+  0.0335,
+  0.0166,
+  0.1469
+ ],
+ "bsCentre": [
+  -0.0002,
+  -0.0031,
+  0.054
+ ],
+ "bsRadius": 0.1008,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:fieldpro",
+ "tris": 15995,
+ "verts": 15747,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 20000,
+ "shaders": [
+  "normal_spec",
+  "normal_spec",
+  "normal_spec",
+  "normal_spec_alpha",
+  "emissive"
+ ],
+ "textures": [
+  {
+   "name": "nzr_fieldpro_body_d",
+   "size": 1024,
+   "density": 8929.8,
+   "coverage": 0.654,
+   "maps": [
+    1024,
+    1024
+   ]
+  },
+  {
+   "name": "nzr_fieldpro_body_face_d",
+   "size": 1024,
+   "density": 8929.8,
+   "coverage": 0.37,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_fieldpro_body_side_d",
+   "size": 1024,
+   "density": 5597.4,
+   "coverage": 0.626,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_fieldpro_body_ad",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.463,
+   "maps": [
+    256,
+    256
+   ]
+  },
+  {
+   "name": "nzr_scr",
+   "size": [
+    512,
+    256
+   ],
+   "screen": true
+  }
+ ],
+ "screens": [
+  "nzr_scr"
+ ],
+ "mem_est": {
+  "physical": 11534336,
+  "virtual": 1048576
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    -0.0002,
+    -0.0031,
+    0.0168
+   ],
+   "size": [
+    0.0673,
+    0.0393,
+    0.1115
+   ],
+   "axis": "z"
+  },
+  {
+   "type": "cylinder",
+   "material": "RUBBER",
+   "center": [
+    0.0175,
+    0.0046,
+    0.1029
+   ],
+   "size": [
+    0.0063,
+    0.088,
+    0.0
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "FX-280 field handheld - body without pressable parts (raised view)",
+  "origin": "grip point: body cross-section centre at 40 % of the body height from its bottom",
+  "axes": "+Y = front face (screen / keys), +Z up (antenna), +X = viewer's left",
+  "attach": "replaces nzr_<m> in the local player's hand while raised; parts attach to it",
+  "screen": "nzr_scr (placeholder, replaced by the DUI: AddReplaceTexture(body, 'nzr_scr', ...))"
+ },
+ "notes": {
+  "radio": "fieldpro"
+ },
+ "anchors": {
+  "kind": "radio_body",
+  "radio": "fieldpro",
+  "full": "nzr_fieldpro"
+ },
+ "preview": {
+  "views": [
+   "face",
+   "front",
+   "left",
+   "right",
+   "back",
+   "top"
+  ],
+  "cams": [
+   {
+    "name": "keypad",
+    "pos": [
+     0.01767739176323481,
+     0.11086493136029009,
+     0.014056378035292826
+    ],
+    "target": [
+     0.0062,
+     0.015220000000000001,
+     -0.016550000000000002
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "topdeck",
+    "pos": [
+     0.04167032444641597,
+     0.13916817983242571,
+     0.22550724027734143
+    ],
+    "target": [
+     -0.0001605282581475763,
+     -0.0030567193630903332,
+     0.06655
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "screen",
+    "pos": [
+     0.0,
+     0.18750413997698448,
+     0.07900103499424613
+    ],
+    "target": [
+     0.0,
+     0.0139,
+     0.0356
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "ptt",
+    "pos": [
+     0.15599925397560976,
+     0.07122258968658537,
+     0.053214813493902446
+    ],
+    "target": [
+     0.033139999999999996,
+     0.0036499999999999996,
+     0.0225
+    ],
+    "fov": 30.0
+   }
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793113999.749,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033811\" y=\"-0.022713\" z=\"-0.038936\" />\n      <bbMax x=\"0.033490\" y=\"0.016600\" z=\"0.146900\" />\n      <bsCentre x=\"-0.000161\" y=\"-0.003057\" z=\"0.053982\" />\n      <bsRadius value=\"0.100760\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_body</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_body</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_body</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 65.98
+}

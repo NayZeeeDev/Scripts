@@ -354,7 +354,9 @@ def build_prop(spec: PropSpec, out_root: str, quick=False):
     for c in charts:
         layers.setdefault(_layer_of(b, c.mat), []).append(c)
 
-    all_tris = np.concatenate([c.pos[c.tri] for c in charts])
+    # AO occupancy from the high model only: medium stand-ins ('m') overlap the detailed geometry they
+    # replace and must not shadow it (they take their AO from the high model's surroundings)
+    all_tris = np.concatenate([c.pos[c.tri] for c in charts if c.lod != "m"] or [c.pos[c.tri] for c in charts])
     occ = [np.asarray(t, np.float64).reshape(-1, 3, 3) for t in b.occluders if len(t)]
     ao = None if quick else AOField(np.concatenate([all_tris] + occ) if occ else all_tris)
 

@@ -30,23 +30,15 @@ def _hot(color, k=0.55):
 
 def _insert(color):
     def build(b):
-        g = led_dome(b, color, d=D_LENS, h=D_LENS * 0.42, base_h=0.0003)
-        # lit die: a small brighter cap just proud of the lens top
-        R = D_LENS / 2
-        h = D_LENS * 0.42
-        z_top = 0.0003 + h
+        R, h, base_h = D_LENS / 2, D_LENS * 0.42, 0.0003
+        b.add(led_dome(b, color, d=D_LENS, h=h, base_h=base_h))
+        # lit die: a brighter cap following the dome (ellipsoid R x h) 0.03 mm above it, 42 % of the lens across -
+        # reads as the LED die glowing through a diffused lens instead of a flat blob
         core = m_led(b, f"led_{color}_die", _hot(LED_COLORS[color]))
         rc = R * 0.42
-        prof = []
-        for a in np.linspace(0.0, math.pi / 2, 5):
-            # follows the dome (ellipsoid R x h) a hair above it so it never z-fights
-            x = rc * math.cos(a)
-            zz = 0.0003 + h * math.sqrt(max(0.0, 1 - (x / R) ** 2)) + 0.00003 + (rc * math.sin(a)) * 0.0
-            prof.append((x, zz))
-        prof[-1] = (0.0, z_top + 0.00003)
-        b.add(g)
+        prof = [(x, base_h + h * math.sqrt(max(0.0, 1 - (x / R) ** 2)) + 0.00003) for x in np.linspace(rc, 0.0, 5)]
         b.add(lathe(prof, core, segs=16, smooth_angle=70, tag="led_die"))
-        b.col_box((-R, -R, 0.0), (R, R, z_top), "PLASTIC")
+        b.col_box((-R, -R, 0.0), (R, R, base_h + h), "PLASTIC")
         b.anchor(kind="led_insert", color=color, d=D_LENS, origin="lens base on the light-pipe insert point (layout leds.tx / rx)")
     build.__name__ = f"led_{color}"
     return build

@@ -1,0 +1,1434 @@
+{
+ "name": "nzr_handheld",
+ "module": "props.handheld",
+ "dims": [
+  0.0662,
+  0.05,
+  0.2922
+ ],
+ "geoMin": [
+  -0.0337,
+  -0.02764,
+  -0.05302
+ ],
+ "geoMax": [
+  0.03249,
+  0.0224,
+  0.2392
+ ],
+ "bbMin": [
+  -0.0337,
+  -0.0276,
+  -0.053
+ ],
+ "bbMax": [
+  0.0325,
+  0.0224,
+  0.2392
+ ],
+ "bsCentre": [
+  -0.0006,
+  -0.0026,
+  0.0931
+ ],
+ "bsRadius": 0.1519,
+ "lodDist": 40.0,
+ "lodHigh": 6.0,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:handheld",
+ "tris": 23622,
+ "verts": 21863,
+ "tris_med": 3280,
+ "verts_med": 3385,
+ "budget": 24000,
+ "shaders": [
+  "normal_spec",
+  "normal_spec",
+  "normal_spec",
+  "normal_spec_alpha",
+  "emissive"
+ ],
+ "textures": [
+  {
+   "name": "nzr_handheld_d",
+   "size": 1024,
+   "density": 3052.0,
+   "coverage": 0.529,
+   "maps": [
+    1024,
+    1024
+   ]
+  },
+  {
+   "name": "nzr_handheld_face_d",
+   "size": 1024,
+   "density": 6299.0,
+   "coverage": 0.62,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_handheld_side_d",
+   "size": 1024,
+   "density": 7175.9,
+   "coverage": 0.707,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_handheld_ad",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.677,
+   "maps": [
+    256,
+    256
+   ]
+  },
+  {
+   "name": "nzr_scr",
+   "size": [
+    512,
+    384
+   ],
+   "screen": true
+  }
+ ],
+ "screens": [
+  "nzr_scr"
+ ],
+ "mem_est": {
+  "physical": 11534336,
+  "virtual": 1507328
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    -0.0006,
+    -0.0026,
+    0.0213
+   ],
+   "size": [
+    0.0662,
+    0.05,
+    0.1486
+   ],
+   "axis": "z"
+  },
+  {
+   "type": "cylinder",
+   "material": "RUBBER",
+   "center": [
+    -0.0175,
+    -0.0055,
+    0.1599
+   ],
+   "size": [
+    0.0054,
+    0.1585,
+    0.0
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "PX-740 patrol handheld - complete radio",
+  "origin": "grip point: body cross-section centre at 40 % of the body height from its bottom",
+  "axes": "+Y = front face (screen / keys), +Z up (antenna), +X = viewer's left",
+  "attach": "held: PH_R_Hand (28422) with Config.Radios.Models[m].grip",
+  "screen": "nzr_scr 512 x 384 behind smoked glass, visible LCD 36 x 27 mm (layout screen.size)"
+ },
+ "notes": {
+  "radio": "handheld"
+ },
+ "anchors": {
+  "kind": "radio_full",
+  "radio": "handheld",
+  "skin": "px740",
+  "code": "PX-740",
+  "full": "nzr_handheld",
+  "body": "nzr_handheld_body",
+  "screen": {
+   "center": [
+    0.0,
+    0.0196,
+    0.023
+   ],
+   "size": [
+    0.036,
+    0.027
+   ],
+   "w": 512,
+   "h": 384,
+   "right": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "normal": [
+    0.0,
+    1.0,
+    -0.0
+   ],
+   "tex": "nzr_scr",
+   "txd": "nzr_handheld_body"
+  },
+  "focus": [
+   0.0,
+   0.0205,
+   0.004
+  ],
+  "camDist": 0.34,
+  "leds": {
+   "tx": [
+    -0.0085,
+    -0.0115,
+    0.079
+   ],
+   "rx": [
+    -0.0085,
+    -0.0115,
+    0.079
+   ]
+  },
+  "grip": "PH_R_Hand (28422): palm on the battery / belt clip, fingers round the right side, thumb on the left PTT; screen faces the camera when raised. Tune with /radiogrip.",
+  "keys": [
+   {
+    "id": "k0",
+    "model": "nzr_handheld_k0",
+    "pos": [
+     0.0,
+     0.02182,
+     -0.0437
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "0",
+    "bbox": [
+     [
+      -0.0055,
+      0.01954,
+      -0.04695
+     ],
+     [
+      0.0055,
+      0.02182,
+      -0.04045
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k1",
+    "model": "nzr_handheld_k1",
+    "pos": [
+     0.0142,
+     0.0217,
+     -0.0176
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "1",
+    "bbox": [
+     [
+      0.0087,
+      0.01942,
+      -0.02085
+     ],
+     [
+      0.0197,
+      0.0217,
+      -0.01435
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k2",
+    "model": "nzr_handheld_k2",
+    "pos": [
+     0.0,
+     0.02182,
+     -0.0176
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "2",
+    "bbox": [
+     [
+      -0.0055,
+      0.01954,
+      -0.02085
+     ],
+     [
+      0.0055,
+      0.02182,
+      -0.01435
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k3",
+    "model": "nzr_handheld_k3",
+    "pos": [
+     -0.0142,
+     0.0217,
+     -0.0176
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "3",
+    "bbox": [
+     [
+      -0.0197,
+      0.01942,
+      -0.02085
+     ],
+     [
+      -0.0087,
+      0.0217,
+      -0.01435
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k4",
+    "model": "nzr_handheld_k4",
+    "pos": [
+     0.0142,
+     0.0217,
+     -0.0263
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "4",
+    "bbox": [
+     [
+      0.0087,
+      0.01942,
+      -0.02955
+     ],
+     [
+      0.0197,
+      0.0217,
+      -0.02305
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k5",
+    "model": "nzr_handheld_k5",
+    "pos": [
+     0.0,
+     0.02182,
+     -0.0263
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "5",
+    "bbox": [
+     [
+      -0.0055,
+      0.01954,
+      -0.02955
+     ],
+     [
+      0.0055,
+      0.02182,
+      -0.02305
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k6",
+    "model": "nzr_handheld_k6",
+    "pos": [
+     -0.0142,
+     0.0217,
+     -0.0263
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "6",
+    "bbox": [
+     [
+      -0.0197,
+      0.01942,
+      -0.02955
+     ],
+     [
+      -0.0087,
+      0.0217,
+      -0.02305
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k7",
+    "model": "nzr_handheld_k7",
+    "pos": [
+     0.0142,
+     0.0217,
+     -0.035
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "7",
+    "bbox": [
+     [
+      0.0087,
+      0.01942,
+      -0.03825
+     ],
+     [
+      0.0197,
+      0.0217,
+      -0.03175
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k8",
+    "model": "nzr_handheld_k8",
+    "pos": [
+     0.0,
+     0.02182,
+     -0.035
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "8",
+    "bbox": [
+     [
+      -0.0055,
+      0.01954,
+      -0.03825
+     ],
+     [
+      0.0055,
+      0.02182,
+      -0.03175
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "k9",
+    "model": "nzr_handheld_k9",
+    "pos": [
+     -0.0142,
+     0.0217,
+     -0.035
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "9",
+    "bbox": [
+     [
+      -0.0197,
+      0.01942,
+      -0.03825
+     ],
+     [
+      -0.0087,
+      0.0217,
+      -0.03175
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "kstar",
+    "model": "nzr_handheld_kstar",
+    "pos": [
+     0.0142,
+     0.0217,
+     -0.0437
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "star",
+    "value": null,
+    "bbox": [
+     [
+      0.0087,
+      0.01942,
+      -0.04695
+     ],
+     [
+      0.0197,
+      0.0217,
+      -0.04045
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "khash",
+    "model": "nzr_handheld_khash",
+    "pos": [
+     -0.0142,
+     0.0217,
+     -0.0437
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0055,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00325
+    ],
+    "shape": "rect",
+    "action": "hash",
+    "value": null,
+    "bbox": [
+     [
+      -0.0197,
+      0.01942,
+      -0.04695
+     ],
+     [
+      -0.0087,
+      0.0217,
+      -0.04045
+     ]
+    ],
+    "tris": 308
+   },
+   {
+    "id": "kok",
+    "model": "nzr_handheld_kok",
+    "pos": [
+     0.0165,
+     0.021528,
+     -0.0075
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.004,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "ok",
+    "value": null,
+    "bbox": [
+     [
+      0.0125,
+      0.019378,
+      -0.011
+     ],
+     [
+      0.0205,
+      0.021538,
+      -0.004
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "kback",
+    "model": "nzr_handheld_kback",
+    "pos": [
+     -0.0165,
+     0.021528,
+     -0.0075
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.004,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "back",
+    "value": null,
+    "bbox": [
+     [
+      -0.0205,
+      0.019378,
+      -0.011
+     ],
+     [
+      -0.0125,
+      0.021538,
+      -0.004
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "kp1",
+    "model": "nzr_handheld_kp1",
+    "pos": [
+     0.0165,
+     0.021528,
+     0.0025
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.00375,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0025
+    ],
+    "shape": "round",
+    "action": "p1",
+    "value": null,
+    "bbox": [
+     [
+      0.01275,
+      0.019378,
+      -0.0
+     ],
+     [
+      0.02025,
+      0.021538,
+      0.005
+     ]
+    ],
+    "tris": 340
+   },
+   {
+    "id": "kp2",
+    "model": "nzr_handheld_kp2",
+    "pos": [
+     -0.0165,
+     0.021528,
+     0.0025
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.00375,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0025
+    ],
+    "shape": "round",
+    "action": "p2",
+    "value": null,
+    "bbox": [
+     [
+      -0.02025,
+      0.019378,
+      -0.0
+     ],
+     [
+      -0.01275,
+      0.021538,
+      0.005
+     ]
+    ],
+    "tris": 340
+   },
+   {
+    "id": "dpad",
+    "model": "nzr_handheld_dpad",
+    "pos": [
+     0.0,
+     0.02234,
+     -0.003
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     -0.008,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.008
+    ],
+    "shape": "round",
+    "action": "dpad",
+    "value": null,
+    "tilt": 5.0,
+    "bbox": [
+     [
+      -0.007586,
+      0.01954,
+      -0.010586
+     ],
+     [
+      0.007586,
+      0.0224,
+      0.004586
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "knob_ch",
+    "model": "nzr_handheld_knob_ch",
+    "pos": [
+     0.017,
+     0.003,
+     0.0882
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0008,
+    "u": [
+     -0.006,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.007
+    ],
+    "shape": "rect",
+    "action": "knob",
+    "value": "channel",
+    "axis": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "detents": 16,
+    "bbox": [
+     [
+      0.0099,
+      -0.0041,
+      0.0792
+     ],
+     [
+      0.0241,
+      0.0101,
+      0.0956
+     ]
+    ],
+    "tris": 998
+   },
+   {
+    "id": "knob_vol",
+    "model": "nzr_handheld_knob_vol",
+    "pos": [
+     -0.0015,
+     0.0035,
+     0.0872
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0008,
+    "u": [
+     0.0065,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.006
+    ],
+    "shape": "rect",
+    "action": "knob",
+    "value": "volume",
+    "axis": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "detents": 24,
+    "bbox": [
+     [
+      -0.009,
+      -0.004,
+      0.0792
+     ],
+     [
+      0.006,
+      0.011,
+      0.0936
+     ]
+    ],
+    "tris": 680
+   },
+   {
+    "id": "emerg",
+    "model": "nzr_handheld_emerg",
+    "pos": [
+     -0.0185,
+     0.0115,
+     0.07908
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.003,
+     0.0
+    ],
+    "shape": "rect",
+    "action": "emerg",
+    "value": null,
+    "bbox": [
+     [
+      -0.023,
+      0.0085,
+      0.0767
+     ],
+     [
+      -0.014,
+      0.0145,
+      0.0796
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "ptt",
+    "model": "nzr_handheld_ptt",
+    "pos": [
+     0.03214,
+     0.0055,
+     0.027
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.0016,
+    "u": [
+     0.0,
+     0.006,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.015
+    ],
+    "shape": "rect",
+    "action": "ptt",
+    "value": null,
+    "bbox": [
+     [
+      0.02904,
+      -0.0005,
+      0.012
+     ],
+     [
+      0.03249,
+      0.0115,
+      0.042
+     ]
+    ],
+    "tris": 790
+   },
+   {
+    "id": "side1",
+    "model": "nzr_handheld_side1",
+    "pos": [
+     0.03096,
+     0.0055,
+     0.003
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     0.0,
+     0.003,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "round",
+    "action": "side1",
+    "value": null,
+    "bbox": [
+     [
+      0.02904,
+      0.0025,
+      0.0
+     ],
+     [
+      0.03096,
+      0.0085,
+      0.006
+     ]
+    ],
+    "tris": 340
+   },
+   {
+    "id": "side2",
+    "model": "nzr_handheld_side2",
+    "pos": [
+     0.03096,
+     0.0055,
+     -0.0075
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     0.0,
+     0.003,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "round",
+    "action": "side2",
+    "value": null,
+    "bbox": [
+     [
+      0.02904,
+      0.0025,
+      -0.0105
+     ],
+     [
+      0.03096,
+      0.0085,
+      -0.0045
+     ]
+    ],
+    "tris": 340
+   }
+  ],
+  "body_tris": 14994,
+  "export": true
+ },
+ "preview": {
+  "views": [
+   "face",
+   "front",
+   "left",
+   "right",
+   "back",
+   "top"
+  ],
+  "cams": [
+   {
+    "name": "keypad",
+    "pos": [
+     0.013378971463652413,
+     0.13211148831680222,
+     0.005027257236406429
+    ],
+    "target": [
+     0.0,
+     0.0206200594530321,
+     -0.030650000000000004
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "topdeck",
+    "pos": [
+     0.04053527749095846,
+     0.1372583663991584,
+     0.24593305446564212
+    ],
+    "target": [
+     -0.0006050000000000014,
+     -0.002618577070100374,
+     0.08959999999999999
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "screen",
+    "pos": [
+     0.0,
+     0.16163975089026003,
+     0.058509937722565006
+    ],
+    "target": [
+     0.0,
+     0.0196,
+     0.022999999999999996
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "ptt",
+    "pos": [
+     0.1795711047707317,
+     0.08658710762390245,
+     0.06385777619268293
+    ],
+    "target": [
+     0.03214,
+     0.0055,
+     0.027
+    ],
+    "fov": 30.0
+   }
+  ],
+  "assembly": {
+   "name": "nzr_handheld_assembled",
+   "base": "nzr_handheld_body",
+   "compare": "nzr_handheld",
+   "parts": [
+    {
+     "name": "nzr_handheld_k0",
+     "pos": [
+      0.0,
+      0.02182,
+      -0.0437
+     ]
+    },
+    {
+     "name": "nzr_handheld_k1",
+     "pos": [
+      0.0142,
+      0.021700118906064207,
+      -0.0176
+     ]
+    },
+    {
+     "name": "nzr_handheld_k2",
+     "pos": [
+      0.0,
+      0.02182,
+      -0.0176
+     ]
+    },
+    {
+     "name": "nzr_handheld_k3",
+     "pos": [
+      -0.0142,
+      0.021700118906064207,
+      -0.0176
+     ]
+    },
+    {
+     "name": "nzr_handheld_k4",
+     "pos": [
+      0.0142,
+      0.021700118906064207,
+      -0.0263
+     ]
+    },
+    {
+     "name": "nzr_handheld_k5",
+     "pos": [
+      0.0,
+      0.02182,
+      -0.0263
+     ]
+    },
+    {
+     "name": "nzr_handheld_k6",
+     "pos": [
+      -0.0142,
+      0.021700118906064207,
+      -0.0263
+     ]
+    },
+    {
+     "name": "nzr_handheld_k7",
+     "pos": [
+      0.0142,
+      0.021700118906064207,
+      -0.035
+     ]
+    },
+    {
+     "name": "nzr_handheld_k8",
+     "pos": [
+      0.0,
+      0.02182,
+      -0.035
+     ]
+    },
+    {
+     "name": "nzr_handheld_k9",
+     "pos": [
+      -0.0142,
+      0.021700118906064207,
+      -0.035
+     ]
+    },
+    {
+     "name": "nzr_handheld_kstar",
+     "pos": [
+      0.0142,
+      0.021700118906064207,
+      -0.0437
+     ]
+    },
+    {
+     "name": "nzr_handheld_khash",
+     "pos": [
+      -0.0142,
+      0.021700118906064207,
+      -0.0437
+     ]
+    },
+    {
+     "name": "nzr_handheld_kok",
+     "pos": [
+      0.0165,
+      0.021528139120095123,
+      -0.0075
+     ]
+    },
+    {
+     "name": "nzr_handheld_kback",
+     "pos": [
+      -0.0165,
+      0.021528139120095123,
+      -0.0075
+     ]
+    },
+    {
+     "name": "nzr_handheld_kp1",
+     "pos": [
+      0.0165,
+      0.021528139120095123,
+      0.0024999999999999996
+     ]
+    },
+    {
+     "name": "nzr_handheld_kp2",
+     "pos": [
+      -0.0165,
+      0.021528139120095123,
+      0.0024999999999999996
+     ]
+    },
+    {
+     "name": "nzr_handheld_dpad",
+     "pos": [
+      0.0,
+      0.02234,
+      -0.003
+     ]
+    },
+    {
+     "name": "nzr_handheld_knob_ch",
+     "pos": [
+      0.017,
+      0.003,
+      0.0882
+     ]
+    },
+    {
+     "name": "nzr_handheld_knob_vol",
+     "pos": [
+      -0.0015,
+      0.0035,
+      0.0872
+     ]
+    },
+    {
+     "name": "nzr_handheld_emerg",
+     "pos": [
+      -0.0185,
+      0.0115,
+      0.07907999999999998
+     ]
+    },
+    {
+     "name": "nzr_handheld_ptt",
+     "pos": [
+      0.03214,
+      0.0055,
+      0.027
+     ]
+    },
+    {
+     "name": "nzr_handheld_side1",
+     "pos": [
+      0.03096,
+      0.0055,
+      0.003
+     ]
+    },
+    {
+     "name": "nzr_handheld_side2",
+     "pos": [
+      0.03096,
+      0.0055,
+      -0.0075
+     ]
+    }
+   ]
+  }
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793111370.901,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033700\" y=\"-0.027637\" z=\"-0.053020\" />\n      <bbMax x=\"0.032490\" y=\"0.022400\" z=\"0.239200\" />\n      <bsCentre x=\"-0.000605\" y=\"-0.002619\" z=\"0.093090\" />\n      <bsRadius value=\"0.151886\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 68.15
+}

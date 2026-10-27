@@ -1,0 +1,173 @@
+{
+ "name": "nzr_handheld_knob_vol",
+ "module": "props.handheld",
+ "dims": [
+  0.015,
+  0.015,
+  0.0124
+ ],
+ "geoMin": [
+  -0.0075,
+  -0.0075,
+  -0.006
+ ],
+ "geoMax": [
+  0.0075,
+  0.0075,
+  0.0064
+ ],
+ "bbMin": [
+  -0.0075,
+  -0.0075,
+  -0.006
+ ],
+ "bbMax": [
+  0.0075,
+  0.0075,
+  0.0064
+ ],
+ "bsCentre": [
+  0.0,
+  0.0,
+  0.0002
+ ],
+ "bsRadius": 0.0123,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:handheld",
+ "tris": 680,
+ "verts": 615,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 1200,
+ "shaders": [
+  "normal_spec"
+ ],
+ "textures": [
+  {
+   "name": "nzr_handheld_knob_vol_d",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.41,
+   "maps": [
+    256,
+    256
+   ]
+  }
+ ],
+ "screens": [],
+ "mem_est": {
+  "physical": 327680,
+  "virtual": 49152
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC",
+   "center": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size": [
+    0.002,
+    0.002,
+    0.002
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "PX-740 patrol handheld - part knob_vol",
+  "origin": "the part anchor (layout keys[].pos): clickable face centre / knob axis centre",
+  "axes": "same orientation as the body",
+  "attach": "AttachEntityToEntity(part, body, 0, pos, 0, 0, 0, ...)"
+ },
+ "notes": {
+  "radio": "handheld"
+ },
+ "anchors": {
+  "kind": "radio_part",
+  "radio": "handheld",
+  "part": "knob_vol",
+  "origin": [
+   -0.0015,
+   0.0035,
+   0.0872
+  ],
+  "bbox_body": [
+   [
+    -0.009,
+    -0.004,
+    0.0792
+   ],
+   [
+    0.006,
+    0.011,
+    0.0936
+   ]
+  ],
+  "bbox_local": [
+   [
+    -0.0075,
+    -0.0075,
+    -0.008
+   ],
+   [
+    0.0075,
+    0.0075,
+    0.0064
+   ]
+  ],
+  "meta": {
+   "id": "knob_vol",
+   "model": "nzr_handheld_knob_vol",
+   "pos": [
+    -0.0015,
+    0.0035,
+    0.0872
+   ],
+   "press": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "depth": 0.0008,
+   "u": [
+    0.0065,
+    0.0,
+    0.0
+   ],
+   "v": [
+    0.0,
+    0.0,
+    0.006
+   ],
+   "shape": "rect",
+   "action": "knob",
+   "value": "volume",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "detents": 24
+  }
+ },
+ "preview": {
+  "views": [
+   "front",
+   "face",
+   "top"
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793111309.127,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.007500\" y=\"-0.007500\" z=\"-0.006000\" />\n      <bbMax x=\"0.007500\" y=\"0.007500\" z=\"0.006400\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"0.000200\" />\n      <bsRadius value=\"0.012286\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld_knob_vol</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld_knob_vol</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld_knob_vol</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 2.4
+}

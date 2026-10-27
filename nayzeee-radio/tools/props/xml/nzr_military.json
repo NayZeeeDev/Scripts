@@ -1,0 +1,1374 @@
+{
+ "name": "nzr_military",
+ "module": "props.military",
+ "dims": [
+  0.0747,
+  0.0539,
+  0.3715
+ ],
+ "geoMin": [
+  -0.0379,
+  -0.02932,
+  -0.0615
+ ],
+ "geoMax": [
+  0.0368,
+  0.0246,
+  0.31
+ ],
+ "bbMin": [
+  -0.0379,
+  -0.0293,
+  -0.0615
+ ],
+ "bbMax": [
+  0.0368,
+  0.0246,
+  0.31
+ ],
+ "bsCentre": [
+  -0.0005,
+  -0.0024,
+  0.1243
+ ],
+ "bsRadius": 0.1914,
+ "lodDist": 40.0,
+ "lodHigh": 6.0,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:military",
+ "tris": 23692,
+ "verts": 22112,
+ "tris_med": 3638,
+ "verts_med": 3360,
+ "budget": 24000,
+ "shaders": [
+  "normal_spec",
+  "normal_spec",
+  "normal_spec_alpha",
+  "emissive"
+ ],
+ "textures": [
+  {
+   "name": "nzr_military_d",
+   "size": 1024,
+   "density": 1523.2,
+   "coverage": 0.416,
+   "maps": [
+    1024,
+    1024
+   ]
+  },
+  {
+   "name": "nzr_military_face_d",
+   "size": 1024,
+   "density": 5878.0,
+   "coverage": 0.684,
+   "maps": [
+    512,
+    512
+   ]
+  },
+  {
+   "name": "nzr_military_ad",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.684,
+   "maps": [
+    256,
+    256
+   ]
+  },
+  {
+   "name": "nzr_scr",
+   "size": [
+    512,
+    384
+   ],
+   "screen": true
+  }
+ ],
+ "screens": [
+  "nzr_scr"
+ ],
+ "mem_est": {
+  "physical": 6291456,
+  "virtual": 2097152
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    -0.0005,
+    -0.0024,
+    0.0232
+   ],
+   "size": [
+    0.0747,
+    0.0539,
+    0.1695
+   ],
+   "axis": "z"
+  },
+  {
+   "type": "cylinder",
+   "material": "RUBBER",
+   "center": [
+    0.0215,
+    -0.0029,
+    0.2
+   ],
+   "size": [
+    0.0055,
+    0.22,
+    0.0
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "MX-905 tactical handheld - complete radio",
+  "origin": "grip point: body cross-section centre at 40 % of the body height from its bottom",
+  "axes": "+Y = front face (screen / keys), +Z up (antenna), +X = viewer's left",
+  "attach": "held: PH_R_Hand (28422) with Config.Radios.Models[m].grip",
+  "screen": "nzr_scr 512 x 384, colour LCD 42 x 32 mm behind smoked glass (mx905 skin)"
+ },
+ "notes": {
+  "radio": "military"
+ },
+ "anchors": {
+  "kind": "radio_full",
+  "radio": "military",
+  "skin": "mx905",
+  "code": "MX-905",
+  "full": "nzr_military",
+  "body": "nzr_military_body",
+  "screen": {
+   "center": [
+    0.0,
+    0.02145,
+    0.0525
+   ],
+   "size": [
+    0.042,
+    0.032
+   ],
+   "w": 512,
+   "h": 384,
+   "right": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "normal": [
+    0.0,
+    1.0,
+    -0.0
+   ],
+   "tex": "nzr_scr",
+   "txd": "nzr_military_body"
+  },
+  "focus": [
+   0.0,
+   0.021,
+   0.02
+  ],
+  "camDist": 0.36,
+  "leds": {
+   "tx": [
+    0.0215,
+    0.0125,
+    0.0898
+   ],
+   "rx": [
+    0.0215,
+    0.0125,
+    0.0898
+   ]
+  },
+  "grip": "PH_R_Hand (28422): palm on the battery box / strap plate, thumb on the PTT (+X side), antenna up; tune with /radiogrip",
+  "keys": [
+   {
+    "id": "k0",
+    "model": "nzr_military_k0",
+    "pos": [
+     0.0,
+     0.0236,
+     -0.02875
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "0",
+    "bbox": [
+     [
+      -0.005,
+      0.0212,
+      -0.03225
+     ],
+     [
+      0.005,
+      0.0236,
+      -0.02525
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k1",
+    "model": "nzr_military_k1",
+    "pos": [
+     0.0135,
+     0.0236,
+     -0.00025
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "1",
+    "bbox": [
+     [
+      0.0085,
+      0.0212,
+      -0.00375
+     ],
+     [
+      0.0185,
+      0.0236,
+      0.00325
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k2",
+    "model": "nzr_military_k2",
+    "pos": [
+     0.0,
+     0.0236,
+     -0.00025
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "2",
+    "bbox": [
+     [
+      -0.005,
+      0.0212,
+      -0.00375
+     ],
+     [
+      0.005,
+      0.0236,
+      0.00325
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k3",
+    "model": "nzr_military_k3",
+    "pos": [
+     -0.0135,
+     0.0236,
+     -0.00025
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "3",
+    "bbox": [
+     [
+      -0.0185,
+      0.0212,
+      -0.00375
+     ],
+     [
+      -0.0085,
+      0.0236,
+      0.00325
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k4",
+    "model": "nzr_military_k4",
+    "pos": [
+     0.0135,
+     0.0236,
+     -0.00975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "4",
+    "bbox": [
+     [
+      0.0085,
+      0.0212,
+      -0.01325
+     ],
+     [
+      0.0185,
+      0.0236,
+      -0.00625
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k5",
+    "model": "nzr_military_k5",
+    "pos": [
+     0.0,
+     0.0236,
+     -0.00975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "5",
+    "bbox": [
+     [
+      -0.005,
+      0.0212,
+      -0.01325
+     ],
+     [
+      0.005,
+      0.0236,
+      -0.00625
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k6",
+    "model": "nzr_military_k6",
+    "pos": [
+     -0.0135,
+     0.0236,
+     -0.00975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "6",
+    "bbox": [
+     [
+      -0.0185,
+      0.0212,
+      -0.01325
+     ],
+     [
+      -0.0085,
+      0.0236,
+      -0.00625
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k7",
+    "model": "nzr_military_k7",
+    "pos": [
+     0.0135,
+     0.0236,
+     -0.01925
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "7",
+    "bbox": [
+     [
+      0.0085,
+      0.0212,
+      -0.02275
+     ],
+     [
+      0.0185,
+      0.0236,
+      -0.01575
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k8",
+    "model": "nzr_military_k8",
+    "pos": [
+     0.0,
+     0.0236,
+     -0.01925
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "8",
+    "bbox": [
+     [
+      -0.005,
+      0.0212,
+      -0.02275
+     ],
+     [
+      0.005,
+      0.0236,
+      -0.01575
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "k9",
+    "model": "nzr_military_k9",
+    "pos": [
+     -0.0135,
+     0.0236,
+     -0.01925
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "9",
+    "bbox": [
+     [
+      -0.0185,
+      0.0212,
+      -0.02275
+     ],
+     [
+      -0.0085,
+      0.0236,
+      -0.01575
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "kstar",
+    "model": "nzr_military_kstar",
+    "pos": [
+     0.0135,
+     0.0236,
+     -0.02875
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "star",
+    "value": null,
+    "bbox": [
+     [
+      0.0085,
+      0.0212,
+      -0.03225
+     ],
+     [
+      0.0185,
+      0.0236,
+      -0.02525
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "khash",
+    "model": "nzr_military_khash",
+    "pos": [
+     -0.0135,
+     0.0236,
+     -0.02875
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.005,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "hash",
+    "value": null,
+    "bbox": [
+     [
+      -0.0185,
+      0.0212,
+      -0.03225
+     ],
+     [
+      -0.0085,
+      0.0236,
+      -0.02525
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "kok",
+    "model": "nzr_military_kok",
+    "pos": [
+     -0.0185,
+     0.02365,
+     0.0175
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0013,
+    "u": [
+     -0.00425,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.007
+    ],
+    "shape": "rect",
+    "action": "ok",
+    "value": null,
+    "bbox": [
+     [
+      -0.02275,
+      0.0212,
+      0.0105
+     ],
+     [
+      -0.01425,
+      0.02365,
+      0.0245
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "kback",
+    "model": "nzr_military_kback",
+    "pos": [
+     0.0185,
+     0.02365,
+     0.0225
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0013,
+    "u": [
+     -0.00425,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "back",
+    "value": null,
+    "bbox": [
+     [
+      0.01425,
+      0.0212,
+      0.0195
+     ],
+     [
+      0.02275,
+      0.02365,
+      0.0255
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "kup",
+    "model": "nzr_military_kup",
+    "pos": [
+     0.0185,
+     0.02365,
+     0.0125
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0013,
+    "u": [
+     -0.00425,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "menu",
+    "value": null,
+    "bbox": [
+     [
+      0.01425,
+      0.0212,
+      0.0095
+     ],
+     [
+      0.02275,
+      0.02365,
+      0.0155
+     ]
+    ],
+    "tris": 276
+   },
+   {
+    "id": "dpad",
+    "model": "nzr_military_dpad",
+    "pos": [
+     0.0,
+     0.02385,
+     0.0175
+    ],
+    "press": [
+     0.0,
+     -1.0,
+     0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     -0.008,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.008
+    ],
+    "shape": "round",
+    "action": "dpad",
+    "value": null,
+    "tilt": 5.0,
+    "bbox": [
+     [
+      -0.008,
+      0.0212,
+      0.0095
+     ],
+     [
+      0.008,
+      0.0242,
+      0.0255
+     ]
+    ],
+    "tris": 388
+   },
+   {
+    "id": "knob_ch",
+    "model": "nzr_military_knob_ch",
+    "pos": [
+     0.0005,
+     -0.0025,
+     0.0996
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0008,
+    "u": [
+     0.009,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0075
+    ],
+    "shape": "rect",
+    "action": "knob",
+    "value": "channel",
+    "axis": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "detents": 16,
+    "bbox": [
+     [
+      -0.0094,
+      -0.0124,
+      0.0921
+     ],
+     [
+      0.0104,
+      0.0074,
+      0.108
+     ]
+    ],
+    "tris": 1042
+   },
+   {
+    "id": "knob_vol",
+    "model": "nzr_military_knob_vol",
+    "pos": [
+     -0.0215,
+     -0.006,
+     0.09805
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0008,
+    "u": [
+     0.008,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.00625
+    ],
+    "shape": "rect",
+    "action": "knob",
+    "value": "volume",
+    "axis": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "detents": 24,
+    "bbox": [
+     [
+      -0.03,
+      -0.0145,
+      0.0918
+     ],
+     [
+      -0.013,
+      0.0025,
+      0.1047
+     ]
+    ],
+    "tris": 748
+   },
+   {
+    "id": "emerg",
+    "model": "nzr_military_emerg",
+    "pos": [
+     -0.0185,
+     0.0135,
+     0.0927
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.00425,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     -0.00425,
+     0.0
+    ],
+    "shape": "round",
+    "action": "emerg",
+    "value": null,
+    "bbox": [
+     [
+      -0.02275,
+      0.00925,
+      0.0903
+     ],
+     [
+      -0.01425,
+      0.01775,
+      0.0927
+     ]
+    ],
+    "tris": 340
+   },
+   {
+    "id": "ptt",
+    "model": "nzr_military_ptt",
+    "pos": [
+     0.0363,
+     0.0075,
+     0.04
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.0016,
+    "u": [
+     0.0,
+     0.0065,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.016
+    ],
+    "shape": "rect",
+    "action": "ptt",
+    "value": null,
+    "bbox": [
+     [
+      0.0332,
+      0.001,
+      0.024
+     ],
+     [
+      0.036534,
+      0.014,
+      0.056
+     ]
+    ],
+    "tris": 568
+   },
+   {
+    "id": "side1",
+    "model": "nzr_military_side1",
+    "pos": [
+     0.0353,
+     0.0075,
+     0.011
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     0.0,
+     0.0033,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0033
+    ],
+    "shape": "round",
+    "action": "side1",
+    "value": null,
+    "bbox": [
+     [
+      0.0332,
+      0.0042,
+      0.0077
+     ],
+     [
+      0.0353,
+      0.0108,
+      0.0143
+     ]
+    ],
+    "tris": 340
+   },
+   {
+    "id": "side2",
+    "model": "nzr_military_side2",
+    "pos": [
+     0.0353,
+     0.0075,
+     -0.001
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     0.0,
+     0.0033,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0033
+    ],
+    "shape": "round",
+    "action": "side2",
+    "value": null,
+    "bbox": [
+     [
+      0.0332,
+      0.0042,
+      -0.0043
+     ],
+     [
+      0.0353,
+      0.0108,
+      0.0023
+     ]
+    ],
+    "tris": 340
+   }
+  ],
+  "body_tris": 15786,
+  "export": true
+ },
+ "preview": {
+  "views": [
+   "face",
+   "front",
+   "left",
+   "right",
+   "back",
+   "top"
+  ],
+  "cams": [
+   {
+    "name": "keypad",
+    "pos": [
+     0.012564008734902012,
+     0.12710007279085012,
+     0.019004023293072034
+    ],
+    "target": [
+     0.0,
+     0.0224,
+     -0.0145
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "topdeck",
+    "pos": [
+     0.04587965294719139,
+     0.15550085867428712,
+     0.27843268119932724
+    ],
+    "target": [
+     -0.0005499999999999984,
+     -0.0023599613461635915,
+     0.102
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "screen",
+    "pos": [
+     0.0,
+     0.1871630427053034,
+     0.09392826067632586
+    ],
+    "target": [
+     0.0,
+     0.021450000000000004,
+     0.052500000000000005
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "ptt",
+    "pos": [
+     0.1935598450887805,
+     0.09399291479882929,
+     0.07931496127219512
+    ],
+    "target": [
+     0.0363,
+     0.0075000000000000015,
+     0.04
+    ],
+    "fov": 30.0
+   }
+  ],
+  "assembly": {
+   "name": "nzr_military_assembled",
+   "base": "nzr_military_body",
+   "compare": "nzr_military",
+   "parts": [
+    {
+     "name": "nzr_military_k0",
+     "pos": [
+      0.0,
+      0.0236,
+      -0.028749999999999998
+     ]
+    },
+    {
+     "name": "nzr_military_k1",
+     "pos": [
+      0.0135,
+      0.0236,
+      -0.00025000000000000196
+     ]
+    },
+    {
+     "name": "nzr_military_k2",
+     "pos": [
+      0.0,
+      0.0236,
+      -0.00025000000000000196
+     ]
+    },
+    {
+     "name": "nzr_military_k3",
+     "pos": [
+      -0.0135,
+      0.0236,
+      -0.00025000000000000196
+     ]
+    },
+    {
+     "name": "nzr_military_k4",
+     "pos": [
+      0.0135,
+      0.0236,
+      -0.009750000000000002
+     ]
+    },
+    {
+     "name": "nzr_military_k5",
+     "pos": [
+      0.0,
+      0.0236,
+      -0.009750000000000002
+     ]
+    },
+    {
+     "name": "nzr_military_k6",
+     "pos": [
+      -0.0135,
+      0.0236,
+      -0.009750000000000002
+     ]
+    },
+    {
+     "name": "nzr_military_k7",
+     "pos": [
+      0.0135,
+      0.0236,
+      -0.01925
+     ]
+    },
+    {
+     "name": "nzr_military_k8",
+     "pos": [
+      0.0,
+      0.0236,
+      -0.01925
+     ]
+    },
+    {
+     "name": "nzr_military_k9",
+     "pos": [
+      -0.0135,
+      0.0236,
+      -0.01925
+     ]
+    },
+    {
+     "name": "nzr_military_kstar",
+     "pos": [
+      0.0135,
+      0.0236,
+      -0.028749999999999998
+     ]
+    },
+    {
+     "name": "nzr_military_khash",
+     "pos": [
+      -0.0135,
+      0.0236,
+      -0.028749999999999998
+     ]
+    },
+    {
+     "name": "nzr_military_kok",
+     "pos": [
+      -0.0185,
+      0.02365,
+      0.0175
+     ]
+    },
+    {
+     "name": "nzr_military_kback",
+     "pos": [
+      0.0185,
+      0.02365,
+      0.022500000000000003
+     ]
+    },
+    {
+     "name": "nzr_military_kup",
+     "pos": [
+      0.0185,
+      0.02365,
+      0.0125
+     ]
+    },
+    {
+     "name": "nzr_military_dpad",
+     "pos": [
+      0.0,
+      0.02385,
+      0.0175
+     ]
+    },
+    {
+     "name": "nzr_military_knob_ch",
+     "pos": [
+      0.0005,
+      -0.0025,
+      0.0996
+     ]
+    },
+    {
+     "name": "nzr_military_knob_vol",
+     "pos": [
+      -0.0215,
+      -0.006,
+      0.09805000000000001
+     ]
+    },
+    {
+     "name": "nzr_military_emerg",
+     "pos": [
+      -0.0185,
+      0.0135,
+      0.0927
+     ]
+    },
+    {
+     "name": "nzr_military_ptt",
+     "pos": [
+      0.0363,
+      0.0075000000000000015,
+      0.04
+     ]
+    },
+    {
+     "name": "nzr_military_side1",
+     "pos": [
+      0.0353,
+      0.0075000000000000015,
+      0.011
+     ]
+    },
+    {
+     "name": "nzr_military_side2",
+     "pos": [
+      0.0353,
+      0.0075000000000000015,
+      -0.001
+     ]
+    }
+   ]
+  }
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793111804.096,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.037900\" y=\"-0.029320\" z=\"-0.061500\" />\n      <bbMax x=\"0.036800\" y=\"0.024600\" z=\"0.310000\" />\n      <bsCentre x=\"-0.000550\" y=\"-0.002360\" z=\"0.124250\" />\n      <bsRadius value=\"0.191376\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_military</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_military</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_military</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 35.37
+}

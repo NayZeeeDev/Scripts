@@ -1,0 +1,1433 @@
+{
+ "name": "nzr_fieldpro",
+ "module": "props.fieldpro",
+ "dims": [
+  0.0673,
+  0.0393,
+  0.1858
+ ],
+ "geoMin": [
+  -0.03381,
+  -0.02271,
+  -0.03894
+ ],
+ "geoMax": [
+  0.03349,
+  0.0166,
+  0.1469
+ ],
+ "bbMin": [
+  -0.0338,
+  -0.0227,
+  -0.0389
+ ],
+ "bbMax": [
+  0.0335,
+  0.0166,
+  0.1469
+ ],
+ "bsCentre": [
+  -0.0002,
+  -0.0031,
+  0.054
+ ],
+ "bsRadius": 0.1008,
+ "lodDist": 40.0,
+ "lodHigh": 6.0,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:fieldpro",
+ "tris": 23879,
+ "verts": 21837,
+ "tris_med": 3158,
+ "verts_med": 3279,
+ "budget": 24000,
+ "shaders": [
+  "normal_spec",
+  "normal_spec",
+  "normal_spec",
+  "normal_spec_alpha",
+  "emissive"
+ ],
+ "textures": [
+  {
+   "name": "nzr_fieldpro_d",
+   "size": 1024,
+   "density": 4159.2,
+   "coverage": 0.56,
+   "maps": [
+    1024,
+    1024
+   ]
+  },
+  {
+   "name": "nzr_fieldpro_face_d",
+   "size": 1024,
+   "density": 8929.8,
+   "coverage": 0.402,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_fieldpro_side_d",
+   "size": 1024,
+   "density": 5281.7,
+   "coverage": 0.634,
+   "maps": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "nzr_fieldpro_ad",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.463,
+   "maps": [
+    256,
+    256
+   ]
+  },
+  {
+   "name": "nzr_scr",
+   "size": [
+    512,
+    256
+   ],
+   "screen": true
+  }
+ ],
+ "screens": [
+  "nzr_scr"
+ ],
+ "mem_est": {
+  "physical": 11534336,
+  "virtual": 1507328
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC_HIGH_DENSITY",
+   "center": [
+    -0.0002,
+    -0.0031,
+    0.0168
+   ],
+   "size": [
+    0.0673,
+    0.0393,
+    0.1115
+   ],
+   "axis": "z"
+  },
+  {
+   "type": "cylinder",
+   "material": "RUBBER",
+   "center": [
+    0.0175,
+    0.0046,
+    0.1029
+   ],
+   "size": [
+    0.0063,
+    0.088,
+    0.0
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "FX-280 field handheld - complete radio",
+  "origin": "grip point: body cross-section centre at 40 % of the body height from its bottom",
+  "axes": "+Y = front face (screen / keys), +Z up (antenna), +X = viewer's left",
+  "attach": "held: PH_R_Hand (28422) with Config.Radios.Models[m].grip",
+  "screen": "nzr_scr 512 x 256 (grey-green STN) behind smoked glass, visible LCD 44 x 22 mm (layout screen.size)"
+ },
+ "notes": {
+  "radio": "fieldpro"
+ },
+ "anchors": {
+  "kind": "radio_full",
+  "radio": "fieldpro",
+  "skin": "fx280",
+  "code": "FX-280",
+  "full": "nzr_fieldpro",
+  "body": "nzr_fieldpro_body",
+  "screen": {
+   "center": [
+    0.0,
+    0.0139,
+    0.0356
+   ],
+   "size": [
+    0.044,
+    0.022
+   ],
+   "w": 512,
+   "h": 256,
+   "right": [
+    -1.0,
+    0.0,
+    0.0
+   ],
+   "up": [
+    -0.0,
+    -0.0,
+    1.0
+   ],
+   "normal": [
+    0.0,
+    1.0,
+    -0.0
+   ],
+   "tex": "nzr_scr",
+   "txd": "nzr_fieldpro_body"
+  },
+  "focus": [
+   0.0,
+   0.0165,
+   0.0105
+  ],
+  "camDist": 0.28,
+  "leds": {
+   "tx": [
+    0.0068,
+    0.0092,
+    0.058
+   ],
+   "rx": [
+    0.0068,
+    0.0092,
+    0.058
+   ]
+  },
+  "grip": "PH_R_Hand (28422): palm on the battery / belt clip, fingers round the right side, thumb on the left PTT; screen faces the camera when raised. Tune with /radiogrip.",
+  "keys": [
+   {
+    "id": "k0",
+    "model": "nzr_fieldpro_k0",
+    "pos": [
+     0.0062,
+     0.0166,
+     -0.02975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "0",
+    "bbox": [
+     [
+      0.0017,
+      0.01384,
+      -0.03275
+     ],
+     [
+      0.0107,
+      0.0166,
+      -0.02675
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k1",
+    "model": "nzr_fieldpro_k1",
+    "pos": [
+     0.0186,
+     0.0166,
+     -0.00335
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "1",
+    "bbox": [
+     [
+      0.0141,
+      0.01384,
+      -0.00635
+     ],
+     [
+      0.0231,
+      0.0166,
+      -0.00035
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k2",
+    "model": "nzr_fieldpro_k2",
+    "pos": [
+     0.0062,
+     0.0166,
+     -0.00335
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "2",
+    "bbox": [
+     [
+      0.0017,
+      0.01384,
+      -0.00635
+     ],
+     [
+      0.0107,
+      0.0166,
+      -0.00035
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k3",
+    "model": "nzr_fieldpro_k3",
+    "pos": [
+     -0.0062,
+     0.0166,
+     -0.00335
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "3",
+    "bbox": [
+     [
+      -0.0107,
+      0.01384,
+      -0.00635
+     ],
+     [
+      -0.0017,
+      0.0166,
+      -0.00035
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k4",
+    "model": "nzr_fieldpro_k4",
+    "pos": [
+     0.0186,
+     0.0166,
+     -0.01215
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "4",
+    "bbox": [
+     [
+      0.0141,
+      0.01384,
+      -0.01515
+     ],
+     [
+      0.0231,
+      0.0166,
+      -0.00915
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k5",
+    "model": "nzr_fieldpro_k5",
+    "pos": [
+     0.0062,
+     0.0166,
+     -0.01215
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "5",
+    "bbox": [
+     [
+      0.0017,
+      0.01384,
+      -0.01515
+     ],
+     [
+      0.0107,
+      0.0166,
+      -0.00915
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k6",
+    "model": "nzr_fieldpro_k6",
+    "pos": [
+     -0.0062,
+     0.0166,
+     -0.01215
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "6",
+    "bbox": [
+     [
+      -0.0107,
+      0.01384,
+      -0.01515
+     ],
+     [
+      -0.0017,
+      0.0166,
+      -0.00915
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k7",
+    "model": "nzr_fieldpro_k7",
+    "pos": [
+     0.0186,
+     0.0166,
+     -0.02095
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "7",
+    "bbox": [
+     [
+      0.0141,
+      0.01384,
+      -0.02395
+     ],
+     [
+      0.0231,
+      0.0166,
+      -0.01795
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k8",
+    "model": "nzr_fieldpro_k8",
+    "pos": [
+     0.0062,
+     0.0166,
+     -0.02095
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "8",
+    "bbox": [
+     [
+      0.0017,
+      0.01384,
+      -0.02395
+     ],
+     [
+      0.0107,
+      0.0166,
+      -0.01795
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "k9",
+    "model": "nzr_fieldpro_k9",
+    "pos": [
+     -0.0062,
+     0.0166,
+     -0.02095
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "digit",
+    "value": "9",
+    "bbox": [
+     [
+      -0.0107,
+      0.01384,
+      -0.02395
+     ],
+     [
+      -0.0017,
+      0.0166,
+      -0.01795
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "kstar",
+    "model": "nzr_fieldpro_kstar",
+    "pos": [
+     0.0186,
+     0.0166,
+     -0.02975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "star",
+    "value": null,
+    "bbox": [
+     [
+      0.0141,
+      0.01384,
+      -0.03275
+     ],
+     [
+      0.0231,
+      0.0166,
+      -0.02675
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "khash",
+    "model": "nzr_fieldpro_khash",
+    "pos": [
+     -0.0062,
+     0.0166,
+     -0.02975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "hash",
+    "value": null,
+    "bbox": [
+     [
+      -0.0107,
+      0.01384,
+      -0.03275
+     ],
+     [
+      -0.0017,
+      0.0166,
+      -0.02675
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "kup",
+    "model": "nzr_fieldpro_kup",
+    "pos": [
+     0.0175,
+     0.01638,
+     0.01295
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.00375,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0025
+    ],
+    "shape": "rect",
+    "action": "up",
+    "value": null,
+    "bbox": [
+     [
+      0.01375,
+      0.01384,
+      0.01045
+     ],
+     [
+      0.02125,
+      0.0164,
+      0.01545
+     ]
+    ],
+    "tris": 272
+   },
+   {
+    "id": "kdown",
+    "model": "nzr_fieldpro_kdown",
+    "pos": [
+     0.0175,
+     0.01638,
+     0.00605
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     -0.00375,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0025
+    ],
+    "shape": "rect",
+    "action": "down",
+    "value": null,
+    "bbox": [
+     [
+      0.01375,
+      0.01384,
+      0.00355
+     ],
+     [
+      0.02125,
+      0.0164,
+      0.00855
+     ]
+    ],
+    "tris": 272
+   },
+   {
+    "id": "kmenu",
+    "model": "nzr_fieldpro_kmenu",
+    "pos": [
+     -0.0186,
+     0.0166,
+     -0.01215
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "menu",
+    "value": null,
+    "bbox": [
+     [
+      -0.0231,
+      0.01384,
+      -0.01515
+     ],
+     [
+      -0.0141,
+      0.0166,
+      -0.00915
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "kset",
+    "model": "nzr_fieldpro_kset",
+    "pos": [
+     -0.0186,
+     0.0166,
+     -0.02095
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "ok",
+    "value": null,
+    "bbox": [
+     [
+      -0.0231,
+      0.01384,
+      -0.02395
+     ],
+     [
+      -0.0141,
+      0.0166,
+      -0.01795
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "kband",
+    "model": "nzr_fieldpro_kband",
+    "pos": [
+     -0.0186,
+     0.0166,
+     -0.00335
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "back",
+    "value": null,
+    "bbox": [
+     [
+      -0.0231,
+      0.01384,
+      -0.00635
+     ],
+     [
+      -0.0141,
+      0.0166,
+      -0.00035
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "kpower",
+    "model": "nzr_fieldpro_kpower",
+    "pos": [
+     -0.0186,
+     0.0166,
+     -0.02975
+    ],
+    "press": [
+     -0.0,
+     -1.0,
+     -0.0
+    ],
+    "depth": 0.0014,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "power",
+    "value": null,
+    "bbox": [
+     [
+      -0.0231,
+      0.01384,
+      -0.03275
+     ],
+     [
+      -0.0141,
+      0.0166,
+      -0.02675
+     ]
+    ],
+    "tris": 248
+   },
+   {
+    "id": "knob_ch",
+    "model": "nzr_fieldpro_knob_ch",
+    "pos": [
+     -0.016,
+     0.00455,
+     0.0627
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0008,
+    "u": [
+     -0.007,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0035
+    ],
+    "shape": "rect",
+    "action": "knob",
+    "value": "channel",
+    "axis": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "detents": 16,
+    "bbox": [
+     [
+      -0.0234,
+      -0.00285,
+      0.0582
+     ],
+     [
+      -0.0086,
+      0.01195,
+      0.0662
+     ]
+    ],
+    "tris": 1038
+   },
+   {
+    "id": "knob_vol",
+    "model": "nzr_fieldpro_knob_vol",
+    "pos": [
+     -0.016,
+     0.00455,
+     0.0692
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0008,
+    "u": [
+     -0.0045,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.003
+    ],
+    "shape": "rect",
+    "action": "knob",
+    "value": "volume",
+    "axis": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "detents": 24,
+    "bbox": [
+     [
+      -0.0205,
+      5e-05,
+      0.0644
+     ],
+     [
+      -0.0115,
+      0.00905,
+      0.07255
+     ]
+    ],
+    "tris": 774
+   },
+   {
+    "id": "ptt",
+    "model": "nzr_fieldpro_ptt",
+    "pos": [
+     0.03314,
+     0.00365,
+     0.0225
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.0016,
+    "u": [
+     0.0,
+     0.005,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0125
+    ],
+    "shape": "rect",
+    "action": "ptt",
+    "value": null,
+    "bbox": [
+     [
+      0.03004,
+      -0.00135,
+      0.01
+     ],
+     [
+      0.03349,
+      0.00865,
+      0.035
+     ]
+    ],
+    "tris": 880
+   },
+   {
+    "id": "side1",
+    "model": "nzr_fieldpro_side1",
+    "pos": [
+     0.03228,
+     0.00365,
+     0.001
+    ],
+    "press": [
+     -1.0,
+     -0.0,
+     -0.0
+    ],
+    "depth": 0.001,
+    "u": [
+     0.0,
+     0.0032,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0,
+     0.0032
+    ],
+    "shape": "round",
+    "action": "side1",
+    "value": null,
+    "bbox": [
+     [
+      0.03004,
+      0.00045,
+      -0.0022
+     ],
+     [
+      0.03228,
+      0.00685,
+      0.0042
+     ]
+    ],
+    "tris": 340
+   },
+   {
+    "id": "emerg",
+    "model": "nzr_fieldpro_emerg",
+    "pos": [
+     -0.0022,
+     0.0075,
+     0.05994
+    ],
+    "press": [
+     -0.0,
+     -0.0,
+     -1.0
+    ],
+    "depth": 0.0012,
+    "u": [
+     0.0025,
+     0.0,
+     0.0
+    ],
+    "v": [
+     0.0,
+     0.0025,
+     0.0
+    ],
+    "shape": "round",
+    "action": "emerg",
+    "value": null,
+    "bbox": [
+     [
+      -0.0047,
+      0.005,
+      0.05704
+     ],
+     [
+      0.0003,
+      0.01,
+      0.05994
+     ]
+    ],
+    "tris": 340
+   }
+  ],
+  "body_tris": 15995,
+  "export": true
+ },
+ "preview": {
+  "views": [
+   "face",
+   "front",
+   "left",
+   "right",
+   "back",
+   "top"
+  ],
+  "cams": [
+   {
+    "name": "keypad",
+    "pos": [
+     0.01767739176323481,
+     0.11086493136029009,
+     0.014056378035292826
+    ],
+    "target": [
+     0.0062,
+     0.015220000000000001,
+     -0.016550000000000002
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "topdeck",
+    "pos": [
+     0.04167032444641597,
+     0.13916817983242571,
+     0.22550724027734143
+    ],
+    "target": [
+     -0.0001605282581475763,
+     -0.0030567193630903332,
+     0.06655
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "screen",
+    "pos": [
+     0.0,
+     0.18750413997698448,
+     0.07900103499424613
+    ],
+    "target": [
+     0.0,
+     0.0139,
+     0.0356
+    ],
+    "fov": 30.0
+   },
+   {
+    "name": "ptt",
+    "pos": [
+     0.15599925397560976,
+     0.07122258968658537,
+     0.053214813493902446
+    ],
+    "target": [
+     0.033139999999999996,
+     0.0036499999999999996,
+     0.0225
+    ],
+    "fov": 30.0
+   }
+  ],
+  "assembly": {
+   "name": "nzr_fieldpro_assembled",
+   "base": "nzr_fieldpro_body",
+   "compare": "nzr_fieldpro",
+   "parts": [
+    {
+     "name": "nzr_fieldpro_k0",
+     "pos": [
+      0.0062,
+      0.0166,
+      -0.02975
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k1",
+     "pos": [
+      0.0186,
+      0.0166,
+      -0.00335
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k2",
+     "pos": [
+      0.0062,
+      0.0166,
+      -0.00335
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k3",
+     "pos": [
+      -0.0062,
+      0.0166,
+      -0.00335
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k4",
+     "pos": [
+      0.0186,
+      0.0166,
+      -0.012150000000000001
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k5",
+     "pos": [
+      0.0062,
+      0.0166,
+      -0.012150000000000001
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k6",
+     "pos": [
+      -0.0062,
+      0.0166,
+      -0.012150000000000001
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k7",
+     "pos": [
+      0.0186,
+      0.0166,
+      -0.02095
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k8",
+     "pos": [
+      0.0062,
+      0.0166,
+      -0.02095
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_k9",
+     "pos": [
+      -0.0062,
+      0.0166,
+      -0.02095
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kstar",
+     "pos": [
+      0.0186,
+      0.0166,
+      -0.02975
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_khash",
+     "pos": [
+      -0.0062,
+      0.0166,
+      -0.02975
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kup",
+     "pos": [
+      0.0175,
+      0.01638,
+      0.01295
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kdown",
+     "pos": [
+      0.0175,
+      0.01638,
+      0.00605
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kmenu",
+     "pos": [
+      -0.0186,
+      0.0166,
+      -0.012150000000000001
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kset",
+     "pos": [
+      -0.0186,
+      0.0166,
+      -0.02095
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kband",
+     "pos": [
+      -0.0186,
+      0.0166,
+      -0.00335
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_kpower",
+     "pos": [
+      -0.0186,
+      0.0166,
+      -0.02975
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_knob_ch",
+     "pos": [
+      -0.016,
+      0.00455,
+      0.06269999999999999
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_knob_vol",
+     "pos": [
+      -0.016,
+      0.00455,
+      0.0692
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_ptt",
+     "pos": [
+      0.033139999999999996,
+      0.0036499999999999996,
+      0.0225
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_side1",
+     "pos": [
+      0.032279999999999996,
+      0.0036499999999999996,
+      0.001
+     ]
+    },
+    {
+     "name": "nzr_fieldpro_emerg",
+     "pos": [
+      -0.0022,
+      0.0075,
+      0.05993999999999999
+     ]
+    }
+   ]
+  }
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793114003.239,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033811\" y=\"-0.022713\" z=\"-0.038936\" />\n      <bbMax x=\"0.033490\" y=\"0.016600\" z=\"0.146900\" />\n      <bsCentre x=\"-0.000161\" y=\"-0.003057\" z=\"0.053982\" />\n      <bsRadius value=\"0.100760\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 69.47
+}

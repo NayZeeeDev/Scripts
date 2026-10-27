@@ -1,0 +1,167 @@
+{
+ "name": "nzr_fieldpro_emerg",
+ "module": "props.fieldpro",
+ "dims": [
+  0.005,
+  0.005,
+  0.0029
+ ],
+ "geoMin": [
+  -0.0025,
+  -0.0025,
+  -0.0029
+ ],
+ "geoMax": [
+  0.0025,
+  0.0025,
+  0.0
+ ],
+ "bbMin": [
+  -0.0025,
+  -0.0025,
+  -0.0029
+ ],
+ "bbMax": [
+  0.0025,
+  0.0025,
+  0.001
+ ],
+ "bsCentre": [
+  0.0,
+  0.0,
+  -0.0009
+ ],
+ "bsRadius": 0.004,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:fieldpro",
+ "tris": 340,
+ "verts": 211,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 1200,
+ "shaders": [
+  "normal_spec"
+ ],
+ "textures": [
+  {
+   "name": "nzr_fieldpro_emerg_d",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.069,
+   "maps": [
+    256,
+    256
+   ]
+  }
+ ],
+ "screens": [],
+ "mem_est": {
+  "physical": 327680,
+  "virtual": 32768
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC",
+   "center": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size": [
+    0.002,
+    0.002,
+    0.002
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "FX-280 field handheld - part emerg",
+  "origin": "the part anchor (layout keys[].pos): clickable face centre / knob axis centre",
+  "axes": "same orientation as the body",
+  "attach": "AttachEntityToEntity(part, body, 0, pos, 0, 0, 0, ...)"
+ },
+ "notes": {
+  "radio": "fieldpro"
+ },
+ "anchors": {
+  "kind": "radio_part",
+  "radio": "fieldpro",
+  "part": "emerg",
+  "origin": [
+   -0.0022,
+   0.0075,
+   0.05994
+  ],
+  "bbox_body": [
+   [
+    -0.0047,
+    0.005,
+    0.05704
+   ],
+   [
+    0.0003,
+    0.01,
+    0.05994
+   ]
+  ],
+  "bbox_local": [
+   [
+    -0.0025,
+    -0.0025,
+    -0.0029
+   ],
+   [
+    0.0025,
+    0.0025,
+    0.0
+   ]
+  ],
+  "meta": {
+   "id": "emerg",
+   "model": "nzr_fieldpro_emerg",
+   "pos": [
+    -0.0022,
+    0.0075,
+    0.05994
+   ],
+   "press": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "depth": 0.0012,
+   "u": [
+    0.0025,
+    0.0,
+    0.0
+   ],
+   "v": [
+    0.0,
+    0.0025,
+    0.0
+   ],
+   "shape": "round",
+   "action": "emerg",
+   "value": null
+  }
+ },
+ "preview": {
+  "views": [
+   "front",
+   "face",
+   "top"
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793113934.522,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.002500\" y=\"-0.002500\" z=\"-0.002900\" />\n      <bbMax x=\"0.002500\" y=\"0.002500\" z=\"0.001000\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"-0.000950\" />\n      <bsRadius value=\"0.004038\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_emerg</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_emerg</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_emerg</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 0.75
+}

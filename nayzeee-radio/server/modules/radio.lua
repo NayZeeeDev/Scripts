@@ -18,9 +18,9 @@
       NZR.Radio.members[fkey] = { [src] = slot }      powered radios with fkey in a slot
 
     PUBLIC RECORD (what the owner's client gets: init, nzr:radio:state)
-      { src, name, callsign, model, owned, earpieceOwned, power, slots (holes allowed),
-        slotCount, txSlot, muted, earpiece, handsfree, underwater, presets (false = free),
-        presetCount, unlocked, tx = { fkey, slot, device, emergency } | nil }
+      { src, name, callsign ('1G' | false = none), model, owned, earpieceOwned, power,
+        slots (holes allowed), slotCount, txSlot, muted, earpiece, handsfree, underwater,
+        presets (false = free), presetCount, unlocked, tx = { fkey, slot, device, emergency } | nil }
 
     Items are re-checked on power-on, on a model change, every 5 s for powered radios and
     whenever the inventory bridge reports a change. Losing every radio powers the radio off,
@@ -215,8 +215,10 @@ function R.Public(rec)
     if rec.tx then
         tx = { fkey = rec.tx.fkey, slot = rec.tx.slot, device = rec.tx.device, emergency = rec.tx.emergency == true }
     end
+    -- false, not nil: a missing key would leave the client showing a callsign that was
+    -- cleared (another character on the same player id, an export clearing it)
     return {
-        src = rec.src, name = rec.name, callsign = rec.callsign,
+        src = rec.src, name = rec.name, callsign = rec.callsign or false,
         model = rec.model, owned = copyTable(rec.owned), earpieceOwned = rec.earpieceOwned == true,
         power = rec.power == true, slots = slots, slotCount = count, txSlot = rec.txSlot,
         muted = rec.muted == true, earpiece = rec.earpiece == true, handsfree = rec.handsfree == true,

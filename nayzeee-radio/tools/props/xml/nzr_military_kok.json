@@ -1,0 +1,167 @@
+{
+ "name": "nzr_military_kok",
+ "module": "props.military",
+ "dims": [
+  0.0085,
+  0.0025,
+  0.014
+ ],
+ "geoMin": [
+  -0.00425,
+  -0.00245,
+  -0.007
+ ],
+ "geoMax": [
+  0.00425,
+  0.0,
+  0.007
+ ],
+ "bbMin": [
+  -0.0043,
+  -0.0025,
+  -0.007
+ ],
+ "bbMax": [
+  0.0043,
+  0.001,
+  0.007
+ ],
+ "bsCentre": [
+  0.0,
+  -0.0007,
+  0.0
+ ],
+ "bsRadius": 0.0084,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:military",
+ "tris": 276,
+ "verts": 211,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 1200,
+ "shaders": [
+  "normal_spec"
+ ],
+ "textures": [
+  {
+   "name": "nzr_military_kok_d",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.18,
+   "maps": [
+    256,
+    256
+   ]
+  }
+ ],
+ "screens": [],
+ "mem_est": {
+  "physical": 327680,
+  "virtual": 24576
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC",
+   "center": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size": [
+    0.002,
+    0.002,
+    0.002
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "MX-905 tactical handheld - part kok",
+  "origin": "the part anchor (layout keys[].pos): clickable face centre / knob axis centre",
+  "axes": "same orientation as the body",
+  "attach": "AttachEntityToEntity(part, body, 0, pos, 0, 0, 0, ...)"
+ },
+ "notes": {
+  "radio": "military"
+ },
+ "anchors": {
+  "kind": "radio_part",
+  "radio": "military",
+  "part": "kok",
+  "origin": [
+   -0.0185,
+   0.02365,
+   0.0175
+  ],
+  "bbox_body": [
+   [
+    -0.02275,
+    0.0212,
+    0.0105
+   ],
+   [
+    -0.01425,
+    0.02365,
+    0.0245
+   ]
+  ],
+  "bbox_local": [
+   [
+    -0.00425,
+    -0.00245,
+    -0.007
+   ],
+   [
+    0.00425,
+    0.0,
+    0.007
+   ]
+  ],
+  "meta": {
+   "id": "kok",
+   "model": "nzr_military_kok",
+   "pos": [
+    -0.0185,
+    0.02365,
+    0.0175
+   ],
+   "press": [
+    -0.0,
+    -1.0,
+    -0.0
+   ],
+   "depth": 0.0013,
+   "u": [
+    -0.00425,
+    0.0,
+    0.0
+   ],
+   "v": [
+    0.0,
+    0.0,
+    0.007
+   ],
+   "shape": "rect",
+   "action": "ok",
+   "value": null
+  }
+ },
+ "preview": {
+  "views": [
+   "front",
+   "face",
+   "top"
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793111773.552,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.004250\" y=\"-0.002450\" z=\"-0.007000\" />\n      <bbMax x=\"0.004250\" y=\"0.001000\" z=\"0.007000\" />\n      <bsCentre x=\"0.000000\" y=\"-0.000725\" z=\"0.000000\" />\n      <bsRadius value=\"0.008369\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_military_kok</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_military_kok</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_military_kok</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 0.4
+}

@@ -6,10 +6,1018 @@
       <lodDist value="40" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.037300" y="-0.026199" z="-0.061500" />
-      <bbMax x="0.036450" y="0.024100" z="0.310000" />
-      <bsCentre x="-0.000425" y="-0.001049" z="0.124250" />
-      <bsRadius value="0.191037" />
+      <bbMin x="-0.033811" y="-0.022713" z="-0.038936" />
+      <bbMax x="0.033490" y="0.016600" z="0.146900" />
+      <bsCentre x="-0.000161" y="-0.003057" z="0.053982" />
+      <bsRadius value="0.100760" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.033811" y="-0.022713" z="-0.038936" />
+      <bbMax x="0.033490" y="0.016600" z="0.146900" />
+      <bsCentre x="-0.000161" y="-0.003057" z="0.053982" />
+      <bsRadius value="0.100760" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_body</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_body</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_body</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.002500" y="-0.002500" z="-0.002900" />
+      <bbMax x="0.002500" y="0.002500" z="0.001000" />
+      <bsCentre x="0.000000" y="0.000000" z="-0.000950" />
+      <bsRadius value="0.004038" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_emerg</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_emerg</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_emerg</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k0</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k0</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k0</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k1</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k1</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k1</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k2</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k2</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k2</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k3</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k3</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k3</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k4</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k4</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k4</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k5</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k5</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k5</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k6</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k6</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k6</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k7</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k7</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k7</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k8</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k8</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k8</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_k9</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_k9</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_k9</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kband</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kband</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kband</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.003750" y="-0.002540" z="-0.002500" />
+      <bbMax x="0.003750" y="0.001000" z="0.002500" />
+      <bsCentre x="0.000000" y="-0.000770" z="0.000000" />
+      <bsRadius value="0.004842" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kdown</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kdown</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kdown</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_khash</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_khash</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_khash</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kmenu</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kmenu</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kmenu</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.007400" y="-0.007400" z="-0.003500" />
+      <bbMax x="0.007400" y="0.007400" z="0.003500" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000000" />
+      <bsRadius value="0.011035" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_knob_ch</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_knob_ch</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_knob_ch</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.004500" z="-0.004800" />
+      <bbMax x="0.004500" y="0.004500" z="0.003350" />
+      <bsCentre x="0.000000" y="0.000000" z="-0.000725" />
+      <bsRadius value="0.007557" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_knob_vol</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_knob_vol</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_knob_vol</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kpower</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kpower</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kpower</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kset</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kset</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kset</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.002760" z="-0.003000" />
+      <bbMax x="0.004500" y="0.001000" z="0.003000" />
+      <bsCentre x="0.000000" y="-0.000880" z="0.000000" />
+      <bsRadius value="0.005726" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kstar</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kstar</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kstar</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.003750" y="-0.002540" z="-0.002500" />
+      <bbMax x="0.003750" y="0.001000" z="0.002500" />
+      <bsCentre x="0.000000" y="-0.000770" z="0.000000" />
+      <bsRadius value="0.004842" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_kup</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_kup</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_kup</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.003100" y="-0.005000" z="-0.012500" />
+      <bbMax x="0.001000" y="0.005000" z="0.012500" />
+      <bsCentre x="-0.001050" y="0.000000" z="0.000000" />
+      <bsRadius value="0.013618" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_ptt</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_ptt</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_ptt</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.002240" y="-0.003200" z="-0.003200" />
+      <bbMax x="0.001000" y="0.003200" z="0.003200" />
+      <bsCentre x="-0.000620" y="0.000000" z="0.000000" />
+      <bsRadius value="0.004807" />
+      <hdTextureDist value="8" />
+      <name>nzr_fieldpro_side1</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_fieldpro_side1</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_fieldpro_side1</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="40" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.033700" y="-0.027637" z="-0.053020" />
+      <bbMax x="0.032490" y="0.022400" z="0.239200" />
+      <bsCentre x="-0.000605" y="-0.002619" z="0.093090" />
+      <bsRadius value="0.151886" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.033700" y="-0.027637" z="-0.053020" />
+      <bbMax x="0.032490" y="0.022400" z="0.239200" />
+      <bsCentre x="-0.000605" y="-0.002619" z="0.093090" />
+      <bsRadius value="0.151886" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_body</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_body</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_body</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.006969" y="-0.002800" z="-0.006969" />
+      <bbMax x="0.006969" y="0.001000" z="0.006969" />
+      <bsCentre x="0.000000" y="-0.000900" z="0.000000" />
+      <bsRadius value="0.010037" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_dpad</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_dpad</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_dpad</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004500" y="-0.003000" z="-0.002380" />
+      <bbMax x="0.004500" y="0.003000" z="0.001000" />
+      <bsCentre x="0.000000" y="0.000000" z="-0.000690" />
+      <bsRadius value="0.005666" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_emerg</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_emerg</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_emerg</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k0</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k0</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k0</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k1</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k1</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k1</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k2</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k2</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k2</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k3</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k3</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k3</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k4</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k4</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k4</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k5</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k5</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k5</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k6</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k6</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k6</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k7</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k7</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k7</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k8</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k8</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k8</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_k9</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_k9</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_k9</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004000" y="-0.002150" z="-0.003500" />
+      <bbMax x="0.004000" y="0.001000" z="0.003500" />
+      <bsCentre x="0.000000" y="-0.000575" z="0.000000" />
+      <bsRadius value="0.005544" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_kback</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_kback</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_kback</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_khash</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_khash</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_khash</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.007100" y="-0.007100" z="-0.007000" />
+      <bbMax x="0.007100" y="0.007100" z="0.007400" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000200" />
+      <bsRadius value="0.012356" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_knob_ch</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_knob_ch</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_knob_ch</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.007500" y="-0.007500" z="-0.006000" />
+      <bbMax x="0.007500" y="0.007500" z="0.006400" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000200" />
+      <bsRadius value="0.012286" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_knob_vol</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_knob_vol</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_knob_vol</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.004000" y="-0.002150" z="-0.003500" />
+      <bbMax x="0.004000" y="0.001000" z="0.003500" />
+      <bsCentre x="0.000000" y="-0.000575" z="0.000000" />
+      <bsRadius value="0.005544" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_kok</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_kok</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_kok</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.003750" y="-0.002150" z="-0.002500" />
+      <bbMax x="0.003750" y="0.001000" z="0.002500" />
+      <bsCentre x="0.000000" y="-0.000575" z="0.000000" />
+      <bsRadius value="0.004774" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_kp1</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_kp1</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_kp1</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.003750" y="-0.002150" z="-0.002500" />
+      <bbMax x="0.003750" y="0.001000" z="0.002500" />
+      <bsCentre x="0.000000" y="-0.000575" z="0.000000" />
+      <bsRadius value="0.004774" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_kp2</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_kp2</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_kp2</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.005500" y="-0.002280" z="-0.003250" />
+      <bbMax x="0.005500" y="0.001000" z="0.003250" />
+      <bsCentre x="0.000000" y="-0.000640" z="0.000000" />
+      <bsRadius value="0.006596" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_kstar</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_kstar</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_kstar</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.003100" y="-0.006000" z="-0.015000" />
+      <bbMax x="0.001000" y="0.006000" z="0.015000" />
+      <bsCentre x="-0.001050" y="0.000000" z="0.000000" />
+      <bsRadius value="0.016285" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_ptt</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_ptt</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_ptt</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.001920" y="-0.003000" z="-0.003000" />
+      <bbMax x="0.001000" y="0.003000" z="0.003000" />
+      <bsCentre x="-0.000460" y="0.000000" z="0.000000" />
+      <bsRadius value="0.004487" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_side1</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_side1</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_side1</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="20" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.001920" y="-0.003000" z="-0.003000" />
+      <bbMax x="0.001000" y="0.003000" z="0.003000" />
+      <bsCentre x="-0.000460" y="0.000000" z="0.000000" />
+      <bsRadius value="0.004487" />
+      <hdTextureDist value="8" />
+      <name>nzr_handheld_side2</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_handheld_side2</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_handheld_side2</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="150" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.346888" y="-0.310195" z="0.000000" />
+      <bbMax x="0.346888" y="0.233055" z="0.495558" />
+      <bsCentre x="0.000000" y="-0.038570" z="0.247779" />
+      <bsRadius value="0.505476" />
+      <hdTextureDist value="15" />
+      <name>nzr_jammer_case</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_jammer_case</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_jammer_case</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="150" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.524712" y="-0.525188" z="0.000000" />
+      <bbMax x="0.525353" y="0.525188" z="1.985185" />
+      <bsCentre x="0.000320" y="0.000000" z="0.992593" />
+      <bsRadius value="1.239646" />
+      <hdTextureDist value="20" />
+      <name>nzr_jammer_heavy</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_jammer_heavy</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_jammer_heavy</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="150" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.084047" y="-0.039139" z="0.000000" />
+      <bbMax x="0.084047" y="0.035500" z="0.105764" />
+      <bsCentre x="0.000000" y="-0.001819" z="0.052882" />
+      <bsRadius value="0.106081" />
+      <hdTextureDist value="12" />
+      <name>nzr_jammer_pocket</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_jammer_pocket</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_jammer_pocket</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="12" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.001575" y="-0.001575" z="-0.000220" />
+      <bbMax x="0.001575" y="0.001575" z="0.001780" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000780" />
+      <bsRadius value="0.002442" />
+      <hdTextureDist value="3" />
+      <name>nzr_led_amber</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_led_amber</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_led_amber</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="12" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.001575" y="-0.001575" z="-0.000220" />
+      <bbMax x="0.001575" y="0.001575" z="0.001780" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000780" />
+      <bsRadius value="0.002442" />
+      <hdTextureDist value="3" />
+      <name>nzr_led_green</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_led_green</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_led_green</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="12" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.001575" y="-0.001575" z="-0.000220" />
+      <bbMax x="0.001575" y="0.001575" z="0.001780" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000780" />
+      <bsRadius value="0.002442" />
+      <hdTextureDist value="3" />
+      <name>nzr_led_red</name>
+      <textureDictionary />
+      <clipDictionary />
+      <drawableDictionary />
+      <physicsDictionary>nzr_led_red</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nzr_led_red</assetName>
+      <extensions />
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="40" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.037900" y="-0.029320" z="-0.061500" />
+      <bbMax x="0.036800" y="0.024600" z="0.310000" />
+      <bsCentre x="-0.000550" y="-0.002360" z="0.124250" />
+      <bsRadius value="0.191376" />
       <hdTextureDist value="8" />
       <name>nzr_military</name>
       <textureDictionary />
@@ -24,10 +1032,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.037300" y="-0.026199" z="-0.061500" />
-      <bbMax x="0.036450" y="0.024100" z="0.310000" />
-      <bsCentre x="-0.000425" y="-0.001049" z="0.124250" />
-      <bsRadius value="0.191037" />
+      <bbMin x="-0.037900" y="-0.029320" z="-0.061500" />
+      <bbMax x="0.036800" y="0.024600" z="0.310000" />
+      <bsCentre x="-0.000550" y="-0.002360" z="0.124250" />
+      <bsRadius value="0.191376" />
       <hdTextureDist value="8" />
       <name>nzr_military_body</name>
       <textureDictionary />
@@ -42,10 +1050,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.008000" y="-0.002800" z="-0.008000" />
+      <bbMin x="-0.008000" y="-0.002650" z="-0.008000" />
       <bbMax x="0.008000" y="0.001000" z="0.008000" />
-      <bsCentre x="0.000000" y="-0.000900" z="0.000000" />
-      <bsRadius value="0.011472" />
+      <bsCentre x="0.000000" y="-0.000825" z="0.000000" />
+      <bsRadius value="0.011460" />
       <hdTextureDist value="8" />
       <name>nzr_military_dpad</name>
       <textureDictionary />
@@ -60,10 +1068,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.004250" y="-0.004250" z="-0.002300" />
+      <bbMin x="-0.004250" y="-0.004250" z="-0.002400" />
       <bbMax x="0.004250" y="0.004250" z="0.001000" />
-      <bsCentre x="0.000000" y="0.000000" z="-0.000650" />
-      <bsRadius value="0.006233" />
+      <bsCentre x="0.000000" y="0.000000" z="-0.000700" />
+      <bsRadius value="0.006246" />
       <hdTextureDist value="8" />
       <name>nzr_military_emerg</name>
       <textureDictionary />
@@ -294,10 +1302,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.009800" y="-0.009800" z="-0.007500" />
-      <bbMax x="0.009800" y="0.009800" z="0.007900" />
-      <bsCentre x="0.000000" y="0.000000" z="0.000200" />
-      <bsRadius value="0.015855" />
+      <bbMin x="-0.009900" y="-0.009900" z="-0.007500" />
+      <bbMax x="0.009900" y="0.009900" z="0.008400" />
+      <bsCentre x="0.000000" y="0.000000" z="0.000450" />
+      <bsRadius value="0.016100" />
       <hdTextureDist value="8" />
       <name>nzr_military_knob_ch</name>
       <textureDictionary />
@@ -312,10 +1320,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.008400" y="-0.008400" z="-0.006250" />
-      <bbMax x="0.008400" y="0.008400" z="0.006650" />
+      <bbMin x="-0.008500" y="-0.008500" z="-0.006250" />
+      <bbMax x="0.008500" y="0.008500" z="0.006650" />
       <bsCentre x="0.000000" y="0.000000" z="0.000200" />
-      <bsRadius value="0.013517" />
+      <bsRadius value="0.013642" />
       <hdTextureDist value="8" />
       <name>nzr_military_knob_vol</name>
       <textureDictionary />
@@ -402,10 +1410,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.001900" y="-0.003300" z="-0.003300" />
+      <bbMin x="-0.002100" y="-0.003300" z="-0.003300" />
       <bbMax x="0.001000" y="0.003300" z="0.003300" />
-      <bsCentre x="-0.000450" y="0.000000" z="0.000000" />
-      <bsRadius value="0.004887" />
+      <bsCentre x="-0.000550" y="0.000000" z="0.000000" />
+      <bsRadius value="0.004918" />
       <hdTextureDist value="8" />
       <name>nzr_military_side1</name>
       <textureDictionary />
@@ -420,10 +1428,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.001900" y="-0.003300" z="-0.003300" />
+      <bbMin x="-0.002100" y="-0.003300" z="-0.003300" />
       <bbMax x="0.001000" y="0.003300" z="0.003300" />
-      <bsCentre x="-0.000450" y="0.000000" z="0.000000" />
-      <bsRadius value="0.004887" />
+      <bsCentre x="-0.000550" y="0.000000" z="0.000000" />
+      <bsRadius value="0.004918" />
       <hdTextureDist value="8" />
       <name>nzr_military_side2</name>
       <textureDictionary />

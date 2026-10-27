@@ -1,1 +1,110 @@
-/* NAYZEEE RADIO · overlay app styles (stub from the foundation - the app engineer fills this file) */
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE RADIO · overlay (no focus)
+   .ov-dock   key list docked to the right edge, mid height, hung on a teal spine
+   .ov-hov    hover outline over the raised radio's parts (SVG covering the viewport)
+   .ov-tag    the hovered part's name chip
+   .ov-place  jammer placement card, top-left
+   .ov-mock   browser preview only: a stand-in handset to outline (generic, no brand)
+   ═══════════════════════════════════════════════════════════ */
+#app-overlay,#app-overlay *{pointer-events:none!important}
+
+/* ── key dock (right edge) ── */
+#app-overlay .ov-dock{position:absolute;right:0;top:calc(50% - 56px);display:flex;flex-direction:column;align-items:flex-end;gap:5px;padding:0 16px 0 0;opacity:0;visibility:hidden;transition:opacity 200ms ease,visibility 0s linear 200ms}
+#app-overlay .ov-dock.on{opacity:1;visibility:visible;transition:opacity 160ms ease}
+#app-overlay .ov-spine{position:absolute;right:6px;top:4px;bottom:4px;width:2px;border-radius:2px;
+  background:linear-gradient(180deg,rgba(15,212,196,0),var(--teal-hi) 14%,var(--teal) 86%,rgba(8,175,162,0));box-shadow:0 0 10px rgba(15,212,196,.45);
+  transform-origin:top;transform:scaleY(0);transition:transform 380ms cubic-bezier(.2,.7,.2,1)}
+#app-overlay .ov-dock.on .ov-spine{transform:none}
+#app-overlay .ov-list{display:contents}
+#app-overlay .ov-head{display:flex;align-items:center;gap:7px;height:22px;padding:0 9px 0 7px;margin-bottom:3px;border-radius:6px;
+  background:rgba(8,9,10,.88);border:1px solid rgba(255,255,255,.07);font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-2);
+  box-shadow:0 6px 18px rgba(0,0,0,.35)}
+#app-overlay .ov-head .nz-ic{width:12px;height:12px;color:var(--teal-hi)}
+#app-overlay .ov-head b{font-weight:700;color:var(--white);letter-spacing:.08em;font-family:var(--mono);text-transform:none;font-size:10px}
+#app-overlay .ov-k{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:9px;min-height:30px;padding:3px 4px 3px 12px;border-radius:8px;
+  background:rgba(10,11,13,.86);border:1px solid rgba(255,255,255,.07);box-shadow:0 6px 18px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04)}
+#app-overlay .ov-k::after{content:'';position:absolute;right:-10px;top:50%;width:10px;height:1px;background:var(--teal-edge)}
+#app-overlay .ov-k::before{content:'';position:absolute;right:-11.5px;top:50%;width:5px;height:5px;margin-top:-2px;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 6px var(--teal)}
+#app-overlay .ov-k em{font-style:normal;font-size:12px;font-weight:500;color:rgba(242,244,245,.9);white-space:nowrap;max-width:230px;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+#app-overlay .ov-keys{display:flex;align-items:center;gap:3px}
+#app-overlay .ov-keys i{font-style:normal;font-size:10px;color:var(--ink-3);padding:0 1px}
+#app-overlay .ov-keys kbd{height:22px;min-width:22px;padding:0 6px;font-size:10px;background:rgba(255,255,255,.07);color:var(--white)}
+#app-overlay .ov-keys kbd.ms{width:22px;min-width:22px;padding:0;background:rgba(255,255,255,.05)}
+#app-overlay .ov-keys kbd.ar{padding:0 4px}
+#app-overlay .ov-keys svg{width:15px;height:18px;overflow:visible}
+#app-overlay .ov-keys kbd.ar svg{width:15px;height:15px}
+#app-overlay .ov-keys svg .o{fill:none;stroke:rgba(255,255,255,.72);stroke-width:1.3;stroke-linejoin:round}
+#app-overlay .ov-keys svg .f{fill:var(--teal-hi);stroke:none;filter:drop-shadow(0 0 2px rgba(15,212,196,.7))}
+#app-overlay .ov-keys svg .w{fill:rgba(255,255,255,.72);stroke:none}
+#app-overlay .ov-dock.on .ov-k{animation:ov-in 300ms cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 38ms + 60ms)}
+@keyframes ov-in{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+
+/* ── hover outline ── */
+#app-overlay .ov-hov{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+#app-overlay .ov-g{opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(1.07);transition:opacity 170ms ease,transform 220ms cubic-bezier(.2,.7,.2,1)}
+#app-overlay .ov-g.on{opacity:1;transform:none}
+#app-overlay .ov-g .hal{fill:none;stroke:rgba(0,0,0,.42);stroke-width:4;stroke-linejoin:round}
+#app-overlay .ov-g .fil{fill:rgba(8,175,162,.13)}
+#app-overlay .ov-g .edg{fill:none;stroke:var(--teal-hi);stroke-width:1.5;stroke-linejoin:round}
+#app-overlay .ov-g .tik{fill:none;stroke:#e9fffc;stroke-width:1.6;stroke-linecap:square;opacity:.92}
+#app-overlay .ov-g.press .fil{fill:rgba(15,212,196,.26)}
+
+#app-overlay .ov-tag{position:absolute;left:0;top:0;display:flex;align-items:center;gap:7px;height:22px;padding:0 8px 0 0;border-radius:5px;overflow:hidden;
+  background:rgba(8,9,10,.9);border:1px solid rgba(255,255,255,.08);box-shadow:0 6px 16px rgba(0,0,0,.4);white-space:nowrap;
+  opacity:0;transform:translateX(-4px);transition:opacity 150ms ease,transform 200ms cubic-bezier(.2,.7,.2,1)}
+#app-overlay .ov-tag.on{opacity:1;transform:none}
+#app-overlay .ov-tag.left{transform:translateX(4px)}
+#app-overlay .ov-tag.left.on{transform:none}
+#app-overlay .ov-tag::before{content:'';align-self:stretch;width:3px;background:var(--teal-hi);box-shadow:0 0 8px var(--teal)}
+#app-overlay .ov-tag b{font-size:11px;font-weight:600;color:var(--white)}
+#app-overlay .ov-tag span{font-size:10.5px;font-weight:300;color:var(--ink-2)}
+#app-overlay .ov-tag span:empty{display:none}
+
+/* ── jammer placement (top-left) ── */
+#app-overlay .ov-place{position:absolute;left:22px;top:22px;width:300px;opacity:0;visibility:hidden;transform:translateX(-28px);
+  transition:opacity 200ms ease,transform 260ms cubic-bezier(.2,.7,.2,1),visibility 0s linear 260ms}
+#app-overlay .ov-place.on{opacity:1;visibility:visible;transform:none;transition:opacity 200ms ease,transform 280ms cubic-bezier(.2,.7,.2,1)}
+#app-overlay .pl-card{padding:13px 14px 12px;display:flex;flex-direction:column;gap:11px;overflow:hidden}
+#app-overlay .pl-card.nzr-brk::after{transition:border-color 200ms ease}
+#app-overlay .pl-h{display:flex;align-items:center;gap:11px}
+#app-overlay .pl-ic{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:9px;color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge);--nzi-accent:#fff;transition:all 200ms ease}
+#app-overlay .pl-ic .nz-ic{width:18px;height:18px}
+#app-overlay .pl-t{min-width:0;flex:1}
+#app-overlay .pl-t .nzr-label{display:block;font-size:9px;margin-bottom:4px}
+#app-overlay .pl-t b{display:block;font-size:13.5px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-overlay .pl-rot{font:600 10.5px var(--mono);color:var(--ink-2);padding:3px 7px;border-radius:5px;background:var(--inset);border:1px solid var(--line-soft)}
+#app-overlay .pl-rot:empty{display:none}
+#app-overlay .pl-st{position:relative;display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;border-radius:7px;background:rgba(8,175,162,.09);border:1px solid var(--teal-edge);transition:background 200ms ease,border-color 200ms ease}
+#app-overlay .pl-dot{position:relative;width:8px;height:8px;flex:none;border-radius:50%;background:var(--teal-hi);box-shadow:0 0 8px var(--teal)}
+#app-overlay .pl-dot::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--teal-hi);opacity:0;animation:pl-ping 1.6s ease-out infinite}
+@keyframes pl-ping{0%{opacity:.8;transform:scale(.6)}80%,100%{opacity:0;transform:scale(1.7)}}
+#app-overlay .pl-msg{font-size:12px;font-weight:600;color:var(--teal-hi);white-space:nowrap}
+#app-overlay .pl-why{margin-left:auto;font-size:10.5px;font-weight:300;color:#ff9a9d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app-overlay .pl-why:empty{display:none}
+#app-overlay .ov-place.bad .pl-card.nzr-brk::after{border-color:var(--red)}
+#app-overlay .ov-place.bad .pl-ic{color:#ff8a8d;background:var(--red-wash);border-color:var(--red-edge)}
+#app-overlay .ov-place.bad .pl-st{background:var(--red-wash);border-color:var(--red-edge)}
+#app-overlay .ov-place.bad .pl-dot{background:#ff6b70;box-shadow:0 0 8px var(--red)}
+#app-overlay .ov-place.bad .pl-dot::after{border-color:#ff6b70;animation-duration:.9s}
+#app-overlay .ov-place.bad .pl-msg{color:#ff8a8d}
+#app-overlay .ov-place.shake .pl-st{animation:pl-shake 300ms cubic-bezier(.36,.07,.19,.97)}
+@keyframes pl-shake{25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-2px)}}
+#app-overlay .pl-keys{display:grid;grid-template-columns:max-content 1fr;align-items:center;gap:6px 10px;padding-top:10px;border-top:1px solid var(--line-hair)}
+#app-overlay .pl-keys .ov-keys{justify-content:flex-end}
+#app-overlay .pl-keys em{font-style:normal;font-size:11.5px;color:var(--ink-2)}
+
+/* ── browser preview: a stand-in handset (generic, no brand — Rule B) ── */
+#app-overlay .ov-mock{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+#app-overlay .ov-mock .bd{fill:url(#ovmk-bd);stroke:#050505;stroke-width:2}
+#app-overlay .ov-mock .ed{fill:none;stroke:rgba(255,255,255,.08);stroke-width:1.5}
+#app-overlay .ov-mock .sc{fill:#041513;stroke:#000;stroke-width:2}
+#app-overlay .ov-mock .gl{fill:url(#ovmk-gl)}
+#app-overlay .ov-mock .k{fill:url(#ovmk-k);stroke:#060606;stroke-width:1.2}
+#app-overlay .ov-mock .kn{fill:url(#ovmk-kn);stroke:#050505;stroke-width:1.5}
+#app-overlay .ov-mock .gr{fill:none;stroke:rgba(0,0,0,.55);stroke-width:3;stroke-linecap:round}
+#app-overlay .ov-mock .em{fill:#d8742a;stroke:#3a1c06;stroke-width:1.2}
+#app-overlay .ov-mock .lb{fill:rgba(255,255,255,.55);font:600 8px var(--font);letter-spacing:.12em}
+#app-overlay .ov-mock .kl{fill:rgba(255,255,255,.78);font:600 11px var(--font);text-anchor:middle}
+#app-overlay .ov-mock .lcd{fill:#7ff3e6;font:22px var(--lcd);letter-spacing:.04em}
+#app-overlay .ov-mock .lcb{fill:rgba(127,243,230,.75)}
+#app-overlay .ov-mock .lcs{fill:rgba(127,243,230,.6);font:12px var(--lcd);letter-spacing:.06em}

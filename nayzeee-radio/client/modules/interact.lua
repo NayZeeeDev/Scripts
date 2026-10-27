@@ -75,10 +75,16 @@ local function norm(v)
     return v / l
 end
 
--- the body's world matrix once per frame instead of a native per point
+-- The body's axes once per frame (4 natives) instead of one native per projected point.
+-- Built from offsets so there is no doubt about which axis is which.
 local function matrixOf(ent)
-    local right, forward, up, pos = GetEntityMatrix(ent)
-    return { r = right, f = forward, u = up, p = pos }
+    local p = GetOffsetFromEntityInWorldCoords(ent, 0.0, 0.0, 0.0)
+    return {
+        p = p,
+        r = GetOffsetFromEntityInWorldCoords(ent, 1.0, 0.0, 0.0) - p,
+        f = GetOffsetFromEntityInWorldCoords(ent, 0.0, 1.0, 0.0) - p,
+        u = GetOffsetFromEntityInWorldCoords(ent, 0.0, 0.0, 1.0) - p,
+    }
 end
 
 local function toWorld(m, o)
@@ -183,10 +189,12 @@ local function polyOf(m, k)
     return pts
 end
 
--- d-pad: +X of a part is the viewer's left, +Z is up (SPEC §9.1)
-local function quadrant(sp, tp)
-    if math.abs(sp) > math.abs(tp) then return sp > 0 and 'left' or 'right' end
-    return tp > 0 and 'up' or 'down'
+-- d-pad: where on the part the cursor is, back in the body frame (+X = the viewer's left,
+-- +Z = up, SPEC §9.1), whichever way the layout's u / v happen to point
+local function quadrant(k, sp, tp)
+    local off = k.u * sp + k.v * tp
+    if math.abs(off.x) > math.abs(off.z) then return off.x > 0 and 'left' or 'right' end
+    return off.z > 0 and 'up' or 'down'
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -269,7 +277,7 @@ local function pressStart(s, hit, now)
     local k = hit.key
     local action, value, step = k.action, k.value, nil
     if action == 'dpad' then
-        value = quadrant(hit.s, hit.t)
+        value = quadrant(k, hit.s, hit.t)
         NZR.Held.Press(k.id, true, value)
     elseif action == 'knob' then
         step = s.mx < hit.cx and -1 or 1

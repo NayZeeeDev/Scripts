@@ -17,7 +17,8 @@
       NZR.Voice.StopAll()                  drop the mic and every reception, restore Mumble
       NZR.Voice.Submix(tier) → id          'clear' | 'weak' | 'poor' | 'speaker'
 
-    Who sends what: a plain PTT sends nzr:tx:start / nzr:tx:stop. Hands-free and the
+    Who sends what: PTT press / release always send nzr:tx:start / nzr:tx:stop (the server
+    keeps the transmission while hands-free or the hot mic still hold it). Hands-free and the
     emergency hot mic are started by the server (nzr:radio:handsfree / nzr:alerts:emergency);
     the client then only does its half (targets, voice control, chirps, LEDs, animation).
 
@@ -277,13 +278,14 @@ function V.Update()
     local hot = tx.hotUntil > now
     local want = tx.ptt or hf or hot
 
-    -- only a plain PTT is our own TX; hands-free and the hot mic are the server's
-    local pttTx = tx.ptt and not hf and not hot
-    if pttTx and not tx.sent then
+    -- The server keeps one transmission per talker while anything holds it (PTT, hands-free,
+    -- the emergency hot mic). It starts hands-free and the hot mic itself, so only the PTT
+    -- edges are sent from here: releasing PTT never ends a transmission something else holds.
+    if tx.ptt and not tx.sent then
         TriggerServerEvent('nzr:tx:start', tx.pttDevice or 'handheld')
         tx.sent = true
-    elseif not pttTx and tx.sent then
-        if not hf and not hot then TriggerServerEvent('nzr:tx:stop') end
+    elseif not tx.ptt and tx.sent then
+        TriggerServerEvent('nzr:tx:stop')
         tx.sent = false
     end
 

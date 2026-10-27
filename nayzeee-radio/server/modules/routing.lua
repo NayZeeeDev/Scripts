@@ -52,8 +52,9 @@
       nzr:rx:update (talker, info)    mode / source / emergency changed or |Δq| > 0.05
       nzr:rx:stop (talker, q)         q = the last quality (sizes the squelch tail)
     Bus (emitted): radio:talking (src, fkey, on)
-    Bus (listens): radio:joined / radio:left (src, fkey), radio:changed (src), radio:power (src),
-                   vehicles:changed (fkeyOld, fkeyNew), jammers:changed (), player:dropped (src)
+    Bus (listens): radio:joined / radio:left (src, fkey) (power on / off arrives as these),
+                   radio:changed (src), vehicles:changed (fkeyOld, fkeyNew), jammers:changed (),
+                   player:dropped (src)
 ]]
 
 if not NAYZEEE_LOCK_OK then return end

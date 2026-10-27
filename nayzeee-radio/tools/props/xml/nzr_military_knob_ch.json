@@ -1,0 +1,173 @@
+{
+ "name": "nzr_military_knob_ch",
+ "module": "props.military",
+ "dims": [
+  0.0198,
+  0.0198,
+  0.0159
+ ],
+ "geoMin": [
+  -0.0099,
+  -0.0099,
+  -0.0075
+ ],
+ "geoMax": [
+  0.0099,
+  0.0099,
+  0.0084
+ ],
+ "bbMin": [
+  -0.0099,
+  -0.0099,
+  -0.0075
+ ],
+ "bbMax": [
+  0.0099,
+  0.0099,
+  0.0084
+ ],
+ "bsCentre": [
+  0.0,
+  0.0,
+  0.0005
+ ],
+ "bsRadius": 0.0161,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:military",
+ "tris": 1042,
+ "verts": 935,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 1200,
+ "shaders": [
+  "normal_spec"
+ ],
+ "textures": [
+  {
+   "name": "nzr_military_knob_ch_d",
+   "size": 256,
+   "density": 8088.0,
+   "coverage": 0.501,
+   "maps": [
+    256,
+    256
+   ]
+  }
+ ],
+ "screens": [],
+ "mem_est": {
+  "physical": 327680,
+  "virtual": 73728
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC",
+   "center": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size": [
+    0.002,
+    0.002,
+    0.002
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "MX-905 tactical handheld - part knob_ch",
+  "origin": "the part anchor (layout keys[].pos): clickable face centre / knob axis centre",
+  "axes": "same orientation as the body",
+  "attach": "AttachEntityToEntity(part, body, 0, pos, 0, 0, 0, ...)"
+ },
+ "notes": {
+  "radio": "military"
+ },
+ "anchors": {
+  "kind": "radio_part",
+  "radio": "military",
+  "part": "knob_ch",
+  "origin": [
+   0.0005,
+   -0.0025,
+   0.0996
+  ],
+  "bbox_body": [
+   [
+    -0.0094,
+    -0.0124,
+    0.0921
+   ],
+   [
+    0.0104,
+    0.0074,
+    0.108
+   ]
+  ],
+  "bbox_local": [
+   [
+    -0.0099,
+    -0.0099,
+    -0.0075
+   ],
+   [
+    0.0099,
+    0.0099,
+    0.0084
+   ]
+  ],
+  "meta": {
+   "id": "knob_ch",
+   "model": "nzr_military_knob_ch",
+   "pos": [
+    0.0005,
+    -0.0025,
+    0.0996
+   ],
+   "press": [
+    -0.0,
+    -0.0,
+    -1.0
+   ],
+   "depth": 0.0008,
+   "u": [
+    0.009,
+    0.0,
+    0.0
+   ],
+   "v": [
+    0.0,
+    0.0,
+    0.0075
+   ],
+   "shape": "rect",
+   "action": "knob",
+   "value": "channel",
+   "axis": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "detents": 16
+  }
+ },
+ "preview": {
+  "views": [
+   "front",
+   "face",
+   "top"
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793111773.361,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.009900\" y=\"-0.009900\" z=\"-0.007500\" />\n      <bbMax x=\"0.009900\" y=\"0.009900\" z=\"0.008400\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"0.000450\" />\n      <bsRadius value=\"0.016100\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_military_knob_ch</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_military_knob_ch</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_military_knob_ch</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 1.28
+}

@@ -23,6 +23,7 @@
             listViews = true    memories / slots / menu views exist (false: a single-line device)
             sfx       = function(name)     default NZR.UI.Send('_core', 'sfx', { name = name })
             now       = function() → ms    default GetGameTimer
+            clock     = function() → '14:32'   default the game clock
             manual    = false   no internal ticker thread (tests call fw:Tick(now))
             sync      = false   run server round trips inline instead of in a thread (tests)
           }
@@ -46,7 +47,9 @@
         handsfree, clicks, earpiece, earpieceOwned, presets = { [i] = 155.5 | false },
         presetCount, callsign, labels = { [fkey] = { label, access } }, tx = bool,
         rx = { [talker] = { name, callsign, q, fkey, slot, mode, emergency, at } },
-        jam = 0..1, underwater, waterproof, battery = 0..1, emergency = bool }
+        rosterOn, jam = 0..1, underwater, waterproof, battery = 0..1, emergency = bool }
+      Missing fields read as off / empty. labels: the channel label tag (code channels show
+      access = 'code' → the LOCK indicator); Config.Channels.Restricted ranges are added here.
 
     ── ACTIONS ───────────────────────────────────────────────────────────
       join(slot, freq, code?) → { ok, label, access } | { ok = false, reason }   (may yield)
@@ -496,13 +499,16 @@ function proto:CycleMemory(s, dir, now)
         self:Sfx('error')
         return self:Notice(L('scr_nomem'))
     end
+    -- turn from: the memory still waiting to be tuned, else the one on the TX slot now,
+    -- else the last one picked (the TX slot was tuned by hand since)
     local txf = fkeyOf(s.slots and s.slots[txSlot(s)])
-    local cur = self.pendingMem and self.pendingMem.index or self.memCursor
-    if not cur then
+    local cur = self.pendingMem and self.pendingMem.index or nil
+    if not cur and txf then
         for i = 1, count do
             if s.presets[i] and fkeyOf(s.presets[i]) == txf then cur = i break end
         end
     end
+    cur = cur or self.memCursor
     local pos = nil
     for k = 1, #list do
         if list[k] == cur then pos = k break end
@@ -1091,7 +1097,7 @@ function proto:Render()
             name = talker.name, callsign = talker.callsign, q = round2(q),
             slot = talker.slot, emergency = talker.emergency == true,
         } or nil,
-        bars = on and bars(q) or 0,
+        bars = (on and jam < block) and bars(q) or 0,
         nosignal = on and jam >= block or false,
         jam = round2(jam),
         volume = math.floor(tonumber(s.volume) or 0),
@@ -1144,17 +1150,19 @@ end
 
 local handheld = nil
 
+-- 'radio:notice' reasons (tx:denied, emergency refusals) → the line shown on the screen
+local NOTICE_KEYS = {
+    nosignal = 'scr_nosignal', nofreq = 'scr_nofreq', cooldown = 'scr_cooldown', denied = 'scr_denied',
+    disabled = 'scr_denied', busy = 'scr_busy',
+}
+
 local function handheldSource()
     local R = NZR.Radio
     local S = R and R.State
     if not S then return {} end
     local model = S.model
     local m = model and Config.Radios.Models[model] or nil
-    local jam = 0.0
-    if NZR.Jammers and NZR.Jammers.LocalJam then
-        local ok, j = pcall(NZR.Jammers.LocalJam)
-        if ok then jam = tonumber(j) or 0.0 end
-    end
+    local jam = R.API.LocalJam and R.API.LocalJam() or 0.0
     return {
         power = S.power, model = model, slots = S.slots, slotCount = m and m.slots or 1,
         txSlot = S.txSlot, volume = S.volume, muted = S.muted, handsfree = S.handsfree,
@@ -1203,7 +1211,7 @@ function FW.Handheld()
     end)
     NZR.Bus.On('radio:notice', function(key, device)
         if device == 'vehicle' or type(key) ~= 'string' then return end
-        handheld:Notice(L('scr_' .. key))
+        handheld:Notice(L(NOTICE_KEYS[key] or 'scr_error'))
     end)
     return handheld
 end

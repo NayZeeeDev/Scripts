@@ -194,10 +194,11 @@ CreateThread(function()
         end
         dirty = false
         if next(holders) ~= nil or next(props) ~= nil then tick() end
+        -- once a second, or half a second after a bag changed (idle: two cheap wake-ups)
         local waited = 0
         while waited < 1000 and not dirty do
-            Wait(200)
-            waited = waited + 200
+            Wait(500)
+            waited = waited + 500
         end
     end
 end)

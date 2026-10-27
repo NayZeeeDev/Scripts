@@ -1241,9 +1241,11 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
     """A flat plate w x h (centred on the origin, bottom at z = 0, top face at z = t, facing +Z) with
     rounded-rectangle openings that fall into wells - key wells, knob sockets, PTT pockets, grille holes.
 
-    holes  [(cx, cy, hw, hh, r) or (cx, cy, hw, hh, r, depth)]: centre, half extents and corner radius
-           of each opening (r = min(hw, hh) makes a round hole). Holes must not overlap and must stay
-           inside the plate (minus the rim bevel).
+    holes  [(cx, cy, hw, hh, r) or (cx, cy, hw, hh, r, depth) or (cx, cy, hw, hh, r, depth, corner_n)]:
+           centre, half extents and corner radius of each opening (r = min(hw, hh) makes a round hole);
+           depth None = the default; corner_n overrides the arc steps of that opening (a big round well
+           needs more than a key well). Holes must not overlap and must stay inside the plate (minus the
+           rim bevel).
     depth  default well depth (default t: the floor sits on the plate's bottom plane)
     The top face is one chart (grid partition around the holes + corner fans, no slivers); every well
     gets a 45 degree top chamfer (hole_bevel), inward facing walls and an optional floor. The plate's
@@ -1270,7 +1272,8 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
         x0, x1, y0, y1 = cx - ohw, cx + ohw, cy - ohh, cy + ohh
         if x0 < X0 - 1e-9 or x1 > X1 + 1e-9 or y0 < Y0 - 1e-9 or y1 > Y1 + 1e-9:
             raise ValueError(f"well_plate: hole at ({cx:.4f}, {cy:.4f}) leaves the plate")
-        boxes.append((x0, x1, y0, y1, cx, cy, hw, hh, r, ohw, ohh, orr, hole[5] if len(hole) > 5 else depth))
+        dep_h = hole[5] if len(hole) > 5 and hole[5] is not None else depth
+        boxes.append((x0, x1, y0, y1, cx, cy, hw, hh, r, ohw, ohh, orr, dep_h, int(hole[6]) if len(hole) > 6 else corner_n))
     for i in range(len(boxes)):
         for j in range(i + 1, len(boxes)):
             a, b2 = boxes[i], boxes[j]
@@ -1291,11 +1294,11 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
             if any(bx[0] <= cx_ <= bx[1] and bx[2] <= cy_ <= bx[3] for bx in boxes):
                 continue
             quad_((xs[i], ys[j], t), (xs[i + 1], ys[j], t), (xs[i + 1], ys[j + 1], t), (xs[i], ys[j + 1], t))
-    for (x0, x1, y0, y1, cx, cy, hw, hh, r, ohw, ohh, orr, dep) in boxes:
-        loop = _rrect_n(2 * ohw, 2 * ohh, orr, corner_n) + np.array([cx, cy])
+    for (x0, x1, y0, y1, cx, cy, hw, hh, r, ohw, ohh, orr, dep, cn) in boxes:
+        loop = _rrect_n(2 * ohw, 2 * ohh, orr, cn) + np.array([cx, cy])
         # the rrect loop has 4 corner arcs of corner_n + 1 points (CCW from the -y side of the +x edge)
         corners = [(x1, y0), (x1, y1), (x0, y1), (x0, y0)]
-        per = corner_n + 1
+        per = cn + 1
         if orr > 1e-9:
             for k in range(4):
                 arc = loop[k * per:(k + 1) * per]
@@ -1305,12 +1308,12 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
                     P.extend([(cxy[0], cxy[1], t), (arc[q][0], arc[q][1], t), (arc[q + 1][0], arc[q + 1][1], t)])
                     tri.append((base, base + 1, base + 2))
         # chamfer ring (top rim of the opening)
-        inner = _rrect_n(2 * hw, 2 * hh, r, corner_n) + np.array([cx, cy])
+        inner = _rrect_n(2 * hw, 2 * hh, r, cn) + np.array([cx, cy])
         if hb > 1e-9:
             A = np.concatenate([loop, np.full((len(loop), 1), t)], axis=1)
             B = np.concatenate([inner, np.full((len(inner), 1), t - hb)], axis=1)
             g += loft(A, B, wall_mat, density=density, tag=tag + ":chamfer")
-        inner = rrect(2 * hw, 2 * hh, r, corner_n) + np.array([cx, cy])
+        inner = rrect(2 * hw, 2 * hh, r, cn) + np.array([cx, cy])
         ztop = t - hb if hb > 1e-9 else t
         dep_wall = max(dep - (t - ztop), 1e-5)
         walls = extrude(inner, dep_wall, wall_mat, bevel=0.0, caps=(False, False), z0=ztop - dep_wall, density=density,

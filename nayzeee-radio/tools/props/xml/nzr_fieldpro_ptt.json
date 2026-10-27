@@ -1,0 +1,167 @@
+{
+ "name": "nzr_fieldpro_ptt",
+ "module": "props.fieldpro",
+ "dims": [
+  0.0035,
+  0.01,
+  0.025
+ ],
+ "geoMin": [
+  -0.0031,
+  -0.005,
+  -0.0125
+ ],
+ "geoMax": [
+  0.00035,
+  0.005,
+  0.0125
+ ],
+ "bbMin": [
+  -0.0031,
+  -0.005,
+  -0.0125
+ ],
+ "bbMax": [
+  0.001,
+  0.005,
+  0.0125
+ ],
+ "bsCentre": [
+  -0.001,
+  0.0,
+  0.0
+ ],
+ "bsRadius": 0.0136,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:fieldpro",
+ "tris": 880,
+ "verts": 691,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 1200,
+ "shaders": [
+  "normal_spec"
+ ],
+ "textures": [
+  {
+   "name": "nzr_fieldpro_ptt_d",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.449,
+   "maps": [
+    256,
+    256
+   ]
+  }
+ ],
+ "screens": [],
+ "mem_est": {
+  "physical": 327680,
+  "virtual": 65536
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC",
+   "center": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size": [
+    0.002,
+    0.002,
+    0.002
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "FX-280 field handheld - part ptt",
+  "origin": "the part anchor (layout keys[].pos): clickable face centre / knob axis centre",
+  "axes": "same orientation as the body",
+  "attach": "AttachEntityToEntity(part, body, 0, pos, 0, 0, 0, ...)"
+ },
+ "notes": {
+  "radio": "fieldpro"
+ },
+ "anchors": {
+  "kind": "radio_part",
+  "radio": "fieldpro",
+  "part": "ptt",
+  "origin": [
+   0.03314,
+   0.00365,
+   0.0225
+  ],
+  "bbox_body": [
+   [
+    0.03004,
+    -0.00135,
+    0.01
+   ],
+   [
+    0.03349,
+    0.00865,
+    0.035
+   ]
+  ],
+  "bbox_local": [
+   [
+    -0.0031,
+    -0.005,
+    -0.0125
+   ],
+   [
+    0.00035,
+    0.005,
+    0.0125
+   ]
+  ],
+  "meta": {
+   "id": "ptt",
+   "model": "nzr_fieldpro_ptt",
+   "pos": [
+    0.03314,
+    0.00365,
+    0.0225
+   ],
+   "press": [
+    -1.0,
+    -0.0,
+    -0.0
+   ],
+   "depth": 0.0016,
+   "u": [
+    0.0,
+    0.005,
+    0.0
+   ],
+   "v": [
+    0.0,
+    0.0,
+    0.0125
+   ],
+   "shape": "rect",
+   "action": "ptt",
+   "value": null
+  }
+ },
+ "preview": {
+  "views": [
+   "front",
+   "face",
+   "top"
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793113943.531,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.003100\" y=\"-0.005000\" z=\"-0.012500\" />\n      <bbMax x=\"0.001000\" y=\"0.005000\" z=\"0.012500\" />\n      <bsCentre x=\"-0.001050\" y=\"0.000000\" z=\"0.000000\" />\n      <bsRadius value=\"0.013618\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_ptt</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_ptt</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_ptt</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 2.36
+}

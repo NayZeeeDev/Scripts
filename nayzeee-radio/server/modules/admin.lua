@@ -34,6 +34,7 @@
                                                (a list left out is kept as it is)
       nzr:admin:jammerRemove (id)            → { ok }
       nzr:admin:live ()                      → { ok, live }     (refresh of the live tab)
+      nzr:admin:check ()                     → { ok, admin }    (admin-only client tools such as /radiogrip)
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -252,6 +253,12 @@ NZR.Callback('nzr:admin:live', function(src)
     if not Core.IsAdmin(src) then return { ok = false, reason = 'denied' } end
     if not Core.Rate('nzr:admin:live', src, 10, 5000) then return { ok = false, reason = 'busy' } end
     return { ok = true, live = AD.Live() }
+end)
+
+-- Admin-only client tools (/radiogrip) ask here: an ace checked on the client proves nothing.
+NZR.Callback('nzr:admin:check', function(src)
+    if not Core.Rate('nzr:admin:check', src, 6, 5000) then return { ok = false, reason = 'busy' } end
+    return { ok = true, admin = Core.IsAdmin(src) == true }
 end)
 
 NZR.Callback('nzr:admin:save', function(src, data)

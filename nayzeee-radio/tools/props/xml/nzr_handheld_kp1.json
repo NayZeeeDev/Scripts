@@ -1,0 +1,167 @@
+{
+ "name": "nzr_handheld_kp1",
+ "module": "props.handheld",
+ "dims": [
+  0.0075,
+  0.0021,
+  0.005
+ ],
+ "geoMin": [
+  -0.00375,
+  -0.00215,
+  -0.0025
+ ],
+ "geoMax": [
+  0.00375,
+  0.0,
+  0.0025
+ ],
+ "bbMin": [
+  -0.0037,
+  -0.0021,
+  -0.0025
+ ],
+ "bbMax": [
+  0.0037,
+  0.001,
+  0.0025
+ ],
+ "bsCentre": [
+  0.0,
+  -0.0006,
+  -0.0
+ ],
+ "bsRadius": 0.0048,
+ "lodDist": 20.0,
+ "lodHigh": null,
+ "hdTextureDist": 8.0,
+ "flags": 0,
+ "static": false,
+ "export": true,
+ "group": "radio:handheld",
+ "tris": 340,
+ "verts": 211,
+ "tris_med": null,
+ "verts_med": null,
+ "budget": 1200,
+ "shaders": [
+  "normal_spec"
+ ],
+ "textures": [
+  {
+   "name": "nzr_handheld_kp1_d",
+   "size": 256,
+   "density": 8929.8,
+   "coverage": 0.079,
+   "maps": [
+    256,
+    256
+   ]
+  }
+ ],
+ "screens": [],
+ "mem_est": {
+  "physical": 327680,
+  "virtual": 32768
+ },
+ "collision": [
+  {
+   "type": "box",
+   "material": "PLASTIC",
+   "center": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "size": [
+    0.002,
+    0.002,
+    0.002
+   ],
+   "axis": "z"
+  }
+ ],
+ "doc": {
+  "title": "PX-740 patrol handheld - part kp1",
+  "origin": "the part anchor (layout keys[].pos): clickable face centre / knob axis centre",
+  "axes": "same orientation as the body",
+  "attach": "AttachEntityToEntity(part, body, 0, pos, 0, 0, 0, ...)"
+ },
+ "notes": {
+  "radio": "handheld"
+ },
+ "anchors": {
+  "kind": "radio_part",
+  "radio": "handheld",
+  "part": "kp1",
+  "origin": [
+   0.0165,
+   0.021528,
+   0.0025
+  ],
+  "bbox_body": [
+   [
+    0.01275,
+    0.019378,
+    -0.0
+   ],
+   [
+    0.02025,
+    0.021538,
+    0.005
+   ]
+  ],
+  "bbox_local": [
+   [
+    -0.00375,
+    -0.00215,
+    -0.0025
+   ],
+   [
+    0.00375,
+    1e-05,
+    0.0025
+   ]
+  ],
+  "meta": {
+   "id": "kp1",
+   "model": "nzr_handheld_kp1",
+   "pos": [
+    0.0165,
+    0.021528,
+    0.0025
+   ],
+   "press": [
+    -0.0,
+    -1.0,
+    -0.0
+   ],
+   "depth": 0.0012,
+   "u": [
+    -0.00375,
+    0.0,
+    0.0
+   ],
+   "v": [
+    0.0,
+    0.0,
+    0.0025
+   ],
+   "shape": "round",
+   "action": "p1",
+   "value": null
+  }
+ },
+ "preview": {
+  "views": [
+   "front",
+   "face",
+   "top"
+  ]
+ },
+ "warnings": [],
+ "quick": false,
+ "built_at": 1793111310.203,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.003750\" y=\"-0.002150\" z=\"-0.002500\" />\n      <bbMax x=\"0.003750\" y=\"0.001000\" z=\"0.002500\" />\n      <bsCentre x=\"0.000000\" y=\"-0.000575\" z=\"0.000000\" />\n      <bsRadius value=\"0.004774\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld_kp1</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld_kp1</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld_kp1</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 1.08
+}

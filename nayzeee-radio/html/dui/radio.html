@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>radio screen</title>
+<!--
+  NAYZEEE RADIO · on-prop radio screen (DUI page)
+
+  The live screen of the raised radio. client/modules/screen.lua opens it with
+    nui://<resource>/html/dui/radio.html?skin=<px740|fx280|mx905>&w=<px>&h=<px>
+  draws it into a runtime texture and puts that on the body model's screen ('nzr_scr').
+  The page is a screen and nothing more: it draws what client/modules/firmware.lua renders
+  and never sends anything back.
+
+  Messages (SendDuiMessage)   { type: 'state', state: <firmware screen state, SPEC §10.3> }
+                              { type: 'ping' }
+  Skins (sizes)               px740 colour TFT 512x384 · fx280 segment LCD 512x256 · mx905 tactical 512x384
+  Browser checks              radio.html?skin=fx280&demo=1        every view in turn, sample data
+                              radio.html?skin=mx905&demo=tune      one view frozen
+                              (boot home rx tx tune code memories slots menu emergency volume notice nosignal jam off)
+
+  In-world device face: generic model codes only, no NAYZEEE name or mark (customer rule B).
+  Standalone on purpose: no nz-core / nzr, fonts from ../core/fonts only.
+-->
+<link rel="stylesheet" href="radio.css">
+</head>
+<body>
+<div id="scr" class="scr"></div>
+<script src="radio.js"></script>
+</body>
+</html>

@@ -21,6 +21,7 @@
           Callsign(text | false) → res      (yields) { ok, callsign }
           Emergency(device?) → ok, reason   Ptt(down, device?)   Device() → 'vehicle'|'handheld'
           CanTalk(device) → ok, reason      IsDead()   Raise()   Lower()   ToggleRaise()
+          LocalJam() → 0..1 (jam at the player: NZR.Jammers.LocalJam, else NZR.Signal.Jam)
           SlotCount() → n                   TxFreq() → 155.5 | nil
       NZR.Radio.ApplyRecord(rec, owned?)   NZR.Radio.Labels() → { [fkey] = { label, access } }
       NZR.Radio.Battery() → 0..1 (cosmetic)   NZR.Radio.KeyName(bind) → current key of a keybind
@@ -42,6 +43,10 @@
     STATE BAGS       writes Player(me).state.nzr_hold = { m, r, t } | nil (replicated)
                      reads GlobalState.nzr_labels (+ change handler)
     BUS EMITTED      'radio:changed' (what), 'radio:notice' (key, device), 'radio:power' (on)
+                     what ∈ init, record, reset, dropped, model, power, slots, txslot, volume, mute,
+                            handsfree, earpiece, clicks, roster, presets, callsign, labels, raised,
+                            tx, underwater, emergency, rx (voice.lua)
+                     notice keys: nosignal, nofreq, cooldown, denied (the firmware shows them)
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -221,8 +226,8 @@ function R.ApplyRecord(rec, owned)
         S.callsign = type(rec.callsign) == 'string' and rec.callsign ~= '' and rec.callsign or nil
     end
     if wasPower ~= S.power then onPower(S.power) end
-    changed('record')
     R.SyncHold()
+    changed('record')
 end
 
 -- An optimistic change (power, slot, mute ...) is shown at once. If the server never
@@ -425,8 +430,8 @@ function API.SetModel(model)
     S.owned[model] = true
     TriggerServerEvent('nzr:radio:model', model)
     expectState()
-    changed('model')
     R.SyncHold()
+    changed('model')
     return true
 end
 
@@ -483,12 +488,19 @@ function API.Device()
     return 'handheld'
 end
 
-local function localJam()
+-- The jam at the player: client-world's estimate when it runs (it already tracks the
+-- jammers near you), else worked out here from GlobalState.nzr_jammers.
+function API.LocalJam()
     if NZR.Jammers and NZR.Jammers.LocalJam then
         local ok, j = pcall(NZR.Jammers.LocalJam)
-        if ok then return tonumber(j) or 0.0 end
+        if ok then return math.max(0.0, math.min(1.0, tonumber(j) or 0.0)) end
     end
-    return 0.0
+    if not (NZR.Signal and NZR.Signal.Jam) then return 0.0 end
+    local list = GlobalState.nzr_jammers
+    if type(list) ~= 'table' or next(list) == nil then return 0.0 end
+    local m = S.model and Config.Radios.Models[S.model]
+    local ok, j = pcall(NZR.Signal.Jam, GetEntityCoords(PlayerPedId()), list, m and tonumber(m.jamResist) or 0.0)
+    return ok and math.max(0.0, math.min(1.0, tonumber(j) or 0.0)) or 0.0
 end
 
 -- The client-side gate before asking the server to open the mic (the server re-checks).
@@ -497,7 +509,7 @@ function API.CanTalk(device)
     if device == 'vehicle' then return true end
     if not S.model or not S.power then return false, 'power' end
     if not S.slots[S.txSlot] then return false, 'nofreq' end
-    if localJam() >= ((Config.Signal and Config.Signal.txBlockJam) or 0.92) then return false, 'nosignal' end
+    if API.LocalJam() >= ((Config.Signal and Config.Signal.txBlockJam) or 0.92) then return false, 'nosignal' end
     return true
 end
 
@@ -553,7 +565,8 @@ end
 local lastHold = nil
 
 -- nzr_hold = { m = model, r = raised, t = talking } while the radio is up or talking,
--- nil otherwise. Every client draws radios in hands from it (held.lua).
+-- nil otherwise. Every client draws radios in hands from it (held.lua). Always set before
+-- the matching 'radio:changed' so bus handlers read the new value.
 function R.SyncHold()
     local v = nil
     local talking = S.tx.active == true
@@ -568,16 +581,16 @@ function R.SetRaised(on)
     on = on == true
     if S.raised == on then return end
     S.raised = on
-    changed('raised')
     R.SyncHold()
+    changed('raised')
 end
 
 function R.SetTx(active, device)
     active = active == true
     if S.tx.active == active and S.tx.device == device then return end
     S.tx = { active = active, device = active and device or nil, since = active and GetGameTimer() or 0 }
-    changed('tx')
     R.SyncHold()
+    changed('tx')
 end
 
 -- Only while powered: once a second, tell the server when the radio goes under water.
@@ -628,8 +641,8 @@ local function useModel(model, tellServer)
             expectState()
         end
         S.model = model
-        changed('model')
         R.SyncHold()
+        changed('model')
     end
     CreateThread(function()
         if switching and S.raised then
@@ -652,8 +665,8 @@ RegisterNetEvent('nzr:radio:dropped', function()
     end
     S.owned = {}
     S.slots = {}
-    changed('dropped')
     R.SyncHold()
+    changed('dropped')
 end)
 
 AddStateBagChangeHandler('nzr_labels', 'global', function(_, _, value)
@@ -748,10 +761,15 @@ bind('emergency', keys.emergency, 'key_emergency', function()
         local started = GetGameTimer()
         local device = API.Device()
         local kb = binds.emergency
+        local shown = false
         while kb and kb.isPressed and GetGameTimer() - started < hold do
-            if NZR.UI then
+            local p = (GetGameTimer() - started) / math.max(1, hold)
+            if NZR.UI and not shown then
+                shown = true
                 NZR.UI.Prompt('nzr_emergency', { key = R.KeyName('emergency') or '', label = L('emergency_hold'),
-                    progress = (GetGameTimer() - started) / math.max(1, hold), tone = 'red' })
+                    progress = p, tone = 'red' })
+            elseif NZR.UI then
+                NZR.UI.PromptProgress('nzr_emergency', p)
             end
             Wait(50)
         end
@@ -791,7 +809,7 @@ if cmds.callsign and Config.Radios.callsign ~= false then
             local res = API.Callsign(text ~= '' and text or false)
             if res.ok then
                 if S.callsign then toast('callsign_set', 'success', S.callsign) else toast('callsign_cleared', 'info') end
-            elseif res.reason == 'off' then
+            elseif res.reason == 'off' or res.reason == 'disabled' then
                 toast('callsign_off', 'error')
             else
                 toast('callsign_failed', 'error')
@@ -866,8 +884,8 @@ local function resetLocal()
     S.model, S.owned, S.slots = nil, {}, {}
     S.presets = emptyPresets()
     S.callsign, S.rosterOn = nil, false
-    changed('reset')
     R.SyncHold()
+    changed('reset')
 end
 
 CreateThread(function()

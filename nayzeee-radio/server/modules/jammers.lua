@@ -54,7 +54,7 @@ J.public = J.public or {}
 
 local hacks = {}          -- [id] = { src, token, started, bands, time }
 local hackOf = {}         -- [src] = id
-local lockouts = {}       -- [src] = GetGameTimer() until which hacking is refused
+local lockouts = {}       -- [character identifier | src] = GetGameTimer() until which hacking is refused
 local counter = 0
 
 local REACH = 3.0         -- metres for pickup and hacking
@@ -95,6 +95,11 @@ local function isOwner(src, j)
     local id = Core.Identifier(src)
     if j.owner and id then return j.owner == id end
     return tonumber(j.o) == src
+end
+
+-- A failed hack locks the character, not the server id: reconnecting must not reset it.
+local function lockKey(src)
+    return Core.Identifier(src) or src
 end
 
 local function randomToken(n)
@@ -287,7 +292,7 @@ function J.HackStart(src, id)
     if not j then return { ok = false, reason = 'gone' } end
     if not hackAllowed(src) then return { ok = false, reason = 'denied' } end
     local now = GetGameTimer()
-    local lock = lockouts[src]
+    local lock = lockouts[lockKey(src)]
     if lock and lock > now then
         return { ok = false, reason = 'lockout', wait = math.ceil((lock - now) / 1000) }
     end
@@ -339,7 +344,7 @@ function J.HackResult(src, id, token, success)
     if success == true and not believable then
         NZR.Debug(('hack result from %d refused: %.1f s for %d bands'):format(src, elapsed / 1000, h.bands))
     end
-    lockouts[src] = now + math.max(0, tonumber(cfg().failLockout) or 20) * 1000
+    lockouts[lockKey(src)] = now + math.max(0, tonumber(cfg().failLockout) or 20) * 1000
     return false
 end
 
@@ -434,6 +439,10 @@ CreateThread(function()
                 Core.Notify(o, L('jammer_expired', def.label or j.t), 'info')
             end
         end
+        local t = GetGameTimer()
+        for key, untilAt in pairs(lockouts) do
+            if untilAt <= t then lockouts[key] = nil end
+        end
     end
 end)
 
@@ -452,7 +461,7 @@ NZR.Bus.On('player:loaded', function(src)
 end)
 
 NZR.Bus.On('player:dropped', function(src)
-    lockouts[src] = nil
+    lockouts[src] = nil   -- only the id-keyed entry: a character's lockout outlives the session
     local id = hackOf[src]
     if id then releaseHack(id) end
     local changed = false
