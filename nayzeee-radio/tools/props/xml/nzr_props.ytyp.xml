@@ -456,10 +456,10 @@
       <lodDist value="40" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.033700" y="-0.027637" z="-0.053020" />
+      <bbMin x="-0.033100" y="-0.027637" z="-0.055649" />
       <bbMax x="0.032490" y="0.022400" z="0.239200" />
-      <bsCentre x="-0.000605" y="-0.002619" z="0.093090" />
-      <bsRadius value="0.151886" />
+      <bsCentre x="-0.000305" y="-0.002619" z="0.091775" />
+      <bsRadius value="0.153087" />
       <hdTextureDist value="8" />
       <name>nzr_handheld</name>
       <textureDictionary />
@@ -474,10 +474,10 @@
       <lodDist value="20" />
       <flags value="0" />
       <specialAttribute value="0" />
-      <bbMin x="-0.033700" y="-0.027637" z="-0.053020" />
+      <bbMin x="-0.033100" y="-0.027637" z="-0.055649" />
       <bbMax x="0.032490" y="0.022400" z="0.239200" />
-      <bsCentre x="-0.000605" y="-0.002619" z="0.093090" />
-      <bsRadius value="0.151886" />
+      <bsCentre x="-0.000305" y="-0.002619" z="0.091775" />
+      <bsRadius value="0.153087" />
       <hdTextureDist value="8" />
       <name>nzr_handheld_body</name>
       <textureDictionary />

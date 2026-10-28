@@ -38,9 +38,9 @@ from nzprops import DecalCanvas, Geo, box, cylinder, extrude, fillet_poly, lathe
 from nzprops.mesh import chamfer_fillet_rect, polyline_fillet, well_plate
 
 from .common import align, caution_label, screws
-from .radio_common import (INK, battery_label, battery_pack, boss, charging_contacts, gooseneck, grille_holes,
+from .radio_common import (INK, battery_label, battery_pack, boss, charging_contacts, gooseneck,
                            housing, ink, key, key_cap, knob, m_bumper_rubber, m_gunmetal, m_keypad_rubber,
-                           m_led_off, m_mesh, m_print_dark, m_ranger_green, m_soft_black, print_decal, screen_window,
+                           m_led_off, m_mesh, m_ranger_green, m_soft_black, print_decal, screen_window,
                            sma_nut, whip_antenna)
 from .radio_kit import radio
 
@@ -747,7 +747,7 @@ def _front(r, green, face, blk):
              (cx_l, 0.0, kw / 2 + gap, 0.0070 + gap, 0.0020 + gap)]                     # kok (tall)
     with _hi(r):
         _wells(r, green, (0.0, FY, Z_CLUSTER), (0, 1, 0), (0, 0, 1), (0.0500, 0.0206), 0.0012, holes, depth=0.0012, floor_mat=m_well_floor(r),
-               corner_n=3, outer_r=0.0014)
+               corner_n=3, outer_r=0.0013)
     floor_caps(r, holes, (0.0, FY, Z_CLUSTER), (-1, 0, 0), (0, 0, 1))
     # keypad surround: one plate with 12 wells (3-step corners)
     px, py = KP_PITCH
@@ -763,7 +763,7 @@ def _front(r, green, face, blk):
     # speaker hole array + mic port
     with _hi(r):
         r.add(_grille(r, (0.0, FY, Z_SPEAKER), cols=9, rows=3, pitch=0.0032, hole_r=0.00085, t=0.0008, margin=0.0016, mat=face,
-                      outer_r=0.0016))
+                      outer_r=0.0015))
         r.add(mic_port(r, (0.0190, FY, Z_SPEAKER + 0.0010), face))
     mic, badge = front_prints()
     print_decal(r, mic, center=(0.0190, FY, Z_SPEAKER - 0.0028), normal=(0, 1, 0), mats=[face], depth=0.0012)

@@ -101,26 +101,26 @@
   ],
   "bbox_body": [
    [
-    -0.007586,
+    -0.006986,
     0.01954,
-    -0.010586
+    -0.009986
    ],
    [
-    0.007586,
+    0.006986,
     0.0224,
-    0.004586
+    0.003986
    ]
   ],
   "bbox_local": [
    [
-    -0.007586,
+    -0.006986,
     -0.0028,
-    -0.007586
+    -0.006986
    ],
    [
-    0.007586,
+    0.006986,
     6e-05,
-    0.007586
+    0.006986
    ]
   ],
   "meta": {
@@ -162,7 +162,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793111303.421,
+ "built_at": 1793137119.828,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.006969\" y=\"-0.002800\" z=\"-0.006969\" />\n      <bbMax x=\"0.006969\" y=\"0.001000\" z=\"0.006969\" />\n      <bsCentre x=\"0.000000\" y=\"-0.000900\" z=\"0.000000\" />\n      <bsRadius value=\"0.010037\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld_dpad</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld_dpad</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld_dpad</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 0.64
+ "build_seconds": 0.37
 }

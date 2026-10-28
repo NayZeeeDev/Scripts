@@ -41,8 +41,8 @@ from nzprops import DecalCanvas, Geo, box, cylinder, extrude, lathe, quad, rr_la
 from nzprops.mesh import Chart, ensure_ccw, offset_poly, subdivide_poly
 
 from .common import align, rating_plate, screw
-from .radio_common import (INK, belt_clip, charging_contacts, ink, key, key_cap, lanyard_eye, latch_tab, light_pipe, m_keypad_rubber,
-                           m_mesh, m_print_dark, m_smoked_glass, m_soft_black, ptt, round_button, sma_nut)
+from .radio_common import (INK, belt_clip, charging_contacts, ink, key, key_cap, lanyard_eye, latch_tab, m_mesh, m_print_dark,
+                           m_smoked_glass, m_soft_black, ptt, sma_nut)
 from .radio_kit import radio
 
 # ---------------------------------------------------------------------------------------------
@@ -269,11 +269,33 @@ def rr_ring(w, h, cr, ring_w, t, mat, bevel=0.0005, tag="lip", n=5):
 
 
 def ring(mat, d_in, d_out, h, segs=24, bevel=0.0005, tag="ring"):
-    """Raised round ring (guard ring, seat) standing on z = 0 facing +Z with a soft rounded top."""
+    """Raised round ring (guard ring, seat) standing on z = 0 facing +Z with a soft rounded top. The profile
+    runs outer wall up -> over the top -> inner wall down (lathe(): the outside on the right-hand side)."""
     ri, ro = d_in / 2, d_out / 2
     bv = min(bevel, h * 0.45, (ro - ri) * 0.3)
-    prof = [(ri, -0.0002), (ri, h - bv), (ri + bv, h), (ro - bv, h), (ro, h - bv), (ro, 0.0)]
+    prof = [(ro, 0.0), (ro, h - bv), (ro - bv, h), (ri + bv, h), (ri, h - bv), (ri, -0.0002)]
     return lathe(prof, mat, segs=segs, smooth_angle=50, tag=tag)
+
+
+def fx_light_pipe(r, at, d=0.0030, bezel_h=0.0004, segs=20):
+    """Light-pipe socket on the deck (facing +Z), module-local instead of radio_common.light_pipe() (whose
+    bezel profile runs inner wall first, so its faces point inward): a raised dark bezel ring - outer wall up,
+    over the top, inner wall down - and a clear dark lens dome rising flush with the bezel top, so the
+    socket reads as a lens and not as a hole when no LED insert sits on it. Returns (Geo, insert point,
+    lens material); the insert point (layout leds.tx / rx) is 0.2 mm under the deck surface as before, and
+    the lit nzr_led_* dome (r 1.5 mm, 1.65 mm tall) encloses this lens."""
+    bezel = r.mat("pipe_bezel", color=(16, 17, 19), spec=0.4, gloss=0.55, edge=0.4)
+    lens = r.mat("fx_pipe_lens", color=(40, 44, 48), spec=0.72, gloss=0.8, grain=0.01, edge=0.0, ao=0.5, smudge=0.2, scratch=0.05)
+    rl = d / 2
+    ro = rl + 0.0007
+    g = lathe([(ro, 0.0), (ro, bezel_h * 0.5), (ro - 0.0002, bezel_h), (rl + 0.0002, bezel_h), (rl, bezel_h * 0.5), (rl, -0.0004)],
+              bezel, segs=segs, smooth_angle=50, tag="pipe")
+    prof = [(rl * math.cos(a), bezel_h * math.sin(a)) for a in np.linspace(0.0, math.pi / 2, 4)]
+    prof[-1] = (0.0, bezel_h)
+    lg = lathe(prof, lens, segs=16, smooth_angle=60, tag="pipe_lens")
+    lg.set_density(3.0)                    # the reflector ring print needs texels
+    g += lg
+    return align(g, (0, 0, 1), (0, 1, 0), at), vec(at) - vec(0, 0, 1) * 0.0002, lens
 
 
 _PLANAR = {"+x": (1, 1, 2), "-x": (1, -1, 2), "+y": (0, -1, 2), "-y": (0, 1, 2), "+z": (0, 1, 1), "-z": (0, -1, 1)}
@@ -398,34 +420,40 @@ def fx_key(r, pid, at, normal, up, size, t, mat, corner, dome, bevel, canvas, de
 def _mats(r):
     soft = m_soft_black(r)
     # rubber armour: matte black TPE with a fine moulded texture, lighter where edges are rubbed
+    # (ao=0.3 on every large black rubber / polymer surface: the AO grid of this 200 mm tall prop is 1.8 mm, its steps
+    # showed as a blocky checker on the flat armour, bumpers and battery; crevices still darken through cavity)
     armour = r.mat("fx_armour", color=(25, 26, 28), spec=0.11, gloss=0.21, bump="rubber", bump_amp=0.000045, bump_scale=0.00055,
-                   grain=0.045, grain_scale=0.03, edge=0.4, dirt=0.24, wear_color=(70, 72, 76), cavity=0.75, layer="side")
+                   grain=0.045, grain_scale=0.03, edge=0.4, dirt=0.24, wear_color=(70, 72, 76), cavity=0.75, ao=0.3, layer="side")
     armour_m = r.mat("fx_armour_m", color=(25, 26, 28), spec=0.11, gloss=0.21, bump="rubber", bump_amp=0.000045, bump_scale=0.00055,
-                     grain=0.045, grain_scale=0.03, edge=0.4, dirt=0.24, wear_color=(70, 72, 76), cavity=0.75)
+                     grain=0.045, grain_scale=0.03, edge=0.4, dirt=0.24, wear_color=(70, 72, 76), cavity=0.75, ao=0.3)
     # dark gunmetal faceplate / deck plate: painted die-cast, satin, bright metal where the edges are worn
     gun = r.mat("fx_gunmetal", color=(70, 73, 79), spec=0.5, gloss=0.5, metal=0.6, bump="orange_peel", bump_amp=0.000010,
                 bump_scale=0.0007, grain=0.045, grain_scale=0.02, edge=0.7, wear=0.4, wear_color=(146, 148, 152), dirt=0.18,
                 scratch=0.25, smudge=0.3, cavity=0.85, layer="face")
     well = r.mat("fx_well", color=(30, 31, 34), spec=0.16, gloss=0.3, bump="rubber", bump_amp=0.00002, bump_scale=0.0004,
                  grain=0.02, edge=0.15, ao=1.0, cavity=0.8, layer="face")
-    grille = r.mat("fx_grille", color=(22, 23, 25), spec=0.24, gloss=0.34, bump="stipple", bump_amp=0.00002, bump_scale=0.00035,
-                   grain=0.03, edge=0.45, dirt=0.18, wear_color=(70, 72, 76), cavity=0.9, layer="face")
+    # perforated grille plate: a mid-dark painted grey so the black holes read against it
+    grille = r.mat("fx_grille", color=(58, 61, 66), spec=0.35, gloss=0.40, bump="stipple", bump_amp=0.00002, bump_scale=0.00035,
+                   grain=0.03, edge=0.6, dirt=0.18, wear_color=(120, 123, 128), cavity=0.9, layer="face")
     # battery pack: hard glass-filled polymer, a touch glossier than the armour
     batt = r.mat("fx_battery", color=(28, 29, 32), spec=0.2, gloss=0.32, bump="stipple", bump_amp=0.00003, bump_scale=0.00045,
-                 grain=0.03, grain_scale=0.03, edge=0.5, dirt=0.12, wear_color=(74, 76, 80), cavity=0.6, layer="side")
+                 grain=0.03, grain_scale=0.03, edge=0.5, dirt=0.12, wear_color=(74, 76, 80), cavity=0.6, ao=0.3, layer="side")
     # silicone keypad: smooth satin moulding, no chipped edges (rubber does not wear bright like paint)
-    keys = r.mat("fx_key_rubber", color=(25, 26, 29), spec=0.27, gloss=0.44, bump="stipple", bump_amp=0.000006, bump_scale=0.00032,
+    keys = r.mat("fx_key_rubber", color=(25, 26, 29), spec=0.16, gloss=0.28, bump="stipple", bump_amp=0.000006, bump_scale=0.00032,
                  grain=0.008, grain_scale=0.02, edge=0.0, dirt=0.05, cavity=0.5, smudge=0.1, scratch=0.02)
-    red = r.mat("fx_emerg_red", color=(206, 34, 30), spec=0.34, gloss=0.48, bump="dimple", bump_amp=0.000022, bump_scale=0.00042,
+    # emergency cap: glossy red moulding, a fine stipple on the side wall, the dimpled grip only on the top (cap:top chart)
+    red = r.mat("fx_emerg_red", color=(206, 34, 30), spec=0.34, gloss=0.48, bump="stipple", bump_amp=0.000012, bump_scale=0.00035,
                 grain=0.03, edge=0.4, dirt=0.12, wear_color=(240, 120, 110))
+    red_top = r.mat("fx_emerg_red_top", color=(206, 34, 30), spec=0.34, gloss=0.48, bump="dimple", bump_amp=0.000022, bump_scale=0.00042,
+                    grain=0.03, edge=0.4, dirt=0.12, wear_color=(240, 120, 110))
     shaft = r.mat("fx_shaft", color=(150, 152, 156), spec=0.7, gloss=0.55, metal=1.0, bump="brushed", bump_amp=0.000005,
                   bump_scale=0.0003, edge=0.3, dirt=0.1)
     brass = r.mat("fx_sleeve", color=(176, 146, 86), spec=0.7, gloss=0.55, metal=1.0, bump="brushed", bump_amp=0.000005,
                   bump_scale=0.0003, edge=0.3, dirt=0.15)
     plug = r.mat("fx_plug_rubber", color=(30, 31, 34), spec=0.16, gloss=0.28, bump="rubber", bump_amp=0.00003, bump_scale=0.0004,
-                 grain=0.03, edge=0.45, dirt=0.18, wear_color=(78, 80, 84))
+                 grain=0.03, edge=0.45, dirt=0.18, wear_color=(78, 80, 84), ao=0.3)
     return SimpleNamespace(soft=soft, armour=armour, armour_m=armour_m, gun=gun, well=well, grille=grille, batt=batt, keys=keys,
-                           red=red, shaft=shaft, brass=brass, plug=plug)
+                           red=red, red_top=red_top, shaft=shaft, brass=brass, plug=plug)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -470,7 +498,7 @@ def _shell_and_battery(r, M):
     g.translate(0, FS - DF / 2, 0)
     g = _planar_uv(split_by_normal(g))
     _hide(g, (":-y",))                     # back face against the battery
-    _hide(g, (":+y",), 0.35)               # front face: only a narrow land shows round the faceplate
+    _hide(g, (":+y",), 0.8)                # front face: the narrow land round the faceplate (seen in the raised view)
     r.add(g)
     ins = 0.0004
     ob = _outline(W - 2 * ins, DB, 0.0, CHAMF - ins, 0.0006, FIL, n=4)
@@ -583,7 +611,12 @@ def _faceplate(r, M):
     # screen (fixed UV, layout anchor) on the bezel floor + smoked glass 0.3 mm above it
     yf = FS + FLOOR
     r.screen(quad((0.0, yf + 0.00006, SCR_Z), (-1, 0, 0), (0, 0, 1), VIEW[0], VIEW[1], "x", fixed_uv=True))
-    r.add(quad((0.0, yf + 0.00036, SCR_Z), (-1, 0, 0), (0, 0, 1), ow - 0.0002, oh - 0.0002, m_smoked_glass(r), tag="glass"))
+    glass = m_smoked_glass(r)
+    r.add(quad((0.0, yf + 0.00036, SCR_Z), (-1, 0, 0), (0, 0, 1), ow - 0.0002, oh - 0.0002, glass, tag="glass"))
+    sh = DecalCanvas(ow, oh, ppm=6000)
+    sh.polygon([(ow * 0.10, oh), (ow * 0.30, oh), (ow * 0.52, 0.0), (ow * 0.32, 0.0)], color=(190, 196, 204), alpha=0.07, blur=0.0016)
+    sh.polygon([(ow * 0.34, oh), (ow * 0.37, oh), (ow * 0.59, 0.0), (ow * 0.56, 0.0)], color=(200, 206, 214), alpha=0.06, blur=0.0005)
+    r.decal(sh, center=(0.0, yf + 0.00036, SCR_Z), normal=(0, 1, 0), up=(0, 0, 1), depth=0.0003, mats=[glass])
     # speaker grille insert: a perforated plate (real holes falling into the dark acoustic mesh) sitting 0.45 mm
     # below the faceplate in its opening
     gx, gz, gw, gh = GRILLE
@@ -654,8 +687,8 @@ def _digit_legend(w, h, digit, sub):
     """Keypad legend: big digit left of centre, small letters right (white pad print)."""
     dc = DecalCanvas(w, h, ppm=60000)
     if sub:
-        dc.text(w * 0.36, h * 0.53, digit, h * 0.62, fnt="label", **ink("white"))
-        dc.text(w * 0.69, h * 0.56, sub, h * 0.30, fnt="label-semi", max_w=w * 0.40, **ink("white"))
+        dc.text(w * 0.40, h * 0.53, digit, h * 0.58, fnt="label", anchor="rm", **ink("white"))
+        dc.text(w * 0.46, h * 0.57, sub, h * 0.24, fnt="label-semi", anchor="lm", max_w=w * 0.48, **ink("white"))
     else:
         dc.text(w * 0.5, h * 0.53 if digit not in "*#" else h * 0.5, digit, h * (0.62 if digit not in "*" else 0.74), fnt="label",
                 **ink("white"))
@@ -692,7 +725,7 @@ def _keypad(r, M):
             cv = _word_legend(cw, ch, lg)
         else:
             cv = _digit_legend(cw, ch, lg, sub)
-        fx_key(r, pid, at, (0, 1, 0), (0, 0, 1), size=KEY, t=KEY_T, mat=M.keys, corner=KEY[1] * 0.3, dome=0.00026, bevel=0.0006,
+        fx_key(r, pid, at, (0, 1, 0), (0, 0, 1), size=KEY, t=KEY_T, mat=M.keys, corner=KEY[1] * 0.3, dome=0.00026, bevel=0.0009,
                canvas=cv, depth=0.0014)
     for pid, z, gl in (("kup", ARR_Z[0], "up"), ("kdown", ARR_Z[1], "down")):
         cw, ch = ARR[0] * 0.9, ARR[1] * 0.88
@@ -717,20 +750,30 @@ def _deck(r, M):
     # emergency key: guard ring round the well, red button on the floor
     r.add(ring(M.gun, em_d + 2 * 0.0005 + 0.0007, em_d + 0.0036, 0.0014, segs=28, bevel=0.0005, tag="em_guard")
           .translate(EM_XY[0], EM_XY[1], ZDK - 0.0001))
-    round_button(r, "emerg", (EM_XY[0], EM_XY[1], ZT + FLOOR), normal=(0, 0, 1), up=(0, 1, 0), d=em_d, t=0.0026, mat=M.red,
-                 depth=0.0012, dome=0.0003)
+    # the click face is tilted 20 deg towards the front: the raised camera sees the deck almost edge-on, so a disc
+    # flat in the deck plane would project to 1 - 2 px. v stays inside the kit's 20.5 deg tolerance to the press
+    # axis and is longer, so the projected target is ~5 x 3 mm on screen (layout u / v only - the cap is level)
+    em_t, em_dome = 0.0026, 0.0003
+    e_origin = vec(EM_XY[0], EM_XY[1], ZT + FLOOR + em_t + em_dome)
+    with r.part("emerg", origin=e_origin, press=(0, 0, -1), depth=0.0012, u=vec(em_d / 2, 0, 0), v=vec(0, 0.0036, 0.0013), shape="round",
+                action="emerg"):
+        cap = key_cap(M.red, em_d, em_d, em_t, em_d / 2, em_dome, None)
+        for c in cap.charts:
+            if c.tag.endswith(":top"):
+                c.mat = M.red_top              # dimpled grip only on the top, a fine stipple on the side wall
+        r.add(cap.translate(EM_XY[0], EM_XY[1], ZT + FLOOR))
     # orange "EMG" pad print behind the guard (reads from the front, like every deck print)
     ep = DecalCanvas(0.0060, 0.0020, ppm=40000)
     ep.text(0.0030, 0.0010, "EMG", 0.00115, fnt="label-semi", anchor="mm", spacing=0.00018, **ink("orange"))
     r.decal(ep, center=(EM_XY[0] - 0.0006, EM_XY[1] - 0.0058, ZDK), normal=(0, 0, 1), up=(0, -1, 0), depth=0.0006, mats=[M.gun])
-    # light pipe (faces +Z like every radio's: the shared nzr_led_* inserts attach with zero rotation)
-    pipe, insert = light_pipe(r, (LED_XY[0], LED_XY[1], ZDK), normal=(0, 0, 1), up=(0, 1, 0), d=0.0030, color="white")
-    # clear polycarbonate light pipe: dark, glossy, a faint milky core (the lit nzr_led_* insert sits on top)
-    frost = r.mat("pipe_frost", color=(58, 62, 66), spec=0.85, gloss=0.86, grain=0.01, edge=0.05, ao=0.6, smudge=0.25)
-    for c in pipe.charts:
-        if c.tag.startswith("pipe_lens"):
-            c.mat = frost
+    # light pipe (faces +Z like every radio's: the shared nzr_led_* inserts attach with zero rotation): bezel ring +
+    # a dark clear lens dome flush with the bezel top, a pale reflector ring printed inside the lens
+    pipe, insert, lens = fx_light_pipe(r, (LED_XY[0], LED_XY[1], ZDK), d=0.0030)
     r.add(pipe)
+    rf = DecalCanvas(0.0030, 0.0030, ppm=60000)
+    rf.circle(0.0015, 0.0015, 0.0010, fill=False, width=0.0003, color=(120, 124, 130), spec=0.6, gloss=0.7, blur=0.00004)
+    rf.circle(0.0011, 0.0011, 0.00022, color=(150, 154, 160), alpha=0.55, spec=0.9, gloss=0.9, blur=0.00008)    # glint
+    r.decal(rf, center=(LED_XY[0], LED_XY[1], ZDK + 0.0004), normal=(0, 0, 1), up=(0, 1, 0), depth=0.0008, mats=[lens])
     # knob boss with the concentric shafts (outer sleeve for the channel ring, inner D-shaft for the volume cap)
     kx, ky = KNOB_XY
     r.add(cylinder(BOSS_D / 2, BOSS_H, M.gun, segs=40, bevel=0.0004, bevel_seg=2, caps=(False, True), tag="boss")
@@ -753,9 +796,9 @@ def _deck(r, M):
     gasket = r.mat("fx_gasket", color=(16, 17, 18), spec=0.06, gloss=0.12, bump="rubber", bump_amp=0.00002, bump_scale=0.0003)
     gk = extrude(rrect(jw + 0.0009, jl + 0.0009, 0.0020, 4), 0.0003, gasket, bevel=0.0001, bevel_seg=1, caps=(False, True), tag="jack_gasket")
     r.add(gk.translate(jx, jy, ZDK - 0.00005))
-    t = 0.0014
-    cap = rr_lathe(jw, jl, 0.0018, [(0, 0), (0, t * 0.55), (t * 0.2, t * 0.88), (t * 0.5, t), (jl * 0.25, t + 0.0002), (jl * 0.42, t + 0.0003)],
-                   M.plug, n=4, tag="jack_cap", close=True)
+    t = 0.0016
+    cap = extrude(rrect(jw, jl, 0.0018, 4), t, M.plug, bevel=min(t * 0.45, 0.0004), bevel_seg=2, caps=(False, True), smooth_angle=50,
+                  tag="jack_cap")
     cap.set_density(2.6)                   # moulded lettering on a 9 mm cover: give it texels
     r.add(cap.translate(jx, jy, ZDK + 0.00025))
     tab = box((0.0034, 0.0030, 0.0011), M.plug, r=0.0005, seg=2, center=(jx + jw / 2 + 0.0008, jy, ZDK + 0.0008), faces="+x -x +y -y +z",
@@ -773,7 +816,9 @@ def _deck(r, M):
 
 def _deck_screws(r, M):
     for x, y in ((0.0222, DK_Y0 + 0.0016), (-0.0222, DK_Y0 + 0.0016), (0.0222, DK_Y1 - 0.0016), (-0.0222, DK_Y1 - 0.0016)):
-        r.hi_only(screw(r, (x, y, ZDK - 0.00005), (0, 0, 1), (0, 1, 0), d=0.0022, kind="torx", color=(118, 121, 127), segs=12))
+        s = screw(r, (x, y, ZDK - 0.00005), (0, 0, 1), (0, 1, 0), d=0.0022, kind="torx", color=(66, 68, 73), segs=12, spec=0.55, gloss=0.5)
+        s.set_density(6.0)                 # the torx recess needs ~36 texels across the head, not 6
+        r.hi_only(s)
 
 
 def _knobs(r, M):
@@ -855,9 +900,10 @@ def _duck_profile():
 def _antenna(r, M):
     ax, ay = ANT_XY
     duck = r.mat("fx_duck_rubber", color=(22, 23, 25), spec=0.17, gloss=0.28, bump="rubber", bump_amp=0.00004, bump_scale=0.0007,
-                 grain=0.035, edge=0.35, dirt=0.15, wear_color=(70, 72, 76), cavity=0.7)
-    ferrule = r.mat("fx_ferrule", color=(34, 35, 38), spec=0.5, gloss=0.5, metal=0.8, bump="knurl", bump_amp=0.00006, bump_scale=0.0006,
-                    edge=0.6, wear_color=(140, 142, 146), dirt=0.1)
+                 grain=0.035, edge=0.35, dirt=0.15, wear_color=(70, 72, 76), cavity=0.7, ao=0.3)
+    # straight (axial) knurl on the ferrule: a diagonal knurl on a small cylinder reads as woven carbon
+    ferrule = r.mat("fx_ferrule", color=(34, 35, 38), spec=0.5, gloss=0.5, metal=0.8, bump="ribs_u", bump_amp=0.00004, bump_scale=0.0005,
+                    edge=0.6, wear_color=(140, 142, 146), dirt=0.1, ao=0.3)
     band = r.mat("fx_duck_band", color=(228, 184, 34), spec=0.3, gloss=0.45, grain=0.025, edge=0.3, dirt=0.25, wear_color=(250, 220, 120))
     # seat ring on the deck plate, then the nickel SMA nut
     r.add(ring(M.gun, 0.0068, 0.0112, 0.0008, segs=28, bevel=0.0003, tag="ant_seat").translate(ax, ay, ZDK - 0.0001))
@@ -927,7 +973,7 @@ def _left_side(r, M):
     pw, pz0, pz1 = LPAD
     pzc = (pz0 + pz1) / 2
     pad = r.mat("fx_pad", color=(27, 28, 31), spec=0.1, gloss=0.18, bump="ribs", bump_amp=0.00006, bump_scale=0.0011,
-                grain=0.04, edge=0.4, dirt=0.22, wear_color=(70, 72, 76), cavity=0.75, layer="side")
+                grain=0.04, edge=0.4, dirt=0.22, wear_color=(70, 72, 76), cavity=0.75, ao=0.3, layer="side")
     pwell = r.mat("fx_pad_well", color=(14, 15, 16), spec=0.08, gloss=0.18, edge=0.15, ao=1.0, cavity=0.8, layer="side")
     # plate local x = world +Y (towards the front) when facing +X with up = +Z
     holes = [(0.0, PTT_Z - pzc, PTT_W / 2 + 0.0005, PTT_L / 2 + 0.0005, PTT_W * 0.42 + 0.0005)]
@@ -962,6 +1008,11 @@ def _left_side(r, M):
     cv.circle(S1_D * 0.45, S1_D * 0.45, S1_D * 0.12, height=0.00016, spec=0.3, gloss=0.45)
     key(r, "side1", (SX + FLOOR, SIDE_YC, S1_Z), normal=(1, 0, 0), up=(0, 0, 1), size=(S1_D, S1_D), t=0.0020, mat=M.keys,
         corner=S1_D / 2, dome=0.00024, bevel=0.0005, canvas=cv, depth=0.0010, shape="round")
+    # side keys face away from the raised camera (it looks at the face): their click areas lean 20 deg out of the
+    # side plane (within the kit's tolerance to the press axis) and are wider, so the visible edge of each key is a
+    # ~4 mm wide target on screen instead of a zero-width line. Layout u only - the caps stay where they are.
+    r.part_meta("ptt", u=vec(0.0019, 0.0052, 0.0))
+    r.part_meta("side1", u=vec(0.0013, 0.0036, 0.0))
     # MONI print below the side key (white pad print on the rubber)
     mo = DecalCanvas(0.0110, 0.0022, ppm=40000)
     mo.text(0.0055, 0.0011, "MONI", 0.00125, fnt="label", anchor="mm", spacing=0.0002, **ink("white"))
@@ -984,9 +1035,9 @@ def _right_side(r, M):
     gasket = r.mat("fx_gasket")
     gk = extrude(rrect(cw + 0.0009, chh + 0.0009, 0.0030, 4), 0.0003, gasket, bevel=0.0001, bevel_seg=1, caps=(False, True), tag="dc_gasket")
     r.add(align(gk, n, (0, 0, 1), (sx + 0.00005, SIDE_YC, cz)))
-    t = 0.0013
-    cap = rr_lathe(cw, chh, 0.0028, [(0, 0), (0, t * 0.55), (t * 0.2, t * 0.88), (t * 0.5, t), (cw * 0.25, t + 0.0002), (cw * 0.42, t + 0.0003)],
-                   M.plug, n=4, tag="dc_cap", close=True)
+    t = 0.0015
+    cap = extrude(rrect(cw, chh, 0.0028, 4), t, M.plug, bevel=min(t * 0.45, 0.0004), bevel_seg=2, caps=(False, True), smooth_angle=50,
+                  tag="dc_cap")
     cap.set_density(2.2)
     r.add(align(cap, n, (0, 0, 1), (sx - 0.00025, SIDE_YC, cz)))
     tab = box((0.0036, 0.0036, 0.0011), M.plug, r=0.0005, seg=2, center=(0, 0, 0.00075), faces="+x -x +y -y +z", tag="dc_tab")
@@ -1028,8 +1079,7 @@ def _ip_badge(r, M):
     """Moulded IP67 badge on the battery back: a raised rounded plate with a groove border and its print."""
     bw, bh, bt = 0.0220, 0.0084, 0.00045
     bz = 0.0002
-    g = rr_lathe(bw, bh, 0.0026, [(0, 0), (0, bt * 0.6), (bt * 0.3, bt * 0.92), (bt * 0.7, bt), (bh * 0.25, bt), (bh * 0.45, bt)], M.batt, n=4,
-                 tag="badge", close=True)
+    g = extrude(rrect(bw, bh, 0.0026, 4), bt, M.batt, bevel=0.0002, bevel_seg=2, caps=(False, True), smooth_angle=50, tag="badge")
     r.add(align(g, (0, -1, 0), (0, 0, 1), (0.0, BY, bz)))
     dc = DecalCanvas(bw, bh, ppm=40000)
     dc.groove_rect(0.0009, 0.0009, bw - 0.0018, bh - 0.0018, r=0.0018, width=0.0003, depth=0.0001, alpha=0.35)
@@ -1043,11 +1093,19 @@ def _back_and_bottom(r, M):
     rub = r.mat("latch_rubber", color=(30, 31, 34), spec=0.16, gloss=0.26, bump="rubber", bump_amp=0.00003, bump_scale=0.0004,
                 edge=0.4, dirt=0.15, wear_color=(76, 78, 82))
     # black powder-coated spring steel: satin coat, bright steel showing through on the rubbed edges and the lip
-    clip = r.mat("clip_steel", color=(31, 32, 35), spec=0.46, gloss=0.52, metal=0.35, bump="orange_peel", bump_amp=0.000010,
-                 bump_scale=0.0008, grain=0.03, grain_scale=0.03, edge=0.75, wear=0.55, wear_color=(150, 153, 158), dirt=0.14,
-                 scratch=0.4, smudge=0.35, cavity=0.7)
-    r.add(belt_clip(r, (0.0, BY, CLIP_TOP), normal=(0, -1, 0), up=(0, 0, 1), w=0.026, length=CLIP_LEN, t=0.0018, standoff=0.0032,
-                    lip=0.0070, mat=clip, block_mat=M.soft, screw_kind="phillips"))
+    clip = r.mat("clip_steel", color=(31, 32, 35), spec=0.22, gloss=0.32, metal=0.0, bump="orange_peel", bump_amp=0.000025,
+                 bump_scale=0.0006, grain=0.03, grain_scale=0.03, edge=0.75, wear=0.55, wear_color=(150, 153, 158), dirt=0.14,
+                 scratch=0.12, smudge=0.12, cavity=0.7)
+    # the clip's two Phillips screws: dark zinc instead of chrome (registered before belt_clip() asks for the name)
+    sd = 0.0042
+    r.mat("screw_phillips_42", color=(66, 68, 73), spec=0.55, gloss=0.5, metal=1.0, bump="phillips", bump_amp=sd * 0.12, bump_scale=sd / 2,
+          grain=0.03, grain_scale=0.01, edge=0.35, dirt=0.25, scratch=0.3)       # = common.m_screw(), darker plating
+    bc = belt_clip(r, (0.0, BY, CLIP_TOP), normal=(0, -1, 0), up=(0, 0, 1), w=0.026, length=CLIP_LEN, t=0.0018, standoff=0.0032,
+                   lip=0.0070, mat=clip, block_mat=M.soft, screw_kind="phillips")
+    for c in bc.charts:
+        if c.mat.startswith("screw_"):
+            c.density *= 6.0
+    r.add(bc)
     # stamped stiffening channel down the plate + a small embossed arrow
     st = DecalCanvas(0.024, 0.026, ppm=16000)
     st.groove_rect(0.0072, 0.0016, 0.0096, 0.0228, r=0.0040, width=0.0009, depth=0.00028, alpha=0.3)
@@ -1057,12 +1115,12 @@ def _back_and_bottom(r, M):
     _ip_badge(r, M)
     # moulded label recess round the battery label + two stiffening lines across the pack above the latch
     rc = DecalCanvas(0.054, 0.030, ppm=20000)
-    rc.groove_rect(0.0018, 0.0042, 0.0504, 0.0200, r=0.0016, width=0.0005, depth=0.00022, alpha=0.4)
-    for y in (0.0268, 0.0284):
+    rc.groove_rect(0.0018, 0.0060, 0.0504, 0.0200, r=0.0016, width=0.0005, depth=0.00022, alpha=0.4)     # z -5.0 .. -25.0 mm
+    for y in (0.0274, 0.0286):
         rc.groove([(0.010, y), (0.044, y)], width=0.00035, depth=0.00014, alpha=0.3)
     r.decal(rc, center=(0.0, BY, -0.0140), normal=(0, -1, 0), up=(0, 0, 1), depth=0.0012, mats=[M.batt])
     bl = _battery_label(0.046, 0.0165, "FB-28", "Li-ion", "7.4 V", "1800 mAh", "13.3 Wh", "SN B26-28041")
-    r.decal(bl, center=(0.0, BY, -0.0158), normal=(0, -1, 0), up=(0, 0, 1), depth=0.0012, mats=[M.batt])
+    r.decal(bl, center=(0.0, BY, -0.0150), normal=(0, -1, 0), up=(0, 0, 1), depth=0.0012, mats=[M.batt])   # 1.75 mm margins
     r.add(latch_tab(r, rub, (0.0, BY, Z0 + 0.0042), (0, -1, 0), (0, 0, 1), w=0.014, h=0.0055, t=0.0012, ribs=4))
     rel = DecalCanvas(0.03, 0.0026, ppm=30000)
     rel.text(0.015, 0.0013, "▼ RELEASE", 0.0011, fnt="label-semi", spacing=0.00012, **ink("grey"))
@@ -1079,7 +1137,9 @@ def _back_and_bottom(r, M):
     rl = _rating_label()
     r.decal(rl, center=(0.0, FS - DF / 2 - 0.0005, Z0), normal=(0, 0, -1), up=(0, 1, 0), depth=0.0008, mats=[M.armour])
     for x in (0.0215, -0.0215):
-        r.hi_only(screw(r, (x, FS - 0.0032, Z0), (0, 0, -1), (0, 1, 0), d=0.0026, kind="torx", color=(122, 125, 131), segs=12))
+        s = screw(r, (x, FS - 0.0032, Z0), (0, 0, -1), (0, 1, 0), d=0.0026, kind="torx", color=(66, 68, 73), segs=12, spec=0.55, gloss=0.5)
+        s.set_density(6.0)
+        r.hi_only(s)
 
 
 def _rating_label():
@@ -1119,7 +1179,9 @@ def _medium(r, M):
     mesh = m_mesh(r)
     holes, fl = _plate_holes(M, mesh, m_print_dark(r), keys=False)
     holes, fl = holes[:2], fl[:2]
-    g = holed_plate(rrect(FPW, FPZ1 - FPZ0, FPR, 3), FP_T, holes, M.gun, depth=FP_T - FLOOR, wall_mat=M.gun, floor_mats=fl,
+    gun_m = r.mat("fx_gunmetal_m", color=(70, 73, 79), spec=0.5, gloss=0.5, metal=0.6, grain=0.045, grain_scale=0.02, edge=0.0, wear=0.0,
+                  dirt=0.12, scratch=0.0, smudge=0.2, cavity=0.85, layer="face")
+    g = holed_plate(rrect(FPW, FPZ1 - FPZ0, FPR, 3), FP_T, holes, gun_m, depth=FP_T - FLOOR, wall_mat=gun_m, floor_mats=fl,
                     bevel=0.0005, hole_bevel=0.0, corner_n=2, tag="m_face")
     add_m(_front(g, FPZC))
     yb = FS + FP_T
@@ -1133,7 +1195,7 @@ def _medium(r, M):
     for pid, z in zip(("kup", "kdown"), ARR_Z):
         front_block(pid, ARR_X, z, ARR[0], ARR[1], 0.0023 - FP_T + 0.0006)
     # deck plate, knobs, emergency, antenna, nut
-    add_m(extrude(rrect(DK_W, DK_Y1 - DK_Y0, 0.003, 2), DECK_T, M.gun, bevel=0.0004, bevel_seg=1, caps=(False, True), tag="m_deck")
+    add_m(extrude(rrect(DK_W, DK_Y1 - DK_Y0, 0.003, 2), DECK_T, gun_m, bevel=0.0004, bevel_seg=1, caps=(False, True), tag="m_deck")
           .translate(0, DK_YC, ZT))
     kx, ky = KNOB_XY
     add_m(cylinder(KO_D / 2, KO_H + BOSS_H, "fx_knob_ring", segs=14, bevel=0.0005, bevel_seg=1, caps=(False, True), tag="m_knob")

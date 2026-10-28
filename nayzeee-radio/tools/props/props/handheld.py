@@ -581,6 +581,9 @@ def _front_bezel(r, M):
     outline = rrect(PW, PZ1 - PZ0, 0.0042, 6)
     g = holed_plate(outline, PT, holes, M.bezel, depth=PT - FLOOR, wall_mat=M.soft, floor_mats=fl, bevel=0.00045, hole_bevel=0.00028,
                     corner_n=4, tag="bezel")
+    for c in g.charts:
+        if c.mat == M.border:
+            c.density *= 0.4                 # plain matte mask, and the LCD covers all but its 1 mm rim
     # speaker bars: 4 rounded bars standing a hair proud of the bezel over the acoustic mesh
     g += _grille_bars(M.bezel, PT + 0.00022 - FLOOR)
     r.add(_front(g, PZC))
@@ -662,6 +665,15 @@ def _front_parts(r, M):
 # ---------------------------------------------------------------------------------------------
 # top: knobs, emergency key
 # ---------------------------------------------------------------------------------------------
+def _planar_top(g: Geo, min_nz=0.8):
+    """Lathe charts that face up (a knob's domed crown) get a top-down planar projection: a disc packs as a
+    d x d square instead of a 2 pi r wide strip whose centre row is all wasted texels."""
+    for c in g.charts:
+        if float(c.nrm[:, 2].mean()) >= min_nz:
+            c.uvm = np.stack([c.pos[:, 0], -c.pos[:, 1]], axis=1)
+    return g
+
+
 def _flute_outline(R, rd, ribs, phase):
     """Plan outline of a fluted knob: `ribs` V-bottomed grooves `rd` deep, flat-topped lands between them.
     The land centres sit at `phase` + k * period (so one land faces the front for the index line)."""
@@ -691,13 +703,13 @@ def _channel_knob(r, M, base):
     with r.part("knob_ch", origin=origin, press=-ax, depth=0.0008, u=vec(-1, 0, 0) * (d / 2), v=ax * (h / 2), shape="rect",
                 action="knob", value="channel", axis=ax, detents=16):
         g = lathe([(Rs * 0.9, 0.0), (Rs, sh * 0.3), (Rs, sh * 0.72), (Rs - 0.00025, sh), (R - rd - 0.0001, sh)], mat, segs=40,
-                  smooth_angle=40, tag="knob_skirt")
+                  smooth_angle=40, tag="knob_skirt", planar_caps=False)
         ol = _flute_outline(R, rd, 16, math.pi / 2)
         g += extrude(ol, h - band - sh, mat, z0=sh, caps=(False, True), smooth_angle=28, tag="knob_flutes")
         prof = [(R, h - band), (R, h - bev)]
         prof += [(R - bev + bev * math.cos(a), h - bev + bev * math.sin(a)) for a in np.linspace(math.pi / 6, math.pi / 2, 3)]
         prof += [(R * 0.55, h + dome * 0.7), (0.0, h + dome)]
-        g += lathe(prof, mat, segs=40, smooth_angle=40, tag="knob_top")
+        g += _planar_top(lathe(prof, mat, segs=40, smooth_angle=40, tag="knob_top"))
         r.add(g.translate(*base))
         top_c = vec(base) + ax * (h + dome)
         dc = DecalCanvas(d, d, ppm=max(9000, int(300 / d)))
@@ -726,14 +738,14 @@ def _volume_knob(r, M, base):
     origin = vec(base) + ax * (h / 2)
     with r.part("knob_vol", origin=origin, press=-ax, depth=0.0008, u=vec(1, 0, 0) * (d / 2), v=ax * (h / 2), shape="rect",
                 action="knob", value="volume", axis=ax, detents=24):
-        segs = 36
+        segs = 32
         g = lathe([(Rs * 0.9, 0.0), (Rs, sh * 0.3), (Rs, sh * 0.72), (Rs - 0.00025, sh), (R, sh), (R, b0 - rec), (R - rec, b0)], smooth,
-                  segs=segs, smooth_angle=40, tag="knob_skirt")
+                  segs=segs, smooth_angle=40, tag="knob_skirt", planar_caps=False)   # thin ring: strip UVs, not a 15 mm square
         g += lathe([(R - rec, b0), (R - rec, (b0 + b1) / 2), (R - rec, b1)], knurl, segs=segs, smooth_angle=40, tag="knob_grip")
         prof = [(R - rec, b1), (R, b1 + rec), (R, h - bev)]
         prof += [(R - bev + bev * math.cos(a), h - bev + bev * math.sin(a)) for a in np.linspace(math.pi / 4, math.pi / 2, 2)]
-        prof += [(R * 0.55, h + dome * 0.7), (0.0, h + dome)]
-        g += lathe(prof, smooth, segs=segs, smooth_angle=40, tag="knob_top")
+        prof += [(R * f, h + dome * (1.0 - f * f)) for f in (0.62, 0.38, 0.16, 0.0)]     # spherical crown, flat at the pole
+        g += _planar_top(lathe(prof, smooth, segs=segs, smooth_angle=40, tag="knob_top"))
         r.add(g.translate(*base))
         dc = DecalCanvas(d, d, ppm=max(9000, int(300 / d)))
         dc.circle(d / 2, d * 0.2, d * 0.07, **ink("white"))
@@ -890,6 +902,13 @@ def _belt_clip(r, M, mat, w=0.032, length=CLIP_LEN, t=0.002, standoff=0.0035, li
         bead.set_density(2.0)
         g += bead.translate(xb, 0, 0)
     out = align(g, n, upv, top)
+    # the plate's face towards the battery is only seen at grazing angles: half the texel density
+    inner = Geo([c for c in out.charts if c.tag.startswith("clip:")])
+    out.charts = [c for c in out.charts if not c.tag.startswith("clip:")]
+    for c in _planar_uv(split_by_normal(inner, suffix=True)).charts:
+        if c.tag.endswith(":+y"):
+            c.density *= 0.5
+        out.charts.append(c)
     for k in range(2):
         x = (k - 0.5) * (w * 0.5)
         p = top + right * x + upv * (-0.003) + n * (standoff + t * 0.5 + 0.0001)
@@ -897,13 +916,13 @@ def _belt_clip(r, M, mat, w=0.032, length=CLIP_LEN, t=0.002, standoff=0.0035, li
     return out
 
 
-def _lanyard_lug(M, off=0.0021, legs=0.0058, wid=0.0034, thick=0.0012):
+def _lanyard_lug(M, off=0.0021, legs=0.0052, wid=0.0040, thick=0.0015):
     """Lanyard lug in the bottom right (-X) corner of the front shell: a rounded strap profile swept along an arch in
     the X-Z plane, both legs buried in the housing, standing `off` clear of the bottom face and the flank."""
     x0, z0, yc = -W / 2, Z0, YS + 0.0062
     path = np.array([(x0 + legs, yc, z0 + 0.0008), (x0 + legs, yc, z0 - off), (x0 - off, yc, z0 - off), (x0 - off, yc, z0 + legs),
                      (x0 + 0.0008, yc, z0 + legs)])
-    P = polyline_fillet(path, 0.0016, 4)
+    P = polyline_fillet(path, 0.0019, 3)
     g = sweep(rrect(wid, thick, thick * 0.45, 2), P, M.soft, side=(0, 1, 0), caps=False, smooth_angle=50, tag="lanyard")
     return g
 
@@ -944,7 +963,7 @@ def _back_and_bottom(r, M):
     vinyl = r.mat("px_rating_vinyl", color=(192, 195, 198), spec=0.42, gloss=0.52, grain=0.02, grain_scale=0.02, edge=0.15, dirt=0.18,
                   layer="face")
     zs = Z0 + 0.0003 - 0.00006
-    st = poly_cap(rrect(0.040, 0.0100, 0.0008, 3), 0.0, vinyl, tag="rating_sticker").set_density(1.7)
+    st = poly_cap(rrect(0.040, 0.0100, 0.0008, 3), 0.0, vinyl, tag="rating_sticker").set_density(1.5)
     r.hi_only(align(st, (0, 0, -1), (0, 1, 0), (0.0, BY + DB / 2, zs)))
     r.decal(_rating_canvas(0.040, 0.0100), center=(0.0, BY + DB / 2, zs), normal=(0, 0, -1), up=(0, 1, 0), depth=0.0004, mats=[vinyl])
     # bottom of the shell: charging contacts in a moulded recess, polarity marks, lanyard eye in the corner
@@ -1038,7 +1057,7 @@ def _top_details(r, M):
 # ---------------------------------------------------------------------------------------------
 # medium LOD (6 m -> lodDist): cheap stand-ins flagged 'm', the detailed geometry flagged 'h'
 # ---------------------------------------------------------------------------------------------
-MED_DENSITY = 0.3      # stand-ins barely need texels - keep the atlases for the high model
+MED_DENSITY = 0.18     # stand-ins (6 m+, ~30 px tall on screen) barely need texels - keep the atlases for the high model
 
 
 def _medium(r, M):
@@ -1048,7 +1067,8 @@ def _medium(r, M):
             c.lod = "h"
 
     def add_m(g, part=None):
-        g.set_density(MED_DENSITY)
+        for c in g.charts:
+            c.density *= MED_DENSITY           # keeps the _hide() factors of faces nobody sees
         if part:
             with r.part(part):
                 r.add(g, lod="m")

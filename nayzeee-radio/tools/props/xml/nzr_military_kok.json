@@ -161,7 +161,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793133196.147,
+ "built_at": 1793136527.675,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.004250\" y=\"-0.002450\" z=\"-0.007000\" />\n      <bbMax x=\"0.004250\" y=\"0.001000\" z=\"0.007000\" />\n      <bsCentre x=\"0.000000\" y=\"-0.000725\" z=\"0.000000\" />\n      <bsRadius value=\"0.008369\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_military_kok</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_military_kok</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_military_kok</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 0.28
+ "build_seconds": 0.77
 }

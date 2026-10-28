@@ -39,8 +39,8 @@
  "static": false,
  "export": true,
  "group": "radio:handheld",
- "tris": 680,
- "verts": 615,
+ "tris": 992,
+ "verts": 825,
  "tris_med": null,
  "verts_med": null,
  "budget": 1200,
@@ -51,8 +51,8 @@
   {
    "name": "nzr_handheld_knob_vol_d",
    "size": 256,
-   "density": 8929.8,
-   "coverage": 0.41,
+   "density": 7456.6,
+   "coverage": 0.403,
    "maps": [
     256,
     256
@@ -62,7 +62,7 @@
  "screens": [],
  "mem_est": {
   "physical": 327680,
-  "virtual": 49152
+  "virtual": 65536
  },
  "collision": [
   {
@@ -103,7 +103,7 @@
    [
     -0.009,
     -0.004,
-    0.0792
+    0.0812
    ],
    [
     0.006,
@@ -115,7 +115,7 @@
    [
     -0.0075,
     -0.0075,
-    -0.008
+    -0.006
    ],
    [
     0.0075,
@@ -167,7 +167,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793111309.127,
+ "built_at": 1793137122.234,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.007500\" y=\"-0.007500\" z=\"-0.006000\" />\n      <bbMax x=\"0.007500\" y=\"0.007500\" z=\"0.006400\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"0.000200\" />\n      <bsRadius value=\"0.012286\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld_knob_vol</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld_knob_vol</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld_knob_vol</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 2.4
+ "build_seconds": 0.91
 }

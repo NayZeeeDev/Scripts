@@ -2,14 +2,14 @@
  "name": "nzr_handheld",
  "module": "props.handheld",
  "dims": [
-  0.0662,
+  0.0656,
   0.05,
-  0.2922
+  0.2948
  ],
  "geoMin": [
-  -0.0337,
+  -0.0331,
   -0.02764,
-  -0.05302
+  -0.05565
  ],
  "geoMax": [
   0.03249,
@@ -17,9 +17,9 @@
   0.2392
  ],
  "bbMin": [
-  -0.0337,
+  -0.0331,
   -0.0276,
-  -0.053
+  -0.0556
  ],
  "bbMax": [
   0.0325,
@@ -27,11 +27,11 @@
   0.2392
  ],
  "bsCentre": [
-  -0.0006,
+  -0.0003,
   -0.0026,
-  0.0931
+  0.0918
  ],
- "bsRadius": 0.1519,
+ "bsRadius": 0.1531,
  "lodDist": 40.0,
  "lodHigh": 6.0,
  "hdTextureDist": 8.0,
@@ -39,10 +39,10 @@
  "static": false,
  "export": true,
  "group": "radio:handheld",
- "tris": 23622,
- "verts": 21863,
- "tris_med": 3280,
- "verts_med": 3385,
+ "tris": 23704,
+ "verts": 22005,
+ "tris_med": 7128,
+ "verts_med": 6696,
  "budget": 24000,
  "shaders": [
   "normal_spec",
@@ -55,8 +55,8 @@
   {
    "name": "nzr_handheld_d",
    "size": 1024,
-   "density": 3052.0,
-   "coverage": 0.529,
+   "density": 3159.5,
+   "coverage": 0.476,
    "maps": [
     1024,
     1024
@@ -65,8 +65,8 @@
   {
    "name": "nzr_handheld_face_d",
    "size": 1024,
-   "density": 6299.0,
-   "coverage": 0.62,
+   "density": 6369.1,
+   "coverage": 0.65,
    "maps": [
     1024,
     512
@@ -75,8 +75,8 @@
   {
    "name": "nzr_handheld_side_d",
    "size": 1024,
-   "density": 7175.9,
-   "coverage": 0.707,
+   "density": 7596.9,
+   "coverage": 0.735,
    "maps": [
     1024,
     512
@@ -86,7 +86,7 @@
    "name": "nzr_handheld_ad",
    "size": 256,
    "density": 8929.8,
-   "coverage": 0.677,
+   "coverage": 0.675,
    "maps": [
     256,
     256
@@ -106,21 +106,21 @@
  ],
  "mem_est": {
   "physical": 11534336,
-  "virtual": 1507328
+  "virtual": 1703936
  },
  "collision": [
   {
    "type": "box",
    "material": "PLASTIC_HIGH_DENSITY",
    "center": [
-    -0.0006,
+    -0.0003,
     -0.0026,
-    0.0213
+    0.02
    ],
    "size": [
-    0.0662,
+    0.0656,
     0.05,
-    0.1486
+    0.1512
    ],
    "axis": "z"
   },
@@ -195,13 +195,13 @@
   "camDist": 0.34,
   "leds": {
    "tx": [
-    -0.0085,
-    -0.0115,
+    0.006,
+    0.015,
     0.079
    ],
    "rx": [
-    -0.0085,
-    -0.0115,
+    0.006,
+    0.015,
     0.079
    ]
   },
@@ -893,14 +893,14 @@
     "tilt": 5.0,
     "bbox": [
      [
-      -0.007586,
+      -0.006986,
       0.01954,
-      -0.010586
+      -0.009986
      ],
      [
-      0.007586,
+      0.006986,
       0.0224,
-      0.004586
+      0.003986
      ]
     ],
     "tris": 276
@@ -942,7 +942,7 @@
      [
       0.0099,
       -0.0041,
-      0.0792
+      0.0812
      ],
      [
       0.0241,
@@ -989,7 +989,7 @@
      [
       -0.009,
       -0.004,
-      0.0792
+      0.0812
      ],
      [
       0.006,
@@ -997,7 +997,7 @@
       0.0936
      ]
     ],
-    "tris": 680
+    "tris": 992
    },
    {
     "id": "emerg",
@@ -1005,7 +1005,7 @@
     "pos": [
      -0.0185,
      0.0115,
-     0.07908
+     0.07968
     ],
     "press": [
      -0.0,
@@ -1030,12 +1030,12 @@
      [
       -0.023,
       0.0085,
-      0.0767
+      0.0773
      ],
      [
       -0.014,
       0.0145,
-      0.0796
+      0.07968
      ]
     ],
     "tris": 276
@@ -1164,7 +1164,7 @@
     "tris": 340
    }
   ],
-  "body_tris": 14994,
+  "body_tris": 14764,
   "export": true
  },
  "preview": {
@@ -1194,12 +1194,12 @@
    {
     "name": "topdeck",
     "pos": [
-     0.04053527749095846,
-     0.1372583663991584,
-     0.24593305446564212
+     0.04046234855162359,
+     0.13599040800541984,
+     0.24451592449616963
     ],
     "target": [
-     -0.0006050000000000014,
+     -0.0003050000000000032,
      -0.002618577070100374,
      0.08959999999999999
     ],
@@ -1396,7 +1396,7 @@
      "pos": [
       -0.0185,
       0.0115,
-      0.07907999999999998
+      0.07968
      ]
     },
     {
@@ -1428,7 +1428,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793111370.901,
- "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033700\" y=\"-0.027637\" z=\"-0.053020\" />\n      <bbMax x=\"0.032490\" y=\"0.022400\" z=\"0.239200\" />\n      <bsCentre x=\"-0.000605\" y=\"-0.002619\" z=\"0.093090\" />\n      <bsRadius value=\"0.151886\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 68.15
+ "built_at": 1793137159.526,
+ "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033100\" y=\"-0.027637\" z=\"-0.055649\" />\n      <bbMax x=\"0.032490\" y=\"0.022400\" z=\"0.239200\" />\n      <bsCentre x=\"-0.000305\" y=\"-0.002619\" z=\"0.091775\" />\n      <bsRadius value=\"0.153087\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld</assetName>\n      <extensions />\n    </Item>",
+ "build_seconds": 40.09
 }

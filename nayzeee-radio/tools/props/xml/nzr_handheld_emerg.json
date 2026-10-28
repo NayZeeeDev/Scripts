@@ -40,7 +40,7 @@
  "export": true,
  "group": "radio:handheld",
  "tris": 276,
- "verts": 211,
+ "verts": 218,
  "tris_med": null,
  "verts_med": null,
  "budget": 1200,
@@ -52,7 +52,7 @@
    "name": "nzr_handheld_emerg_d",
    "size": 256,
    "density": 8929.8,
-   "coverage": 0.129,
+   "coverage": 0.13,
    "maps": [
     256,
     256
@@ -62,7 +62,7 @@
  "screens": [],
  "mem_est": {
   "physical": 327680,
-  "virtual": 24576
+  "virtual": 32768
  },
  "collision": [
   {
@@ -97,18 +97,18 @@
   "origin": [
    -0.0185,
    0.0115,
-   0.07908
+   0.07968
   ],
   "bbox_body": [
    [
     -0.023,
     0.0085,
-    0.0767
+    0.0773
    ],
    [
     -0.014,
     0.0145,
-    0.0796
+    0.07968
    ]
   ],
   "bbox_local": [
@@ -120,7 +120,7 @@
    [
     0.0045,
     0.003,
-    0.00052
+    0.0
    ]
   ],
   "meta": {
@@ -129,7 +129,7 @@
    "pos": [
     -0.0185,
     0.0115,
-    0.07908
+    0.07968
    ],
    "press": [
     -0.0,
@@ -161,7 +161,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793111303.319,
+ "built_at": 1793137119.796,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.004500\" y=\"-0.003000\" z=\"-0.002380\" />\n      <bbMax x=\"0.004500\" y=\"0.003000\" z=\"0.001000\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"-0.000690\" />\n      <bsRadius value=\"0.005666\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld_emerg</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld_emerg</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld_emerg</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 0.54
+ "build_seconds": 0.34
 }

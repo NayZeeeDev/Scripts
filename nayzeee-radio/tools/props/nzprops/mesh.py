@@ -1297,9 +1297,8 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
     if len(outline) > 4:
         top = offset_poly(outline, bv)
         per = outer_n + 1
-        rc = outer_r - bv
         for k, key in enumerate(((1, 0), (1, 1), (0, 1), (0, 0))):      # rrect corner order: +x-y, +x+y, -x+y, -x-y
-            arcs[key] = (top[k * per:(k + 1) * per], rc)
+            arcs[key] = top[k * per:(k + 1) * per]
     ni, nj = len(xs) - 1, len(ys) - 1
     for i in range(ni):
         for j in range(nj):
@@ -1309,11 +1308,14 @@ def well_plate(w, h, t, holes, mat, depth=None, floor_mat=None, wall_mat=None, b
             if arcs and key in arcs:
                 if hole_cell:
                     raise ValueError("well_plate: an opening reaches into a rounded plate corner (outer_r)")
-                arc, rc = arcs[key]
+                arc = arcs[key]
                 qx = xs[i] if key[0] == 1 else xs[i + 1]        # the cell corner facing the plate centre
                 qy = ys[j] if key[1] == 1 else ys[j + 1]
-                if xs[i + 1] - xs[i] < rc - 1e-9 or ys[j + 1] - ys[j] < rc - 1e-9:
-                    raise ValueError("well_plate: outer_r is larger than a corner cell (an opening is too close to a corner)")
+                ax_, ay_ = arc[:, 0], arc[:, 1]
+                if (ax_.min() < xs[i] - 1e-9 or ax_.max() > xs[i + 1] + 1e-9 or ay_.min() < ys[j] - 1e-9
+                        or ay_.max() > ys[j + 1] + 1e-9):
+                    raise ValueError(f"well_plate: outer_r {outer_r:.4f} is larger than a corner cell "
+                                     f"({xs[i + 1] - xs[i]:.4f} x {ys[j + 1] - ys[j]:.4f}): an opening is too close to a corner")
                 # convex corner cell walked CCW: edge point -> arc -> edge point, fanned from the inner corner
                 if key == (1, 0):
                     ring = [(qx, ys[j])] + [tuple(a) for a in arc] + [(xs[i + 1], qy)]

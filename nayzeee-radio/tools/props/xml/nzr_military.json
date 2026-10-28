@@ -39,10 +39,10 @@
  "static": false,
  "export": true,
  "group": "radio:military",
- "tris": 23692,
- "verts": 22112,
- "tris_med": 3638,
- "verts_med": 3360,
+ "tris": 23882,
+ "verts": 21741,
+ "tris_med": 3742,
+ "verts_med": 3486,
  "budget": 24000,
  "shaders": [
   "normal_spec",
@@ -54,8 +54,8 @@
   {
    "name": "nzr_military_d",
    "size": 1024,
-   "density": 1523.2,
-   "coverage": 0.416,
+   "density": 1564.5,
+   "coverage": 0.436,
    "maps": [
     1024,
     1024
@@ -64,10 +64,10 @@
   {
    "name": "nzr_military_face_d",
    "size": 1024,
-   "density": 5878.0,
-   "coverage": 0.684,
+   "density": 5527.3,
+   "coverage": 0.69,
    "maps": [
-    512,
+    1024,
     512
    ]
   },
@@ -94,8 +94,8 @@
   "nzr_scr"
  ],
  "mem_est": {
-  "physical": 6291456,
-  "virtual": 2097152
+  "physical": 8388608,
+  "virtual": 1703936
  },
  "collision": [
   {
@@ -118,11 +118,11 @@
    "material": "RUBBER",
    "center": [
     0.0215,
-    -0.0029,
+    -0.003,
     0.2
    ],
    "size": [
-    0.0055,
+    0.0057,
     0.22,
     0.0
    ],
@@ -835,7 +835,7 @@
      0.0,
      0.008
     ],
-    "shape": "round",
+    "shape": "rect",
     "action": "dpad",
     "value": null,
     "tilt": 5.0,
@@ -847,11 +847,11 @@
      ],
      [
       0.008,
-      0.0242,
+      0.0244,
       0.0255
      ]
     ],
-    "tris": 388
+    "tris": 448
    },
    {
     "id": "knob_ch",
@@ -1022,12 +1022,12 @@
       0.024
      ],
      [
-      0.036534,
+      0.036529,
       0.014,
       0.056
      ]
     ],
-    "tris": 568
+    "tris": 688
    },
    {
     "id": "side1",
@@ -1112,7 +1112,7 @@
     "tris": 340
    }
   ],
-  "body_tris": 15786,
+  "body_tris": 15796,
   "export": true
  },
  "preview": {
@@ -1368,7 +1368,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793133220.838,
+ "built_at": 1793136555.891,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.037900\" y=\"-0.029320\" z=\"-0.061500\" />\n      <bbMax x=\"0.036800\" y=\"0.024600\" z=\"0.310000\" />\n      <bsCentre x=\"-0.000550\" y=\"-0.002360\" z=\"0.124250\" />\n      <bsRadius value=\"0.191376\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_military</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_military</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_military</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 28.18
+ "build_seconds": 34.64
 }
