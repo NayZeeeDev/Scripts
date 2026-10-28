@@ -39,8 +39,8 @@
  "static": false,
  "export": true,
  "group": "radio:fieldpro",
- "tris": 15995,
- "verts": 15747,
+ "tris": 15797,
+ "verts": 15509,
  "tris_med": null,
  "verts_med": null,
  "budget": 20000,
@@ -55,8 +55,8 @@
   {
    "name": "nzr_fieldpro_body_d",
    "size": 1024,
-   "density": 8929.8,
-   "coverage": 0.735,
+   "density": 6579.6,
+   "coverage": 0.657,
    "maps": [
     1024,
     1024
@@ -75,8 +75,8 @@
   {
    "name": "nzr_fieldpro_body_side_d",
    "size": 1024,
-   "density": 5597.4,
-   "coverage": 0.626,
+   "density": 5316.8,
+   "coverage": 0.663,
    "maps": [
     1024,
     512
@@ -225,7 +225,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793134160.388,
+ "built_at": 1793168163.356,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033811\" y=\"-0.022713\" z=\"-0.038936\" />\n      <bbMax x=\"0.033490\" y=\"0.016600\" z=\"0.146900\" />\n      <bsCentre x=\"-0.000161\" y=\"-0.003057\" z=\"0.053982\" />\n      <bsRadius value=\"0.100760\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_body</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_body</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_body</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 37.06
+ "build_seconds": 39.43
 }

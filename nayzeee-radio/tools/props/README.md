@@ -118,7 +118,8 @@ Model engineers build their own props in parallel against the same out folder; t
 2. **Windows, CodeWalker GUI** (no .NET SDK): pick the **GTA V Legacy** folder when CodeWalker asks (not
    Enhanced - FiveM streams legacy resources) → Tools → RPF Explorer → Edit mode → Import XML → select every
    `tools/props/xml/nzr_*.ydr.xml` and `nzr_props.ytyp.xml` (each XML keeps its texture folder next to it) →
-   export the resulting `.ydr` / `.ytyp` into `nayzeee-radio-props/stream/`.
+   select the resulting `.ydr` / `.ytyp` → right-click → Extract Raw… into `nayzeee-radio-props/stream/`
+   (the full file list is in `nayzeee-radio-props/stream/README.md`).
 
 Without .NET the build stops after XML / DDS / GLB / renders / layout (the default). The memory budget is then
 **estimated** from the written textures and buffers with a port of CodeWalker's page packer

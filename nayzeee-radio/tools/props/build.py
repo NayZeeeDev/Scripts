@@ -241,7 +241,7 @@ def prune_stale(out, xml_dir, registered):
         if not d or not os.path.isdir(d):
             continue
         for f in os.listdir(d):
-            base = f[:-8] if f.endswith(".ydr.xml") else (f[:-5] if f.endswith(".json") else f)
+            base = f[:-8] if f.endswith(".ydr.xml") else f[:-9] if f.endswith(".ytyp.xml") else f[:-5] if f.endswith(".json") else f
             if base.startswith(PREFIX) and base not in registered and base != YTYP_NAME:
                 p = os.path.join(d, f)
                 if os.path.isdir(p):
@@ -506,6 +506,10 @@ def contact_sheets(out, rdir, manifests, views, per_page=6, cell=360):
         fp = os.path.join(sdir, f"contact_{pi + 1:02d}.png")
         save_image(sheet, fp)
         files.append(fp)
+    for f in os.listdir(sdir):             # pages left over from a build with more props
+        m = re.match(r"contact_(\d+)\.png$", f)
+        if m and int(m.group(1)) > len(pages):
+            os.remove(os.path.join(sdir, f))
     return files
 
 
@@ -790,6 +794,7 @@ def main():
                 log("xml: quick build - tools/props/xml left untouched (run without --quick to refresh it)")
         if not args.only and not IMPORT_FAILURES and not errors:
             prune_stale(args.out, xml_dir, set(names_all))
+            all_m = {n: m for n, m in all_m.items() if n in set(names_all)}   # no renders / sheets of pruned props
         if args.layout != "none":
             radios = [r.strip() for r in args.layout_radios.split(",") if r.strip()]
             p, ok, msg = gen_layout.write_layout(all_m, args.layout, radios)

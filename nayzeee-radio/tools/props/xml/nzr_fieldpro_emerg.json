@@ -132,8 +132,8 @@
     0.05994
    ],
    "press": [
-    -0.0,
-    -0.0,
+    0.0,
+    0.0,
     -1.0
    ],
    "depth": 0.0012,
@@ -144,8 +144,8 @@
    ],
    "v": [
     0.0,
-    0.0025,
-    0.0
+    0.0036,
+    0.0013
    ],
    "shape": "round",
    "action": "emerg",
@@ -161,7 +161,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793134123.734,
+ "built_at": 1793168215.044,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.002500\" y=\"-0.002500\" z=\"-0.002900\" />\n      <bbMax x=\"0.002500\" y=\"0.002500\" z=\"0.001000\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"-0.000950\" />\n      <bsRadius value=\"0.004038\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_emerg</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_emerg</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_emerg</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 0.4
+ "build_seconds": 0.32
 }

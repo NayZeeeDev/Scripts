@@ -1428,7 +1428,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793137159.526,
+ "built_at": 1793168214.257,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033100\" y=\"-0.027637\" z=\"-0.055649\" />\n      <bbMax x=\"0.032490\" y=\"0.022400\" z=\"0.239200\" />\n      <bsCentre x=\"-0.000305\" y=\"-0.002619\" z=\"0.091775\" />\n      <bsRadius value=\"0.153087\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_handheld</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_handheld</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_handheld</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 40.09
+ "build_seconds": 50.9
 }

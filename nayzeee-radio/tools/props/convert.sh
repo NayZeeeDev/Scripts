@@ -22,9 +22,9 @@
 #      * Tools -> RPF Explorer, switch on Edit mode, open (or create) a folder / .rpf to import into
 #      * Import XML -> select every tools/props/xml/nzr_*.ydr.xml and nzr_props.ytyp.xml (each .ydr.xml needs
 #        its texture folder tools/props/xml/<name>/ next to it - keep the layout as it is in the repository)
-#      * select the imported nzr_*.ydr + nzr_props.ytyp -> right click -> Export (raw / uncompressed is fine)
-#        into nayzeee-radio-props/stream/
-#      * check: the stream folder holds one .ydr per nzr_*.ydr.xml + nzr_props.ytyp, nothing else
+#      * select the imported nzr_*.ydr + nzr_props.ytyp -> right click -> Extract Raw... into
+#        nayzeee-radio-props/stream/ (file list and checks: nayzeee-radio-props/stream/README.md)
+#      * check: the stream folder holds one .ydr per nzr_*.ydr.xml + nzr_props.ytyp (+ its README.md), nothing else
 # =====================================================================================================
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

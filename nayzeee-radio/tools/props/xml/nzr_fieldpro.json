@@ -39,10 +39,10 @@
  "static": false,
  "export": true,
  "group": "radio:fieldpro",
- "tris": 23769,
- "verts": 21725,
+ "tris": 23187,
+ "verts": 21346,
  "tris_med": 3158,
- "verts_med": 3279,
+ "verts_med": 3145,
  "budget": 24000,
  "shaders": [
   "normal_spec",
@@ -55,8 +55,8 @@
   {
    "name": "nzr_fieldpro_d",
    "size": 1024,
-   "density": 4299.5,
-   "coverage": 0.575,
+   "density": 3878.6,
+   "coverage": 0.555,
    "maps": [
     1024,
     1024
@@ -75,8 +75,8 @@
   {
    "name": "nzr_fieldpro_side_d",
    "size": 1024,
-   "density": 5281.7,
-   "coverage": 0.634,
+   "density": 4930.9,
+   "coverage": 0.637,
    "maps": [
     1024,
     512
@@ -246,7 +246,7 @@
       -0.02675
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k1",
@@ -287,7 +287,7 @@
       -0.00035
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k2",
@@ -328,7 +328,7 @@
       -0.00035
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k3",
@@ -369,7 +369,7 @@
       -0.00035
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k4",
@@ -410,7 +410,7 @@
       -0.00915
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k5",
@@ -451,7 +451,7 @@
       -0.00915
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k6",
@@ -492,7 +492,7 @@
       -0.00915
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k7",
@@ -533,7 +533,7 @@
       -0.01795
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k8",
@@ -574,7 +574,7 @@
       -0.01795
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "k9",
@@ -615,7 +615,7 @@
       -0.01795
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "kstar",
@@ -656,7 +656,7 @@
       -0.02675
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "khash",
@@ -697,7 +697,7 @@
       -0.02675
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "kup",
@@ -820,7 +820,7 @@
       -0.00915
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "kset",
@@ -861,7 +861,7 @@
       -0.01795
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "kband",
@@ -902,7 +902,7 @@
       -0.00035
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "kpower",
@@ -943,7 +943,7 @@
       -0.02675
      ]
     ],
-    "tris": 248
+    "tris": 224
    },
    {
     "id": "knob_ch",
@@ -1054,8 +1054,8 @@
     ],
     "depth": 0.0016,
     "u": [
-     0.0,
-     0.005,
+     0.0019,
+     0.0052,
      0.0
     ],
     "v": [
@@ -1095,8 +1095,8 @@
     ],
     "depth": 0.001,
     "u": [
-     0.0,
-     0.0032,
+     0.0013,
+     0.0036,
      0.0
     ],
     "v": [
@@ -1130,8 +1130,8 @@
      0.05994
     ],
     "press": [
-     -0.0,
-     -0.0,
+     0.0,
+     0.0,
      -1.0
     ],
     "depth": 0.0012,
@@ -1142,8 +1142,8 @@
     ],
     "v": [
      0.0,
-     0.0025,
-     0.0
+     0.0036,
+     0.0013
     ],
     "shape": "round",
     "action": "emerg",
@@ -1163,7 +1163,7 @@
     "tris": 340
    }
   ],
-  "body_tris": 15995,
+  "body_tris": 15797,
   "export": true
  },
  "preview": {
@@ -1427,7 +1427,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793134161.759,
+ "built_at": 1793168123.923,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"40\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.033811\" y=\"-0.022713\" z=\"-0.038936\" />\n      <bbMax x=\"0.033490\" y=\"0.016600\" z=\"0.146900\" />\n      <bsCentre x=\"-0.000161\" y=\"-0.003057\" z=\"0.053982\" />\n      <bsRadius value=\"0.100760\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 38.43
+ "build_seconds": 51.11
 }

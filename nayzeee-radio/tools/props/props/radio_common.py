@@ -816,7 +816,8 @@ def light_pipe(b, at, normal=(0, 0, 1), up=(0, 1, 0), d=0.003, color="red", beze
     bezel_mat = bezel_mat or b.mat("pipe_bezel", color=(16, 17, 19), spec=0.4, gloss=0.55, edge=0.4)
     rl = d / 2
     ro = rl + 0.0007
-    g = lathe([(rl, -0.0004), (rl, bezel_h * 0.5), (rl + 0.0002, bezel_h), (ro - 0.0002, bezel_h), (ro, bezel_h * 0.5), (ro, 0.0)],
+    # profile walked outer wall up -> over the top -> inner wall down (outside on the right: faces point out)
+    g = lathe([(ro, 0.0), (ro, bezel_h * 0.5), (ro - 0.0002, bezel_h), (rl + 0.0002, bezel_h), (rl, bezel_h * 0.5), (rl, -0.0004)],
               bezel_mat, segs=24, smooth_angle=50, tag="pipe")
     g += cylinder(rl, 0.0001, m_led_off(b, color), segs=20, z0=-0.0003, caps=(False, True), tag="pipe_lens")
     _, _, n = _frame(normal, up)

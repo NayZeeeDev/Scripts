@@ -214,7 +214,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793136554.255,
+ "built_at": 1793168236.515,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.037900\" y=\"-0.029320\" z=\"-0.061500\" />\n      <bbMax x=\"0.036800\" y=\"0.024600\" z=\"0.310000\" />\n      <bsCentre x=\"-0.000550\" y=\"-0.002360\" z=\"0.124250\" />\n      <bsRadius value=\"0.191376\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_military_body</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_military_body</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_military_body</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 33.0
+ "build_seconds": 28.94
 }

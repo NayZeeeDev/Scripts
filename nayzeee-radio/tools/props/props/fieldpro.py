@@ -37,11 +37,12 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from nzprops import DecalCanvas, Geo, box, cylinder, extrude, lathe, quad, rr_lathe, rrect, split_by_normal, vec, well_plate
+from nzprops import (DecalCanvas, Geo, box, cylinder, extrude, lathe, polyline_fillet, quad, rr_lathe, rrect, split_by_normal, sweep,
+                     vec, well_plate)
 from nzprops.mesh import Chart, ensure_ccw, offset_poly, subdivide_poly
 
 from .common import align, rating_plate, screw
-from .radio_common import (INK, belt_clip, charging_contacts, ink, key, key_cap, lanyard_eye, latch_tab, m_mesh, m_print_dark,
+from .radio_common import (INK, charging_contacts, ink, key, key_cap, lanyard_eye, latch_tab, m_mesh, m_print_dark,
                            m_smoked_glass, m_soft_black, ptt, sma_nut)
 from .radio_kit import radio
 
@@ -278,8 +279,8 @@ def ring(mat, d_in, d_out, h, segs=24, bevel=0.0005, tag="ring"):
 
 
 def fx_light_pipe(r, at, d=0.0030, bezel_h=0.0004, segs=20):
-    """Light-pipe socket on the deck (facing +Z), module-local instead of radio_common.light_pipe() (whose
-    bezel profile runs inner wall first, so its faces point inward): a raised dark bezel ring - outer wall up,
+    """Light-pipe socket on the deck (facing +Z), module-local instead of radio_common.light_pipe() (written
+    while that one's bezel profile was still inside out; this one adds the lens dome): a raised dark bezel ring - outer wall up,
     over the top, inner wall down - and a clear dark lens dome rising flush with the bezel top, so the
     socket reads as a lens and not as a hole when no LED insert sits on it. Returns (Geo, insert point,
     lens material); the insert point (layout leds.tx / rx) is 0.2 mm under the deck surface as before, and
@@ -292,8 +293,10 @@ def fx_light_pipe(r, at, d=0.0030, bezel_h=0.0004, segs=20):
               bezel, segs=segs, smooth_angle=50, tag="pipe")
     prof = [(rl * math.cos(a), bezel_h * math.sin(a)) for a in np.linspace(0.0, math.pi / 2, 4)]
     prof[-1] = (0.0, bezel_h)
-    lg = lathe(prof, lens, segs=16, smooth_angle=60, tag="pipe_lens")
-    lg.set_density(3.0)                    # the reflector ring print needs texels
+    lg = lathe(prof, lens, segs=20, smooth_angle=60, tag="pipe_lens")
+    for c in lg.charts:                    # one normal at the pole (per-segment pole normals shade as a starburst)
+        c.nrm[np.hypot(c.pos[:, 0], c.pos[:, 1]) < 1e-7] = vec(0, 0, 1)
+    lg.set_density(6.0)                    # the reflector ring print needs texels (a 3 mm lens: negligible atlas space)
     g += lg
     return align(g, (0, 0, 1), (0, 1, 0), at), vec(at) - vec(0, 0, 1) * 0.0002, lens
 
@@ -496,15 +499,21 @@ def _shell_and_battery(r, M):
     ol = subdivide_poly(_outline(W, DF, CHAMF, 0.0, FIL, 0.0006, n=4), 0.004)
     g = extrude(ol, ZT - Z0, M.armour, bevel=0.0014, bevel_seg=3, z0=Z0, smooth_angle=50, tag="shell")
     g.translate(0, FS - DF / 2, 0)
-    g = _planar_uv(split_by_normal(g))
+    # cap_dot: the rim bevels stay with their side wall; split by the dominant axis alone, the two triangles of a
+    # twisted bevel quad alternated between the wall and the cap chart (a sawtooth / carbon-weave checker of
+    # gutter-filled texels along every top and bottom edge)
+    g = _planar_uv(split_by_normal(g, cap_dot=0.92))
     _hide(g, (":-y",))                     # back face against the battery
     _hide(g, (":+y",), 0.8)                # front face: the narrow land round the faceplate (seen in the raised view)
+    for c in g.charts:
+        if c.tag == "shell:bot:-z":
+            c.density *= 1.4               # the rating label's fine print
     r.add(g)
     ins = 0.0004
     ob = _outline(W - 2 * ins, DB, 0.0, CHAMF - ins, 0.0006, FIL, n=4)
     bt = extrude(ob, ZT - Z0 - 2 * ins, M.batt, bevel=0.0012, bevel_seg=3, z0=Z0 + ins, smooth_angle=50, tag="battery")
     bt.translate(0, BY + DB / 2, 0)
-    bt = _planar_uv(split_by_normal(bt))
+    bt = _planar_uv(split_by_normal(bt, cap_dot=0.92))
     _hide(bt, (":+y",))
     for c in bt.charts:
         if c.tag.endswith(":-y"):
@@ -539,7 +548,7 @@ def _bumpers(r, M, n=3, bevel_seg=2, mat=None, tag="bumper"):
             z0 = ZT + e - BUMP_H if top else Z0 - e
             g = extrude(poly, BUMP_H, mat, bevel=0.0012, bevel_seg=bevel_seg, z0=z0, smooth_angle=50, tag=tag)
             g.translate(0, yc, 0)
-            g = _planar_uv(split_by_normal(g))
+            g = _planar_uv(split_by_normal(g, cap_dot=0.92))
             # the inner ends are small steps against the shell - few texels
             _hide(g, (":-y",), 0.3)
             out += g
@@ -1075,6 +1084,35 @@ def _battery_label(w, h, pack, chem, volts, cap, wh, serial):
     return dc
 
 
+def fx_belt_clip(r, top, w, length, t, standoff, lip, mat, block_mat, bow=0.0006, screw_kind="phillips"):
+    """radio_common.belt_clip() with a smoothly bowed plate: the shared clip bends its plate at one mid point
+    (a 0.15 mm fillet), which shows as a sharp crease line in the reflection - read as a glass edge. Here the
+    plate runs straight between the mount bend and the lip bend and bows `bow` out along a sine over 6 rings
+    (same ring count). Built on the back face (normal -Y, up +Z) with the mount block's top edge at `top`."""
+    sec = [(0.0, 0.004, 0.0), (0.0, 0.0, standoff), (0.0, -length + lip * 0.6, standoff), (0.0, -length, standoff + lip * 0.55)]
+    P = polyline_fillet(np.asarray(sec), 0.004, 6)
+    # the straight run between the two bends: its end points are the last point of the first fillet and the first
+    # point of the second one
+    flat = [i for i in range(1, len(P) - 1) if abs(P[i, 2] - standoff) < 1e-7]
+    ia, ib = flat[0], flat[-1]
+    run = [P[ia] + (P[ib] - P[ia]) * s for s in np.linspace(0.0, 1.0, 7)]
+    for k, p in enumerate(run):
+        p[2] += bow * math.sin(math.pi * k / 6)
+    P = np.concatenate([P[:ia], np.asarray(run), P[ib + 1:]])
+    plate = sweep(rrect(w, t, t * 0.45, 2), P, mat, side=(1, 0, 0), tag="clip", smooth_angle=55)
+    g = Geo()
+    g += plate
+    g += box((w + 0.004, 0.012, standoff + 0.0005), block_mat, r=0.0012, seg=2, center=(0, 0.002, (standoff + 0.0005) / 2))
+    n, upv = vec(0, -1, 0), vec(0, 0, 1)
+    out = align(g, n, upv, top)
+    right = np.cross(upv, n)
+    for k in range(2):
+        x = (k - 0.5) * (w * 0.5)
+        p = vec(top) + right * x + upv * (-0.003) + n * (standoff + t * 0.5 + 0.0001)
+        out += screw(r, p, n, upv, d=0.0042, kind=screw_kind, segs=12, color=(66, 68, 73), spec=0.55, gloss=0.5)
+    return out
+
+
 def _ip_badge(r, M):
     """Moulded IP67 badge on the battery back: a raised rounded plate with a groove border and its print."""
     bw, bh, bt = 0.0220, 0.0084, 0.00045
@@ -1092,16 +1130,14 @@ def _ip_badge(r, M):
 def _back_and_bottom(r, M):
     rub = r.mat("latch_rubber", color=(30, 31, 34), spec=0.16, gloss=0.26, bump="rubber", bump_amp=0.00003, bump_scale=0.0004,
                 edge=0.4, dirt=0.15, wear_color=(76, 78, 82))
-    # black powder-coated spring steel: satin coat, bright steel showing through on the rubbed edges and the lip
-    clip = r.mat("clip_steel", color=(31, 32, 35), spec=0.22, gloss=0.32, metal=0.0, bump="orange_peel", bump_amp=0.000025,
-                 bump_scale=0.0006, grain=0.03, grain_scale=0.03, edge=0.75, wear=0.55, wear_color=(150, 153, 158), dirt=0.14,
+    # black powder-coated spring steel: satin coat, a little darker steel showing through on the rubbed edges
+    # (the 0.8 mm plate edges are fully convex, so any wear runs the whole edge: kept low and dark, or the plate reads as
+    # a glass sheet with bright polished edges)
+    clip = r.mat("clip_steel", color=(29, 30, 33), spec=0.17, gloss=0.28, metal=0.0, bump="orange_peel", bump_amp=0.000025,
+                 bump_scale=0.0006, grain=0.03, grain_scale=0.03, edge=0.45, wear=0.25, wear_color=(118, 121, 126), dirt=0.14,
                  scratch=0.12, smudge=0.12, cavity=0.7)
-    # the clip's two Phillips screws: dark zinc instead of chrome (registered before belt_clip() asks for the name)
-    sd = 0.0042
-    r.mat("screw_phillips_42", color=(66, 68, 73), spec=0.55, gloss=0.5, metal=1.0, bump="phillips", bump_amp=sd * 0.12, bump_scale=sd / 2,
-          grain=0.03, grain_scale=0.01, edge=0.35, dirt=0.25, scratch=0.3)       # = common.m_screw(), darker plating
-    bc = belt_clip(r, (0.0, BY, CLIP_TOP), normal=(0, -1, 0), up=(0, 0, 1), w=0.026, length=CLIP_LEN, t=0.0018, standoff=0.0032,
-                   lip=0.0070, mat=clip, block_mat=M.soft, screw_kind="phillips")
+    # module-local clip: smooth bow instead of a creased plate, dark zinc Phillips screws
+    bc = fx_belt_clip(r, (0.0, BY, CLIP_TOP), w=0.026, length=CLIP_LEN, t=0.0018, standoff=0.0032, lip=0.0070, mat=clip, block_mat=M.soft)
     for c in bc.charts:
         if c.mat.startswith("screw_"):
             c.density *= 6.0
@@ -1143,8 +1179,9 @@ def _back_and_bottom(r, M):
 
 
 def _rating_label():
+    # silver-grey foil (a white sticker blooms on the black rubber and its fine print smears at this texel size)
     return rating_plate(0.034, 0.0092, "FM TRANSCEIVER", "FX-280", "SN 26-02804", ref="TXQ-FX280B", rating="7.4 V  1800 mAh  Li-ion",
-                        ppm=36000, ref_label="ID", foot="IP67", icons=("factory", "date", "book", "bin"))
+                        ppm=36000, ref_label="ID", foot="IP67", icons=("factory", "date", "book", "bin"), bg=(146, 150, 155), ink=(16, 17, 19))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1170,11 +1207,11 @@ def _medium(r, M):
     # armour shell + battery + bumpers (2 arc steps)
     sh = extrude(_outline(W, DF, CHAMF, 0.0, FIL, 0.0006, n=2), ZT - Z0, M.armour, bevel=0.0014, bevel_seg=1, z0=Z0, smooth_angle=50,
                  tag="m_shell").translate(0, FS - DF / 2, 0)
-    add_m(_hide(_planar_uv(split_by_normal(sh)), (":-y",), 0.2))
+    add_m(_hide(_planar_uv(split_by_normal(sh, cap_dot=0.92)), (":-y",), 0.2))
     ins = 0.0004
     bt = extrude(_outline(W - 2 * ins, DB, 0.0, CHAMF - ins, 0.0006, FIL, n=2), ZT - Z0 - 2 * ins, M.batt, bevel=0.0012, bevel_seg=1,
                  z0=Z0 + ins, smooth_angle=50, tag="m_battery").translate(0, BY + DB / 2, 0)
-    add_m(_hide(_planar_uv(split_by_normal(bt)), (":+y",), 0.2))
+    add_m(_hide(_planar_uv(split_by_normal(bt, cap_dot=0.92)), (":+y",), 0.2))
     # faceplate with only the screen / grille openings (keys become blocks on its face)
     mesh = m_mesh(r)
     holes, fl = _plate_holes(M, mesh, m_print_dark(r), keys=False)

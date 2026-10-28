@@ -167,7 +167,7 @@
  },
  "warnings": [],
  "quick": false,
- "built_at": 1793134128.969,
+ "built_at": 1793168219.896,
  "archetype_xml": "    <Item type=\"CBaseArchetypeDef\">\n      <lodDist value=\"20\" />\n      <flags value=\"0\" />\n      <specialAttribute value=\"0\" />\n      <bbMin x=\"-0.004500\" y=\"-0.004500\" z=\"-0.004800\" />\n      <bbMax x=\"0.004500\" y=\"0.004500\" z=\"0.003350\" />\n      <bsCentre x=\"0.000000\" y=\"0.000000\" z=\"-0.000725\" />\n      <bsRadius value=\"0.007557\" />\n      <hdTextureDist value=\"8\" />\n      <name>nzr_fieldpro_knob_vol</name>\n      <textureDictionary />\n      <clipDictionary />\n      <drawableDictionary />\n      <physicsDictionary>nzr_fieldpro_knob_vol</physicsDictionary>\n      <assetType>ASSET_TYPE_DRAWABLE</assetType>\n      <assetName>nzr_fieldpro_knob_vol</assetName>\n      <extensions />\n    </Item>",
- "build_seconds": 0.74
+ "build_seconds": 0.36
 }
