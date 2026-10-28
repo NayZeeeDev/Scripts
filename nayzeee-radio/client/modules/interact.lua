@@ -26,7 +26,8 @@
       right (arrows), +nzr_star (MULTIPLY)
     NUI SENT     overlay open { hints = { { keys = { 'LMB' }, label } } }, overlay hover { id, action, value, poly = { { x, y } } }
                  (normalised 0..1 screen points, hover {} = nothing under the cursor), overlay close
-    STATE        NZR.Radio.SetRaised (nzr_hold.r), LocalPlayer.state.invHotkeys (ox_inventory) off while raised
+    STATE        NZR.Radio.SetRaised (nzr_hold.r); the inventory hotbar is off while raised
+                 (Bridge.Inv.BlockHotbar: ox_inventory invHotkeys, qb / ps / lj inv_busy)
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -256,17 +257,9 @@ local function blockReason(ped, model)
     return nil
 end
 
--- ox_inventory's number-row hotbar would fire with the keypad keys
-local hotkeysWas = nil
-local function hotkeys(on)
-    if GetResourceState('ox_inventory') ~= 'started' then return end
-    if not on then
-        hotkeysWas = LocalPlayer.state.invHotkeys
-        LocalPlayer.state:set('invHotkeys', false, false)
-    elseif hotkeysWas ~= nil or LocalPlayer.state.invHotkeys == false then
-        LocalPlayer.state:set('invHotkeys', hotkeysWas ~= false, false)
-        hotkeysWas = nil
-    end
+-- the inventory's number-row hotbar would use items with the keypad keys
+local function hotbar(block)
+    if Bridge and Bridge.Inv and Bridge.Inv.BlockHotbar then pcall(Bridge.Inv.BlockHotbar, 'raised', block) end
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -311,7 +304,8 @@ local function repeatHeld(s, now)
             p.nextRep = math.huge
         end
     end
-    local h = s.keyHeld
+    -- only the newest key repeats, like a keyboard
+    local h = s.keyLast and s.keysHeld[s.keyLast]
     if h and REPEATS[h.action] and now >= h.nextRep then
         h.nextRep = now + rate
         s.fw:Repeat(h.action, h.value)
@@ -344,22 +338,42 @@ local function partFor(s, action, value)
     return nil, nil
 end
 
+-- Every key that is down counts (typing fast, the next digit goes down before the last one
+-- is up), each one is released on its own.
+local function keyUp(s, id)
+    local h = s.keysHeld[id]
+    if not h then return end
+    s.keysHeld[id] = nil
+    if s.keyLast == id then s.keyLast = nil end
+    if h.key then
+        -- a part two held keys move (the d-pad standing in for arrows) comes back with the last
+        local still = false
+        for _, o in pairs(s.keysHeld) do
+            if o.key == h.key then still = true break end
+        end
+        if not still then NZR.Held.Press(h.key.id, false) end
+    end
+    s.fw:Press(h.action, h.value, false)
+end
+
+local function releaseKeys(s)
+    for id in pairs(s.keysHeld) do keyUp(s, id) end
+end
+
 function I.Key(action, value, down)
     local s = session
-    if not s or IsNuiFocused() then return end
-    local k, dir = partFor(s, action, value)
-    if down then
-        if s.keyHeld then return end
-        if k then NZR.Held.Press(k.id, true, dir) end
-        s.keyHeld = { action = action, value = value, key = k, nextRep = GetGameTimer() + (tonumber(cfg().repeatDelay) or 450) }
-        s.fw:Press(action, value, true)
-    else
-        local h = s.keyHeld
-        if not h or h.action ~= action or h.value ~= value then return end
-        s.keyHeld = nil
-        if h.key then NZR.Held.Press(h.key.id, false) end
-        s.fw:Press(action, value, false)
+    if not s then return end
+    local id = value and (action .. ':' .. value) or action
+    if not down then
+        keyUp(s, id)
+        return
     end
+    if IsNuiFocused() or s.keysHeld[id] then return end
+    local k, dir = partFor(s, action, value)
+    if k then NZR.Held.Press(k.id, true, dir) end
+    s.keysHeld[id] = { action = action, value = value, key = k, nextRep = GetGameTimer() + (tonumber(cfg().repeatDelay) or 450) }
+    s.keyLast = id
+    s.fw:Press(action, value, true)
 end
 
 local KEYMAP = {
@@ -468,13 +482,18 @@ local function loop()
             s.my = GetDisabledControlNormal(2, 240)
             updateCamera(s, m, s.mx, s.my, false)
 
-            -- another resource's window (an inventory ...) owns the mouse: keep the view, ignore clicks
-            if not IsNuiFocused() then
+            -- A press ends when its button is up, or when another resource's window (an inventory ...)
+            -- takes the mouse and keyboard: their releases go to that window and never reach us.
+            local focused = IsNuiFocused()
+            if s.pressed and (focused or not IsDisabledControlPressed(0, 24)) then pressEnd(s) end
+            if focused and next(s.keysHeld) then releaseKeys(s) end
+
+            -- while that window is open: keep the view, ignore clicks
+            if not focused then
                 if not s.pressed then s.hover = hitTest(s, s.mx, s.my, m) end
                 sendHover(s, m, now)
 
                 if IsDisabledControlJustPressed(0, 24) and s.hover then pressStart(s, s.hover, now) end
-                if IsDisabledControlJustReleased(0, 24) then pressEnd(s) end
                 repeatHeld(s, now)
                 if IsDisabledControlJustPressed(0, 241) then wheel(s, 1) end
                 if IsDisabledControlJustPressed(0, 242) then wheel(s, -1) end
@@ -514,7 +533,7 @@ local function start(model)
     end
     local s = {
         model = model, layout = lay, body = body, ped = ped, keys = keys,
-        fov = tonumber(c.fov) or 34.0, mx = 0.5, my = 0.5,
+        fov = tonumber(c.fov) or 34.0, mx = 0.5, my = 0.5, keysHeld = {}, keyLast = nil,
         radarHidden = IsRadarHidden(), fw = NZR.Firmware.Handheld(),
     }
     local a = c.anim
@@ -536,7 +555,7 @@ local function start(model)
     NZR.Screen.Attach(model)
     s.fw:SetActive(true)
     NZR.UI.Open('overlay', { hints = hints() }, { focus = false })
-    hotkeys(false)
+    hotbar(true)
     loop()
 end
 
@@ -545,6 +564,8 @@ function I.Raise()
     local S = NZR.Radio.State
     if not S.ready then return false end
     if NZR.UI.IsOpen('headunit') then return false end
+    -- placing or hacking a jammer owns the camera, the pose and the keys
+    if NZR.Jammers and NZR.Jammers.IsBusy and NZR.Jammers.IsBusy() then return false end
     if NZR.Vehicle and NZR.Vehicle.Open then
         local ok, opened = pcall(NZR.Vehicle.Open)
         if ok and opened then return true end
@@ -584,10 +605,7 @@ function I.Lower()
     end
     session = nil
     if s.pressed then pressEnd(s) end
-    if s.keyHeld then
-        s.fw:Press(s.keyHeld.action, s.keyHeld.value, false)
-        s.keyHeld = nil
-    end
+    releaseKeys(s)
     s.fw:SetActive(false)
     NZR.Screen.Detach(s.model)
     NZR.UI.Send('overlay', 'hover', {})
@@ -602,7 +620,7 @@ function I.Lower()
     if cfg().hideRadar ~= false then DisplayRadar(not s.radarHidden) end
     if s.animToken then NZR.Anim.Stop(PlayerPedId(), { token = s.animToken }) end
     NZR.Held.Lower()
-    hotkeys(true)
+    hotbar(false)
     SetMouseCursorSprite(1)
     NZR.Radio.SetRaised(false)
     return true
@@ -630,6 +648,6 @@ AddEventHandler('onResourceStop', function(res)
         if DoesCamExist(s.cam) then DestroyCam(s.cam, false) end
     end
     if cfg().hideRadar ~= false then DisplayRadar(not s.radarHidden) end
-    hotkeys(true)
+    hotbar(false)
     if s.animToken then NZR.Anim.Stop(PlayerPedId(), { token = s.animToken, immediate = false }) end
 end)

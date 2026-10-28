@@ -11,6 +11,10 @@
     API
       Bridge.Inv.HasItem(src, name, count?)            → bool
       Bridge.Inv.Count(src, name, metaMatch?)          → number   metaMatch = { serial = 'X' } (subset match)
+      Bridge.Inv.Counts(src, names)                    → { [name] = number }   several items, one
+                                                         inventory read where a single count would
+                                                         read the whole inventory anyway (adapter
+                                                         flag bulk = true: QB style, ESX)
       Bridge.Inv.AddItem(src, name, count, metadata?)  → bool
       Bridge.Inv.RemoveItem(src, name, count, metadata?, slot?) → bool
       Bridge.Inv.CanCarry(src, name, count)            → bool
@@ -43,7 +47,8 @@
     ADDING YOUR OWN
       Bridge.InventoryAdapters['my_inv'] = { add = fn, remove = fn, items = fn, ... }
       Bridge.Resources.inventory['my_inv'] = 'my_inv' and add it to Bridge.Priority.inventory.
-      Every adapter function is optional except add, remove and items.
+      Every adapter function is optional except add, remove and items. Set bulk = true when
+      items(src) is the cheap way to count several items (count reads the whole list anyway).
     ═══════════════════════════════════════════════════════════════════════════
 ]]
 
@@ -202,7 +207,8 @@ local function qbVersion2(resource)
 end
 
 local function makeQbStyle(resource, itemBoxEvent)
-    local A = { metadata = true }
+    -- every count fetches the QB player object: several items come from one items() read
+    local A = { metadata = true, bulk = true }
     local hasExports = resource ~= nil
 
     local function itemBox(src, name, kind, count)
@@ -588,6 +594,7 @@ end
 
 local esxInventory = {
     metadata = false,    -- plain ESX items carry no metadata
+    bulk = true,         -- each count fetches the xPlayer: several items come from one items() read
     count = function(src, name)
         local x = esxPlayer(src)
         local item = x and x.getInventoryItem(name)
@@ -764,6 +771,24 @@ function Bridge.Inv.Count(src, name, metaMatch)
         return ok and (tonumber(n) or 0) or 0
     end
     return countFromItems(Bridge.Inv.GetItems(src), name, metaMatch)
+end
+
+function Bridge.Inv.Counts(src, names)
+    local out = {}
+    src = tonumber(src)
+    if not src or type(names) ~= 'table' then return out end
+    local A = adapter()
+    if A.bulk and A.items then
+        local items = Bridge.Inv.GetItems(src)
+        for _, name in pairs(names) do
+            if type(name) == 'string' then out[name] = countFromItems(items, name, nil) end
+        end
+        return out
+    end
+    for _, name in pairs(names) do
+        if type(name) == 'string' then out[name] = Bridge.Inv.Count(src, name) end
+    end
+    return out
 end
 
 function Bridge.Inv.HasItem(src, name, count)

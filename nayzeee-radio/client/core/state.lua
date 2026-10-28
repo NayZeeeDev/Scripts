@@ -634,8 +634,7 @@ end)
 local function useModel(model, tellServer)
     if type(model) ~= 'string' or not Config.Radios.Models[model] then return end
     S.owned[model] = true
-    local switching = S.model ~= model
-    if switching then
+    if S.model ~= model then
         if tellServer then
             TriggerServerEvent('nzr:radio:model', model)
             expectState()
@@ -644,10 +643,14 @@ local function useModel(model, tellServer)
         R.SyncHold()
         changed('model')
     end
+    -- What is up right now decides, not S.model: on nzr:radio:use the pushed record has
+    -- already switched S.model, while the hand still holds the other radio.
+    local up = NZR.Interact and NZR.Interact.Session and NZR.Interact.Session() or nil
+    local other = up ~= nil and up.model ~= model
     CreateThread(function()
-        if switching and S.raised then
+        if other then
             API.Lower()
-            Wait(500)
+            Wait(500)       -- the camera eases out before the next one eases in
         end
         Wait(50)
         if not S.raised then API.Raise() end
@@ -671,10 +674,10 @@ end)
 
 AddStateBagChangeHandler('nzr_labels', 'global', function(_, _, value)
     S.labels = type(value) == 'table' and value or {}
-    -- the published list is the truth again for every channel it names
-    for k in pairs(S.channelInfo) do
-        if S.labels[k] then S.channelInfo[k] = nil end
-    end
+    -- The published list is the truth again for every channel: one it names has its entry
+    -- there, one it no longer names lost its rule (an admin deleted it) and is open now.
+    -- Config.Channels.Restricted bands are looked up by the firmware itself.
+    S.channelInfo = {}
     changed('labels')
 end)
 

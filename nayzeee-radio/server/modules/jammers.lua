@@ -13,7 +13,10 @@
     token, a seed for the puzzle and the stage count / time of that jammer type. The
     result only counts when the token matches, the player is still within 3 m, and the
     time taken is believable: at least bands x 2.5 s, at most time + 10 s. A failure (or a
-    cancel) locks that player out of hacking for Config.Jammers.failLockout seconds.
+    cancel) locks that player out of hacking for Config.Jammers.failLockout seconds. So does
+    starting again while an attempt of theirs is still open: the client always posts a
+    result, cancels included, so an open one was abandoned - and re-starting it would
+    otherwise hold the jammer against everyone else for ever.
 
     JAMMER (NZR.Jammers.items[id])
       { id, t, x, y, z, h, o = owner server id (0 while offline), e = os.time() expiry,
@@ -287,6 +290,12 @@ local function releaseHack(id)
     if hackOf[h.src] == id then hackOf[h.src] = nil end
 end
 
+local function lockOut(src, now)
+    local ms = math.max(0, tonumber(cfg().failLockout) or 20) * 1000
+    lockouts[lockKey(src)] = now + ms
+    return { ok = false, reason = 'lockout', wait = math.ceil(ms / 1000) }
+end
+
 function J.HackStart(src, id)
     local j = J.items[id]
     if not j then return { ok = false, reason = 'gone' } end
@@ -296,15 +305,23 @@ function J.HackStart(src, id)
     if lock and lock > now then
         return { ok = false, reason = 'lockout', wait = math.ceil((lock - now) / 1000) }
     end
+    -- an attempt of this player's still open (this jammer or another) was abandoned: it
+    -- counts as a failed one, and the jammer it held is free for others
+    local open = hackOf[src]
+    if open then
+        hackOf[src] = nil
+        local mine = hacks[open]
+        if mine and mine.src == src then hacks[open] = nil end
+        return lockOut(src, now)
+    end
     if distanceTo(src, j) > REACH then return { ok = false, reason = 'far' } end
 
     local h = hacks[id]
-    if h and h.src ~= src and now - h.started < (h.time + 10) * 1000 and Core.Online(h.src) then
+    if h and now - h.started < (h.time + 10) * 1000 and Core.Online(h.src) then
         return { ok = false, reason = 'busy' }
     end
-    -- one hack at a time per player
-    local other = hackOf[src]
-    if other and other ~= id then releaseHack(other) end
+    -- a run-out attempt of someone else: theirs no longer, so their next start is not "open"
+    if h and hackOf[h.src] == id then hackOf[h.src] = nil end
 
     local def = typeDef(j.t) or {}
     local bands = NZR.Util.Clamp(math.floor(tonumber(def.bands) or 1), 1, 5)
@@ -344,7 +361,7 @@ function J.HackResult(src, id, token, success)
     if success == true and not believable then
         NZR.Debug(('hack result from %d refused: %.1f s for %d bands'):format(src, elapsed / 1000, h.bands))
     end
-    lockouts[lockKey(src)] = now + math.max(0, tonumber(cfg().failLockout) or 20) * 1000
+    lockOut(src, now)
     return false
 end
 

@@ -22,7 +22,11 @@
     A transmission stays up while something holds it: ptt (nzr:tx:start → nzr:tx:stop),
     handsfree (nzr:radio:handsfree) or an emergency hot mic (Config.Emergency.hotMic s).
     While any transmission is live the coords cache is refreshed and every talker is
-    re-resolved each Config.Signal.refresh ms.
+    re-resolved each Config.Signal.refresh ms. The cache also sorts players into a coarse
+    grid (cells as wide as the largest leak radius) and by vehicle, so the leak checks only
+    look at the players around a receiving radio or car, not at the whole server. A change
+    on one player's radio (mute, earpiece, water, model) re-resolves only the talkers on
+    that player's channels and the player's own transmission.
 
     TRANSMISSION (NZR.Routing.active[src], also rec.tx)
       { fkey, slot, device = 'handheld' | 'vehicle', veh, vnet, since, name, callsign,
@@ -37,7 +41,8 @@
       NZR.Routing.Touch(fkey|nil)            Update every talker on fkey (nil = all)
       NZR.Routing.Get(src) → transmission | nil      NZR.Routing.IsTalking(src) → bool
       NZR.Routing.Listeners(src) → { [id] = info }   NZR.Routing.Resolve(src, tx) → listeners
-      NZR.Routing.RefreshCoords(force?)      → { [id] = { pos, ped, veh } }  (≤ 200 ms old unless forced)
+      NZR.Routing.RefreshCoords(force?)      → { [id] = { pos, ped, veh } }  (≤ 200 ms old unless forced;
+                                               also rebuilds the leak grid and the occupants by vehicle)
       NZR.Routing.SideOf(id)                 → NZR.Signal side of a player's handheld
       NZR.Routing.TalkerSide(src, tx)        → side of a live transmission
       NZR.Routing.VehicleOf(src)             → veh, vnet, nzr_vradio | nil   (operating seat, head unit on and tuned)
@@ -66,11 +71,14 @@ local Sig = NZR.Signal
 
 RT.active = RT.active or {}
 RT.coords = RT.coords or {}
+RT.inVeh = RT.inVeh or {}       -- [veh] = { id, ... } occupants, from the same refresh as RT.coords
 
 local MODE_RANK = { radio = 3, car = 2, leak = 1 }
 local DQ = 0.05                 -- quality change that is worth an rx:update
 local COORDS_MAX_AGE = 200      -- ms a coords cache is good for outside the refresh loop
 local coordsAt = -100000
+local grid, gridCell = {}, 12.0 -- [cx][cy] = { id, ... } on x / y, cells as wide as the widest leak
+local NOBODY = {}               -- no occupants (shared, never written)
 
 local function tiers()
     return (Config.Signal and Config.Signal.tiers) or { clear = 0.75, weak = 0.45, poor = 0.15 }
@@ -84,21 +92,69 @@ end
 -- COORDS CACHE (server-side positions, once per tick for everyone)
 -- ════════════════════════════════════════════════════════════════════════
 
+local function leakCell()
+    local l = Config.Leak or {}
+    return math.max(1.0, tonumber(l.handheld) or 0.0, tonumber(l.vehicle) or 0.0)
+end
+
 function RT.RefreshCoords(force)
     local now = GetGameTimer()
     if not force and now - coordsAt < COORDS_MAX_AGE then return RT.coords end
     coordsAt = now
-    local out = {}
+    local out, inVeh, g = {}, {}, {}
+    local cell = leakCell()
+    local floor = math.floor
     for _, s in ipairs(GetPlayers()) do
         local id = tonumber(s)
         local ped = id and GetPlayerPed(id)
         if ped and ped ~= 0 then
             local veh = GetVehiclePedIsIn(ped, false)
-            out[id] = { pos = GetEntityCoords(ped), ped = ped, veh = (veh and veh ~= 0) and veh or nil }
+            veh = (veh and veh ~= 0) and veh or nil
+            local pos = GetEntityCoords(ped)
+            out[id] = { pos = pos, ped = ped, veh = veh }
+            if veh then
+                local list = inVeh[veh]
+                if not list then
+                    list = {}
+                    inVeh[veh] = list
+                end
+                list[#list + 1] = id
+            end
+            local cx, cy = floor(pos.x / cell), floor(pos.y / cell)
+            local col = g[cx]
+            if not col then
+                col = {}
+                g[cx] = col
+            end
+            local bucket = col[cy]
+            if not bucket then
+                bucket = {}
+                col[cy] = bucket
+            end
+            bucket[#bucket + 1] = id
         end
     end
-    RT.coords = out
+    RT.coords, RT.inVeh = out, inVeh
+    grid, gridCell = g, cell
     return out
+end
+
+-- Every player in the 3 x 3 cells around pos: everyone within one cell width of it (and a few
+-- more), so a radius up to the widest leak only has to be checked against these.
+local function nearby(pos, fn)
+    local floor = math.floor
+    local cx, cy = floor(pos.x / gridCell), floor(pos.y / gridCell)
+    for x = cx - 1, cx + 1 do
+        local col = grid[x]
+        if col then
+            for y = cy - 1, cy + 1 do
+                local bucket = col[y]
+                if bucket then
+                    for i = 1, #bucket do fn(bucket[i]) end
+                end
+            end
+        end
+    end
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -183,12 +239,14 @@ function RT.Resolve(src, tx)
         if veh ~= ownVeh and veh ~= tx.veh and (not entry.state.mute or tx.emergency) then
             local vpos = GetEntityCoords(veh)
             local q = Sig.Quality(talker, vehicleSide(veh, vpos), jammers)
-            for id, c in pairs(coords) do
-                if c.veh == veh then
-                    offer(id, 'car', q)
-                elseif carLeak > 0.0 and Sig.Distance(c.pos, vpos) <= carLeak then
-                    offer(id, 'leak', q, nil, 'vehicle', entry.vnet)
-                end
+            for _, id in ipairs(RT.inVeh[veh] or NOBODY) do offer(id, 'car', q) end
+            if carLeak > 0.0 then
+                nearby(vpos, function(id)
+                    local c = coords[id]
+                    if c and c.veh ~= veh and Sig.Distance(c.pos, vpos) <= carLeak then
+                        offer(id, 'leak', q, nil, 'vehicle', entry.vnet)
+                    end
+                end)
             end
         end
     end
@@ -199,11 +257,12 @@ function RT.Resolve(src, tx)
         for _, r in ipairs(radios) do
             if not r.earpiece then
                 local p = coords[r.id].pos
-                for id, c in pairs(coords) do
-                    if id ~= r.id and Sig.Distance(c.pos, p) <= handLeak then
+                nearby(p, function(id)
+                    local c = coords[id]
+                    if id ~= r.id and c and Sig.Distance(c.pos, p) <= handLeak then
                         offer(id, 'leak', r.q, nil, 'player', r.id)
                     end
-                end
+                end)
             end
         end
     end
@@ -516,7 +575,14 @@ end)
 
 NZR.Bus.On('radio:joined', function(_, fkey) RT.Touch(fkey) end)
 NZR.Bus.On('radio:left', function(_, fkey) RT.Touch(fkey) end)
-NZR.Bus.On('radio:changed', function() RT.Touch(nil) end)
+-- mute / earpiece / water / model of one player: only how that player receives on its own
+-- channels (and leaks them) or how it transmits can differ
+NZR.Bus.On('radio:changed', function(src)
+    local fkeys = NZR.Radio.FkeysOf(src)
+    local own = RT.active[src]
+    if own then fkeys[own.fkey] = true end
+    for fkey in pairs(fkeys) do RT.Touch(fkey) end
+end)
 NZR.Bus.On('jammers:changed', function() RT.Touch(nil) end)
 NZR.Bus.On('vehicles:changed', function(old, new)
     if old then RT.Touch(old) end

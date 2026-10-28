@@ -4,7 +4,7 @@
     Keys: server.*   notifications the server sends (radio, jammers, emergency), the error
                      lines the /radioadmin window shows after a refused save, and the Discord
                      webhook titles and field names.
-    Used by server/modules/radio.lua, jammers.lua, alerts.lua and admin.lua.
+    Used by server/modules/radio.lua, vehicles.lua, jammers.lua, alerts.lua and admin.lua.
     Translate by copying this file to locales/<lang>/server.lua and changing the values.
 ]]
 
@@ -14,6 +14,7 @@ NZR.AddLocale('en', {
     -- ── radio
     ['server.no_radio']                    = 'You have no radio on you',
     ['server.kicked']                      = 'Your radio dropped %s from slot %d - you no longer have access to it',
+    ['server.vehicle_untuned']             = 'The car radio dropped %s - access to that channel changed. Tune it again',
     ['server.earpiece_in']                 = 'Earpiece in. Only you hear your radio now',
     ['server.earpiece_out']                = 'Earpiece out. People next to you can hear your radio',
 

@@ -95,8 +95,9 @@ distance, height and jammers, and channels you lock by code or job in game.
   on one screen than the PX-740 and MX-905.
 - **Hands-free** keeps your mic open on the TX channel until you switch it off or turn the
   radio off. It follows you when you change the TX slot.
-- **Mute** silences everything you receive. Emergency alerts and the caller's open mic still
-  come through.
+- **Mute** silences your own radio's channels. A car's head unit and the radios of people next
+  to you still play (MUT on the head unit mutes the car). Emergency alerts and the caller's
+  open mic still come through, on a muted radio and a muted car alike.
 - **Mic clicks**: the short key-up and key-down chirps, per player, on or off in the radio's
   menu.
 - **Volume** and mic clicks are personal settings, kept on the player's PC between sessions.
@@ -188,7 +189,9 @@ distance, height and jammers, and channels you lock by code or job in game.
 - In those seats, with the head unit on and tuned, your **talk key goes through the car**
   (`Config.Vehicles.pttPriority`). Out of the box the car's aerial reaches further than any
   handheld, and admins can scale it per car. You do not need a handheld to use the head unit.
-- Tuning a car goes through the same channel locks as a handheld.
+- Tuning a car goes through the same channel locks as a handheld. When a channel's lock gets
+  stricter (new code, fewer jobs), every car on it drops it; switching a head unit on checks
+  its stored channel against you.
 
 ### Outside speaker and cabin
 - **Everyone inside** a car hears its head unit.
@@ -543,7 +546,7 @@ local radio = exports['nayzeee-radio']
 
 radio:getPlayerRadio(src)                       -- { model, power, slots, txSlot, muted, handsfree, callsign, ... } or nil
 radio:setPlayerFrequency(src, slot, freq)       --> ok, reason   slot nil = TX slot; freq false = leave the slot
-radio:setPlayerFrequency(src, slot, freq, true) -- force: skip the channel locks
+radio:setPlayerFrequency(src, slot, freq, true) -- force: skip the channel locks; no re-check removes it until the slot is left or retuned
 radio:setPower(src, on)                         --> ok, reason ('noradio')
 radio:isTalking(src)                            -- transmitting right now
 radio:getChannelMembers(freq)                   -- { src, ... } with a switched-on radio tuned to freq in any slot
@@ -554,7 +557,8 @@ radio:removeChannelRule(freq)                   --> ok
 ```
 
 `setPlayerFrequency` reasons: `offline`, `noradio`, `invalid`, `denied`, `code`, `locked`,
-`busy`. A frequency set on a radio that is off is checked again when it is switched on.
+`busy`. A frequency set on a radio that is off is checked again when it is switched on
+(a forced one is not).
 Rules from `addChannelRule` win over admin rules and the config ranges.
 
 ### Client exports
@@ -685,10 +689,13 @@ They live in `nayzeee-radio/data/*.json`. Make sure that folder exists and the s
 write to it (Step 3), and keep it when you replace the resource with a new version. If the
 console says it saved to `nzr_*.json` instead, the `data/` folder was missing or read-only.
 
-**Typing on the radio's keypad switches my weapon.**
-The keypad mappings only act while the radio is up, and the game's weapon keys are blocked
-then. If another script uses the same keys, rebind the "Radio keypad" entries in
-**Settings → Key Bindings → FiveM**.
+**Typing on the radio's keypad switches my weapon or uses a hotbar item.**
+The keypad mappings only act while the radio is up. Then, and while the head unit is open,
+the game's weapon keys are blocked and so is the number-row hotbar of ox_inventory,
+qb-inventory, ps-inventory and lj-inventory. The qb-style inventories only have one switch
+for that, so they also stay shut until you lower the radio or close the head unit. Another
+inventory's hotbar, or another script on the same keys, still fires: rebind the "Radio
+keypad" entries in **Settings → Key Bindings → FiveM**.
 
 **Performance.**
 Nothing runs every frame unless you use the radio:

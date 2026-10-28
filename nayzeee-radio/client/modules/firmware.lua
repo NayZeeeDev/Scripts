@@ -41,6 +41,7 @@
       NZR.Firmware.Handheld() → fw         the handheld instance wired to NZR.Radio.State / API,
                                            rendering into NZR.Screen.Push(model, state)
       NZR.Firmware.ModelCode(model) → 'PX-740'    NZR.Firmware.Skin(model) → 'px740'
+      NZR.Firmware.RangeInfo(f) → { label, access = 'job' } | nil   Config.Channels.Restricted band of f
 
     ── DEVICE STATE (source()) ───────────────────────────────────────────
       { power, model, slots = { [i] = 155.5 }, slotCount, txSlot, volume = 0..100, muted,
@@ -144,6 +145,8 @@ local function rangeInfo(f)
     end
     return nil
 end
+
+FW.RangeInfo = rangeInfo
 
 local function channelInfo(s, fkey)
     if not fkey then return nil end
@@ -1161,6 +1164,16 @@ local NOTICE_KEYS = {
     disabled = 'scr_denied', busy = 'scr_busy',
 }
 
+-- Only what this radio receives itself: a car speaker or someone else's radio next to you
+-- (modes 'car' / 'leak') is not on its screen.
+local function ownRx(rx)
+    local out = {}
+    for talker, info in pairs(type(rx) == 'table' and rx or {}) do
+        if type(info) == 'table' and (info.mode == nil or info.mode == 'radio') then out[talker] = info end
+    end
+    return out
+end
+
 local function handheldSource()
     local R = NZR.Radio
     local S = R and R.State
@@ -1173,7 +1186,7 @@ local function handheldSource()
         txSlot = S.txSlot, volume = S.volume, muted = S.muted, handsfree = S.handsfree,
         clicks = S.clicks, earpiece = S.earpiece, earpieceOwned = S.earpieceOwned,
         presets = S.presets, presetCount = Config.Radios.presets or 0, callsign = S.callsign,
-        labels = R.Labels and R.Labels() or S.labels, tx = S.tx and S.tx.active or false, rx = S.rx,
+        labels = R.Labels and R.Labels() or S.labels, tx = S.tx and S.tx.active or false, rx = ownRx(S.rx),
         rosterOn = S.rosterOn, jam = jam, underwater = S.underwater,
         waterproof = m and m.waterproof == true or false,
         battery = R.Battery and R.Battery() or 1.0,

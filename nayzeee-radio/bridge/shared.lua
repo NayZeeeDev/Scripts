@@ -419,11 +419,17 @@ function Bridge.ToVec3(v)
     return nil
 end
 
--- 'string' → string trimmed and capped; anything else → nil
+-- 'string' → string trimmed and capped at max characters (UTF-8; bytes only for text that
+-- is not valid UTF-8); anything else → nil
 function Bridge.CleanText(value, max)
     if type(value) ~= 'string' then return nil end
     value = value:gsub('[%c]', ' '):gsub('^%s+', ''):gsub('%s+$', '')
     if value == '' then return nil end
-    if max and #value > max then value = value:sub(1, max) end
+    if max and #value > max then
+        local cut = max + 1
+        local n = utf8.len(value)
+        if n then cut = n > max and utf8.offset(value, max + 1) or nil end
+        if cut then value = value:sub(1, cut - 1):gsub('%s+$', '') end
+    end
     return value
 end

@@ -11,6 +11,8 @@
       Bridge.Inv.CountAwait(name)  → number    asks the server (yields)
       Bridge.Inv.Label(name)       → label
       Bridge.Inv.Image(name)       → 'nui://...png'
+      Bridge.Inv.BlockHotbar(owner, on)   the inventory's number-row hotbar off while any
+                                          owner ('raised', 'headunit') types on a keypad
 
     ox_inventory, qb-style inventories and plain ESX are read locally. Every
     other inventory is read through the server callback 'nzr:bridge:inv:counts'
@@ -273,3 +275,70 @@ function Bridge.Inv.Image(name)
     imageCache[name] = url
     return url
 end
+
+-- ════════════════════════════════════════════════════════════════════════
+-- HOTBAR
+-- Key mappings of other resources still fire while the radio's keypad uses the number row
+-- (raised radio, head unit), so the inventory's hotbar is switched off meanwhile.
+-- ox_inventory: LocalPlayer.state.invHotkeys. qb-inventory and its forks (ps, lj): their busy
+-- flag inv_busy, the only switch they read (it also keeps the inventory shut meanwhile).
+-- Re-asserted every 500 ms (a progress bar that ends clears inv_busy); only a value set here
+-- is put back, so a flag another script holds is never cleared by us.
+-- ════════════════════════════════════════════════════════════════════════
+
+local HOTBAR = {
+    ['ox_inventory'] = { key = 'invHotkeys', block = false, free = true, replicate = false },
+    ['qb-inventory'] = { key = 'inv_busy', block = true, free = false, replicate = true },
+    ['ps-inventory'] = { key = 'inv_busy', block = true, free = false, replicate = true },
+    ['lj-inventory'] = { key = 'inv_busy', block = true, free = false, replicate = true },
+}
+local hotbarBy = {}        -- [owner] = true
+local hotbarSet = nil      -- the rule whose value was set here
+local hotbarLoop = false
+
+local function setPlayerState(key, value, replicate)
+    local ok, err = pcall(function() LocalPlayer.state:set(key, value, replicate) end)
+    if not ok then Bridge.Debug(('could not set %s: %s'):format(key, tostring(err))) end
+end
+
+local function hotbarHold()
+    local inv = resolve()
+    local rule = HOTBAR[inv]
+    if not rule or GetResourceState(inv) ~= 'started' then return end
+    if LocalPlayer.state[rule.key] ~= rule.block then
+        setPlayerState(rule.key, rule.block, rule.replicate)
+        hotbarSet = rule
+    end
+end
+
+local function hotbarFree()
+    local rule = hotbarSet
+    hotbarSet = nil
+    if rule and LocalPlayer.state[rule.key] == rule.block then
+        setPlayerState(rule.key, rule.free, rule.replicate)
+    end
+end
+
+function Bridge.Inv.BlockHotbar(owner, on)
+    hotbarBy[owner or 'default'] = on and true or nil
+    if next(hotbarBy) == nil then
+        hotbarFree()
+        return
+    end
+    hotbarHold()
+    if hotbarLoop then return end
+    hotbarLoop = true
+    CreateThread(function()
+        while next(hotbarBy) ~= nil do
+            Wait(500)
+            if next(hotbarBy) ~= nil then hotbarHold() end
+        end
+        hotbarLoop = false
+    end)
+end
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    hotbarBy = {}
+    hotbarFree()
+end)

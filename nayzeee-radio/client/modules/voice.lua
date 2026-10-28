@@ -13,14 +13,17 @@
       NZR.Voice.HotMic(device, ms)         the emergency open mic (the server runs the TX)
       NZR.Voice.Update()                   re-evaluate who opens the mic (PTT / hands-free / hot mic)
       NZR.Voice.IsTalking() → bool         NZR.Voice.Rx() → { [talker] = info }
-      NZR.Voice.ClearRx()                  stop every reception (power off)
+      NZR.Voice.ClearRx(mode?)             stop every reception, or only those of one mode
+                                           ('radio' = the handheld's own: power off, item lost)
       NZR.Voice.StopAll()                  drop the mic and every reception, restore Mumble
       NZR.Voice.Submix(tier) → id          'clear' | 'weak' | 'poor' | 'speaker'
 
     Who sends what: PTT press / release always send nzr:tx:start / nzr:tx:stop (the server
     keeps the transmission while hands-free or the hot mic still hold it). Hands-free and the
     emergency hot mic are started by the server (nzr:radio:handsfree / nzr:alerts:emergency);
-    the client then only does its half (targets, voice control, chirps, LEDs, animation).
+    the client then only does its half (targets, voice control, chirps, LEDs). The talk pose
+    only plays while PTT is held. A PTT still held when its TX source changes (TX slot, the
+    frequency on it, the car retuned) is keyed up again on the new one.
 
     EVENTS SENT      nzr:tx:start (device), nzr:tx:stop (C→S)
     EVENTS HANDLED   nzr:tx:targets (ids), nzr:tx:denied (reason), nzr:rx:start (talker, info),
@@ -44,10 +47,14 @@ local READD_MS = 250            -- pma-voice clears target players when a call c
 local RX_TICK_MS = 100
 local RX_TICK_FAST_MS = 50      -- while a weak link may drop out
 local DROP_CHECK_MS = 150
+local ANIM_GRACE_MS = 500       -- a clip that was just started may not report as playing yet
+local REKEY_GAP_MS = 400        -- the server takes 8 nzr:tx:start per 2 s
 
 local tx = {
     active = false, device = nil, ptt = false, pttDevice = nil, sent = false,
-    targets = {}, hotUntil = 0, hotDevice = nil, animToken = nil, loop = false,
+    targets = {}, hotUntil = 0, hotDevice = nil, loop = false,
+    animToken = nil, animAt = 0, animLost = false,   -- the talk pose of this press
+    sentSig = nil, rekeyAt = 0,                       -- what the held PTT was keyed up on
 }
 local rx = {}                   -- [talker] = { info, vol, sub, dropUntil, nextDrop, at }
 local rxLoop = false
@@ -182,24 +189,95 @@ local function removeTargets()
     tx.targets = {}
 end
 
+-- The talk pose belongs to the PTT key. Hands-free and the emergency hot mic are open mics
+-- that can run for minutes: a pose there would fight every other animation that long.
 local function talkAnimAllowed()
     local ped = PlayerPedId()
-    return not S().raised and tx.device ~= 'vehicle' and not IsPedInAnyVehicle(ped, false)
+    return tx.ptt and not S().raised and tx.device ~= 'vehicle' and not IsPedInAnyVehicle(ped, false)
         and not IsPedRagdoll(ped) and not IsEntityDead(ped)
 end
 
 local function startTalkAnim()
-    if tx.animToken or not talkAnimAllowed() then return end
+    if tx.animToken or tx.animLost or not talkAnimAllowed() then return end
     local a = Config.Radios.Talk and Config.Radios.Talk.anim
     if not a or not a.dict or not a.clip then return end
     local ok, token = NZR.Anim.Play(PlayerPedId(), a.dict, a.clip, { flag = 49, blendIn = 4.0, blendOut = -4.0 })
-    if ok then tx.animToken = token end
+    if ok then tx.animToken, tx.animAt = token, GetGameTimer() end
 end
 
 local function stopTalkAnim()
     if not tx.animToken then return end
     NZR.Anim.Stop(PlayerPedId(), { token = tx.animToken })
     tx.animToken = nil
+end
+
+-- Another animation took over (an emote, a progress bar, a script's cuff pose, the hack
+-- tablet): it stays, and the talk pose waits for the next press.
+local function talkAnimReplaced(now)
+    local ped = PlayerPedId()
+    local cur = NZR.Anim.Current(ped)
+    if not cur or cur.token ~= tx.animToken then return true end
+    if now - tx.animAt < ANIM_GRACE_MS then return false end
+    local a = Config.Radios.Talk.anim
+    return not IsEntityPlayingAnim(ped, a.dict, a.clip, 3)
+end
+
+local function dropTalkAnim()
+    local ped = PlayerPedId()
+    local cur = NZR.Anim.Current(ped)
+    -- another script played over our clip: drop NZR.Anim's entry for it (StopAnimTask of a clip
+    -- that no longer plays leaves the new animation alone)
+    if cur and cur.token == tx.animToken and cur.dict then
+        NZR.Anim.Stop(ped, { token = tx.animToken })
+    end
+    tx.animToken, tx.animLost = nil, true
+end
+
+local function deny(reason, device)
+    if reason == 'dead' or reason == 'power' then return end
+    sfx('error')
+    NZR.Bus.Emit('radio:notice', reason, device)
+end
+
+-- What a held PTT talks through right now. The server ends a transmission whose source
+-- changed (another TX slot, a new frequency on it, the car retuned or switched off) and does
+-- not key a held PTT up again by itself, so the client does.
+local function txSig(device)
+    if device == 'vehicle' then
+        local cur = NZR.Vehicle and NZR.Vehicle.Current and NZR.Vehicle.Current() or nil
+        local veh = cur and cur.veh or 0
+        if veh == 0 then return 'v|-' end
+        local ok, st = pcall(function() return Entity(veh).state.nzr_vradio end)
+        if not ok or type(st) ~= 'table' then return 'v|' .. tostring(cur.vnet) end
+        return ('v|%s|%s|%s'):format(tostring(cur.vnet), tostring(st.on == true), tostring(NZR.Freq.Key(st.f)))
+    end
+    local st = S()
+    local f = st.slots[st.txSlot]
+    return ('h|%s|%s'):format(tostring(st.txSlot), tostring(f and NZR.Freq.Key(f)))
+end
+
+-- PTT still held after its source changed → key up again on the new one, or let go when
+-- there is nothing left to talk on.
+local function rekey(now)
+    if txSig(tx.pttDevice) == tx.sentSig or now < tx.rekeyAt then return end
+    local device = tx.pttDevice or 'handheld'
+    if device == 'vehicle' then
+        local can = NZR.Vehicle and NZR.Vehicle.CanTransmit and NZR.Vehicle.CanTransmit()
+        -- out of the car or the head unit switched off: the key is as good as released
+        if not can then
+            tx.ptt = false
+            return
+        end
+    else
+        local ok, reason = API().CanTalk(device)
+        if not ok then
+            tx.ptt = false
+            deny(reason, device)
+            return
+        end
+    end
+    tx.sentSig, tx.rekeyAt = txSig(device), now + REKEY_GAP_MS
+    TriggerServerEvent('nzr:tx:start', device)
 end
 
 local function txLoop()
@@ -231,15 +309,14 @@ local function txLoop()
                     tx.hotUntil = 0
                     V.Update()
                 end
+                if tx.ptt and tx.sent and txSig(tx.pttDevice) ~= tx.sentSig then V.Update() end
                 if tx.active and tx.animToken then
-                    local a = Config.Radios.Talk.anim
                     if not talkAnimAllowed() then
                         stopTalkAnim()
-                    elseif not IsEntityPlayingAnim(PlayerPedId(), a.dict, a.clip, 3) then
-                        tx.animToken = nil
-                        startTalkAnim()
+                    elseif talkAnimReplaced(now) then
+                        dropTalkAnim()
                     end
-                elseif tx.active and not tx.animToken then
+                elseif tx.active then
                     startTalkAnim()
                 end
             end
@@ -264,6 +341,7 @@ local function stopLocal()
     tx.active = false
     removeTargets()
     stopTalkAnim()
+    tx.animLost = false
     if clicksOn() then sfx('tx_end') end
     NZR.Radio.SetTx(false)
     tx.device = nil
@@ -274,6 +352,7 @@ function V.Update()
     local st = S()
     local now = GetGameTimer()
     if tx.ptt and tx.pttDevice ~= 'vehicle' and not st.power then tx.ptt = false end
+    if tx.ptt and tx.sent then rekey(now) end      -- may let go of the key
     local hf = st.handsfree == true and st.power == true and st.slots[st.txSlot] ~= nil
     local hot = tx.hotUntil > now
     local want = tx.ptt or hf or hot
@@ -283,7 +362,7 @@ function V.Update()
     -- edges are sent from here: releasing PTT never ends a transmission something else holds.
     if tx.ptt and not tx.sent then
         TriggerServerEvent('nzr:tx:start', tx.pttDevice or 'handheld')
-        tx.sent = true
+        tx.sent, tx.sentSig, tx.rekeyAt = true, txSig(tx.pttDevice), now + REKEY_GAP_MS
     elseif not tx.ptt and tx.sent then
         TriggerServerEvent('nzr:tx:stop')
         tx.sent = false
@@ -298,12 +377,8 @@ function V.Update()
         tx.device = device
         NZR.Radio.SetTx(true, device)
     end
-end
-
-local function deny(reason, device)
-    if reason == 'dead' or reason == 'power' then return end
-    sfx('error')
-    NZR.Bus.Emit('radio:notice', reason, device)
+    -- PTT let go while hands-free / the hot mic keep the mic open: the pose goes with the key
+    if tx.active and not tx.ptt then stopTalkAnim() end
 end
 
 function V.Ptt(down, device)
@@ -315,7 +390,7 @@ function V.Ptt(down, device)
             deny(reason, device)
             return false
         end
-        tx.ptt, tx.pttDevice = true, device
+        tx.ptt, tx.pttDevice, tx.animLost = true, device, false
     else
         if not tx.ptt then return true end
         tx.ptt = false
@@ -409,7 +484,8 @@ local function targetMix(talker, r, now, ped, myPos)
         local veh = info.srcType == 'vehicle' and vehicleOfNet(info.src) or 0
         if veh == 0 then veh = GetVehiclePedIsIn(ped, false) end
         local vr = veh ~= 0 and Entity(veh).state.nzr_vradio or nil
-        if type(vr) == 'table' and vr.mute then return 0.0, nil end
+        -- the server routes an emergency to muted cars too (like muted handhelds)
+        if type(vr) == 'table' and vr.mute and not info.emergency then return 0.0, nil end
         local v = type(vr) == 'table' and tonumber(vr.v) or 1.0
         vol = (Config.Vehicles.carVolume or 0.75) * v
         sub = V.Submix('speaker')
@@ -610,9 +686,17 @@ function V.Rx()
     return rx
 end
 
-function V.ClearRx()
-    if next(rx) == nil then return end
-    for talker in pairs(rx) do stopRx(talker, nil, true) end
+-- mode nil = every reception; 'radio' = only the handheld's own. A car speaker and the radios
+-- next to you are not the handheld's: they keep playing and the server ends them itself.
+function V.ClearRx(mode)
+    local stopped = false
+    for talker, r in pairs(rx) do
+        if mode == nil or r.info.mode == mode then
+            stopRx(talker, nil, true)
+            stopped = true
+        end
+    end
+    if not stopped then return end
     publishRx()
     pushRxStatus()
 end
@@ -633,16 +717,20 @@ end
 
 NZR.Bus.On('radio:power', function(on)
     if not on then
-        tx.hotUntil = 0
+        -- an emergency from the head unit is the car's: it keeps its open mic
+        if tx.hotDevice ~= 'vehicle' then tx.hotUntil = 0 end
         V.Update()
-        V.ClearRx()
+        V.ClearRx('radio')
     end
 end)
 
 NZR.Bus.On('radio:changed', function(what)
-    if what == 'handsfree' or what == 'record' or what == 'power' or what == 'txslot' or what == 'dropped' or what == 'reset' then
+    if what == 'handsfree' or what == 'record' or what == 'power' or what == 'txslot' or what == 'slots'
+        or what == 'dropped' or what == 'reset' then
         V.Update()
-        if what == 'dropped' or what == 'reset' then V.StopAll() end
+        -- dropped = the handheld is gone (its PTT and hands-free already ended above): the
+        -- car's head unit and its mic stay; reset = the character logged out
+        if what == 'dropped' then V.ClearRx('radio') elseif what == 'reset' then V.StopAll() end
     elseif what == 'raised' then
         if S().raised then
             -- the raised pose replaces the talk animation (interact.lua plays its own)

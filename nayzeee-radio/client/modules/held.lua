@@ -343,7 +343,12 @@ function H.SyncLeds()
     local S = NZR.Radio and NZR.Radio.State
     if not S then return end
     H.Led('red', S.tx and S.tx.active == true)
-    H.Led('green', next(S.rx or {}) ~= nil)
+    -- green = this radio receives: not a car speaker or a radio next to you (voice.lua modes)
+    local own = false
+    for _, info in pairs(S.rx or {}) do
+        if type(info) == 'table' and (info.mode == nil or info.mode == 'radio') then own = true break end
+    end
+    H.Led('green', own)
     H.Led('amber', (S.emergencyUntil or 0) > GetGameTimer() and 'blink' or false)
 end
 

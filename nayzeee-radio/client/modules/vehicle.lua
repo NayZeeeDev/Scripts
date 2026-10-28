@@ -359,12 +359,30 @@ end
 -- PASSENGER HUD + CABIN AMBIENCE
 -- ════════════════════════════════════════════════════════════════════════
 
-local function labelOf(fkey, fallback)
+-- The label the car's state bag got when it was tuned. The bag keeps it after an admin
+-- changes or deletes the channel's rule, so it only stands in until the published list
+-- (GlobalState nzr_labels, which has every rule) has reached this client.
+local function bagLabel(st)
+    if type(st) ~= 'table' or not st.label or next(NZR.Radio.State.labels or {}) ~= nil then return nil end
+    return st.label
+end
+
+-- → { label, access } | nil: the published rule, a join reply until the list has it, a
+-- Config.Channels.Restricted band, else what the bag says (see above)
+local function entryFor(fkey, st)
     if not fkey then return nil end
     local labels = NZR.Radio.Labels and NZR.Radio.Labels() or NZR.Radio.State.labels or {}
     local e = labels[fkey] or channelInfo[fkey]
-    if type(e) == 'table' and e.label then return e.label end
-    return fallback
+    if type(e) == 'table' then return e end
+    e = NZR.Firmware and NZR.Firmware.RangeInfo and NZR.Firmware.RangeInfo(NZR.Freq.Parse(fkey)) or nil
+    if e then return e end
+    local label = bagLabel(st)
+    return label and { label = label } or nil
+end
+
+local function labelOf(fkey, st)
+    local e = entryFor(fkey, st)
+    return e and e.label or nil
 end
 
 local function talkerOn(fkey)
@@ -398,7 +416,7 @@ local function updateHud()
     local show = cfg().hud ~= false and st ~= nil and st.on and not huOpen
     if show then
         local data = {
-            freq = st.f, label = labelOf(st.f, st.label), talker = talkerOn(st.f),
+            freq = st.f, label = labelOf(st.f, st), talker = talkerOn(st.f),
             on = st.on, mute = st.mute, model = 'MV-90',
         }
         local ok, sig = pcall(json.encode, data)
@@ -438,7 +456,7 @@ local function vehicleSource()
     local fkey = st.f
     local labels = NZR.Radio.Labels and NZR.Radio.Labels() or S.labels or {}
     if fkey and not labels[fkey] then
-        local e = channelInfo[fkey] or (st.label and { label = st.label }) or nil
+        local e = entryFor(fkey, st)
         if e then
             local copy = {}
             for k, v in pairs(labels) do copy[k] = v end
@@ -644,6 +662,8 @@ function V.Open()
     lastSentSig = ok and sig or nil
     huOpen = true
     NZR.UI.Open(APP_HU, state, { focus = true, cursor = true, keepInput = true, controls = HU_BLOCK })
+    -- game input is kept for driving, so the inventory's number-row hotbar would fire with the keypad
+    pcall(Bridge.Inv.BlockHotbar, 'headunit', true)
     updateHud()
     return true
 end
@@ -661,6 +681,7 @@ function V.Close()
     end
     pressedKey, lastSentSig = nil, nil
     NZR.UI.Close(APP_HU)
+    pcall(Bridge.Inv.BlockHotbar, 'headunit', false)
     updateHud()
     return true
 end
@@ -779,6 +800,8 @@ AddEventHandler('gameEventTriggered', function(name)
 end)
 
 NZR.Bus.On('radio:changed', function(what)
+    -- the published list is the truth for every channel again (a rule may be gone from it)
+    if what == 'labels' then channelInfo = {} end
     if cur.veh == 0 or not cur.radio then return end
     if fw and huOpen then fw:Refresh() end
     if what == 'rx' or what == 'labels' then updateHud() end
@@ -822,6 +845,7 @@ AddEventHandler('onResourceStop', function(res)
         huOpen = false
         if fw then fw.active = false end
         NZR.UI.Close(APP_HU)
+        pcall(Bridge.Inv.BlockHotbar, 'headunit', false)
     end
     if pttHeld then
         pttHeld = false

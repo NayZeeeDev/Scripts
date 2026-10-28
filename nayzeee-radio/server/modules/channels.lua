@@ -17,6 +17,12 @@
     player for codeLockout seconds. Changing a channel's code or access in /radioadmin
     throws every session unlock of it away.
 
+    Who lost access: handhelds are re-checked player by player (a channel the player was
+    force-joined to by another resource is left alone, see radio.lua). A head unit has no
+    owner to re-check, so when a channel's lock gets narrower (locked where it was open, a new
+    code, a job taken off the list or a higher grade, on-duty now required) the frequency comes
+    off every car holding it (NZR.Vehicles.Untune) and has to be tuned again through the lock.
+
     Codes never leave the server, except to admins in the admin panel. GlobalState
     'nzr_labels' carries labels and the access type only.
 
@@ -291,7 +297,9 @@ function C.RecheckPlayer(src, onlyFkey)
     if not rec then return end
     for slot, f in pairs(rec.slots) do
         local fkey = NZR.Freq.Key(f)
-        if fkey and (not onlyFkey or onlyFkey == fkey) and not C.Allowed(src, fkey) then
+        -- a forced channel was put there by another resource past the rules: it stays until left
+        local forced = rec.forced and rec.forced[fkey]
+        if fkey and (not onlyFkey or onlyFkey == fkey) and not forced and not C.Allowed(src, fkey) then
             NZR.Radio.Kick(src, slot, fkey)
         end
     end
@@ -301,6 +309,33 @@ function C.Recheck(onlyFkey)
     local ids = {}
     for src in pairs((NZR.Radio and NZR.Radio.players) or {}) do ids[#ids + 1] = src end
     for _, src in ipairs(ids) do C.RecheckPlayer(src, onlyFkey) end
+end
+
+local function dutyOf(rule)
+    if rule.requireDuty == nil then return cfg().requireDuty == true end
+    return rule.requireDuty == true
+end
+
+-- Could someone who passed the lock before be refused by the new one? (before / after = the
+-- rule that applied to the frequency; nil or false = open)
+local function narrowed(before, after)
+    if not after or after.access == 'open' then return false end
+    if not before or before.access == 'open' or before.access ~= after.access then return true end
+    if after.access == 'code' then return before.code ~= after.code end
+    if dutyOf(after) and not dutyOf(before) then return true end
+    for name, grade in pairs(before.jobs or {}) do
+        local g = (after.jobs or {})[name]
+        if g == nil or g > grade then return true end
+    end
+    return false
+end
+
+-- before = { [fkey] = rule | false } taken before the change
+local function untuneVehicles(before)
+    if not (NZR.Vehicles and NZR.Vehicles.Untune) then return end
+    for fkey, rule in pairs(before) do
+        if narrowed(rule or nil, C.Rule(fkey)) then NZR.Vehicles.Untune(fkey) end
+    end
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -324,6 +359,11 @@ function C.Reload()
         end
     end
     local old = C.admin
+    local before = {}
+    for fkey in pairs(old) do before[fkey] = C.Rule(fkey) or false end
+    for fkey in pairs(fresh) do
+        if before[fkey] == nil then before[fkey] = C.Rule(fkey) or false end
+    end
     C.admin = fresh
     for fkey, r in pairs(old) do
         if signature(r) ~= signature(fresh[fkey]) then clearUnlocks(fkey) end
@@ -333,6 +373,7 @@ function C.Reload()
     end
     C.Publish()
     C.Recheck()
+    untuneVehicles(before)
     NZR.Debug('channel rules loaded:', NZR.Util.Count(fresh))
 end
 
@@ -361,20 +402,24 @@ function C.AddRule(freq, raw)
     if not rule then return false, err end
     local fkey = NZR.Freq.Key(f)
     local before = C.runtime[fkey]
+    local applied = C.Rule(fkey) or false
     C.runtime[fkey] = rule
     if signature(before) ~= signature(rule) then clearUnlocks(fkey) end
     C.Publish()
     C.Recheck(fkey)
+    untuneVehicles({ [fkey] = applied })
     return true
 end
 
 function C.RemoveRule(freq)
     local fkey = NZR.Freq.Key(freq)
     if not fkey or not C.runtime[fkey] then return false end
+    local applied = C.runtime[fkey]
     C.runtime[fkey] = nil
     clearUnlocks(fkey)
     C.Publish()
     C.Recheck(fkey)
+    untuneVehicles({ [fkey] = applied })   -- an admin or range lock under it applies again
     return true
 end
 

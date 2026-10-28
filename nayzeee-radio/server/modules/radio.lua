@@ -13,6 +13,10 @@
         muted, earpiece, handsfree, underwater,
         unlocked = { ['155.50'] = true }, presets = { 155.5 | false, ... },
         codeFails = { ['155.50'] = { n, lockedUntil } },
+        forced = { ['3.00'] = true },   channels an export joined past the rules (setPlayerFrequency
+                                        with force): no re-check takes them away until the slot
+                                        is left or tuned to something else
+        ownedAt,                        GetGameTimer() of the next timed item check
         tx = nil | routing's transmission (see routing.lua),
       }
       NZR.Radio.members[fkey] = { [src] = slot }      powered radios with fkey in a slot
@@ -24,7 +28,13 @@
 
     Items are re-checked on power-on, on a model change, every 5 s for powered radios and
     whenever the inventory bridge reports a change. Losing every radio powers the radio off,
-    leaves every channel and sends 'nzr:radio:dropped'.
+    leaves every channel and sends 'nzr:radio:dropped'. One check reads every radio item and
+    the earpiece at once (Bridge.Inv.Counts), and the timed checks are spread over the 5 s so
+    a full server never does them all in the same frame.
+
+    An open mic follows the TX slot: when the channel on it changes (another TX slot, a join
+    or leave on it, a smaller model) hands-free and a talk key still held down move to the
+    new channel; with nothing there the talk key gets 'nzr:tx:denied' 'nofreq'.
 
     API
       NZR.Radio.Get(src)                       → record | nil
@@ -35,8 +45,9 @@
       NZR.Radio.SetPower(src, on)              → ok, reason ('noradio')
       NZR.Radio.SetModel(src, model)           → ok, reason
       NZR.Radio.Join(src, slot, freq, code?, opts?) → { ok, label, access, slot, freq } | { ok = false, reason }
-            opts.force = skip the access rules, opts.offline = store it on a radio that is off
-            (exports only; a radio switched on later re-checks every stored channel)
+            opts.force = skip the access rules (and every later re-check, until the slot is left
+            or changed), opts.offline = store it on a radio that is off
+            (exports only; a radio switched on later re-checks every stored channel not forced)
       NZR.Radio.Leave(src, slot)               → { ok }
       NZR.Radio.SetTxSlot(src, slot)           → ok
       NZR.Radio.Kick(src, slot, fkey)          take a channel away (lost access) + notify
@@ -86,7 +97,10 @@ R.members = R.members or {}
 
 local MODELS = { 'handheld', 'fieldpro', 'military' }
 local MODEL_SET = { handheld = true, fieldpro = true, military = true }
+local OWN_KEYS = { 'handheld', 'fieldpro', 'military', 'earpiece' }   -- Config.Items keys one check reads
 local MAX_SLOTS = 5
+local OWNED_EVERY = 5000     -- ms between timed item checks of a powered radio
+local OWNED_TICK = 250       -- ms between rounds of the timed check (each takes the players due)
 
 local function L(key, ...) return NZR.L('server.' .. key, ...) end
 
@@ -137,10 +151,31 @@ local function anyOwned(owned)
     return false
 end
 
-local function itemCount(src, key)
-    local name = Config.Items and Config.Items[key]
-    if type(name) ~= 'string' or name == '' then return 0 end
-    return tonumber(Core.B('Inv.Count', src, name)) or 0
+-- Every radio model and the earpiece from one inventory read: on QB / ESX style inventories
+-- each single count fetches the whole player object across the resource boundary.
+local function ownedCounts(src)
+    local items = Config.Items or {}
+    local names, nameOf = {}, {}
+    for _, key in ipairs(OWN_KEYS) do
+        local name = items[key]
+        if type(name) == 'string' and name ~= '' then
+            names[#names + 1] = name
+            nameOf[key] = name
+        end
+    end
+    local counts = Core.Has('Inv.Counts') and Core.B('Inv.Counts', src, names) or nil
+    if type(counts) ~= 'table' then counts = {} end
+    local out = {}
+    for _, key in ipairs(OWN_KEYS) do
+        local name = nameOf[key]
+        local n = 0
+        if name then
+            n = counts[name]
+            if n == nil then n = Core.B('Inv.Count', src, name) end
+        end
+        out[key] = tonumber(n) or 0
+    end
+    return out
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -155,7 +190,7 @@ local function newRecord(src)
         power = false, slots = {}, txSlot = 1,
         muted = false, earpiece = false, handsfree = false, underwater = false,
         unlocked = s and s.unlocked or {}, presets = emptyPresets(),
-        codeFails = s and s.codeFails or {},
+        codeFails = s and s.codeFails or {}, forced = {},
         tx = nil,
     }
 end
@@ -281,20 +316,36 @@ local function leaveSlot(rec, slot)
     stopHandheldTx(rec, slot)
     rec.slots[slot] = nil
     local fkey = NZR.Freq.Key(f)
+    if fkey then rec.forced[fkey] = nil end
     if rec.power and fkey then removeMember(rec, fkey, slot) end
     return true
 end
 
--- Hands-free is an open mic on the TX slot: when that slot changes it follows to the new
--- channel instead of silently going quiet.
-local function resumeHandsfree(rec, wasOn)
-    if not wasOn or rec.tx then return end
-    if not rec.power or not rec.slots[rec.txSlot] then
-        rec.handsfree = false
-        return
+-- What holds the handheld transmission open → { handsfree, ptt } | nil
+local function txHolders(rec)
+    local tx = rec.tx
+    local ptt = tx ~= nil and tx.device == 'handheld' and tx.ptt == true
+    if not ptt and not rec.handsfree then return nil end
+    return { handsfree = rec.handsfree == true, ptt = ptt }
+end
+
+-- An open mic on the TX slot follows it to the new channel instead of silently going quiet:
+-- hands-free, and a talk key still held down (the client sent its one nzr:tx:start and waits
+-- for the release; it would keep a lit mic that nobody hears). With no channel there the
+-- talk key gets 'nofreq', which lets the client go.
+local function resumeTx(rec, held)
+    if not held or rec.tx then return end
+    if held.handsfree then
+        if not rec.power or not rec.slots[rec.txSlot] then
+            rec.handsfree = false
+        else
+            local ok = NZR.Routing.Start(rec.src, 'handheld', { handsfree = true })
+            rec.handsfree = ok == true
+            -- refused (jammed): the client was told, and lets go of the talk key with it
+            if not ok then return end
+        end
     end
-    local ok = NZR.Routing.Start(rec.src, 'handheld', { handsfree = true })
-    rec.handsfree = ok == true
+    if held.ptt then NZR.Routing.Start(rec.src, 'handheld', { ptt = true }) end
 end
 
 -- The slots stay in the record: switching the radio back on rejoins them.
@@ -325,6 +376,7 @@ end
 -- A smaller radio has fewer slots: the channels that do not fit are left.
 local function applyModel(rec, m)
     if rec.model == m then return false end
+    local held = txHolders(rec)
     rec.model = m
     local count = slotCount(m)
     for slot in pairs(rec.slots) do
@@ -334,6 +386,7 @@ local function applyModel(rec, m)
         stopHandheldTx(rec)
         rec.txSlot = 1
     end
+    if m then resumeTx(rec, held) end
     NZR.Bus.Emit('radio:changed', rec.src)
     return true
 end
@@ -343,14 +396,16 @@ function R.RefreshOwned(src, silent)
     if not rec then return false end
     local changed = false
     local hadAny = anyOwned(rec.owned)
+    rec.ownedAt = GetGameTimer() + OWNED_EVERY
+    local counts = ownedCounts(src)
 
     for _, m in ipairs(MODELS) do
-        local own = itemCount(src, m) > 0
+        local own = counts[m] > 0
         if (rec.owned[m] == true) ~= own then changed = true end
         rec.owned[m] = own or nil
     end
 
-    local ear = itemCount(src, 'earpiece') > 0
+    local ear = counts.earpiece > 0
     if ear ~= rec.earpieceOwned then
         rec.earpieceOwned = ear
         changed = true
@@ -417,10 +472,11 @@ function R.SetPower(src, on)
             local f = rec.slots[slot]
             if f then
                 local fkey = NZR.Freq.Key(f)
-                if slot <= count and fkey and NZR.Channels.Allowed(src, fkey) then
+                if slot <= count and fkey and (rec.forced[fkey] or NZR.Channels.Allowed(src, fkey)) then
                     addMember(rec, fkey, slot)
                 else
                     rec.slots[slot] = nil
+                    if fkey then rec.forced[fkey] = nil end
                 end
             end
         end
@@ -454,6 +510,7 @@ function R.Join(src, slot, freq, code, opts)
 
     local current = rec.slots[slot]
     if current and NZR.Freq.Key(current) == fkey then
+        if opts.force then rec.forced[fkey] = true end
         local label, access = NZR.Channels.Label(fkey)
         return { ok = true, label = label, access = access, slot = slot, freq = fkey }
     end
@@ -467,11 +524,12 @@ function R.Join(src, slot, freq, code, opts)
         if not ok then return fail(reason or 'denied') end
     end
 
-    local wasHandsfree = rec.handsfree and slot == rec.txSlot
+    local held = slot == rec.txSlot and txHolders(rec) or nil
     leaveSlot(rec, slot)
     rec.slots[slot] = f
+    if opts.force then rec.forced[fkey] = true end
     if rec.power then addMember(rec, fkey, slot) end
-    if slot == rec.txSlot then resumeHandsfree(rec, wasHandsfree) end
+    resumeTx(rec, held)
     R.Push(src)
 
     local label, access = NZR.Channels.Label(fkey)
@@ -483,8 +541,11 @@ function R.Leave(src, slot)
     if not rec then return { ok = false } end
     slot = math.floor(tonumber(slot) or 0)
     if slot < 1 or slot > MAX_SLOTS then return { ok = false } end
+    local held = slot == rec.txSlot and txHolders(rec) or nil
+    if held then held.handsfree = false end   -- leaving the TX slot ends hands-free on purpose
     if slot == rec.txSlot and rec.handsfree then rec.handsfree = false end
     leaveSlot(rec, slot)
+    resumeTx(rec, held)
     R.Push(src)
     return { ok = true }
 end
@@ -495,10 +556,10 @@ function R.SetTxSlot(src, slot)
     slot = math.floor(tonumber(slot) or 0)
     if slot < 1 or slot > slotCount(rec.model) then return false end
     if slot ~= rec.txSlot then
-        local wasHandsfree = rec.handsfree
+        local held = txHolders(rec)
         stopHandheldTx(rec)
         rec.txSlot = slot
-        resumeHandsfree(rec, wasHandsfree)
+        resumeTx(rec, held)
         NZR.Bus.Emit('radio:txslot', src)
     end
     R.Push(src)
@@ -508,8 +569,11 @@ end
 function R.Kick(src, slot, fkey)
     local rec = R.players[src]
     if not rec or not rec.slots[slot] then return end
+    local held = slot == rec.txSlot and txHolders(rec) or nil
+    if held then held.handsfree = false end
     if slot == rec.txSlot then rec.handsfree = false end
     leaveSlot(rec, slot)
+    resumeTx(rec, held)   -- a talk key held on the lost channel gets 'nofreq'
     R.Push(src)
     Core.Notify(src, L('kicked', fkey or '?', slot), 'warning')
 end
@@ -812,18 +876,27 @@ CreateThread(function()
 end)
 
 -- Items can leave an inventory without the bridge hearing of it (most inventories do not
--- announce moves), so powered radios check their item on a timer.
+-- announce moves), so powered radios check their item on a timer: each one OWNED_EVERY ms
+-- after its last check (any check resets it), a few per round, so the checks of a full
+-- server are spread over the period instead of landing in one frame.
 CreateThread(function()
     while true do
-        Wait(5000)
-        local ids = {}
+        Wait(OWNED_TICK)
+        local now = GetGameTimer()
+        local due, powered = {}, 0
         for src, rec in pairs(R.players) do
-            if rec.power then ids[#ids + 1] = src end
+            if rec.power then
+                powered = powered + 1
+                if (rec.ownedAt or 0) <= now then due[#due + 1] = src end
+            end
         end
-        for _, src in ipairs(ids) do
+        -- twice the steady rate, so a burst (many radios switched on together) catches up
+        local limit = math.max(2, math.ceil(powered * OWNED_TICK / OWNED_EVERY) * 2)
+        for i = 1, math.min(#due, limit) do
+            local src = due[i]
             if not Core.Online(src) then
                 R.Cleanup(src)
-            else
+            elseif R.players[src] then
                 R.RefreshOwned(src)
             end
         end

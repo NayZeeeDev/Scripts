@@ -226,9 +226,16 @@ local function jobMatches(rule)
     return ok and match == true
 end
 
+-- Not with the radio up: its camera and pose would cover the hack window and replace the
+-- tablet / pick-up animation (and [E] is not a key the raised radio takes away).
 local function canAct()
     local ped = PlayerPedId()
-    return not J.IsBusy() and not IsPedInAnyVehicle(ped, false) and not NZR.Radio.API.IsDead()
+    return not J.IsBusy() and not NZR.Radio.State.raised and not IsPedInAnyVehicle(ped, false)
+        and not NZR.Radio.API.IsDead()
+end
+
+local function lowerRadio()
+    if NZR.Radio.State.raised then NZR.Radio.API.Lower() end
 end
 
 local function targetOptions(id)
@@ -243,6 +250,7 @@ local function targetOptions(id)
             onSelect = function(ent)
                 if not list[id] then return end
                 CreateThread(function()
+                    lowerRadio()
                     local ped = PlayerPedId()
                     if ent and ent ~= 0 and DoesEntityExist(ent) then TaskTurnPedToFaceEntity(ped, ent, 500) end
                     NZR.Anim.Play(ped, PLACE_ANIM.dict, PLACE_ANIM.clip, { flag = 0, duration = 1100, blendIn = 6.0, blendOut = -4.0 })
@@ -399,6 +407,7 @@ function J.Hack(id)
         local jt = list[id] and list[id].t or j.t
         if not list[id] then return finishHack(false, 'gone') end
         local def = typeDef(jt) or {}
+        lowerRadio()
         local ped = PlayerPedId()
         local okA, token = NZR.Anim.Play(ped, HACK_ANIM.dict, HACK_ANIM.clip, { flag = 49, prop = HACK_ANIM.prop })
         if okA then h.anim = token end

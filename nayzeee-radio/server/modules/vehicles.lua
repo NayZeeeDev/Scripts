@@ -6,11 +6,16 @@
     (database; an admin entry overrides a config model with the same name). The list is
     published as GlobalState 'nzr_vehicles' for the clients.
 
-    A head unit's state lives on the vehicle itself, in Entity(veh).state.nzr_vradio, and only
-    the server writes it, after checking that the sender sits in an operating seat
+    A head unit's state is kept here (V.states) and copied onto the vehicle in
+    Entity(veh).state.nzr_vradio for the clients. The server only ever reads its own copy: the
+    car's network owner can write an entity state bag from its side, so a value found in the
+    bag proves nothing, and a write that does not come from here is put back at once. The
+    server writes after checking that the sender sits in an operating seat
     (Config.Vehicles.seats) of a radio vehicle. Tuning goes through 'nzr:vehicle:join' and the
-    same access rules as a handheld (NZR.Channels.Check). Routing finds tuned cars through an
-    index by frequency kept here (rebuilt on every state change, deleted vehicles pruned).
+    same access rules as a handheld (NZR.Channels.Check); a unit switched on is re-checked
+    against whoever switches it on, and a channel whose lock changes is taken off every head
+    unit on it (NZR.Vehicles.Untune). Routing finds tuned cars through an index by frequency
+    kept here (rebuilt on every state change, deleted vehicles pruned).
 
     The class check: GTA's vehicle class is only known on the client, so a vehicle whose
     model is not listed counts as a radio vehicle when classes are configured. The worst a
@@ -23,8 +28,9 @@
       NZR.Vehicles.AdminList()                 → { { model, label, range_mult }, ... }
       NZR.Vehicles.IsRadioVehicle(veh)         → bool
       NZR.Vehicles.Seated(src, veh)            → bool (operating seat)
-      NZR.Vehicles.State(veh)                  → nzr_vradio | nil
+      NZR.Vehicles.State(veh)                  → nzr_vradio | nil   (the server's copy, never the bag)
       NZR.Vehicles.Write(veh, state|nil)       set nzr_vradio (replicated) + index
+      NZR.Vehicles.Untune(fkey)                → n   clear fkey from every head unit on it (its lock changed)
       NZR.Vehicles.RangeMult(veh)              → number (1.0 when not listed)
       NZR.Vehicles.Tuned(fkey)                 → { [veh] = { vnet, state } }   powered head units on fkey
       NZR.Vehicles.TunedCounts()               → { [fkey] = n }
@@ -36,12 +42,17 @@
     Events handled (C→S)
       nzr:vehicle:set (vnet, patch = { on?, f? (false = clear; a frequency only if already
                        allowed without a code), v? (0..1), mute? })
+                       switching on keeps the stored frequency only if the sender may use it
+    Events sent (S→C)
+      nzr:ui:toast (through Core.Notify)   operating seats of a car whose channel was taken off
     State bags / GlobalState
-      Entity(veh).state.nzr_vradio = { on, f = fkey | nil, v = 0..1, mute, label }   (server only)
+      Entity(veh).state.nzr_vradio = { on, f = fkey | nil, v = 0..1, mute, label }   (server only;
+                                 a client write is reverted by a change handler)
       GlobalState.nzr_vehicles = { models = { [hash] = { label, range, model } }, classes = { [n] = true } }
                                  hash = signed 32-bit (as GetEntityModel on the client),
                                  range = multiplier of Config.Vehicles.range
-    Bus (emitted): vehicles:changed (fkeyOld | nil, fkeyNew | nil)
+    Bus (emitted): vehicles:changed (fkeyOld | nil, fkeyNew | nil)   only when what routing reads
+                   changed (powered frequency, mute): not for a volume step or a label
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -54,9 +65,11 @@ V.models = V.models or {}     -- [hash] = { label, range, model }
 V.classes = V.classes or {}   -- [class] = true
 V.tuned = V.tuned or {}       -- [fkey] = { [veh] = true }
 V.byVeh = V.byVeh or {}       -- [veh] = fkey (powered and tuned)
+V.states = V.states or {}     -- [veh] = nzr_vradio: the only copy the server reads (cleared on stop)
 
 local adminList = {}
-local written = {}            -- [veh] = true: every vehicle we put a state on (cleared on stop)
+
+local function L(key, ...) return NZR.L('server.' .. key, ...) end
 
 local function cfg()
     return Config.Vehicles or {}
@@ -166,9 +179,7 @@ end
 
 function V.State(veh)
     if not veh or veh == 0 then return nil end
-    local ok, st = pcall(function() return Entity(veh).state.nzr_vradio end)
-    if ok and type(st) == 'table' then return st end
-    return nil
+    return V.states[veh]
 end
 
 local function unindex(veh)
@@ -194,28 +205,39 @@ local function index(veh, st)
     return old, fkey
 end
 
+local function muted(st)
+    return type(st) == 'table' and st.mute == true
+end
+
 function V.Write(veh, st)
     if not veh or veh == 0 then return end
+    local prev = V.states[veh]
+    -- ours first: the bag's change handler compares what arrives against this copy
+    V.states[veh] = st
     local ok, err = pcall(function() Entity(veh).state:set('nzr_vradio', st, true) end)
     if not ok then
+        V.states[veh] = prev
         NZR.Warn('could not write a head unit state: ' .. tostring(err))
         return
     end
-    written[veh] = st ~= nil or nil
     local old, new = index(veh, st)
-    NZR.Bus.Emit('vehicles:changed', old, new)
+    -- routing reads the powered frequency and the mute only: a volume step or a label
+    -- must not re-resolve every talker on the channel
+    if old ~= new or (new and muted(prev) ~= muted(st)) then
+        NZR.Bus.Emit('vehicles:changed', old, new)
+    end
 end
 
 local function prune()
     for veh in pairs(V.byVeh) do
         if not DoesEntityExist(veh) then
             local fkey = unindex(veh)
-            written[veh] = nil
+            V.states[veh] = nil
             NZR.Bus.Emit('vehicles:changed', fkey, nil)
         end
     end
-    for veh in pairs(written) do
-        if not DoesEntityExist(veh) then written[veh] = nil end
+    for veh in pairs(V.states) do
+        if not DoesEntityExist(veh) then V.states[veh] = nil end
     end
 end
 
@@ -275,6 +297,41 @@ local function vehicleFor(src, vnet)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
+-- LOCK CHANGES
+-- ════════════════════════════════════════════════════════════════════════
+
+local function notifyOperators(veh, fkey)
+    for _, s in ipairs(GetPlayers()) do
+        local id = tonumber(s)
+        if id and V.Seated(id, veh) then Core.Notify(id, L('vehicle_untuned', fkey), 'warning') end
+    end
+end
+
+-- A head unit keeps a channel on the word of whoever tuned it. When the channel's lock
+-- changes (a new code, other jobs) that word is worth nothing any more: the frequency comes
+-- off every unit holding it, switched on or not, and has to be tuned again through the lock.
+function V.Untune(fkey)
+    fkey = NZR.Freq.Key(fkey)
+    if not fkey then return 0 end
+    local list = {}
+    for veh, st in pairs(V.states) do
+        if type(st) == 'table' and NZR.Freq.Key(st.f) == fkey then list[#list + 1] = veh end
+    end
+    for _, veh in ipairs(list) do
+        if DoesEntityExist(veh) then
+            local st = copyState(V.states[veh])
+            local wasOn = st.on
+            st.f, st.label = nil, nil
+            V.Write(veh, st)
+            if wasOn then notifyOperators(veh, fkey) end
+        else
+            V.states[veh] = nil
+        end
+    end
+    return #list
+end
+
+-- ════════════════════════════════════════════════════════════════════════
 -- NET EVENTS / CALLBACKS
 -- ════════════════════════════════════════════════════════════════════════
 
@@ -288,6 +345,7 @@ RegisterNetEvent('nzr:vehicle:set', function(vnet, patch)
     if not veh then return end
 
     local st = copyState(V.State(veh))
+    local wasOn = st.on
     if patch.on ~= nil then st.on = patch.on == true end
     if patch.mute ~= nil then st.mute = patch.mute == true end
     if patch.v ~= nil then
@@ -305,6 +363,12 @@ RegisterNetEvent('nzr:vehicle:set', function(vnet, patch)
                 st.label = NZR.Channels.Label(fkey)
             end
         end
+    end
+    -- switching on: the stored channel passed the lock of whoever tuned it, which says nothing
+    -- about whoever switches the unit on now (another crew, a job lost since) - like a
+    -- handheld's stored channels on power-on
+    if st.on and not wasOn and st.f and not NZR.Channels.Allowed(src, st.f) then
+        st.f, st.label = nil, nil
     end
     V.Write(veh, st)
 end)
@@ -337,7 +401,29 @@ AddEventHandler('entityRemoved', function(ent)
         local fkey = unindex(ent)
         NZR.Bus.Emit('vehicles:changed', fkey, nil)
     end
-    written[ent] = nil
+    V.states[ent] = nil
+end)
+
+local function sameState(a, b)
+    if type(a) ~= 'table' or type(b) ~= 'table' then return a == nil and b == nil end
+    return a.on == b.on and a.f == b.f and a.v == b.v and a.mute == b.mute and a.label == b.label
+end
+
+-- Entity state bags take writes from the entity's network owner. The server never reads the
+-- bag back (V.states is the truth); this puts our copy back so the other clients do not show,
+-- or route their own audio by, a value a client made up.
+AddStateBagChangeHandler('nzr_vradio', nil, function(bagName, _, value)
+    local ok, veh = pcall(GetEntityFromStateBagName, bagName)
+    if not ok or not veh or veh == 0 then return end
+    if sameState(V.states[veh], value) then return end
+    -- not from inside the handler: that write is still being applied
+    SetTimeout(0, function()
+        if not DoesEntityExist(veh) then return end
+        local st = V.states[veh]
+        local okRead, cur = pcall(function() return Entity(veh).state.nzr_vradio end)
+        if okRead and sameState(st, cur) then return end
+        pcall(function() Entity(veh).state:set('nzr_vradio', st, true) end)
+    end)
 end)
 
 CreateThread(function()
@@ -352,7 +438,10 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= NZR.Resource then return end
-    for veh in pairs(written) do
+    -- emptied first, so the change handler does not put the states back
+    local list = V.states
+    V.states = {}
+    for veh in pairs(list) do
         if DoesEntityExist(veh) then
             pcall(function() Entity(veh).state:set('nzr_vradio', nil, true) end)
         end
