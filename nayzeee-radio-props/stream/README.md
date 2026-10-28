@@ -3,8 +3,9 @@
 This folder holds the streamed models of NAYZEEE Radio: **80 `.ydr` drawables + `nzr_props.ytyp`**
 (81 files). Textures are embedded in each `.ydr`, so there are no `.ytd` files.
 
-The binaries are not written by hand and not kept in the repository. They are converted from the
-CodeWalker XML that the prop pipeline writes and that **is** committed:
+The binaries are already here, converted and checked (each one loaded back, every drawable under
+16 MiB). You only need the steps below after changing a prop. They are converted from the
+CodeWalker XML that the prop pipeline writes, which is committed too:
 
 | Where (in the `nayzeee-radio` resource) | What |
 |---|---|
