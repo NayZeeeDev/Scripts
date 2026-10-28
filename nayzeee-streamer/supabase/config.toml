@@ -1,0 +1,18 @@
+# Supabase CLI configuration for the Pulse backend (nayzeee-streamer).
+# Link your project with `supabase link --project-ref <ref>` or set the id below for local dev.
+# project_id = "your-project-ref"
+
+# The gateway authenticates game servers with their own `x-pulse-key`, so Supabase JWT
+# verification is turned off for it. Deploy with:
+#   supabase functions deploy pulse-api --no-verify-jwt
+# Secrets (supabase secrets set ...): LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET,
+# optional PULSE_DEBUG=1 (log error details) and PULSE_PUBLIC_URL (public origin when
+# SUPABASE_URL is an internal address, e.g. local development).
+[functions.pulse-api]
+verify_jwt = false
+
+# Local development mirror of the public media bucket (avatars, banners, panels, thumbnails).
+[storage.buckets.pulse-media]
+public = true
+file_size_limit = "2MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
