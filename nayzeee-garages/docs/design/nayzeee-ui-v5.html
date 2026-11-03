@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAYZEEE UI v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   NAYZEEE UI v3
+   Palette: black · white · teal #08afa2 · red #e5484d
+   Type: Lexend
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  /* surfaces — true neutral black, no blue cast */
+  --void:    #000000;
+  --base:    #08090a;
+  --panel:   #0e1011;
+  --raise:   #15181a;
+  --raise-2: #1c2023;
+  --inset:   #0b0c0d;
+
+  /* lines — neutral white at low alpha, three weights */
+  --line:      rgba(255,255,255,.10);
+  --line-soft: rgba(255,255,255,.06);
+  --line-hair: rgba(255,255,255,.035);
+  --lift:      rgba(255,255,255,.055);
+
+  /* ink */
+  --white: #ffffff;
+  --ink:   #f2f4f5;
+  --ink-2: #9ea5aa;
+  --ink-3: #63696d;
+
+  /* accents */
+  --teal:      #08afa2;
+  --teal-hi:   #0fd4c4;
+  --teal-lo:   #067d74;
+  --teal-wash: rgba(8,175,162,.11);
+  --teal-edge: rgba(8,175,162,.34);
+  --red:       #e5484d;
+  --red-lo:    #b8262b;
+  --red-wash:  rgba(229,72,77,.11);
+  --amber:     #e5a50a;
+
+  /* radius scale */
+  --r-xs:4px; --r-sm:6px; --r-md:10px; --r-lg:14px;
+
+  /* depth */
+  --sh-1:0 1px 2px rgba(0,0,0,.6);
+  --sh-2:0 2px 6px rgba(0,0,0,.5),0 10px 28px rgba(0,0,0,.45);
+  --sh-3:0 10px 24px rgba(0,0,0,.6),0 40px 80px rgba(0,0,0,.7);
+
+  --fast:130ms cubic-bezier(.4,0,.2,1);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased}
+body{
+  font-family:'Lexend',system-ui,sans-serif;
+  background:radial-gradient(1100px 640px at 50% -8%,#131718 0%,transparent 62%),var(--void);
+  color:var(--ink);min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;
+  gap:40px;padding:44px 22px 96px;font-variant-numeric:tabular-nums;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ═══════════════ BRAND LOCKUP ═══════════════ */
+/* The mark IS the window silhouette — same chamfer, three scales. */
+.mark{
+  position:relative;flex:none;width:30px;height:30px;
+  background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));
+  border-radius:var(--r-sm);
+  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
+  box-shadow:0 2px 12px rgba(8,175,162,.3);
+}
+.mark::after{ /* inner cut — the negative space reads as a bar */
+  content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;
+  background:var(--void);opacity:.85;border-radius:1px;
+}
+.mark.lg{width:46px;height:46px;border-radius:9px}
+.mark.sm{width:22px;height:22px;border-radius:5px}
+
+.title-txt{font-size:12.5px;font-weight:600;color:var(--white);
+  letter-spacing:.055em;line-height:1}
+.lockup{display:flex;align-items:center;gap:11px}
+.lockup .sub{font-size:10px;color:var(--ink-3);font-weight:300;
+  letter-spacing:.055em;margin-top:5px}
+.ver{
+  font-size:9.5px;font-weight:500;color:var(--teal);
+  border:1px solid var(--teal-edge);background:var(--teal-wash);
+  padding:2px 6px;border-radius:var(--r-xs);letter-spacing:.02em;
+}
+
+/* ═══════════════ SHELL ═══════════════ */
+.frame{
+  width:min(1180px,100%);background:var(--line);padding:1px;border-radius:var(--r-lg);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 26px),calc(100% - 26px) 100%,0 100%);
+  box-shadow:var(--sh-3);
+}
+.shell{
+  position:relative;background:var(--base);overflow:hidden;
+  border-radius:calc(var(--r-lg) - 1px);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 25px),calc(100% - 25px) 100%,0 100%);
+}
+.shell::after{ /* grain */
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── title bar ── */
+.bar{
+  position:relative;z-index:20;display:flex;align-items:center;gap:14px;
+  height:56px;padding-right:14px;border-bottom:1px solid var(--line-soft);
+  background:linear-gradient(var(--panel),var(--base));
+}
+.bar::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:var(--lift)}
+.bar-brand{
+  width:248px;height:56px;flex:none;display:flex;align-items:center;gap:11px;
+  padding-left:16px;border-right:1px solid var(--line-soft);position:relative;
+}
+.bar-brand::before{ /* teal rail */
+  content:'';position:absolute;top:0;left:0;right:-1px;height:2px;
+  background:linear-gradient(90deg,var(--teal),rgba(8,175,162,0));
+}
+.bar-name{line-height:1}
+.bar-mid{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--teal);
+  box-shadow:0 0 0 3px var(--teal-wash),0 0 8px var(--teal)}
+.dot.red{background:var(--red);box-shadow:0 0 0 3px var(--red-wash)}
+.bar-mid p{font-size:12px;color:var(--ink-2);font-weight:300}
+.bar-mid p b{color:var(--white);font-weight:500}
+
+.pill-close{
+  height:27px;padding:0 17px;border-radius:999px;
+  background:linear-gradient(var(--red),var(--red-lo));color:var(--white);
+  font-size:11.5px;font-weight:600;letter-spacing:.015em;
+  box-shadow:0 1px 0 rgba(255,255,255,.28) inset,var(--sh-1);
+  transition:filter var(--fast),transform var(--fast);
+}
+.pill-close:hover{filter:brightness(1.14)}
+.pill-close:active{transform:translateY(1px)}
+
+/* ── body ── */
+.body{display:grid;grid-template-columns:248px 1fr;min-height:600px}
+
+.side{
+  border-right:1px solid var(--line-soft);padding:14px 12px;
+  background:linear-gradient(180deg,var(--base),#050607);
+  display:flex;flex-direction:column;gap:3px;
+}
+.who{
+  display:flex;align-items:center;gap:11px;padding:10px;margin-bottom:11px;
+  background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-md);
+  box-shadow:0 1px 0 var(--lift) inset;
+}
+.av{
+  width:34px;height:34px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;
+  background:var(--raise);border:1px solid var(--line);
+  font-size:11px;font-weight:600;color:var(--ink-2);
+}
+.who-txt{flex:1;min-width:0}
+.who-txt b{display:block;font-size:12.5px;font-weight:600;color:var(--white);letter-spacing:-.005em}
+.who-txt span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-weight:300}
+.shift{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:13px;
+  padding:7px 11px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm);
+}
+.shift span{font-size:11.5px;color:var(--ink-2);letter-spacing:.03em}
+.shift b{font-size:10.5px;font-weight:500;color:var(--teal);display:flex;align-items:center;gap:6px}
+
+.grp{display:flex;align-items:center;gap:9px;margin:14px 4px 6px;
+  font-size:10.5px;color:var(--ink-3);font-weight:400}
+.grp::after{content:'';flex:1;height:1px;background:var(--line-hair)}
+
+.nav{
+  position:relative;display:flex;align-items:center;gap:11px;width:100%;
+  padding:9px 11px;border-radius:var(--r-sm);
+  font-size:12.5px;font-weight:300;color:var(--ink-2);
+  transition:background var(--fast),color var(--fast);
+}
+.nav svg{width:16px;height:16px;flex:none;stroke-width:1.5;opacity:.75}
+.nav:hover{background:var(--raise);color:var(--white)}
+.nav.on{background:var(--teal-wash);color:var(--white);font-weight:500}
+.nav.on svg{color:var(--teal);opacity:1}
+.nav.on::before{
+  content:'';position:absolute;left:0;top:7px;bottom:7px;width:2px;background:var(--teal);
+  border-radius:0 2px 2px 0;box-shadow:0 0 9px var(--teal);
+}
+.tally{margin-left:auto;font-size:10.5px;color:var(--ink-3);
+  background:var(--raise);border:1px solid var(--line-soft);padding:1px 6px;border-radius:var(--r-xs)}
+
+/* ── main ── */
+.main{position:relative;padding:22px 24px 24px;display:flex;flex-direction:column;gap:20px;overflow:hidden}
+/* watermark — the silhouette again, at scale */
+.main::before{
+  content:'';position:absolute;right:-46px;bottom:-52px;z-index:0;pointer-events:none;
+  width:252px;height:252px;border-radius:26px;opacity:.032;
+  background:var(--white);
+  clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);
+}
+.main > *{position:relative;z-index:1}
+
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px}
+.head h1{font-size:24px;font-weight:600;letter-spacing:-.028em;line-height:1.08;color:var(--white)}
+.head p{font-size:12.5px;color:var(--ink-3);margin-top:6px;font-weight:300;max-width:56ch}
+.clock{text-align:right;line-height:1.15}
+.clock b{display:block;font-size:22px;font-weight:600;letter-spacing:-.025em;color:var(--white)}
+.clock span{font-size:11.5px;color:var(--ink-3);font-weight:300}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.stat{
+  position:relative;display:flex;align-items:center;gap:13px;padding:15px 16px;
+  background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r-md);
+  box-shadow:0 1px 0 var(--lift) inset,var(--sh-1);
+}
+.tile{
+  width:36px;height:36px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;
+  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);
+}
+.tile.red{color:var(--red);background:var(--red-wash);border-color:rgba(229,72,77,.34)}
+.tile svg{width:17px;height:17px;stroke-width:1.5}
+.stat-txt span{display:block;font-size:11.5px;color:var(--ink-3);font-weight:300}
+.stat-txt b{display:block;font-size:27px;font-weight:600;letter-spacing:-.035em;
+  line-height:1.14;margin-top:2px;color:var(--white)}
+.delta{position:absolute;top:13px;right:14px;font-size:10.5px;font-weight:500;
+  color:var(--teal);display:flex;align-items:center;gap:3px}
+.delta.dn{color:var(--red)}
+.delta.dn svg{transform:rotate(180deg)}
+.delta svg{width:11px;height:11px;stroke-width:2.2}
+
+.cols{display:grid;grid-template-columns:1fr 1.18fr;gap:13px;flex:1;min-height:0}
+.panel{
+  display:flex;flex-direction:column;min-height:0;background:var(--panel);
+  border:1px solid var(--line-soft);border-radius:var(--r-md);
+  box-shadow:0 1px 0 var(--lift) inset,var(--sh-1);
+}
+.p-head{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px 12px;border-bottom:1px solid var(--line-hair)}
+.p-head h2{font-size:14px;font-weight:600;letter-spacing:-.014em;color:var(--white)}
+.p-head p{font-size:11px;color:var(--ink-3);font-weight:300;margin-top:3px}
+.p-body{padding:10px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.p-body::-webkit-scrollbar{width:8px}
+.p-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:2px solid var(--panel)}
+
+.btn-ghost{
+  height:27px;padding:0 11px;border-radius:var(--r-xs);border:1px solid var(--line);
+  color:var(--ink-2);font-size:11.5px;font-weight:300;
+  display:flex;align-items:center;gap:6px;transition:all var(--fast);
+}
+.btn-ghost svg{width:13px;height:13px;stroke-width:1.6}
+.btn-ghost:hover{border-color:var(--teal-edge);color:var(--teal);background:var(--teal-wash)}
+
+.row{display:flex;align-items:center;gap:11px;padding:10px 11px;background:var(--inset);
+  border:1px solid var(--line-hair);border-radius:var(--r-sm);transition:border-color var(--fast)}
+.row:hover{border-color:var(--line)}
+.row .av{width:30px;height:30px;font-size:10px}
+.row-txt{flex:1;min-width:0}
+.row-txt b{display:block;font-size:12.5px;font-weight:500;color:var(--white)}
+.row-txt span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-weight:300}
+
+.tag{font-size:10px;font-weight:500;padding:3px 9px;border-radius:999px;border:1px solid}
+.tag.live{color:var(--teal);border-color:var(--teal-edge);background:var(--teal-wash)}
+.tag.hot{color:var(--red);border-color:rgba(229,72,77,.34);background:var(--red-wash)}
+.tag.off{color:var(--ink-3);border-color:var(--line-soft);background:var(--raise)}
+
+.inc{padding:13px 14px;background:var(--inset);border:1px solid var(--line-hair);
+  border-radius:var(--r-sm);border-left:2px solid var(--teal-edge);transition:border-left-color var(--fast)}
+.inc:hover{border-left-color:var(--teal)}
+.inc.urgent{border-left-color:var(--red)}
+.inc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:7px}
+.chip{font-size:9.5px;font-weight:600;letter-spacing:.03em;padding:2.5px 8px;border-radius:var(--r-xs);
+  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+.chip.red{color:var(--red);background:var(--red-wash);border-color:rgba(229,72,77,.34)}
+.ref{font-size:10.5px;color:var(--ink-3);font-weight:500}
+.inc h3{font-size:13.5px;font-weight:600;letter-spacing:-.014em;margin-bottom:5px;color:var(--white)}
+.inc p{font-size:11.5px;line-height:1.55;color:var(--ink-2);font-weight:300;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.meta{display:flex;gap:16px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line-hair);
+  font-size:10.5px;color:var(--ink-3);font-weight:300}
+.meta b{color:var(--ink-2);font-weight:500}
+
+/* ── status bar — brand mark #5 ── */
+.statusbar{
+  position:relative;z-index:20;display:flex;align-items:center;gap:16px;
+  height:30px;padding:0 16px;
+  border-top:1px solid var(--line-soft);background:var(--inset);
+  font-size:10px;color:var(--ink-3);font-weight:300;letter-spacing:.02em;
+}
+.statusbar b{color:var(--ink-2);font-weight:500}
+.key{
+  display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:16px;
+  padding:0 4px;margin-right:5px;border-radius:3px;
+  background:var(--raise);border:1px solid var(--line);
+  font-size:9px;color:var(--ink-2);font-weight:500;
+}
+
+/* ═══════════════ TOAST ═══════════════ */
+.toast{
+  display:flex;gap:11px;align-items:flex-start;width:330px;padding:12px 14px;
+  background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);
+  border-radius:var(--r-sm);box-shadow:var(--sh-2);position:relative;overflow:hidden;
+}
+.toast.err{border-left-color:var(--red)}
+.toast .ti{width:26px;height:26px;flex:none;border-radius:var(--r-xs);display:grid;place-items:center;
+  color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge)}
+.toast.err .ti{color:var(--red);background:var(--red-wash);border-color:rgba(229,72,77,.34)}
+.toast .ti svg{width:14px;height:14px;stroke-width:1.8}
+.toast b{display:block;font-size:12.5px;font-weight:600;color:var(--white);margin-bottom:3px}
+.toast p{font-size:11.5px;color:var(--ink-2);font-weight:300;line-height:1.5}
+.toast::after{content:'';position:absolute;left:0;bottom:0;height:2px;width:100%;
+  background:var(--teal);transform-origin:left;animation:toastBar 4.5s linear infinite}
+.toast.err::after{background:var(--red)}
+@keyframes toastBar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+
+/* ═══════════════ COMPONENT SHEET ═══════════════ */
+.sheet{width:min(1180px,100%);display:flex;flex-direction:column;gap:16px}
+.sheet-h{display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:12px;font-weight:300}
+.sheet-h::after{content:'';flex:1;height:1px;background:var(--line)}
+.kit{display:grid;grid-template-columns:repeat(auto-fit,minmax(262px,1fr));gap:12px}
+.card{background:var(--base);border:1px solid var(--line-soft);border-radius:var(--r-md);
+  padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 0 var(--lift) inset}
+.card > b{font-size:11.5px;color:var(--ink-3);font-weight:400}
+.rowset{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+.btn-teal{height:32px;padding:0 15px;border-radius:var(--r-xs);
+  background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;font-size:12px;font-weight:600;
+  box-shadow:0 1px 0 rgba(255,255,255,.3) inset,var(--sh-1);transition:filter var(--fast),transform var(--fast)}
+.btn-teal:hover{filter:brightness(1.12)}
+.btn-teal:active{transform:translateY(1px)}
+.btn-white{height:32px;padding:0 15px;border-radius:var(--r-xs);background:var(--white);
+  color:#000;font-size:12px;font-weight:600;transition:filter var(--fast)}
+.btn-white:hover{filter:brightness(.9)}
+.btn-line{height:32px;padding:0 15px;border-radius:var(--r-xs);border:1px solid var(--line);
+  color:var(--ink-2);font-size:12px;font-weight:300;transition:all var(--fast)}
+.btn-line:hover{border-color:var(--ink-3);color:var(--white)}
+.btn-red{height:32px;padding:0 15px;border-radius:var(--r-xs);border:1px solid rgba(229,72,77,.4);
+  background:var(--red-wash);color:var(--red);font-size:12px;font-weight:500;transition:background var(--fast)}
+.btn-red:hover{background:rgba(229,72,77,.2)}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:11px;color:var(--ink-3);font-weight:300}
+.field input,.field select{height:34px;width:100%;padding:0 11px;background:var(--inset);
+  border:1px solid var(--line-soft);border-radius:var(--r-xs);color:var(--white);
+  font-family:inherit;font-size:12.5px;transition:border-color var(--fast),box-shadow var(--fast)}
+.field input::placeholder{color:var(--ink-3)}
+.field input:focus,.field select:focus{outline:0;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
+
+.sw{width:38px;height:21px;padding:2px;border-radius:999px;flex:none;display:flex;
+  background:var(--inset);border:1px solid var(--line-soft);transition:all var(--fast)}
+.sw i{width:15px;height:15px;border-radius:50%;background:var(--ink-3);transition:all var(--fast)}
+.sw.on{background:var(--teal-wash);border-color:var(--teal-edge);justify-content:flex-end}
+.sw.on i{background:var(--teal);box-shadow:0 0 9px var(--teal)}
+.sw-line{display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:12.5px}
+.sw-line span{color:var(--ink-2);font-weight:300}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:0 0 9px;font-size:10.5px;color:var(--ink-3);font-weight:400;
+  border-bottom:1px solid var(--line)}
+td{padding:10px 0;border-bottom:1px solid var(--line-hair);color:var(--ink-2);font-weight:300}
+td b{color:var(--white);font-weight:500}
+tr:last-child td{border-bottom:0}
+
+.modal{border:1px solid var(--line);border-radius:var(--r-md);background:var(--panel);
+  box-shadow:var(--sh-2);overflow:hidden}
+.modal-b{display:flex;gap:13px;padding:18px}
+.warn{width:34px;height:34px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;
+  color:var(--red);background:var(--red-wash);border:1px solid rgba(229,72,77,.34)}
+.warn svg{width:17px;height:17px;stroke-width:1.7}
+.modal h4{font-size:13.5px;font-weight:600;color:var(--white);margin-bottom:5px;letter-spacing:-.012em}
+.modal p{font-size:11.5px;color:var(--ink-2);line-height:1.55;font-weight:300}
+.modal-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;
+  background:var(--inset);border-top:1px solid var(--line-hair)}
+
+.empty{display:flex;flex-direction:column;align-items:center;gap:9px;padding:28px 16px;
+  text-align:center;border:1px dashed var(--line);border-radius:var(--r-sm)}
+.empty svg{width:22px;height:22px;stroke-width:1.4;color:var(--ink-3)}
+.empty b{font-size:12.5px;font-weight:500;color:var(--white)}
+.empty span{font-size:11.5px;color:var(--ink-3);font-weight:300;max-width:34ch;line-height:1.5}
+
+/* skeleton loader */
+.skel{display:flex;align-items:center;gap:11px;padding:10px 11px;background:var(--inset);
+  border:1px solid var(--line-hair);border-radius:var(--r-sm)}
+.sk{background:linear-gradient(90deg,var(--raise) 0%,var(--raise-2) 45%,var(--raise) 90%);
+  background-size:200% 100%;border-radius:var(--r-xs);animation:shimmer 1.5s linear infinite}
+.sk.circ{width:30px;height:30px;border-radius:var(--r-sm);flex:none}
+@keyframes shimmer{from{background-position:150% 0}to{background-position:-50% 0}}
+
+.swatches{display:grid;grid-template-columns:repeat(auto-fit,minmax(94px,1fr));gap:8px}
+.sw-item{border:1px solid var(--line-soft);border-radius:var(--r-xs);overflow:hidden}
+.sw-item i{display:block;height:38px}
+.sw-item p{padding:6px 8px;font-size:9.5px;color:var(--ink-3);background:var(--base);line-height:1.55}
+.sw-item p b{display:block;color:var(--ink-2);font-size:10.5px;font-weight:500}
+
+@media (max-width:900px){
+  .body{grid-template-columns:1fr}
+  .side{display:none}
+  .stats,.cols{grid-template-columns:1fr}
+  .bar-brand{width:auto;border-right:0}
+  .main::before{width:150px;height:150px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SHELL ═══════════════ -->
+<div class="frame">
+<div class="shell" id="shell">
+
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark"></div>
+      <div class="bar-name">
+        <div class="title-txt">Emergency Services</div>
+        <div class="sub">Station 04 · Los Santos</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot"></span>
+      <p>Connected to <b>dispatch</b> · 4 units on duty</p>
+      <span class="ver">v2.4.1</span>
+    </div>
+    <button class="pill-close">Close</button>
+  </div>
+
+  <div class="body">
+    <nav class="side">
+      <div class="who">
+        <div class="av">JD</div>
+        <div class="who-txt"><b>John Doe</b><span>Chief · Badge 01</span></div>
+      </div>
+      <div class="shift"><span>04:12:38</span><b><span class="dot"></span>On duty</b></div>
+
+      <button class="nav on">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Dashboard
+      </button>
+
+      <div class="grp">Operations</div>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4z"/><path d="M9 4v13M15 6.5v13"/></svg>
+        Dispatch <span class="tally">3</span>
+      </button>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 17h2l1.5-6L10 19l2.5-14L15 15l1.5-4H20"/></svg>
+        Triage
+      </button>
+
+      <div class="grp">Records</div>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 8v8M8 12h8"/></svg>
+        Patients <span class="tally">862</span>
+      </button>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></svg>
+        Incidents
+      </button>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 12h6M9 16h4"/></svg>
+        Call reports
+      </button>
+
+      <div class="grp">Station</div>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>
+        Personnel
+      </button>
+      <button class="nav">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 13l2-5.5A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.9 1.5L21 13v5h-3M3 18v-5h18M6.5 18h11"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>
+        Garage
+      </button>
+    </nav>
+
+    <main class="main">
+      <div class="head">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Live station activity, on-duty roster and the latest incident reports.</p>
+        </div>
+        <div class="clock"><b>16:10</b><span>Sunday, 8 February</span></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 7v10M7 12h10"/></svg></div>
+          <div class="stat-txt"><span>Patients treated</span><b>862</b></div>
+          <div class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>14</div>
+        </div>
+        <div class="stat">
+          <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/></svg></div>
+          <div class="stat-txt"><span>Incidents logged</span><b>312</b></div>
+          <div class="delta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>6</div>
+        </div>
+        <div class="stat">
+          <div class="tile red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+          <div class="stat-txt"><span>Open calls</span><b>3</b></div>
+          <div class="delta dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>2</div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <section class="panel">
+          <div class="p-head">
+            <div><h2>On duty</h2><p>Medics currently signed in</p></div>
+            <button class="btn-ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="p-body">
+            <div class="row"><div class="av">JD</div><div class="row-txt"><b>John Doe</b><span>Chief · Unit 01</span></div><span class="tag live">Available</span></div>
+            <div class="row"><div class="av">MR</div><div class="row-txt"><b>Maya Reyes</b><span>Paramedic · Unit 04</span></div><span class="tag hot">On scene</span></div>
+            <div class="row"><div class="av">TK</div><div class="row-txt"><b>Theo Kane</b><span>EMT · Unit 09</span></div><span class="tag live">Available</span></div>
+            <div class="row"><div class="av">SB</div><div class="row-txt"><b>Sam Brooks</b><span>Trainee · Unassigned</span></div><span class="tag off">Standby</span></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="p-head">
+            <div><h2>Recent incidents</h2><p>Last six hours</p></div>
+            <button class="btn-ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+              Filter
+            </button>
+          </div>
+          <div class="p-body">
+            <article class="inc urgent">
+              <div class="inc-top"><span class="chip red">Trauma</span><span class="ref">MED-215</span></div>
+              <h3>Gunshot wound, Vespucci Beach</h3>
+              <p>Single patient with a wound to the left shoulder. Bleeding controlled on scene and patient transported to Pillbox in critical but stable condition.</p>
+              <div class="meta"><span>Patient <b>R. Salas</b></span><span>Filed by <b>Theo Kane</b></span><span>02:41</span></div>
+            </article>
+            <article class="inc">
+              <div class="inc-top"><span class="chip">Collision</span><span class="ref">MED-214</span></div>
+              <h3>Traffic collision on Route 68</h3>
+              <p>Three vehicles involved near the eastbound off-ramp. Scene secured with PD support; two patients assessed on arrival, one transported with stable vitals.</p>
+              <div class="meta"><span>Patient <b>J. Pork</b></span><span>Filed by <b>John Doe</b></span><span>02:07</span></div>
+            </article>
+            <article class="inc">
+              <div class="inc-top"><span class="chip">Assessment</span><span class="ref">MED-213</span></div>
+              <h3>On-scene medical evaluation</h3>
+              <p>Full evaluation completed at the caller's residence. No life-threatening conditions identified, patient cleared on scene and advised to seek follow-up care.</p>
+              <div class="meta"><span>Patient <b>J. Pork</b></span><span>Filed by <b>Maya Reyes</b></span><span>02:05</span></div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span><span class="key">F</span>Filter</span>
+    <span><span class="key">↵</span>Open record</span>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════ COMPONENTS ═══════════════ -->
+<div class="sheet">
+  <div class="sheet-h">Components</div>
+  <div class="kit">
+
+    <div class="card">
+      <b>The mark</b>
+      <div class="lockup"><div class="mark lg"></div><div class="mark"></div><div class="mark sm"></div></div>
+      <div class="lockup"><div class="mark"></div><div><div class="title-txt">Emergency Services</div><div class="sub">Station 04 · Los Santos</div></div></div>
+      <div class="lockup"><div class="mark sm"></div><span style="font-size:11px;color:var(--ink-3);font-weight:300;line-height:1.5">Same chamfer as the window frame. Never rotate it, never put text inside it.</span></div>
+    </div>
+
+    <div class="card">
+      <b>Buttons</b>
+      <div class="rowset">
+        <button class="btn-teal">Save changes</button>
+        <button class="btn-white">Confirm</button>
+      </div>
+      <div class="rowset">
+        <button class="btn-line">Cancel</button>
+        <button class="btn-red">Delete record</button>
+        <button class="pill-close">Close</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>Toasts</b>
+      <div class="toast">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9 17.5 20 6.5"/></svg></div>
+        <div><b>Report filed</b><p>MED-215 was saved to the patient record.</p></div>
+      </div>
+      <div class="toast err">
+        <div class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <div><b>You're not on duty</b><p>Sign in at the station terminal to file reports.</p></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>Inputs</b>
+      <div class="field"><label for="f1">Patient name</label><input id="f1" placeholder="Search by name or ID"></div>
+      <div class="field"><label for="f2">Severity</label><select id="f2"><option>Minor</option><option>Moderate</option><option>Critical</option></select></div>
+    </div>
+
+    <div class="card">
+      <b>Toggles</b>
+      <div class="sw-line"><span>Show incident markers</span><span class="sw on"><i></i></span></div>
+      <div class="sw-line"><span>Radio chatter</span><span class="sw on"><i></i></span></div>
+      <div class="sw-line"><span>Auto-fill last report</span><span class="sw"><i></i></span></div>
+    </div>
+
+    <div class="card">
+      <b>Loading state</b>
+      <div class="skel"><div class="sk circ"></div><div style="flex:1"><div class="sk" style="height:9px;width:52%"></div><div class="sk" style="height:7px;width:32%;margin-top:7px"></div></div></div>
+      <div class="skel"><div class="sk circ"></div><div style="flex:1"><div class="sk" style="height:9px;width:66%"></div><div class="sk" style="height:7px;width:40%;margin-top:7px"></div></div></div>
+    </div>
+
+    <div class="card" style="grid-column:span 2">
+      <b>Table</b>
+      <table>
+        <thead><tr><th>Reference</th><th>Patient</th><th>Type</th><th>Medic</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr><td><b>MED-215</b></td><td>R. Salas</td><td>Trauma</td><td>Theo Kane</td><td>02:41</td></tr>
+          <tr><td><b>MED-214</b></td><td>J. Pork</td><td>Collision</td><td>John Doe</td><td>02:07</td></tr>
+          <tr><td><b>MED-213</b></td><td>J. Pork</td><td>Assessment</td><td>Maya Reyes</td><td>02:05</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="padding:0;border:0;background:none;box-shadow:none">
+      <div class="modal">
+        <div class="modal-b">
+          <div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div>
+          <div><h4>Delete this report?</h4><p>MED-214 and its attached patient notes will be removed. This cannot be undone.</p></div>
+        </div>
+        <div class="modal-f"><button class="btn-line">Keep report</button><button class="btn-red">Delete report</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>Empty state</b>
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        <b>No incidents logged today</b>
+        <span>Reports filed by your medics will appear here as soon as they're submitted.</span>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column:span 2">
+      <b>Palette</b>
+      <div class="swatches">
+        <div class="sw-item"><i style="background:#000"></i><p><b>Void</b>#000000</p></div>
+        <div class="sw-item"><i style="background:#08090a"></i><p><b>Base</b>#08090a</p></div>
+        <div class="sw-item"><i style="background:#0e1011"></i><p><b>Panel</b>#0e1011</p></div>
+        <div class="sw-item"><i style="background:#15181a"></i><p><b>Raised</b>#15181a</p></div>
+        <div class="sw-item"><i style="background:#08afa2"></i><p><b>Teal</b>#08afa2</p></div>
+        <div class="sw-item"><i style="background:#0fd4c4"></i><p><b>Teal hi</b>#0fd4c4</p></div>
+        <div class="sw-item"><i style="background:#e5484d"></i><p><b>Red</b>#e5484d</p></div>
+        <div class="sw-item"><i style="background:#fff"></i><p><b>White</b>#ffffff</p></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.nav').forEach(n=>n.addEventListener('click',()=>{
+  document.querySelectorAll('.nav').forEach(x=>x.classList.remove('on'));
+  n.classList.add('on');
+}));
+document.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>s.classList.toggle('on')));
+</script>
+</body>
+</html>
