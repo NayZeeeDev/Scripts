@@ -91,7 +91,7 @@ def main():
     uses = []  # (side, file, member, line)
     for f, text in src.items():
         side = files[f]
-        aliases = dict(re.findall(r'local\s+(\w+)\s*=\s*NZ\.(\w+)\b(?!\.)', text))
+        aliases = dict(re.findall(r'local\s+(\w+)\s*=\s*NZ\.(\w+)[ \t]*(?:--[^\n]*)?$', text, re.M))
         for alias, mod in aliases.items():
             for m in re.finditer(r'(?:function\s+' + re.escape(alias) + r'[.:](\w+)\s*\()|(?:^|[^\w.])' + re.escape(alias) + r'\.(\w+)\s*=(?!=)', text, re.M):
                 defs[side].add(f'{mod}.{m.group(1) or m.group(2)}')

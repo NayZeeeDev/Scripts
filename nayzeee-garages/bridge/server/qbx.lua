@@ -271,6 +271,37 @@ function Bridge.getGangs()
   return groupList(qbx:GetGangs())
 end
 
+--- Map a framework shared-vehicle entry to our category ('car'|'sea'|'air') or nil.
+local function sharedCategory(entry)
+  if type(entry) ~= 'table' then return nil end
+  local t = type(entry.type) == 'string' and entry.type:lower() or ''
+  local c = type(entry.category) == 'string' and entry.category:lower() or ''
+  if t == 'boat' or t == 'submarine' or c == 'boats' or c == 'boat' then return 'sea' end
+  if t == 'heli' or t == 'plane' or c == 'helicopters' or c == 'planes' or c == 'helicopter' or c == 'plane' then return 'air' end
+  if t ~= '' or c ~= '' then return 'car' end
+  return nil
+end
+
+local vehiclesByName, vehiclesByHash, vehiclesAt = nil, nil, 0
+
+--- Vehicle category from qbx_core's shared vehicle list (cached for a minute).
+---@param model string|nil
+---@param hash number|nil
+---@return 'car'|'sea'|'air'|nil
+function Bridge.getSharedVehicleType(model, hash)
+  local now = GetGameTimer()
+  if not vehiclesByName or now - vehiclesAt > 60000 then
+    local okName, byName = pcall(function() return qbx:GetVehiclesByName() end)
+    local okHash, byHash = pcall(function() return qbx:GetVehiclesByHash() end)
+    vehiclesByName = okName and type(byName) == 'table' and byName or {}
+    vehiclesByHash = okHash and type(byHash) == 'table' and byHash or {}
+    vehiclesAt = now
+  end
+  if type(model) == 'string' and vehiclesByName[model] then return sharedCategory(vehiclesByName[model]) end
+  if type(hash) == 'number' and vehiclesByHash[hash] then return sharedCategory(vehiclesByHash[hash]) end
+  return nil
+end
+
 ---------------------------------------------------------------------------------------
 -- Internal hooks for common.lua
 ---------------------------------------------------------------------------------------

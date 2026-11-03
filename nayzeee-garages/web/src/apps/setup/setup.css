@@ -1,0 +1,216 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Vehicle setup: bottom-left HUD panel (design-sheet HUD surface, radius 12).
+   No backdrop-filter / color-mix / :has / nesting. Accent only via --teal*.
+   ═══════════════════════════════════════════════════════════════════════ */
+.nz-setup {
+  position: fixed;
+  left: clamp(18px, 2.4vw, 46px);
+  bottom: clamp(18px, 3.2vh, 40px);
+  z-index: var(--z-window);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 316px;
+  max-height: calc(100vh - 2 * clamp(18px, 3.2vh, 40px));
+  padding: 14px;
+  background: var(--hud);
+  border: 1px solid var(--hud-line);
+  border-radius: 12px;
+  box-shadow: var(--sh-hud), 0 14px 32px rgba(0, 0, 0, .26);
+  pointer-events: auto;
+  animation: nz-setup-in 240ms var(--ease) both;
+}
+
+.nz-setup__head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.nz-setup__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(var(--teal-rgb), .16);
+  border: 1px solid var(--teal-edge);
+  color: var(--teal);
+}
+
+.nz-setup__titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nz-setup__titles h2 {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -.01em;
+  color: var(--white);
+}
+
+.nz-setup__titles p {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink-hud);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-setup__tabs { flex: none; }
+
+.nz-setup__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-setup__sub {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.nz-setup__sub span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-setup__sub small {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.nz-setup__list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  max-height: min(318px, 42vh);
+  margin-right: -6px;
+  padding-right: 6px;
+  overflow-y: auto;
+}
+
+.nz-setup__livery {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: none;
+  min-width: 0;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--ink-hud);
+  transition: background var(--fast), border-color var(--fast), color var(--fast);
+}
+
+.nz-setup__livery:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .05);
+  color: var(--white);
+}
+
+.nz-setup__livery.is-on {
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), .18), rgba(var(--teal-rgb), .05));
+  border-color: rgba(var(--teal-rgb), .32);
+  color: var(--white);
+  font-weight: 500;
+}
+
+.nz-setup__livery:disabled { cursor: default; }
+
+.nz-setup__radio {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, .26);
+  transition: border-color var(--fast);
+}
+
+.nz-setup__radio i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 8px rgba(var(--teal-rgb), .7);
+  transform: scale(0);
+  transition: transform var(--fast);
+}
+
+.nz-setup__livery.is-on .nz-setup__radio { border-color: var(--teal); }
+.nz-setup__livery.is-on .nz-setup__radio i { transform: scale(1); }
+
+.nz-setup__livery-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-setup__preview { color: var(--teal); }
+
+.nz-setup__list--extras { gap: 0; }
+
+.nz-setup__extra {
+  flex: none;
+  padding: 8px 4px 8px 11px;
+  border-radius: 8px;
+  transition: background var(--fast);
+}
+
+.nz-setup__extra:hover { background: rgba(255, 255, 255, .04); }
+
+.nz-setup__none {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .035);
+  border: 1px dashed rgba(255, 255, 255, .1);
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--ink-hud);
+}
+
+.nz-setup__foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+}
+
+.nz-setup__keys {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 10.5px;
+}
+
+@keyframes nz-setup-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}

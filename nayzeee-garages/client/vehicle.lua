@@ -680,6 +680,7 @@ local function createVehicle(opts)
 
   if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) or not Veh.requestModel(hash, MODEL_TIMEOUT) then
     notifyError(L('Could not load the vehicle model'))
+    Veh.lastErrorShown = GetGameTimer() -- callers skip their generic error toast
     return nil
   end
 

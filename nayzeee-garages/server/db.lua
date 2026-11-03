@@ -340,8 +340,11 @@ local function mapRow(r)
   if hash and props.model == nil then props.model = hash end
 
   local vehicleType = r.nz_type
-  if not Utils.vehicleTypes[vehicleType] then
-    vehicleType = (isEsx and type(r.type) == 'string' and ESX_TYPE_CATEGORY[r.type:lower()]) or 'car'
+  local vehicleTypeKnown = Utils.vehicleTypes[vehicleType] ~= nil
+  if not vehicleTypeKnown then
+    local esxType = isEsx and type(r.type) == 'string' and ESX_TYPE_CATEGORY[r.type:lower()] or nil
+    vehicleTypeKnown = esxType ~= nil
+    vehicleType = esxType or 'car'
   end
 
   local job, gang = nonEmpty(r.nz_job), nonEmpty(r.nz_gang)
@@ -358,6 +361,7 @@ local function mapRow(r)
     state = STATE_NAME[effectiveState(r)],
     nickname = nonEmpty(r.nz_nickname),
     vehicleType = vehicleType,
+    vehicleTypeKnown = vehicleTypeKnown, -- false: no stored type (QBCore/Qbox rows never stored by us)
     ownerType = job and 'job' or (gang and 'gang') or 'player',
     job = job,
     gang = gang,

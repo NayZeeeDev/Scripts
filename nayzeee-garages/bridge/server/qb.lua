@@ -299,6 +299,33 @@ function Bridge.getGangs()
   return groupList(qb and qb.Shared and qb.Shared.Gangs)
 end
 
+--- Map a framework shared-vehicle entry to our category ('car'|'sea'|'air') or nil.
+local function sharedCategory(entry)
+  if type(entry) ~= 'table' then return nil end
+  local t = type(entry.type) == 'string' and entry.type:lower() or ''
+  local c = type(entry.category) == 'string' and entry.category:lower() or ''
+  if t == 'boat' or t == 'submarine' or c == 'boats' or c == 'boat' then return 'sea' end
+  if t == 'heli' or t == 'plane' or c == 'helicopters' or c == 'planes' or c == 'helicopter' or c == 'plane' then return 'air' end
+  if t ~= '' or c ~= '' then return 'car' end
+  return nil
+end
+
+--- Vehicle category from QBCore.Shared.Vehicles (by spawn name, else by hash).
+---@param model string|nil
+---@param hash number|nil
+---@return 'car'|'sea'|'air'|nil
+function Bridge.getSharedVehicleType(model, hash)
+  local qb = core(SHARED_MAX_AGE)
+  local list = qb and qb.Shared and qb.Shared.Vehicles
+  if type(list) ~= 'table' then return nil end
+  if type(model) == 'string' and list[model] then return sharedCategory(list[model]) end
+  if type(hash) == 'number' then
+    local byHash = qb.Shared.VehicleHashes
+    if type(byHash) == 'table' and byHash[hash] then return sharedCategory(byHash[hash]) end
+  end
+  return nil
+end
+
 ---------------------------------------------------------------------------------------
 -- Internal hooks for common.lua
 ---------------------------------------------------------------------------------------

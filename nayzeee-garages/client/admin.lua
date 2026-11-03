@@ -162,9 +162,11 @@ NZ.NUI.register('admin:points', function(data)
   end
   if NZ.Placement.isActive() then return Utils.fail(L('Finish the current action first')) end
   local vehicleType = Utils.vehicleTypes[data.vehicleType] and data.vehicleType or 'car'
-  local page = validPage(data.page) or (cache and cache.page)
 
-  NZ.NUI.close('admin')
+  -- Keep the admin app mounted (so unsaved editor state survives): the NUI hides its window
+  -- while this request is pending; we only release focus for the in-world manager.
+  local hadAdmin = NZ.NUI.isOpen('admin')
+  if hadAdmin then NZ.NUI.setFocus('admin', false) end
   local ok, result = pcall(NZ.Placement.manage, {
     kind = kind,
     vehicleType = vehicleType,
@@ -175,7 +177,11 @@ NZ.NUI.register('admin:points', function(data)
     lib.print.error(('[nayzeee-garages] point manager failed: %s'):format(result))
     result = nil
   end
-  reopen(page)
+  if hadAdmin and NZ.NUI.isOpen('admin') then
+    NZ.NUI.setFocus('admin', true)
+  else
+    reopen(validPage(data.page) or (cache and cache.page))
+  end
   return result
 end)
 

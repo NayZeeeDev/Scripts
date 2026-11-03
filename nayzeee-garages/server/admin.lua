@@ -637,9 +637,6 @@ local function applyPatch(src, plate, patch)
         if not key then return fail(err) end
         fields.garageKey = key
         fields.garageName = NZ.Locations.keyName(key) or (resolved and resolved.location and resolved.location.name) or false
-        if resolved and resolved.location and resolved.location.vehicleType then
-          fields.vehicleType = resolved.location.vehicleType
-        end
       end
     end
     if details.state ~= nil then
@@ -817,8 +814,8 @@ end
 -- Callbacks
 ---------------------------------------------------------------------------------------
 
-local function register(action, ms, handler)
-  local name = 'nz:admin:' .. action
+local function register(name, ms, handler)
+  local bucket = name:gsub('^nz:', '')
   lib.callback.register(name, Utils.safe(function(source, payload)
     local src = tonumber(source)
     if not src or src <= 0 or not NZ.Access.isAdmin(src) then
@@ -826,7 +823,7 @@ local function register(action, ms, handler)
       return fail(L('No permission'))
     end
     if not NZ.Ready then return fail(L('Garages are still loading')) end
-    if not NZ.Access.rateLimit(src, 'admin:' .. action, ms) then
+    if not NZ.Access.rateLimit(src, bucket, ms) then
       return fail(L('Please wait a moment before trying again'))
     end
     if type(payload) ~= 'table' then payload = {} end
@@ -835,15 +832,15 @@ local function register(action, ms, handler)
 end
 
 -- {} -> AdminOpenData
-register('refresh', 500, function()
+register('nz:admin:refresh', 500, function()
   return ok(Admin.openData())
 end)
 
 -- { location } -> Location
-register('location:save', 500, function(src, payload)
+register('nz:admin:location:save', 500, function(src, payload)
   local location = payload.location
   if type(location) ~= 'table' then return fail(L('Invalid location data')) end
-  local id = nil
+  local id, previousAccess = nil, nil
   if location.id ~= nil then
     id = positiveId(location.id)
     local existing = id and NZ.Locations.get(id) or nil
@@ -851,17 +848,23 @@ register('location:save', 500, function(src, payload)
     if existing.kind == 'private' and location.kind ~= 'private' and #groupsOfLocation(id) > 0 then
       return fail(L('Remove the owned garages of this location before changing its type'))
     end
+    previousAccess = type(existing.access) == 'table' and Utils.deepCopy(existing.access) or {}
   end
   local saved, err = NZ.Locations.save(location, src)
   if not saved then return fail(err) end
-  if id and saved.enabled == false then
-    NZ.Interiors.closeWhere({ locationId = id }, L('This garage is closed'))
+  if id then
+    local access = type(saved.access) == 'table' and saved.access or {}
+    if saved.enabled == false then
+      NZ.Interiors.closeWhere({ locationId = id }, L('This garage is closed'))
+    elseif access.mode == 'quick' or access.interiorId ~= previousAccess.interiorId then
+      NZ.Interiors.closeWhere({ locationId = id }, L('This garage interior was changed by an admin'))
+    end
   end
   return ok(saved)
 end)
 
 -- { id } -> null
-register('location:delete', 1000, function(src, payload)
+register('nz:admin:location:delete', 1000, function(src, payload)
   local id = positiveId(payload.id)
   local location = id and NZ.Locations.get(id) or nil
   if not location then return fail(L('Location not found')) end
@@ -895,7 +898,7 @@ register('location:delete', 1000, function(src, payload)
 end)
 
 -- { id, enabled } -> null
-register('location:toggle', 500, function(src, payload)
+register('nz:admin:location:toggle', 500, function(src, payload)
   local id = positiveId(payload.id)
   if not id then return fail(L('Location not found')) end
   if type(payload.enabled) ~= 'boolean' then return fail(L('Invalid request')) end
@@ -906,7 +909,7 @@ register('location:toggle', 500, function(src, payload)
 end)
 
 -- { source, json? } -> { imported, skipped }
-register('location:import', 3000, function(src, payload)
+register('nz:admin:location:import', 3000, function(src, payload)
   if type(payload.source) ~= 'string' or #payload.source > 64 then return fail(L('Unknown import source')) end
   if payload.json ~= nil and type(payload.json) ~= 'string' then return fail(L('The JSON could not be read')) end
   local result, err = NZ.Import.run(payload.source, payload.json, src)
@@ -916,7 +919,7 @@ register('location:import', 3000, function(src, payload)
 end)
 
 -- { locationId } -> GroupInfo[]
-register('groups', 300, function(_, payload)
+register('nz:admin:groups', 300, function(_, payload)
   local locationId = positiveId(payload.locationId)
   local location = locationId and NZ.Locations.get(locationId) or nil
   if not location then return fail(L('Location not found')) end
@@ -933,7 +936,7 @@ register('groups', 300, function(_, payload)
 end)
 
 -- { group = { id?, locationId, label, owner } } -> GroupInfo
-register('group:save', 500, function(src, payload)
+register('nz:admin:group:save', 500, function(src, payload)
   local data = payload.group
   if type(data) ~= 'table' then return fail(L('Invalid garage data')) end
   local owner = identifierArg(data.owner)
@@ -985,7 +988,7 @@ register('group:save', 500, function(src, payload)
 end)
 
 -- { id } -> null
-register('group:delete', 1000, function(src, payload)
+register('nz:admin:group:delete', 1000, function(src, payload)
   local id = positiveId(payload.id)
   local group = id and findGroup(id) or nil
   if not group then return fail(L('Garage not found')) end
@@ -1003,7 +1006,7 @@ register('group:delete', 1000, function(src, payload)
 end)
 
 -- { groupId, identifier, role|null } -> GroupInfo  (role nil = remove the member)
-register('group:member', 500, function(src, payload)
+register('nz:admin:group:member', 500, function(src, payload)
   local groupId = positiveId(payload.groupId)
   local group = groupId and findGroup(groupId) or nil
   if not group then return fail(L('Garage not found')) end
@@ -1051,7 +1054,7 @@ register('group:member', 500, function(src, payload)
 end)
 
 -- { id } -> null
-register('interior:delete', 1000, function(src, payload)
+register('nz:admin:interior:delete', 1000, function(src, payload)
   local id = positiveId(payload.id)
   if not id then return fail(L('Interior not found')) end
   local success, err = NZ.Interiors.delete(id, src)
@@ -1060,7 +1063,7 @@ register('interior:delete', 1000, function(src, payload)
 end)
 
 -- { id, enabled } -> null
-register('interior:toggle', 500, function(src, payload)
+register('nz:admin:interior:toggle', 500, function(src, payload)
   local id = positiveId(payload.id)
   if not id then return fail(L('Interior not found')) end
   if type(payload.enabled) ~= 'boolean' then return fail(L('Invalid request')) end
@@ -1070,7 +1073,7 @@ register('interior:toggle', 500, function(src, payload)
 end)
 
 -- { settings } -> Settings
-register('settings:save', 1000, function(src, payload)
+register('nz:admin:settings:save', 1000, function(src, payload)
   if type(payload.settings) ~= 'table' then return fail(L('Invalid settings')) end
   local saved, persisted = NZ.Settings.save(payload.settings, src)
   if type(saved) ~= 'table' then
@@ -1086,7 +1089,7 @@ register('settings:save', 1000, function(src, payload)
 end)
 
 -- { query, page } -> Paged<PlayerSearchRow>
-register('players:search', 300, function(_, payload)
+register('nz:admin:players:search', 300, function(_, payload)
   local query = type(payload.query) == 'string' and Utils.trim((payload.query:gsub('%c', ''))) or ''
   if #query > 64 then query = query:sub(1, 64) end
   local page = num(payload.page, 1, 100000, 1, true)
@@ -1147,7 +1150,7 @@ register('players:search', 300, function(_, payload)
 end)
 
 -- { identifier } -> { player, vehicles = AdminVehicleRow[] }
-register('players:vehicles', 300, function(_, payload)
+register('nz:admin:players:vehicles', 300, function(_, payload)
   local identifier = identifierArg(payload.identifier)
   if not identifier then return fail(L('Invalid identifier')) end
   local names = {}
@@ -1163,7 +1166,7 @@ register('players:vehicles', 300, function(_, payload)
 end)
 
 -- { plate } -> AdminVehicleDetail
-register('vehicle:get', 250, function(_, payload)
+register('nz:admin:vehicle:get', 250, function(_, payload)
   local plate = readPlate(payload.plate)
   if not plate then return fail(L('Invalid vehicle')) end
   local detail = vehicleDetail(plate)
@@ -1172,7 +1175,7 @@ register('vehicle:get', 250, function(_, payload)
 end)
 
 -- { identifier, model, plate|'', garageKey } -> AdminVehicleRow
-register('vehicle:assign', 1000, function(src, payload)
+register('nz:admin:vehicle:assign', 1000, function(src, payload)
   local identifier = identifierArg(payload.identifier)
   if not identifier then return fail(L('Invalid identifier')) end
   local model = modelArg(payload.model)
@@ -1222,7 +1225,7 @@ register('vehicle:assign', 1000, function(src, payload)
 end)
 
 -- { plate, patch } -> AdminVehicleDetail
-register('vehicle:update', 500, function(src, payload)
+register('nz:admin:vehicle:update', 500, function(src, payload)
   local plate = readPlate(payload.plate)
   if not plate then return fail(L('Invalid vehicle')) end
   if type(payload.patch) ~= 'table' then return fail(L('Nothing to change')) end
@@ -1230,7 +1233,7 @@ register('vehicle:update', 500, function(src, payload)
 end)
 
 -- { plate } -> null
-register('vehicle:delete', 1000, function(src, payload)
+register('nz:admin:vehicle:delete', 1000, function(src, payload)
   local plate = readPlate(payload.plate)
   if not plate then return fail(L('Invalid vehicle')) end
   return withLock(plate, function()

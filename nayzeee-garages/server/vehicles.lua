@@ -307,7 +307,14 @@ end
 ---@param row table NZVehicleRow
 ---@return 'car'|'sea'|'air'
 function Vehicles.vehicleTypeOf(row)
-  local vtype = type(row) == 'table' and row.vehicleType or nil
+  if type(row) ~= 'table' then return 'car' end
+  local vtype = row.vehicleType
+  -- Rows never stored by this resource have no nz_type on QBCore/Qbox: ask the framework's
+  -- shared vehicle list (boats / helicopters / planes) before assuming a car.
+  if not row.vehicleTypeKnown and NZ.Bridge.getSharedVehicleType then
+    local ok, shared = pcall(NZ.Bridge.getSharedVehicleType, row.model, row.hash)
+    if ok and shared and Utils.vehicleTypes[shared] then return shared end
+  end
   if vtype and Utils.vehicleTypes[vtype] then return vtype end
   return 'car'
 end
@@ -954,7 +961,9 @@ local function doRetrieve(src, plate, session, opts)
   if not row then return fail(L('Vehicle not found')) end
   if opts.fromImpound and row.state ~= 'impounded' then return fail(L('This vehicle is not impounded')) end
 
-  local allowed, reason = evaluate(src, row, session, { identifier = identifier }, opts.fromImpound == true, nil)
+  -- Impound staff (validated by server/impound.lua) may release vehicles they do not own.
+  local access = (opts.fromImpound and opts.staff == true) and 'staff' or nil
+  local allowed, reason = evaluate(src, row, session, { identifier = identifier }, opts.fromImpound == true, access)
   if not allowed then return fail(reason) end
 
   if Vehicles.isOut(plate) then return fail(L('Vehicle is already out')) end
@@ -1127,6 +1136,38 @@ function Vehicles.markSpawned(src, plate, netId)
     if not given then lib.print.warn(('[nayzeee-garages] key hand-out failed for %s: %s'):format(plate, err)) end
   end
   return true, nil
+end
+
+--- The client could not create a vehicle it retrieved: put it back where it was, unless any
+--- copy of it exists on the server (prevents using a fake failure report to duplicate).
+---@param src number
+---@param plate string
+---@return boolean released, string|nil error
+function Vehicles.spawnFailed(src, plate)
+  plate = readPlate(plate)
+  if not plate then return false, L('Invalid vehicle') end
+  local entry = Vehicles.out[plate]
+  if not entry or entry.src ~= src then return false, L('This vehicle was not taken out by you') end
+  if entry.entity and isVehicleEntity(entry.entity) then return false, L('Vehicle is already out') end
+  if findEntityByPlate(plate) then return false, L('Vehicle is already out') end
+  if (os.time() - (entry.at or 0)) > 120 then return false, L('This vehicle was not taken out by you') end
+
+  if entry.spawner then
+    if NZ.Jobs and NZ.Jobs.release then pcall(NZ.Jobs.release, plate) end
+    Vehicles.clearOut(plate)
+    return true, nil
+  end
+  local done, err = Vehicles.withLock(plate, function()
+    local row = NZ.DB.getVehicle(plate)
+    Vehicles.clearOut(plate)
+    if row and row.state == 'out' then
+      NZ.DB.updateVehicle(plate, { state = 'garaged' })
+      log('vehicle.spawnFailed', src, { plate = plate, garage = row.garageKey })
+    end
+    return true, nil
+  end)
+  if type(done) == 'table' then return false, done.error end -- lock busy result
+  return done == true, err
 end
 
 ---------------------------------------------------------------------------------------
@@ -1546,6 +1587,11 @@ end)
 -- { plate, netId } -> null
 register('nz:garage:spawned', function(src, payload)
   if rateLimited(src, 'garage:spawned', 250) then return fail(L('Please wait a moment before trying again')) end
+  if payload.failed == true then
+    local released, why = Vehicles.spawnFailed(src, payload.plate)
+    if not released then return fail(why) end
+    return ok(nil)
+  end
   local success, err = Vehicles.markSpawned(src, payload.plate, payload.netId)
   if not success then return fail(err) end
   return ok(nil)

@@ -160,7 +160,10 @@ function Garage.spawnFromServer(data, fallbackPoint, extra)
     vehicle = nil
   end
   if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then
-    NZ.NUI.notify('error', L('The vehicle could not be spawned'))
+    local shown = NZ.Veh.lastErrorShown
+    if not shown or GetGameTimer() - shown > 2000 then
+      NZ.NUI.notify('error', L('The vehicle could not be spawned'))
+    end
     reportSpawned(plate, nil)
     return nil
   end

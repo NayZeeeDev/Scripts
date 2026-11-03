@@ -328,12 +328,95 @@ lib = setmetatable({
 cache = { ped = 101, playerId = 0, serverId = 1, coords = vector3(0, 0, 0), vehicle = false, seat = false, resource = 'nayzeee-garages' }
 function locale(s) return s end
 
-local function mysqlStub(default)
-  return setmetatable({ await = function() return default end }, { __call = function(_, _, _, cb) if type(cb) == 'function' then cb(default) end return default end })
+---------------------------------------------------------------------------------------
+-- Fake database: answers by SQL pattern with a small, consistent world located at the
+-- fake player's position (0,0,0) so proximity checks pass.
+---------------------------------------------------------------------------------------
+local isEsx = framework == 'esx'
+local vehicleTable = isEsx and 'owned_vehicles' or 'player_vehicles'
+local nzCols = { 'nz_garage', 'nz_state', 'nz_nickname', 'nz_type', 'nz_job', 'nz_gang', 'nz_mileage', 'nz_damage', 'nz_trailer', 'nz_impound', 'nz_blocked', 'nz_last_out' }
+local fwCols = isEsx and { 'owner', 'plate', 'vehicle', 'type', 'job', 'stored', 'parking', 'pound' }
+  or { 'id', 'license', 'citizenid', 'vehicle', 'hash', 'mods', 'plate', 'fakeplate', 'garage', 'fuel', 'engine', 'body', 'state', 'depotprice', 'drivingdistance', 'status', 'balance', 'paymentamount', 'paymentsleft', 'financetime' }
+local pt = { x = 0.0, y = 0.0, z = 0.0 }
+local function loc(id, kind, extra)
+  local d = { kind = kind, name = 'Smoke ' .. kind, vehicleType = 'car', enabled = true,
+    spawnPoints = { { x = 5.0, y = 5.0, z = 0.0, w = 90.0 } }, openPoints = { { coords = pt, radius = 2.0 } },
+    useOpenForStore = true, storePoints = {}, returnToEntrance = false,
+    blip = { enabled = true, sprite = 357, color = 3, scale = 0.7 } }
+  for k, v in pairs(extra or {}) do d[k] = v end
+  return { id = id, kind = kind, name = d.name, enabled = 1, data = dk.encode(d) }
+end
+local locationRows = {
+  loc(1, 'garage', { source = 'personal', spawner = {}, capacity = { mode = 'limited', appliesTo = 'player', spaces = 8 }, access = { mode = 'both', interiorId = 1 }, restriction = { type = 'everyone', rules = {}, identifiers = {} } }),
+  loc(2, 'private', { purchasable = true, price = 50000, maxCopies = 2, storage = 'shared', sellRefund = 50, capacity = { mode = 'limited', appliesTo = 'total', spaces = 8 }, access = { mode = 'both', interiorId = 1 } }),
+  loc(3, 'impound', { jobs = { { name = 'police', minGrade = 0 } }, society = 'police', defaultFee = 500, defaultHours = 0 }),
+  loc(4, 'job', { source = 'spawner', owner = 'job', jobs = { { name = 'police', minGrade = 0 } }, spawner = { { model = 'police', label = '', plate = 'LSPD####', grades = {}, livery = -1, extras = {}, maxMods = false, price = 0 } }, infiniteSpawns = false, setupMenu = true, capacity = { mode = 'unlimited', appliesTo = 'total', spaces = 0 }, access = { mode = 'quick', interiorId = nil } }),
+}
+local interiorRow = { id = 1, name = 'Smoke interior', enabled = 1, data = dk.encode({ profile = nil, options = {}, entry = { x = 0, y = 0, z = 0, w = 0 }, cutscene = { enabled = false, transition = 3000, returnTime = 1000, points = {} }, slots = { { x = 1, y = 1, z = 0, w = 0 }, { x = 3, y = 1, z = 0, w = 0 } }, exit = nil }) }
+local props = dk.encode({ model = joaat('sultan'), plate = 'ABC123', fuelLevel = 80.0, engineHealth = 900.0, bodyHealth = 950.0 })
+local vehicleRow = isEsx
+  and { owner = 'char1:abc', plate = 'ABC123', vehicle = props, type = 'car', job = nil, stored = 1, parking = 'Smoke garage', pound = nil, nz_garage = 'L1', nz_state = 1, nz_type = 'car', nz_mileage = 120.5 }
+  or { id = 1, license = 'license:abc', citizenid = 'CID001', vehicle = 'sultan', hash = tostring(joaat('sultan')), mods = props, plate = 'ABC123', garage = 'Smoke garage', fuel = 80, engine = 900, body = 950, state = 1, balance = 1000, paymentamount = 100, paymentsleft = 10, financetime = 600, nz_garage = 'L1', nz_state = 1, nz_type = 'car', nz_mileage = 120.5 }
+local function copy(t) local o = {} for k, v in pairs(t) do o[k] = v end return o end
+
+local function fakeQuery(method, sql, params)
+  sql = tostring(sql)
+  local up = sql:upper()
+  params = params or {}
+  if up:find('INFORMATION_SCHEMA') and up:find('COLUMNS') then
+    local tbl = params[1]
+    local rows = {}
+    if tbl == vehicleTable then
+      for _, c in ipairs(fwCols) do rows[#rows + 1] = { name = c, COLUMN_NAME = c } end
+      for _, c in ipairs(nzCols) do rows[#rows + 1] = { name = c, COLUMN_NAME = c } end
+    elseif tbl == 'vehicle_financing' and framework == 'qbx' then
+      for _, c in ipairs({ 'vehicleId', 'balance', 'paymentamount', 'paymentsleft', 'financetime' }) do rows[#rows + 1] = { name = c } end
+    elseif tbl == 'users' then
+      for _, c in ipairs({ 'identifier', 'firstname', 'lastname' }) do rows[#rows + 1] = { name = c } end
+    end
+    return rows
+  end
+  if up:find('INFORMATION_SCHEMA') then return {} end
+  if method == 'insert' then return 7 end
+  if method == 'update' then return 1 end
+  if method == 'transaction' then return true end
+  if up:find('COUNT%(') then
+    if method == 'scalar' or method == 'single' then return method == 'scalar' and 1 or { total = 1, count = 1, c = 1, n = 1 } end
+    return { { total = 1, count = 1, c = 1, n = 1 } }
+  end
+  if up:find('NZ_SETTINGS') then
+    if method == 'scalar' then return '{}' end
+    return method == 'single' and nil or {}
+  end
+  local rows = {}
+  if up:find('FROM%s+`?NZ_LOCATIONS') then rows = locationRows
+  elseif up:find('FROM%s+`?NZ_INTERIORS') then rows = { interiorRow }
+  elseif up:find('FROM%s+`?NZ_GROUP_MEMBERS') then rows = { { group_id = 1, groupId = 1, identifier = isEsx and 'char1:abc' or 'CID001', name = 'John Doe', role = 'owner' } }
+  elseif up:find('FROM%s+`?NZ_GROUPS') then rows = { { id = 1, location_id = 2, locationId = 2, label = 'Smoke private', owner = isEsx and 'char1:abc' or 'CID001', price = 50000, created_at = 0, createdAt = 0 } }
+  elseif up:find('FROM%s+`?' .. vehicleTable:upper()) then rows = { copy(vehicleRow) }
+  elseif up:find('FROM%s+`?PLAYERS') then rows = { { citizenid = 'CID001', identifier = 'CID001', license = 'license:abc', charinfo = dk.encode({ firstname = 'John', lastname = 'Doe' }), name = 'John Doe' } }
+  elseif up:find('FROM%s+`?USERS') then rows = { { identifier = 'char1:abc', firstname = 'John', lastname = 'Doe' } }
+  end
+  if method == 'single' then return rows[1] and copy(rows[1]) or nil end
+  if method == 'scalar' then local r = rows[1] if not r then return nil end for _, v in pairs(r) do return v end end
+  local out = {}
+  for i, r in ipairs(rows) do out[i] = copy(r) end
+  return out
+end
+
+local function mysqlMethod(name)
+  return setmetatable({ await = function(sql, params) return fakeQuery(name, sql, params) end }, {
+    __call = function(_, sql, params, cb)
+      if type(params) == 'function' then cb, params = params, nil end
+      local r = fakeQuery(name, sql, params)
+      if type(cb) == 'function' then cb(r) end
+      return r
+    end,
+  })
 end
 MySQL = {
-  query = mysqlStub({}), single = mysqlStub(nil), scalar = mysqlStub(0), insert = mysqlStub(1),
-  update = mysqlStub(0), prepare = mysqlStub(nil), transaction = mysqlStub(true), rawExecute = mysqlStub({}),
+  query = mysqlMethod('query'), single = mysqlMethod('single'), scalar = mysqlMethod('scalar'), insert = mysqlMethod('insert'),
+  update = mysqlMethod('update'), prepare = mysqlMethod('query'), transaction = mysqlMethod('transaction'), rawExecute = mysqlMethod('query'),
   ready = function(cb) cb() end, Sync = Stub, Async = Stub,
 }
 
@@ -393,6 +476,53 @@ local payloads = {
 if side == 'server' then
   TriggerEvent('nz:server:playerLoaded', 1)
   runThreads(100)
+  -- Scripted end-to-end flow (before the destructive sweep below).
+  local flow = {
+    { 'nz:state:bootstrap', {} },
+    { 'nz:garage:open', { locationId = 1 } },
+    { 'nz:garage:refresh', {} },
+    { 'nz:garage:favourite', { plate = 'ABC123', value = true } },
+    { 'nz:garage:rename', { plate = 'ABC123', name = 'Daily' } },
+    { 'nz:garage:transferOptions', { plate = 'ABC123' } },
+    { 'nz:garage:shares', { plate = 'ABC123' } },
+    { 'nz:garage:payFinance', { plate = 'ABC123', full = false } },
+    { 'nz:garage:retrieve', { plate = 'ABC123', spawnIndex = 1, entityType = 'automobile' } },
+    { 'nz:garage:spawned', { plate = 'ABC123', netId = 5 } },
+    { 'nz:garage:track', { plate = 'ABC123' } },
+    { 'nz:garage:store', { locationId = 1, netId = 5, data = { plate = 'ABC123', hash = joaat('sultan'), props = {}, fuel = 50, engine = 90, body = 90, mileage = 130 } } },
+    { 'nz:garage:goInside', {} },
+    { 'nz:interior:page', { page = 1 } },
+    { 'nz:interior:players', {} },
+    { 'nz:interior:leave', {} },
+    { 'nz:forSale:info', { locationId = 2 } },
+    { 'nz:garage:open', { locationId = 2 } },
+    { 'nz:garage:members', {} },
+    { 'nz:garage:open', { locationId = 4 } },
+    { 'nz:garage:spawner', { index = 1, spawnIndex = 1, entityType = 'automobile' } },
+    { 'nz:impound:formData', { plate = 'ABC123' } },
+    { 'nz:impound:open', { locationId = 3 } },
+    { 'nz:impound:refresh', {} },
+    { 'nz:admin:refresh', {} },
+    { 'nz:admin:players:search', { query = 'jo', page = 1 } },
+    { 'nz:admin:players:vehicles', { identifier = 'CID001' } },
+    { 'nz:admin:vehicle:get', { plate = 'ABC123' } },
+    { 'nz:admin:groups', { locationId = 2 } },
+  }
+  for _, step in ipairs(flow) do
+    local name, payload = step[1], step[2]
+    if callbacks[name] then
+      CreateThread(function()
+        local ok, res = xpcall(callbacks[name], debug.traceback, 1, payload)
+        if not ok then report('flow ' .. name, res)
+        elseif os.getenv('SMOKE_VERBOSE') or os.getenv('SMOKE_FLOW') then
+          print(('FLOW %-30s %s %s'):format(name, type(res) == 'table' and (res.ok and 'ok' or 'fail') or '?', type(res) == 'table' and (res.ok and '' or tostring(res.error)) or tostring(res)))
+        end
+      end)
+      runThreads(80)
+    else
+      report('flow', 'callback not registered: ' .. name)
+    end
+  end
   local names = {}
   for name in pairs(callbacks) do names[#names + 1] = name end
   table.sort(names)
@@ -404,6 +534,8 @@ if side == 'server' then
           report('callback ' .. name .. ' payload#' .. i, res)
         elseif type(res) ~= 'table' or type(res.ok) ~= 'boolean' then
           report('shape ' .. name .. ' payload#' .. i, 'returned ' .. tostring(res) .. ' (expected { ok = boolean })')
+        elseif os.getenv('SMOKE_VERBOSE') then
+          print(('%-34s #%d %s %s'):format(name, i, res.ok and 'ok  ' or 'fail', res.ok and '' or tostring(res.error)))
         end
       end)
       runThreads(60)
