@@ -50,7 +50,7 @@ function validate(s: Settings, impoundIds: number[]): Record<string, string> {
   const img = s.interface.showImages ? imageUrlError(s.interface.imageUrl, true) : null;
   if (img) e['interface.imageUrl'] = img;
   if (!isHex(s.interface.accent)) e['interface.accent'] = t('Use a hex colour like #08AFA2');
-  if (s.garages.outOnRestart === 'impound' && (s.garages.restartImpound === null || !impoundIds.includes(s.garages.restartImpound))) {
+  if (s.garages.outOnRestart === 'impound' && (s.garages.restartImpound == null || !impoundIds.includes(s.garages.restartImpound))) {
     e['garages.restartImpound'] = t('Choose the impound that receives vehicles left out');
   }
   return e;

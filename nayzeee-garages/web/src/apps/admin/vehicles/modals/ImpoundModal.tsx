@@ -54,7 +54,8 @@ export function ImpoundModal({ open, data, detail, onClose, onSave }: Props) {
     if (busy || impound === null) return;
     setBusy('save');
     const ok = await onSave(
-      { impound: { locationId: impound, reason: reason.trim(), fee, releaseAt: nowS() + Math.round(hours * 3600), retrievable } },
+      // `hours` lets the server compute releaseAt with its own clock (releaseAt is a fallback).
+      { impound: { locationId: impound, reason: reason.trim(), fee, hours, releaseAt: nowS() + Math.round(hours * 3600), retrievable } },
       cur ? t('Impound record updated') : t('Vehicle impounded'),
     );
     setBusy(null);

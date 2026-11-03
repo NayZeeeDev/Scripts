@@ -286,7 +286,7 @@ export const TABS: TabDef[] = [
                   value={c.s.garages.outOnRestart}
                   onChange={(v) => {
                     c.set('garages', 'outOnRestart', v);
-                    if (v === 'impound' && c.s.garages.restartImpound === null) {
+                    if (v === 'impound' && c.s.garages.restartImpound == null) {
                       const first = c.data.locations.find((l) => l.kind === 'impound');
                       if (first && first.id !== null) c.set('garages', 'restartImpound', first.id);
                     }

@@ -78,8 +78,10 @@ function patchVehicle(plate: string, patch: Partial<GarageVehicle>) {
   });
 }
 
+/** Re-fetch after an action. Quiet: Lua usually already pushed an 'update' and the
+ *  server rate-limits refreshes, so a refused refresh is not worth an error toast. */
 async function refreshGarage() {
-  const res = await request('garage:refresh', {});
+  const res = await request('garage:refresh', {}, { toastError: false });
   if (res.ok && res.data && isAppOpen('garage')) useUi.getState().openApp('garage', res.data);
 }
 

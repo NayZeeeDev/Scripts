@@ -47,7 +47,7 @@ export function ShareModal({
 
   const count = data?.sharedWith.length ?? 0;
   const max = data?.max ?? 0;
-  const full = max > 0 && count >= max;
+  const full = count >= max; // server: max 0 = nobody can be added
 
   const add = async () => {
     if (!vehicle || player === null || adding || full) return;

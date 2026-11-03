@@ -73,7 +73,11 @@ export const useUi = create<UiState>((set) => ({
     set((s) => {
       const slot = s.apps[app];
       if (!slot.data) return s;
-      return { apps: { ...s.apps, [app]: { ...slot, data: { ...slot.data, ...partial } } } };
+      // A complete garage payload replaces the old one: Lua omits nil fields (e.g. capacity),
+      // so a shallow merge would keep stale values.
+      const full = app === 'garage' && partial && 'garage' in partial && 'vehicles' in partial;
+      const data = full ? (partial as AppDataMap[typeof app]) : { ...slot.data, ...partial };
+      return { apps: { ...s.apps, [app]: { ...slot, data } } };
     }),
   hideApp: (app) =>
     set((s) => {

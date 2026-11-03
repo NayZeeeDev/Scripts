@@ -46,7 +46,7 @@ export function VehiclesTab({ draft, setSlots, run, pending, errors, profiles }:
             />
           }
           actions={
-            <Button size="sm" variant="teal" icon="plus" loading={placing === 'new'} disabled={busy} onClick={() => void add()}>
+            <Button size="sm" variant="teal" icon="plus" loading={placing === 'new'} disabled={busy || slots.length >= 60} title={slots.length >= 60 ? t('Up to 60 vehicle positions') : undefined} onClick={() => void add()}>
               {t('Add')}
             </Button>
           }

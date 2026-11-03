@@ -61,7 +61,9 @@ export interface GarageOption {
 /** Garages a vehicle can be assigned to: locations of kind garage / private as 'L<id>'. */
 export function assignableGarages(data: AdminOpenData): GarageOption[] {
   return data.locations
-    .filter((l) => (l.kind === 'garage' || l.kind === 'private') && l.id !== null)
+    // Private garages store under group keys (G<id>) and spawner garages hold no personal
+    // vehicles, so only public personal garages are valid 'L<id>' destinations here.
+    .filter((l) => l.kind === 'garage' && l.source !== 'spawner' && l.id != null)
     .map((l) => ({
       value: `L${l.id}`,
       label: l.name,

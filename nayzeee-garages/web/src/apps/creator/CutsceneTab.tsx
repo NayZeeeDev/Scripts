@@ -57,8 +57,8 @@ export function CutsceneTab({ draft, patchCutscene, run, pending }: TabProps) {
           <NumberInput
             value={cut.transition}
             onChange={(n) => patchCutscene({ transition: n })}
-            min={0}
-            max={60000}
+            min={500}
+            max={15000}
             step={100}
             suffix={t('ms')}
           />
@@ -68,7 +68,7 @@ export function CutsceneTab({ draft, patchCutscene, run, pending }: TabProps) {
             value={cut.returnTime}
             onChange={(n) => patchCutscene({ returnTime: n })}
             min={0}
-            max={30000}
+            max={10000}
             step={100}
             suffix={t('ms')}
           />
@@ -127,7 +127,7 @@ export function CutsceneTab({ draft, patchCutscene, run, pending }: TabProps) {
         )}
 
         <div className="nz-creator__grid2 nz-creator__grid2--actions">
-          <Button icon="camera" full loading={pending === 'addCameraPoint'} disabled={busy} onClick={() => void addPoint()}>
+          <Button icon="camera" full loading={pending === 'addCameraPoint'} disabled={busy || cut.points.length >= 12} title={cut.points.length >= 12 ? t('Up to 12 camera points') : undefined} onClick={() => void addPoint()}>
             {t('Add camera point')}
           </Button>
           <Button

@@ -12,7 +12,7 @@ import type { GarageVehicle, PlayerOption } from '@/lib/types';
 import { displayName } from '../model';
 import { ModalVehicle } from './ModalVehicle';
 
-const MAX_PRICE = 100_000_000;
+const MAX_PRICE = 10_000_000; // server/actions.lua MAX_PRICE
 
 export function SellModal({ vehicle, onClose }: { vehicle: GarageVehicle | null; onClose: () => void }) {
   const currency = useSettings().currency;

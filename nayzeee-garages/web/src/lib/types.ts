@@ -275,6 +275,8 @@ export interface ImpoundOpenData {
   impound: { id: number; name: string; vehicleType: VehicleType };
   /** Viewer is impound staff (sees every vehicle, can release). */
   staff: boolean;
+  /** Staff take vehicles out without paying (settings.impound.staffBypassFee). */
+  feeWaived?: boolean;
   vehicles: ImpoundedVehicle[];
 }
 
@@ -530,8 +532,8 @@ export interface AdminVehiclePatch {
     body?: number;
   };
   props?: Record<string, unknown>;
-  /** false = release from impound */
-  impound?: (Partial<ImpoundInfo> & { locationId: number }) | false;
+  /** false = release from impound. `hours` (hold time from now) is preferred over releaseAt. */
+  impound?: (Partial<ImpoundInfo> & { locationId: number; hours?: number }) | false;
   /** false = remove finance */
   finance?: Finance | false;
   blocked?: boolean;

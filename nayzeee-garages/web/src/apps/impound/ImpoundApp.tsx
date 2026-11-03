@@ -152,6 +152,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
         renderRow={(v, open) => <ImpoundRow v={v} staff={staff} open={open} />}
         renderDetail={(v) => (
           <ImpoundDetail
+            feeWaived={!!data.feeWaived}
             v={v}
             staff={staff}
             variant={view}
@@ -335,9 +336,11 @@ function ImpoundDetail({
   onRetrieve,
   onReleaseOwner,
   onReturnGarage,
+  feeWaived = false,
 }: {
   v: ImpoundedVehicle;
   staff: boolean;
+  feeWaived?: boolean;
   variant: ViewMode;
   retrieving: string | null;
   releasing: { plate: string; mode: 'owner' | 'garage' } | null;
@@ -351,6 +354,10 @@ function ImpoundDetail({
   const name = displayName(v);
   const canCollect = !staff || v.isOwner;
   const available = a?.state === 'now';
+  // The server's verdict (blocked, overdue finance, wrong vehicle type, staff override) wins.
+  const serverAllows = v.canDrive !== false;
+  const canDriveNow = serverAllows && (available || staff);
+  const fee = staff && feeWaived ? 0 : info.fee;
   const isRetrieving = retrieving === v.plate;
   const busy = retrieving !== null || releasing !== null;
 
@@ -410,6 +417,13 @@ function ImpoundDetail({
         </div>
       )}
 
+      {canCollect && available && !serverAllows && v.reason && (
+        <div className="nz-garage__reason is-red">
+          <Icon name="ban" size={14} strokeWidth={1.8} />
+          <span>{v.reason}</span>
+        </div>
+      )}
+
       <div className="nz-garage__actions">
         <div className="nz-garage__actions-main">
           {canCollect && (
@@ -417,8 +431,8 @@ function ImpoundDetail({
               variant="teal"
               icon="arrowRight"
               loading={isRetrieving}
-              disabled={!available || (busy && !isRetrieving)}
-              badge={!isRetrieving && info.fee > 0 ? money(info.fee) : undefined}
+              disabled={!canDriveNow || (busy && !isRetrieving)}
+              badge={!isRetrieving && fee > 0 ? money(fee) : undefined}
               onClick={onRetrieve}
             >
               {isRetrieving ? t('Loading vehicle...') : t('Drive')}
