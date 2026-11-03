@@ -447,6 +447,10 @@ local followUps = {
     NZ.State.settings = result.data
     NUI.syncSettings()
   end,
+  -- Keep the admin client's cache current (used when re-opening the panel after a tool).
+  ['admin:refresh'] = function(result)
+    if result.ok and NZ.AdminClient and NZ.AdminClient.setCache then NZ.AdminClient.setCache(result.data) end
+  end,
 }
 
 local forwarded = {

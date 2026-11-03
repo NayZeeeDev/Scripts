@@ -477,6 +477,7 @@ local function buildImpoundData(src, location, session)
   return {
     impound = { id = location.id, name = location.name, vehicleType = location.vehicleType or 'car' },
     staff = staff,
+    feeWaived = staff and setting('impound.staffBypassFee', true) == true,
     vehicles = vehicles,
   }
 end
@@ -811,6 +812,7 @@ register('nz:impoundForm:submit', function(src, payload)
   }, src)
   if not success then return fail(err or L('Could not impound the vehicle')) end
   local where = type(used) == 'table' and used.name or location.name
-  notify(src, 'success', L('Vehicle {plate} impounded at {impound}', { plate = plate, impound = where }))
-  return ok(nil)
+  -- The form shows its own toast; tell it where the vehicle actually went (it can be
+  -- redirected to an impound of the vehicle's category).
+  return ok({ impoundName = where })
 end)

@@ -379,7 +379,7 @@ local function completeSale(src, offer)
   notify(seller, 'success', L('You sold {plate} to {name} for {amount}', {
     plate = offer.plate, name = buyer.name, amount = money(price),
   }))
-  notify(src, 'success', L('You bought {plate} for {amount}', { plate = offer.plate, amount = money(price) }))
+  -- The buyer's client shows its own confirmation toast after accepting.
   log('vehicle.sell', src, {
     plate = offer.plate, action = 'sold', price = price,
     seller = offer.sellerIdentifier, sellerName = offer.sellerName,
@@ -424,7 +424,7 @@ end)
 
 -- { plate } -> TransferOptions
 register('nz:garage:transferOptions', function(src, payload)
-  local ctx, err = begin(src, 'garage:transferOptions', 1000)
+  local ctx, err = begin(src, 'garage:transferOptions', 300)
   if not ctx then return fail(err) end
   local plate = readPlate(payload.plate)
   if not plate then return fail(L('Invalid request')) end
@@ -432,7 +432,10 @@ register('nz:garage:transferOptions', function(src, payload)
   if not row then return fail(rowErr) end
   local garages, players = {}, {}
   if setting('transfers.garageEnabled', true) then garages = garageDestinations(src, ctx.identifier, row) end
-  if setting('transfers.playerEnabled', true) then players = playerOptions(src, { [ctx.identifier] = true }) end
+  -- The Sell modal reuses this list, so fill it when either player feature is enabled.
+  if setting('transfers.playerEnabled', true) or setting('transfers.sellEnabled', true) then
+    players = playerOptions(src, { [ctx.identifier] = true })
+  end
   return ok({ garages = garages, players = players, garageFee = garageFee(), playerFee = playerFee() })
 end)
 
@@ -499,7 +502,6 @@ local function transferToPlayer(src, ctx, plate, target)
 
     afterOwnerChange(row, player, 'transfer', nil)
     local fromName = NZ.Bridge.getName(src) or ''
-    notify(src, 'success', L('You transferred {plate} to {name}', { plate = plate, name = player.name }))
     notify(player.source, 'info', L('{name} transferred a vehicle to you ({plate})', { name = fromName, plate = plate }))
     log('vehicle.transfer', src, {
       plate = plate, type = 'player', fee = fee,
@@ -683,7 +685,6 @@ register('nz:garage:sell', function(src, payload)
     sellerName = sellerName,
     expires = offer.expires,
   })
-  notify(src, 'info', L('Offer sent to {name}', { name = buyer.name }))
   log('vehicle.sell', src, {
     plate = plate, action = 'offer', price = price, buyer = buyer.identifier, buyerName = buyer.name,
   })
@@ -761,7 +762,8 @@ register('nz:garage:payFinance', function(src, payload)
         balance = newBalance,
         payment = nextPayment,
         paymentsLeft = left,
-        paymentsTotal = finance.paymentsTotal,
+        -- First payment through us records the plan length for the progress display.
+        paymentsTotal = finance.paymentsTotal or toInt(finance.paymentsLeft),
         intervalHours = interval,
         nextPaymentHours = interval,
         overdue = false,

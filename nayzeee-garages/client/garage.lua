@@ -244,7 +244,15 @@ local function goInside()
   NZ.NUI.close('garage')
   local result = NZ.NUI.await('nz:garage:goInside', {})
   if not result.ok then
-    if ctx and ctx.data then NZ.NUI.open('garage', ctx.data) end
+    -- Re-fetch: the menu may have changed favourites / nicknames since ctx.data was cached.
+    local fresh = NZ.NUI.await('nz:garage:refresh', {})
+    if fresh.ok and type(fresh.data) == 'table' then
+      NZ.Veh.enrichDeep(fresh.data)
+      if NZ.Garage.setData then NZ.Garage.setData(fresh.data) end
+      NZ.NUI.open('garage', fresh.data)
+    elseif ctx and ctx.data then
+      NZ.NUI.open('garage', ctx.data)
+    end
     return result
   end
   CreateThread(function() enterInterior(result.data) end)

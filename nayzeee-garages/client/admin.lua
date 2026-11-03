@@ -235,17 +235,15 @@ NZ.NUI.register('admin:interior:edit', function(data)
   if not id then return Utils.fail(L('Interior not found')) end
   if NZ.Interior.isInside() then return Utils.fail(L('Leave the garage interior first')) end
 
-  local interior = findInterior(id)
-  if not interior then
-    -- Created since the panel opened: refresh the cache once.
-    local res = await('nz:admin:refresh', {})
-    if res.ok and type(res.data) == 'table' then
-      local page = cache and cache.page or 'interiors'
-      cache = enrich(res.data)
-      cache.page = validPage(page) or 'interiors'
-      interior = findInterior(id)
-    end
+  -- Always edit the server's current version: the panel may have toggled or changed it
+  -- since the cache was filled (a stale `enabled` flag would be written back on save).
+  local res = await('nz:admin:refresh', {})
+  if res.ok and type(res.data) == 'table' then
+    local page = cache and cache.page or 'interiors'
+    cache = enrich(res.data)
+    cache.page = validPage(page) or 'interiors'
   end
+  local interior = findInterior(id)
   if not interior then return Utils.fail(L('Interior not found')) end
   if not Utils.v4(interior.entry) then return Utils.fail(L('This garage interior has no entry point')) end
 
@@ -260,6 +258,15 @@ NZ.NUI.register('admin:interior:edit', function(data)
   if not started then reopen('interiors') end
   return nil
 end)
+
+--- Replace the cached AdminOpenData (used by client/nui.lua after 'admin:refresh').
+---@param data table|nil
+function AdminClient.setCache(data)
+  if type(data) ~= 'table' then return end
+  local page = cache and cache.page or data.page
+  cache = data
+  cache.page = validPage(page) or 'garages'
+end
 
 ---------------------------------------------------------------------------------------
 -- Events & exports

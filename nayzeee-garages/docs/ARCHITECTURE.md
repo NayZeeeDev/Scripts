@@ -460,8 +460,21 @@ NZ.Vehicles.retrieve(src, plate, session, opts) -> result     -- §7.1
    opts = { spawnIndex, entityType, fromInterior=false, fromImpound=false, fee=0 }
 NZ.Vehicles.store(src, session, payload) -> result            -- §7.2
 NZ.Vehicles.markSpawned(src, plate, netId)
-NZ.Vehicles.spawnServer(hash, entityType, coords, init) -> entity, netId  -- server spawn + 'nzInit' state bag
-NZ.Vehicles.vehicleTypeOf(row) -> 'car'|'sea'|'air'
+NZ.Vehicles.spawnServer(hash, entityType, coords, init, bucket) -> entity, netId  -- server spawn + 'nzInit' state bag
+NZ.Vehicles.vehicleTypeOf(row) -> 'car'|'sea'|'air'   -- falls back to NZ.Bridge.getSharedVehicleType for legacy rows
+-- added during integration:
+NZ.Vehicles.withLock(plate, fn, ...)          -- one operation per plate at a time
+NZ.Vehicles.setOut(plate, entry) / clearOut(plate)
+NZ.Vehicles.accessOf(src, row, session, cache) -> 'owner'|'shared'|'group'|'fleet'|'staff'|nil
+NZ.Vehicles.resolveGarage(src, payload) -> { location, garageKey, groupId, houseId, identifier }
+NZ.Vehicles.newContext(src, session, identifier) / ensureContext(ctx)
+NZ.Vehicles.spawnFailed(src, plate)           -- client could not create a retrieved vehicle: roll back
+NZ.Vehicles.resolveEntityType(hash, hint, category) -- server-trusted CreateVehicleServerSetter type
+NZ.Vehicles.removeTrailerOf(plate, row)        -- delete the tracked trailer of an out vehicle
+NZ.Jobs.release(plate) / NZ.Jobs.spawnFailed(src, plate)
+NZ.DB.financeIntervalHours() -> hours           -- ServerConfig.FinanceIntervalHours / vehicle shop config / 24
+NZ.Bridge.getSharedVehicleType(model, hash) -> 'car'|'sea'|'air'|nil   -- qb/qbx shared vehicles
+NZ.Impound.impound(plate, opts, src) -> ok, err, impoundUsed   -- may redirect by vehicle category
 ```
 Callbacks: `nz:garage:open`, `nz:garage:refresh`, `nz:garage:retrieve`, `nz:garage:spawned`,
 `nz:garage:store`, `nz:garage:track`, `nz:garage:recover`, `nz:garage:nearestWithSpace`.
@@ -561,7 +574,8 @@ NZ.Placement.manage({ kind='spawn'|'open'|'store', points, vehicleType, model })
 NZ.Camera.playPath(points, transitionMs) ; NZ.Camera.stop()
 NZ.Interior.enter(data) ; NZ.Interior.leave(exitCoords) ; NZ.Interior.isInside() -> boolean
 NZ.Creator.start(creatorData) ; NZ.Creator.stop()
-NZ.AdminClient.open(page|nil)
+NZ.AdminClient.open(page|nil) ; NZ.AdminClient.setCache(data)
+NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
 ```
 
 ---------------------------------------------------------------------------------------

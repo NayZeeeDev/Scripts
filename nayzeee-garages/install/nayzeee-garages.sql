@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
 --   nz_impound   LONGTEXT     NULL       JSON ImpoundInfo
 --   nz_blocked   TINYINT(1)   NOT NULL DEFAULT 0
 --   nz_last_out  INT          NULL       unix time the vehicle was last taken out
+--   nz_finance_total INT      NULL       total number of finance payments (progress display)
 --
 -- Example for QBCore / Qbox (MariaDB syntax):
 -- ALTER TABLE `player_vehicles`
@@ -120,4 +121,5 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
 --   ADD COLUMN IF NOT EXISTS `nz_trailer` LONGTEXT NULL,
 --   ADD COLUMN IF NOT EXISTS `nz_impound` LONGTEXT NULL,
 --   ADD COLUMN IF NOT EXISTS `nz_blocked` TINYINT(1) NOT NULL DEFAULT 0,
---   ADD COLUMN IF NOT EXISTS `nz_last_out` INT NULL;
+--   ADD COLUMN IF NOT EXISTS `nz_last_out` INT NULL,
+--   ADD COLUMN IF NOT EXISTS `nz_finance_total` INT NULL;

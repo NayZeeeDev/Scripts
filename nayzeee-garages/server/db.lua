@@ -40,7 +40,7 @@ local QB_FINANCE = { 'balance', 'paymentamount', 'paymentsleft', 'financetime' }
 local ESX_SELECT = { 'owner', 'plate', 'vehicle', 'type', 'stored', 'parking', 'pound' }
 local NZ_SELECT = {
   'nz_garage', 'nz_state', 'nz_nickname', 'nz_type', 'nz_job', 'nz_gang', 'nz_mileage',
-  'nz_damage', 'nz_trailer', 'nz_impound', 'nz_blocked', 'nz_last_out',
+  'nz_damage', 'nz_trailer', 'nz_impound', 'nz_blocked', 'nz_last_out', 'nz_finance_total',
 }
 
 ---------------------------------------------------------------------------------------
@@ -356,11 +356,15 @@ local function financeOf(r)
   payment = tonumber(payment) or 0
   left = tonumber(left) or 0
   minutes = tonumber(minutes) or 0
+  -- Total payments are not stored by the vehicle shops: nz_finance_total is recorded on the
+  -- first payment through this resource or set by an admin. Ignore impossible totals.
+  local total = tonumber(r.nz_finance_total)
+  if total and total < left then total = nil end
   return {
     balance = math.floor(balance),
     payment = math.floor(payment),
     paymentsLeft = math.floor(left),
-    paymentsTotal = nil,
+    paymentsTotal = total and math.floor(total) or nil,
     intervalHours = DB.financeIntervalHours(),
     nextPaymentHours = Utils.round(math.max(minutes, 0) / 60, 1),
     overdue = left > 0 and minutes <= 0,
@@ -958,6 +962,12 @@ function DB.updateVehicle(plate, fields)
   end
 
   -- finance (qb columns go in the same statement; qbx table is written afterwards)
+  if fields.finance == false then
+    set('nz_finance_total', nil)
+  elseif type(fields.finance) == 'table' and fields.finance.paymentsTotal ~= nil then
+    local total = int(fields.finance.paymentsTotal, nil)
+    set('nz_finance_total', (total and total > 0) and total or nil)
+  end
   local financeTable = false
   if not isEsx and (fields.finance == false or type(fields.finance) == 'table') then
     if financeMode == 'columns' then

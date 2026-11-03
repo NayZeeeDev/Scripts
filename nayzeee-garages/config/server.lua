@@ -20,5 +20,9 @@ ServerConfig.Webhooks = {
 -- Also write logs into the `nz_logs` table (searchable history).
 ServerConfig.DatabaseLogs = true
 
+-- Finance payment interval in hours used when a player pays an instalment from the garage
+-- menu. nil = read PaymentInterval from a running qbx_vehicleshop / qb-vehicleshop, else 24.
+ServerConfig.FinanceIntervalHours = nil
+
 -- Show the "Import" button sources in the admin panel.
 ServerConfig.ImportSources = { 'qb-garages', 'qbx_garages', 'json' }

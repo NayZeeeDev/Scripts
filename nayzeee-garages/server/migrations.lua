@@ -138,6 +138,7 @@ local EXT_COLUMNS = {
   { 'nz_impound', 'LONGTEXT NULL' },
   { 'nz_blocked', 'TINYINT(1) NOT NULL DEFAULT 0' },
   { 'nz_last_out', 'INT NULL DEFAULT NULL' },
+  { 'nz_finance_total', 'INT NULL DEFAULT NULL' }, -- total number of finance payments (progress display)
 }
 
 -- Indexes on the vehicle table. Created only when no index already starts with the column.

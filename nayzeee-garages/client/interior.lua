@@ -415,7 +415,7 @@ local function panelData(s)
     garageName = s.garageName,
     page = s.page,
     pages = s.pages,
-    vehicles = s.total or #s.vehicles,
+    vehicles = #s.vehicles, -- vehicles on the current floor (s.total counts every floor)
     slots = s.slotCount,
     role = s.role,
     members = s.members,

@@ -611,7 +611,7 @@ export interface NuiCallbacks {
     fee: number;
     hours: number;
     retrievable: boolean;
-  }, null>;
+  }, { impoundName?: string } | null>;
 
   'setup:livery': Cb<{ index: number }, null>;
   'setup:extra': Cb<{ id: number; enabled: boolean }, null>;

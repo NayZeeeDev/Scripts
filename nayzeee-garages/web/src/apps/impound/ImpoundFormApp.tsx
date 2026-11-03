@@ -58,7 +58,7 @@ function ImpoundForm({ data, close }: { data: ImpoundFormData; close: () => void
     });
     setBusy(false);
     if (!res.ok) return;
-    const place = data.impounds.find((i) => i.id === impoundId)?.name ?? '';
+    const place = res.data?.impoundName ?? data.impounds.find((i) => i.id === impoundId)?.name ?? '';
     toast({
       type: 'success',
       title: data.owned ? t('Vehicle impounded') : t('Vehicle removed'),

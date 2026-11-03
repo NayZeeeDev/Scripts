@@ -567,12 +567,25 @@ local function impoundArg(src, value, row)
   if type(location) ~= 'table' or location.kind ~= 'impound' then return nil, L('Select an impound') end
   local now = os.time()
   local previous = type(row.impound) == 'table' and row.impound or {}
-  local releaseAt = num(value.releaseAt, 0, now + MAX_IMPOUND_SECONDS, nil, true)
-  if not releaseAt or releaseAt < now then releaseAt = now end
+  local releaseAt
+  local hours = tonumber(value.hours)
+  if hours then
+    -- Hold time from now, measured with the server clock (the admin PC clock may differ).
+    releaseAt = now + math.floor(math.max(0, math.min(hours * 3600, MAX_IMPOUND_SECONDS)) + 0.5)
+  else
+    releaseAt = num(value.releaseAt, 0, now + MAX_IMPOUND_SECONDS, nil, true)
+    if not releaseAt or releaseAt < now then releaseAt = now end
+  end
+  local reason
+  if value.reason == '' then
+    reason = '' -- explicitly cleared by the admin
+  else
+    reason = safeText(value.reason, 120) or (type(previous.reason) == 'string' and previous.reason) or ''
+  end
   return {
     locationId = location.id,
     locationName = location.name,
-    reason = safeText(value.reason, 120) or (type(previous.reason) == 'string' and previous.reason) or '',
+    reason = reason,
     fee = num(value.fee, 0, MAX_MONEY, num(location.defaultFee, 0, MAX_MONEY, 0, true), true),
     by = adminIdentifier(src),
     byName = adminName(src),
@@ -770,6 +783,10 @@ local function applyPatch(src, plate, patch)
   -- apply
   if next(fields) ~= nil and not NZ.DB.updateVehicle(plate, fields) then
     return fail(L('Could not save the vehicle'))
+  end
+  if entity or fields.state == 'garaged' or fields.state == 'impounded' then
+    -- The saved trailer it was towing out in the world goes back with it (no duplicate).
+    if type(NZ.Vehicles.removeTrailerOf) == 'function' then pcall(NZ.Vehicles.removeTrailerOf, plate, row) end
   end
   if entity then
     if DoesEntityExist(entity) then DeleteEntity(entity) end
