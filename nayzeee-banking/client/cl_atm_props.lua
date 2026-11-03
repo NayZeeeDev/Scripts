@@ -267,9 +267,9 @@ if Config.Debug then
                         local outer = GetOffsetFromEntityInWorldCoords(atm, spec.x, spec.outer, spec.z)
 
                         DrawMarker(28, inner.x, inner.y, inner.z, 0,0,0, 0,0,0,
-                            0.02, 0.02, 0.02, 120, 120, 120, 180, false, false, 2, nil, nil, false)
+                            0.02, 0.02, 0.02, 120, 120, 120, 180, false, false, 2, false, nil, nil, false)
                         DrawMarker(28, outer.x, outer.y, outer.z, 0,0,0, 0,0,0,
-                            0.025, 0.025, 0.025, 8, 175, 162, 220, false, false, 2, nil, nil, false)
+                            0.025, 0.025, 0.025, 8, 175, 162, 220, false, false, 2, false, nil, nil, false)
 
                         local function apply(fn)
                             local slots = Config.ATM.slots

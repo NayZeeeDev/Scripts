@@ -23,6 +23,8 @@ local machines = {}   -- [bank index] = money counter object
 local loose    = {}   -- note props in flight, cleaned up on a stop
 local busy     = false
 local warned   = {}
+local pickup   = { zone = nil, kind = nil, text = false }   -- the live "Collect cash" target and prompt
+local scene    = nil  -- { ped, home } of the scene running, so a failure can put the teller back
 
 local function on()
     return T.enabled ~= false and Config.SpawnPeds
@@ -86,30 +88,41 @@ local function sweep()
     end
 end
 
-local function placeMachines()
-    local hash = model(T.machineProp)
-    if not hash then return end
-    for i, ped in pairs(Bank.peds or {}) do
-        if ped and DoesEntityExist(ped) and not machines[i] then
-            local c = branchCfg(i)
-            local at = onCounter(ped, c.machine)
-            machines[i] = prop(hash, at, GetEntityHeading(ped) + c.machineHeading)
-        end
-    end
-    SetModelAsNoLongerNeeded(hash)
+--- The teller's own heading, from config: a scene that went wrong must not
+--- leave every later one facing the machine.
+local function homeHeading(i, ped)
+    local b = Config.Banks and Config.Banks[i]
+    return (b and b.coords and b.coords.w) or GetEntityHeading(ped)
 end
 
+--- A machine goes on a branch's counter once the player is near enough for
+--- the counter's collision to be loaded, so the drop onto it lands. Tellers
+--- spawned late, or put back after /bankclean, get theirs the same way.
 CreateThread(function()
     if not on() then return end
     sweep()   -- anything a crashed run left behind
-    -- the tellers are spawned by cl_main; wait for them
-    for _ = 1, 60 do
-        if next(Bank.peds or {}) then break end
-        Wait(500)
+    local hash
+    while true do
+        local me = GetEntityCoords(PlayerPedId())
+        for i, ped in pairs(Bank.peds or {}) do
+            if not machines[i] and ped and DoesEntityExist(ped)
+                and #(me - GetEntityCoords(ped)) < 40.0 and HasCollisionLoadedAroundEntity(ped) then
+                hash = hash or model(T.machineProp)
+                if not hash then return end   -- not in the game; said once already
+                local c = branchCfg(i)
+                machines[i] = prop(hash, onCounter(ped, c.machine), homeHeading(i, ped) + c.machineHeading)
+            end
+        end
+        Wait(1500)
     end
-    Wait(500)
-    placeMachines()
 end)
+
+--- Remove every counter prop, for /bankclean and a stop.
+function Bank.clearCounters()
+    for _, obj in pairs(machines) do drop(obj) end
+    for obj in pairs(loose) do drop(obj) end
+    machines = {}
+end
 
 -- ── moving things ────────────────────────────────────────
 local function anim(ped, a, ms, flag)
@@ -177,45 +190,64 @@ local function targetActive()
     return GetResourceState(t) == 'started'
 end
 
+--- Take the "Collect cash" target and prompt down, whichever is up.
+local function clearPickup()
+    if pickup.text then lib.hideTextUI() pickup.text = false end
+    if pickup.zone then
+        local zone, kind = pickup.zone, pickup.kind
+        pcall(function()
+            if kind == 'ox_target' then exports.ox_target:removeZone(zone)
+            else exports['qb-target']:RemoveZone(zone) end
+        end)
+    end
+    pickup.zone, pickup.kind = nil, nil
+end
+
 --- Wait for the player to take the notes off the counter. true when they
---- did; false, 'timeout' / 'walked' when they did not.
-local function waitForPickup(notes, at)
+--- did; false, 'timeout' / 'walked' when they did not. The target is a small
+--- zone over the notes rather than the notes themselves: they have no
+--- collision (so they cannot shove anyone), and a third-eye's ray goes
+--- straight through an entity without it.
+local function waitForPickup(at)
     local picked = false
     local target = targetActive() and Config.Target or nil
     local label = L('teller_collect')
+    local option = { icon = 'fa-solid fa-money-bill-wave', label = label }
 
     if target == 'ox_target' then
         pcall(function()
-            exports.ox_target:addLocalEntity(notes, {{
-                name = 'nz_bank_collect', icon = 'fa-solid fa-money-bill-wave', label = label,
-                distance = 2.0, onSelect = function() picked = true end,
-            }})
+            option.name, option.distance = 'nz_bank_collect', 2.0
+            option.onSelect = function() picked = true end
+            pickup.zone = exports.ox_target:addSphereZone({ coords = at, radius = 0.35, options = { option } })
+            pickup.kind = target
         end)
     elseif target == 'qb-target' then
         pcall(function()
-            exports['qb-target']:AddTargetEntity(notes, {
-                options = {{ icon = 'fa-solid fa-money-bill-wave', label = label, action = function() picked = true end }},
-                distance = 2.0,
-            })
+            option.action = function() picked = true end
+            pickup.zone = 'nz_bank_collect'
+            pickup.kind = target
+            exports['qb-target']:AddCircleZone(pickup.zone, at, 0.35,
+                { name = pickup.zone, debugPoly = false, useZ = true }, { options = { option }, distance = 2.0 })
         end)
     end
 
     local deadline = GetGameTimer() + (tonumber(T.collectSeconds) or 60) * 1000
     local away = tonumber(T.walkAway) or 6.0
-    local shown, why = false, nil
+    local why = nil
 
     while not picked do
         local d = #(GetEntityCoords(PlayerPedId()) - at)
         if GetGameTimer() > deadline then why = 'timeout' break end
         if d > away then why = 'walked' break end
 
-        -- the key press, when no third-eye is running
-        if not target then
+        -- the key press, when no third-eye is running (cl_main stands its own
+        -- E aside while Bank.tellerBusy, so one press does one thing)
+        if not pickup.zone then
             if d < 2.0 then
-                if not shown then lib.showTextUI(L('teller_textui')) shown = true end
+                if not pickup.text then lib.showTextUI(L('teller_textui')) pickup.text = true end
                 if IsControlJustReleased(0, 38) then picked = true end
-            elseif shown then
-                lib.hideTextUI() shown = false
+            elseif pickup.text then
+                lib.hideTextUI() pickup.text = false
             end
             Wait(0)
         else
@@ -223,12 +255,7 @@ local function waitForPickup(notes, at)
         end
     end
 
-    if shown then lib.hideTextUI() end
-    if target == 'ox_target' then
-        pcall(function() exports.ox_target:removeLocalEntity(notes, { 'nz_bank_collect' }) end)
-    elseif target == 'qb-target' then
-        pcall(function() exports['qb-target']:RemoveTargetEntity(notes, { label }) end)
-    end
+    clearPickup()
     return picked, why
 end
 
@@ -242,7 +269,8 @@ local function withdraw(info)
         return Bank.notify(L('bank_title'), res and res.msg or L('bank_no_answer'), res and res.ok and 'success' or 'error')
     end
 
-    local home = GetEntityHeading(ped)
+    local home = homeHeading(i, ped)
+    scene = { ped = ped, home = home }
     local machine = machines[i]
     local mid = onCounter(ped, branchCfg(i).counter)
 
@@ -261,7 +289,7 @@ local function withdraw(info)
     slide(notes, GetEntityCoords(notes), mid, 700)
     settle(ped, home)
 
-    local picked, why = waitForPickup(notes, mid)
+    local picked, why = waitForPickup(mid)
     if picked then
         anim(PlayerPedId(), T.anims and T.anims.take, 1200, 48)
         Wait(500)
@@ -289,7 +317,8 @@ local function deposit(info)
         return Bank.notify(L('bank_title'), info.done, 'success')
     end
 
-    local home = GetEntityHeading(ped)
+    local home = homeHeading(i, ped)
+    scene = { ped = ped, home = home }
     local machine = machines[i]
     local mid = onCounter(ped, branchCfg(i).counter)
 
@@ -325,11 +354,15 @@ function Bank.tellerScene(info)
         return Bank.notify(L('bank_title'), res and res.msg or L('bank_no_answer'), res and res.ok and 'success' or 'error')
     end
 
-    busy = true
+    busy, Bank.tellerBusy = true, true
     local ok, err = pcall(info.kind == 'withdraw' and withdraw or deposit, info)
-    busy = false
+    busy, Bank.tellerBusy = false, false
     if not ok then
         print('^1[nayzeee-banking]^7 teller scene failed: ' .. tostring(err))
+        -- tidy the counter and put the teller back before anything else
+        clearPickup()
+        for obj in pairs(loose) do drop(obj) end
+        if scene then pcall(settle, scene.ped, scene.home) end
         -- whatever happened on screen, the money still has to land
         if info.kind == 'withdraw' then
             local res = lib.callback.await('nz_bank:tellerCollect', false, info.token)
@@ -342,7 +375,7 @@ end
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for _, obj in pairs(machines) do drop(obj) end
-    for obj in pairs(loose) do drop(obj) end
-    machines = {}
+    -- nothing here yields: the prompt belongs to ox_lib and outlives us
+    clearPickup()
+    Bank.clearCounters()
 end)

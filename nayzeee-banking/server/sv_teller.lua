@@ -19,8 +19,10 @@ function Bank.tellerOn()
     return T.enabled ~= false and Config.SpawnPeds == true
 end
 
+--- The client's own clock starts only after models and animations load and the
+--- count runs, so the hold lives well past its collect window.
 local function lifetime()
-    return math.ceil((tonumber(T.countSeconds) or 4) + (tonumber(T.collectSeconds) or 60) + 10)
+    return math.ceil((tonumber(T.countSeconds) or 4) + (tonumber(T.collectSeconds) or 60) + 45)
 end
 
 --- Put a checked withdrawal on hold for the teller to count out.

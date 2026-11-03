@@ -229,7 +229,11 @@ end)
 -- ═══════════════════════════════════════════════════════════
 local function spawnPed(model, coords)
     local hash = joaat(model)
-    lib.requestModel(hash, 10000)
+    -- a mistyped model skips that one branch instead of stopping every other
+    if not IsModelInCdimage(hash) or not pcall(lib.requestModel, hash, 10000) then
+        print(('^3[nayzeee-banking]^7 teller model %s is not in the game; that branch gets a plain target zone instead'):format(tostring(model)))
+        return nil
+    end
 
     local ped = CreatePed(4, hash, coords.x, coords.y, coords.z - 1.0, coords.w, false, true)
     SetEntityInvincible(ped, true)
@@ -399,7 +403,8 @@ CreateThread(function()
     while true do
         local sleep = 800
         local near = false
-        local useKey = not targetActive() and not Bank.isOpen
+        -- the teller's own "Collect cash" owns E while cash is on the counter
+        local useKey = not targetActive() and not Bank.isOpen and not Bank.tellerBusy
         local pos = GetEntityCoords(PlayerPedId())
 
         for _, bank in ipairs(Config.Banks) do
@@ -532,6 +537,11 @@ end
 --- tagged and may be standing at coordinates no longer in the config.
 RegisterCommand('bankclean', function()
     local removed = Bank.sweepTellers(60.0)
+    -- the counters' machines go too; tellers that were ours are gone from the list
+    if Bank.clearCounters then Bank.clearCounters() end
+    for i, ped in pairs(Bank.peds) do
+        if not DoesEntityExist(ped) then Bank.peds[i] = nil end
+    end
     Bank.notify(L('banking_title'), L('tellers_cleared', removed, removed == 1 and '' or 's'),
         removed > 0 and 'success' or 'inform')
 end, false)

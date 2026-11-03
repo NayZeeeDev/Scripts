@@ -574,7 +574,7 @@ local function runAction(act)
     Bank.atmSound('cash')
 
     local res = depositing
-      and ask('nz_bank:deposit', DUI.data.primary, amount)
+      and ask('nz_bank:deposit', DUI.data.primary, amount, true)
       or  ask('nz_bank:withdraw', DUI.data.primary, amount, true)
 
     refresh()
@@ -1074,7 +1074,7 @@ RegisterCommand('atmbuttons', function()
       for _, v in pairs(found) do
         local w = GetOffsetFromEntityInWorldCoords(atm, v.x, v.y, v.z)
         DrawMarker(28, w.x, w.y, w.z, 0,0,0, 0,0,0, 0.012, 0.012, 0.012,
-          8, 175, 162, 160, false, false, 2, nil, nil, false)
+          8, 175, 162, 160, false, false, 2, false, nil, nil, false)
       end
 
       BeginTextCommandDisplayHelp('STRING')

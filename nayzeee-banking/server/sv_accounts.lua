@@ -246,7 +246,7 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  DEPOSIT / WITHDRAW
 -- ═══════════════════════════════════════════════════════════
-Bank.callback('nz_bank:deposit', function(src, accountId, amount)
+Bank.callback('nz_bank:deposit', function(src, accountId, amount, fromMachine)
     local xPlayer = Bank.getPlayer(src)
     amount = Bank.round(amount)
     if not xPlayer or amount <= 0 then return { ok = false, msg = 'Enter a valid amount.' } end
@@ -289,7 +289,8 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount)
     local done = ('Deposited %s%s.'):format(Config.Currency, amount)
     -- at a branch the money is in the account already; the teller still takes the
     -- notes off the counter and counts them, and says so when they are done
-    if point == 'bank' and Bank.tellerOn and Bank.tellerOn() then
+    -- (an ATM screen says so: a machine near a branch never hands over to the teller)
+    if point == 'bank' and not fromMachine and Bank.tellerOn and Bank.tellerOn() then
         return { ok = true, msg = 'The teller is counting your deposit.', teller = { kind = 'deposit', amount = amount, done = done } }
     end
     return { ok = true, msg = done }
@@ -365,7 +366,7 @@ function Bank.withdrawAt(src, xPlayer, accountId, amount, point, dry)
     return { ok = true, msg = ('Withdrew %s%s.'):format(Config.Currency, amount), fee = fee }
 end
 
-Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
+Bank.callback('nz_bank:withdraw', function(src, accountId, amount, fromMachine)
     local xPlayer = Bank.getPlayer(src)
     amount = Bank.round(amount)
     if not xPlayer or amount <= 0 then return { ok = false, msg = 'Enter a valid amount.' } end
@@ -374,8 +375,10 @@ Bank.callback('nz_bank:withdraw', function(src, accountId, amount)
     local point, why = Bank.cashPoint(src)
     if not point then return { ok = false, msg = why } end
 
-    -- at a branch the teller counts it out and the player picks it up (sv_teller.lua)
-    if point == 'bank' and Bank.tellerOn and Bank.tellerOn() then
+    -- at a branch the teller counts it out and the player picks it up (sv_teller.lua).
+    -- A request from an ATM screen never does: the machine pays out itself, and
+    -- a Fleeca wall unit sits well inside a branch's range.
+    if point == 'bank' and not fromMachine and Bank.tellerOn and Bank.tellerOn() then
         local check = Bank.withdrawAt(src, xPlayer, accountId, amount, point, true)
         if not check.ok then return check end
         return Bank.tellerHold(src, accountId, amount)
