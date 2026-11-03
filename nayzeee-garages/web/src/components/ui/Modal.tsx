@@ -158,6 +158,7 @@ export interface ConfirmDialogProps {
   busy?: boolean;
   /** Extra content under the message (summary rows, a price…). */
   children?: ReactNode;
+  className?: string;
 }
 
 export function ConfirmDialog({
@@ -172,6 +173,7 @@ export function ConfirmDialog({
   onCancel,
   busy = false,
   children,
+  className,
 }: ConfirmDialogProps) {
   const ico = icon ?? (tone === 'red' ? 'warning' : 'info');
   return (
@@ -183,7 +185,7 @@ export function ConfirmDialog({
       onClose={onCancel}
       locked={busy}
       width={400}
-      className="nz-confirm"
+      className={clsx('nz-confirm', className)}
       footer={
         <>
           <Button variant="line" onClick={onCancel} disabled={busy}>

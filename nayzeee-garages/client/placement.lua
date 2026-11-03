@@ -437,7 +437,7 @@ function Placement.vehicle(opts)
   if type(minDim) == 'vector3' or type(minDim) == 'table' then
     base = -(tonumber(minDim.z) or -0.5)
   end
-  local water = IsThisModelABoat(hash) or IsThisModelAJetski(hash) or IsThisModelAnAmphibiousCar(hash)
+  local water = IsThisModelABoat(hash) or IsThisModelAJetski(hash)
   local ok, res = pcall(runTool, {
     hash = hash,
     baseOffset = base,
@@ -570,14 +570,14 @@ local function resumeWorldPoints()
 end
 
 local function runManager(kind, list, model)
-  local entities = {}   -- spawn ghosts (entity or false), same index as list
+  local entities = {}   -- spawn ghosts (entity or false), always aligned with list
   local ghostModel = nil
   if kind == 'spawn' then
     local hash = toHash(model)
     if hash and loadModel(hash) then ghostModel = hash end
-    if ghostModel then
-      for i = 1, #list do entities[i] = Placement.createGhost(ghostModel, list[i], 150) or false end
-    end
+  end
+  for i = 1, #list do
+    entities[i] = ghostModel and Placement.createGhost(ghostModel, list[i], 150) or false
   end
 
   local hintCount = -1
@@ -629,6 +629,7 @@ local function runManager(kind, list, model)
         else
           local x, y, z = pedPosition()
           list[#list + 1] = { coords = { x = x, y = y, z = z }, radius = defaultRadius(kind) }
+          entities[#list] = false
           sound('SELECT')
         end
       elseif IsDisabledControlJustReleased(0, C.X) then

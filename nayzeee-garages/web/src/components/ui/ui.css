@@ -2325,7 +2325,12 @@
   animation-fill-mode: forwards;
 }
 
-.nz-toast:hover .nz-toast__bar { animation-play-state: paused; }
+.nz-toast.is-paused .nz-toast__bar { animation-play-state: paused; }
+
+/* the countdown bar is information, not decoration: keep it under reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .nz-toasts .nz-toast__bar { animation-duration: var(--nz-toast-d, 4500ms) !important; }
+}
 
 @keyframes nz-toast-bar {
   from { transform: scaleX(1); }

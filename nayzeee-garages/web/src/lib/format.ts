@@ -72,11 +72,13 @@ export function secondsUntil(unix: number): number {
 export function vehicleImageUrl(model: string | null | undefined): string | null {
   const s = settings();
   if (!s.showImages || !model) return null;
+  // Config.VehicleOverrides can provide a full image URL instead of a model name.
+  if (/^(https?|nui):\/\//i.test(model)) return model;
   return s.imageUrl.replace('{model}', encodeURIComponent(model.toLowerCase()));
 }
 
 /** Local fallback image bundled in web/public/vehicles/<model>.png */
 export function localVehicleImage(model: string | null | undefined): string | null {
-  if (!model) return null;
+  if (!model || /^(https?|nui):\/\//i.test(model)) return null;
   return `./vehicles/${encodeURIComponent(model.toLowerCase())}.png`;
 }

@@ -92,8 +92,6 @@ const GALLERY_CSS = `
 .kg-vcard b { font-size: 12.5px; font-weight: 600; color: #fff; }
 .kg-vcard small { font-size: 10.5px; color: var(--ink-3); }
 .kg-modal-static { position: relative; max-width: 420px; animation: none; }
-.kg-hud { position: relative; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 18px; border-radius: 12px;
-  background: linear-gradient(180deg, #5d86b5, #9cb7cf 45%, #b49c78 46%, #6f5a44); }
 .kg-swatch-tok { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
 .kg-tok { border: 1px solid var(--line-soft); border-radius: 6px; overflow: hidden; }
 .kg-tok i { display: block; height: 34px; }

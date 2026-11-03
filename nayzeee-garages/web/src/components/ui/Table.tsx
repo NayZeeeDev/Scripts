@@ -179,18 +179,11 @@ function pageList(page: number, count: number): (number | '…')[] {
 export function Pagination({ page, pageCount, onChange, total, pageSize, className }: PaginationProps) {
   const count = Math.max(1, pageCount || 1);
   const cur = Math.max(1, Math.min(count, page || 1));
-  let summary: ReactNode;
+  let summary: string;
   if (total !== undefined && pageSize) {
     const from = total === 0 ? 0 : (cur - 1) * pageSize + 1;
     const to = Math.min(total, cur * pageSize);
-    summary = (
-      <>
-        <b>
-          {from}–{to}
-        </b>{' '}
-        {t('of {total} items', { total: total.toLocaleString('en-US') })}
-      </>
-    );
+    summary = t('{from}–{to} of {total} items', { from, to, total: total.toLocaleString('en-US') });
   } else {
     summary = t('Page {page} of {pages}', { page: cur, pages: count });
   }

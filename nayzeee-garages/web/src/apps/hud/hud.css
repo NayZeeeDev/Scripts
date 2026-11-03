@@ -1,6 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════
    In-world HUD widgets (never take focus): interaction prompt + key hint bar.
    Design-sheet HUD panels: translucent --hud surface, radius 12, soft shadow.
+   No infinite animations here: these stay on screen during gameplay and an idle
+   NUI page should not repaint every frame.
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* ── prompt: left-middle ── */
@@ -48,7 +50,6 @@
   font-weight: 700;
   line-height: 1;
   color: var(--on-teal);
-  animation: nz-prompt-glow 2.6s ease-in-out 400ms infinite;
 }
 
 .nz-prompt__pill--wide .nz-prompt__key { font-size: 11px; letter-spacing: .02em; }
@@ -73,11 +74,6 @@
 @keyframes nz-prompt-out {
   from { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateX(-8px); }
-}
-
-@keyframes nz-prompt-glow {
-  0%, 100% { box-shadow: 0 1px 0 rgba(255, 255, 255, .32) inset, 0 0 14px rgba(var(--teal-rgb), .45); }
-  50% { box-shadow: 0 1px 0 rgba(255, 255, 255, .32) inset, 0 0 22px rgba(var(--teal-rgb), .75); }
 }
 
 /* ── hint: bottom-center ── */
