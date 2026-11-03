@@ -1,0 +1,947 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Admin "Map command" — the location pages (shared/LocationListPage.tsx):
+   KPI strip, directory of location cards, map stage and the inspector.
+   Block: nz-admin-cmd. Tokens only; CEF: no backdrop-filter, color-mix(), :has(), nesting.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.nz-admin-cmd {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ───────────────────────── KPI strip ───────────────────────── */
+
+.nz-admin-cmd__kpis {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.nz-admin-cmd__kpi {
+  --kpi: var(--teal);
+  --kpi-wash: var(--teal-wash);
+  --kpi-edge: var(--teal-edge);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px 14px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
+  overflow: hidden;
+}
+
+.nz-admin-cmd__kpi.is-blue { --kpi: var(--blue); --kpi-wash: var(--blue-wash); --kpi-edge: var(--blue-edge); }
+.nz-admin-cmd__kpi.is-amber { --kpi: var(--amber); --kpi-wash: var(--amber-wash); --kpi-edge: var(--amber-edge); }
+.nz-admin-cmd__kpi.is-red { --kpi: var(--red); --kpi-wash: var(--red-wash); --kpi-edge: var(--red-edge); }
+
+.nz-admin-cmd__kpi-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--kpi-edge);
+  background: var(--kpi-wash);
+  color: var(--kpi);
+}
+
+.nz-admin-cmd__kpi-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nz-admin-cmd__kpi-label {
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__kpi-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  min-width: 0;
+}
+
+.nz-admin-cmd__kpi-value {
+  flex: none;
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__kpi-value small {
+  margin-left: 4px;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+
+.nz-admin-cmd__kpi-skel { margin: 2px 0 1px; }
+
+.nz-admin-cmd__kpi-sub {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__kpi-bar {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.nz-admin-cmd__kpi-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--kpi);
+  box-shadow: 0 0 8px var(--kpi);
+  transform: scaleX(var(--ratio, 0));
+  transform-origin: left center;
+  transition: transform 420ms var(--ease);
+}
+
+/* ───────────────────────── body ───────────────────────── */
+
+.nz-admin-cmd__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+}
+
+/* directory */
+.nz-admin-cmd__dir {
+  flex: 0 0 420px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
+  overflow: hidden;
+}
+
+.nz-admin-cmd__toolbar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 9px;
+  border-bottom: 1px solid var(--line-hair);
+  background: linear-gradient(var(--panel), var(--base));
+}
+
+.nz-admin-cmd__toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nz-admin-cmd__toolbar .nz-admin-cmd__search { flex: 1 1 auto; min-width: 0; }
+.nz-admin-cmd__toolbar .nz-admin-cmd__select { flex: 1 1 0; min-width: 0; }
+.nz-admin-cmd__toolbar .nz-seg { flex: none; }
+
+.nz-admin-cmd__dir-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 13px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__sort { display: inline-flex; }
+
+.nz-admin-cmd__sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--r-xs);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+  transition: background var(--fast), color var(--fast);
+}
+
+.nz-admin-cmd__sort-btn svg { color: var(--ink-3); }
+.nz-admin-cmd__sort-btn:hover,
+.nz-admin-cmd__sort[aria-expanded='true'] .nz-admin-cmd__sort-btn { background: var(--raise); color: var(--white); }
+
+.nz-admin-cmd__dir-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: .02em;
+  text-transform: none;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.nz-admin-cmd__dir-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-wash);
+}
+
+.nz-admin-cmd__link {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--teal);
+  border-radius: 3px;
+  transition: color var(--fast);
+}
+
+.nz-admin-cmd__link:hover { color: var(--teal-hi); text-decoration: underline; }
+
+.nz-admin-cmd__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 9px 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.nz-admin-cmd__list::-webkit-scrollbar { width: 8px; }
+.nz-admin-cmd__list::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; border: 2px solid var(--panel); }
+.nz-admin-cmd__list.is-empty { justify-content: center; }
+
+.nz-admin-cmd .nz-admin-cmd__empty {
+  border: 0;
+  padding: 28px 18px;
+}
+
+.nz-admin-cmd__empty-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* keyboard hints along the bottom of the directory (v5 status bar) */
+.nz-admin-cmd__dir-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 32px;
+  padding: 0 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--inset);
+  font-size: 10.5px;
+  font-weight: 300;
+  overflow: hidden;
+}
+
+/* card */
+.nz-admin-cmd__card {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 11px 11px 10px 12px;
+  border: 1px solid var(--line-hair);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  cursor: pointer;
+  outline: none;
+  transition: background var(--fast), border-color var(--fast), box-shadow var(--fast);
+  animation: nz-admin-cmd-in 220ms var(--ease) both;
+}
+
+.nz-admin-cmd__card:hover,
+.nz-admin-cmd__card.is-hover {
+  border-color: var(--line);
+  background: var(--raise);
+}
+
+.nz-admin-cmd__card:focus-visible { box-shadow: 0 0 0 2px var(--teal-edge); }
+
+.nz-admin-cmd__card.is-selected {
+  border-color: var(--teal-edge);
+  background: var(--teal-wash);
+  box-shadow: 0 1px 0 var(--lift) inset;
+}
+
+.nz-admin-cmd__card.is-selected::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--teal);
+  box-shadow: 0 0 9px var(--teal);
+}
+
+.nz-admin-cmd__card.is-off .nz-admin-cmd__card-main { opacity: .55; }
+.nz-admin-cmd__card.is-off:hover .nz-admin-cmd__card-main,
+.nz-admin-cmd__card.is-off.is-selected .nz-admin-cmd__card-main { opacity: .8; }
+
+@keyframes nz-admin-cmd-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* type tile (cards + inspector) */
+.nz-admin-cmd__type {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--teal-edge);
+  background: var(--teal-wash);
+  color: var(--teal);
+  transition: background var(--fast), border-color var(--fast), color var(--fast);
+}
+
+.nz-admin-cmd__type.is-sea { border-color: var(--blue-edge); background: var(--blue-wash); color: var(--blue); }
+.nz-admin-cmd__type.is-air { border-color: var(--amber-edge); background: var(--amber-wash); color: var(--amber); }
+.nz-admin-cmd__type.is-off { border-color: var(--line); background: var(--raise); color: var(--ink-3); }
+.nz-admin-cmd__type.is-lg { width: 40px; height: 40px; }
+
+.nz-admin-cmd__card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  transition: opacity var(--fast);
+}
+
+.nz-admin-cmd__card-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 18px;
+}
+
+.nz-admin-cmd__card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--white);
+}
+
+.nz-admin-cmd__card-id {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.nz-admin-cmd__card-warn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--amber-edge);
+  background: var(--amber-wash);
+  color: var(--amber);
+}
+
+.nz-admin-cmd__card-side {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-top: 1px;
+}
+
+/* tags */
+.nz-admin-cmd__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  max-height: 20px;
+  margin-top: 7px;
+  overflow: hidden;
+}
+
+.nz-admin-cmd__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-xs);
+  background: var(--raise);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__tag svg { flex: none; color: var(--ink-3); }
+
+.nz-admin-cmd__tag span {
+  min-width: 0;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__tag.is-teal { border-color: var(--teal-edge); background: var(--teal-wash); color: var(--teal-hi); }
+.nz-admin-cmd__tag.is-blue { border-color: var(--blue-edge); background: var(--blue-wash); color: var(--blue); }
+.nz-admin-cmd__tag.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); color: var(--amber); }
+.nz-admin-cmd__tag.is-red { border-color: var(--red-edge); background: var(--red-wash); color: var(--red); }
+.nz-admin-cmd__tag.is-white { border-color: var(--line); background: var(--lift); color: var(--white); }
+.nz-admin-cmd__tag.is-teal svg,
+.nz-admin-cmd__tag.is-blue svg,
+.nz-admin-cmd__tag.is-amber svg,
+.nz-admin-cmd__tag.is-red svg,
+.nz-admin-cmd__tag.is-white svg { color: inherit; }
+.nz-admin-cmd__tag.is-muted { color: var(--ink-3); background: transparent; border-style: dashed; }
+
+/* vehicles line (cards) */
+.nz-admin-cmd__vline {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__vstat {
+  --dot: var(--teal);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nz-admin-cmd__vstat i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dot);
+}
+
+.nz-admin-cmd__vstat b {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-admin-cmd__vstat.is-out { --dot: var(--amber); }
+.nz-admin-cmd__vstat.is-impounded,
+.nz-admin-cmd__vstat.is-held { --dot: var(--red); }
+.nz-admin-cmd__vstat.is-zero { --dot: var(--ink-3); }
+.nz-admin-cmd__vstat.is-zero i { opacity: .55; }
+.nz-admin-cmd__vstat.is-zero b { color: var(--ink-3); font-weight: 500; }
+
+/* ───────────────────────── map stage ───────────────────────── */
+
+.nz-admin-cmd__stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.nz-admin-cmd__map { flex: 1 1 auto; }
+
+/* ───────────────────────── inspector ───────────────────────── */
+
+.nz-admin-cmd__insp {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 64px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-3);
+  overflow: hidden;
+  animation: nz-admin-cmd-insp 220ms var(--ease) both;
+}
+
+.nz-admin-cmd__insp::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 46%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--teal), rgba(var(--teal-rgb), 0));
+}
+
+.nz-admin-cmd__insp.is-off::before { background: linear-gradient(90deg, var(--ink-3), rgba(255, 255, 255, 0)); }
+
+@keyframes nz-admin-cmd-insp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.nz-admin-cmd__insp-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px 10px 14px;
+  border-bottom: 1px solid var(--line-hair);
+}
+
+.nz-admin-cmd__insp-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nz-admin-cmd__insp-title h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  color: var(--white);
+}
+
+.nz-admin-cmd__insp-title h2 span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__insp-title h2 small {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink-3);
+}
+
+.nz-admin-cmd__insp-title p {
+  margin-top: 3px;
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__insp-title p i {
+  font-style: normal;
+  color: var(--ink-3);
+  margin: 0 3px;
+}
+
+.nz-admin-cmd__insp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  padding: 11px 0 12px;
+  overflow-y: auto;
+}
+
+.nz-admin-cmd__insp-body.has-owners {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.1fr) minmax(0, .9fr);
+}
+
+.nz-admin-cmd__insp-sec {
+  min-width: 0;
+  padding: 0 14px;
+  border-left: 1px solid var(--line-hair);
+}
+
+.nz-admin-cmd__insp-sec:first-child { border-left: 0; }
+
+.nz-admin-cmd__insp-sec h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-admin-cmd__insp-sec h3 em {
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line-soft);
+  background: var(--raise);
+  color: var(--ink-2);
+}
+
+/* coordinates chip (header) */
+.nz-admin-cmd__coords {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 2px 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  color: var(--ink-3);
+}
+
+.nz-admin-cmd__coords code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-admin-cmd__coords.is-missing {
+  padding-right: 10px;
+  border-color: var(--amber-edge);
+  background: var(--amber-wash);
+  font-size: 11.5px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__copy.is-done { color: var(--teal); }
+
+.nz-admin-cmd__muted-text {
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+/* spawner note (vehicles section) */
+.nz-admin-cmd__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--teal);
+}
+
+.nz-admin-cmd__note svg { flex: none; margin-top: 2px; }
+
+.nz-admin-cmd__note span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nz-admin-cmd__note b { font-size: 12.5px; font-weight: 600; color: var(--white); }
+.nz-admin-cmd__note small { font-size: 11px; font-weight: 300; line-height: 1.4; color: var(--ink-3); }
+
+/* facts */
+.nz-admin-cmd__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+}
+
+.nz-admin-cmd__fact {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  font-size: 11.5px;
+}
+
+.nz-admin-cmd__fact dt {
+  flex: 0 0 96px;
+  font-weight: 300;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__fact dd {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__fact.is-amber dd { color: var(--amber); }
+.nz-admin-cmd__fact.is-muted dd { color: var(--ink-3); font-weight: 400; }
+
+/* owners */
+.nz-admin-cmd__owners {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.nz-admin-cmd__owner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.nz-admin-cmd__owner-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nz-admin-cmd__owner-text b,
+.nz-admin-cmd__owner-text small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__owner-text b { font-size: 12px; font-weight: 500; color: var(--white); }
+.nz-admin-cmd__owner-text small { margin-top: 1px; font-size: 10.5px; font-weight: 300; color: var(--ink-3); }
+
+.nz-admin-cmd__more {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+/* vehicle numbers */
+.nz-admin-cmd__nums {
+  display: flex;
+  gap: 18px;
+}
+
+.nz-admin-cmd__nums span {
+  --dot: var(--teal);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nz-admin-cmd__nums b {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -.03em;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-admin-cmd__nums small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.nz-admin-cmd__nums small::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dot);
+}
+
+.nz-admin-cmd__nums .is-out { --dot: var(--amber); }
+.nz-admin-cmd__nums .is-impounded,
+.nz-admin-cmd__nums .is-held { --dot: var(--red); }
+.nz-admin-cmd__nums .is-zero b { color: var(--ink-3); }
+.nz-admin-cmd__nums .is-zero small::before { background: var(--ink-3); opacity: .55; }
+
+.nz-admin-cmd__cap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 11px;
+}
+
+.nz-admin-cmd__cap-text b { font-weight: 500; color: var(--ink); }
+
+.nz-admin-cmd__cap-text {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-cmd__cap-bar {
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.nz-admin-cmd__cap-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--teal);
+  transform: scaleX(var(--ratio, 0));
+  transform-origin: left center;
+  transition: transform 420ms var(--ease);
+}
+
+.nz-admin-cmd__cap-bar.is-high::after { background: var(--amber); }
+.nz-admin-cmd__cap-bar.is-full::after { background: var(--red); }
+
+/* actions */
+.nz-admin-cmd__insp-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line-hair);
+  background: var(--inset);
+}
+
+.nz-admin-cmd__grow { flex: 1 1 auto; }
+
+.nz-admin-cmd .nz-admin-cmd__kbd {
+  margin-left: 6px;
+  border-color: rgba(0, 0, 0, .28);
+  background: rgba(0, 0, 0, .16);
+  color: var(--on-teal);
+  box-shadow: none;
+}
+
+/* ───────────────────────── small screens ───────────────────────── */
+
+@media (max-width: 1340px), (max-height: 760px) {
+  .nz-admin-cmd { gap: 10px; }
+  .nz-admin-cmd__kpis { gap: 8px; }
+  .nz-admin-cmd__kpi { padding: 8px 12px 9px; gap: 10px; }
+  .nz-admin-cmd__kpi-icon { width: 30px; height: 30px; }
+  .nz-admin-cmd__kpi-label { font-size: 11px; }
+  .nz-admin-cmd__kpi-value { font-size: 19px; }
+  .nz-admin-cmd__kpi-value small { font-size: 11.5px; }
+  .nz-admin-cmd__body { gap: 10px; }
+  .nz-admin-cmd__dir { flex-basis: 344px; }
+  .nz-admin-cmd__toolbar { padding: 8px 8px 7px; gap: 6px; }
+  .nz-admin-cmd__import .nz-btn__label { display: none; }
+  .nz-admin-cmd .nz-admin-cmd__import { width: 34px; padding: 0; }
+  .nz-admin-cmd__list { padding: 0 7px 8px; gap: 5px; }
+  .nz-admin-cmd__dir-foot { height: 28px; gap: 11px; padding: 0 10px; }
+  .nz-admin-cmd__dir-foot .nz-keyhint:last-child { display: none; }
+  .nz-admin-cmd__card { padding: 9px 9px 8px 10px; gap: 9px; }
+  .nz-admin-cmd__type { width: 30px; height: 30px; }
+  .nz-admin-cmd__type.is-lg { width: 34px; height: 34px; }
+  .nz-admin-cmd__tags { margin-top: 6px; }
+  .nz-admin-cmd__vline { margin-top: 6px; gap: 10px; }
+  .nz-admin-cmd__insp { left: 8px; right: 8px; bottom: 8px; }
+  .nz-admin-cmd__insp-head { padding: 9px 10px 8px 12px; gap: 10px; }
+  .nz-admin-cmd__insp-title h2 { font-size: 14.5px; }
+  .nz-admin-cmd__insp-body { padding: 9px 0 10px; }
+  .nz-admin-cmd__insp-sec { padding: 0 11px; }
+  .nz-admin-cmd__insp-sec h3 { margin-bottom: 7px; }
+  .nz-admin-cmd__fact dt { flex-basis: 84px; }
+  .nz-admin-cmd__nums { gap: 13px; }
+  .nz-admin-cmd__nums b { font-size: 18px; }
+  .nz-admin-cmd__insp-actions { padding: 7px 10px; }
+}
+
+/* Narrow map: the coordinates chip keeps only its copy button, owners show 2 rows. */
+@media (max-width: 1340px) {
+  .nz-admin-cmd__coords code,
+  .nz-admin-cmd__coords > svg { display: none; }
+  .nz-admin-cmd__coords { padding-left: 2px; }
+  .nz-admin-cmd__owner:nth-child(3) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nz-admin-cmd__card,
+  .nz-admin-cmd__insp { animation: none; }
+}

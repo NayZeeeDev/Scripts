@@ -682,7 +682,29 @@ const allLocations: Location[] = [...publicGarages, ...jobGarages, ...privateGar
 
 /* ───────────────────────── AdminOpenData ───────────────────────── */
 
+/** Vehicle counts per location id (DB.garageStats): spawner-only locations store nothing. */
+const mockLocationStats: AdminOpenData['locationStats'] = {
+  '1': { parked: 46, out: 9, impounded: 2, held: 0 }, // Legion Square
+  '2': { parked: 31, out: 6, impounded: 1, held: 0 }, // Alta Street
+  '3': { parked: 18, out: 3, impounded: 0, held: 0 }, // Mirror Park
+  '5': { parked: 9, out: 2, impounded: 1, held: 0 }, // Grove Street
+  '6': { parked: 12, out: 2, impounded: 0, held: 0 }, // Sandy Shores Depot
+  '7': { parked: 3, out: 0, impounded: 0, held: 0 }, // Harmony (disabled)
+  '8': { parked: 5, out: 1, impounded: 0, held: 0 }, // Grapeseed
+  '9': { parked: 14, out: 3, impounded: 1, held: 0 }, // Paleto Bay (20 in total)
+  '10': { parked: 4, out: 1, impounded: 0, held: 0 }, // Chumash Bluffs
+  '11': { parked: 7, out: 1, impounded: 0, held: 0 }, // LSIA Hangar
+  '12': { parked: 6, out: 2, impounded: 0, held: 0 }, // Puerto Del Sol Marina
+  '14': { parked: 8, out: 3, impounded: 0, held: 0 }, // Pillbox Medical fleet
+  '15': { parked: 5, out: 2, impounded: 1, held: 0 }, // Ballas Hideout
+  '16': { parked: 11, out: 2, impounded: 0, held: 0 }, // Vinewood Hills Estate (all copies)
+  '17': { parked: 2, out: 1, impounded: 0, held: 0 }, // Eclipse Towers
+  '18': { parked: 0, out: 0, impounded: 0, held: 23 }, // Davis Impound
+  '19': { parked: 0, out: 0, impounded: 0, held: 4 }, // Paleto Bay Impound
+};
+
 export const adminMockData: AdminOpenData = {
+  locationStats: mockLocationStats,
   page: 'garages',
   settings: mockSettings,
   locations: allLocations,
@@ -1002,8 +1024,8 @@ mockNui('admin:group:member', async ({ groupId, identifier, role }) => {
 /* ───────────────────────── scenarios ───────────────────────── */
 
 /** Dev-only hints read by the location pages: open the editor for this id ('new' = create),
- *  optionally on a tab ('owners' for saved private garages). */
-type DevHint = { __devEdit?: number | 'new'; __devTab?: 'settings' | 'owners' };
+ *  optionally on a tab ('owners' for saved private garages); select a location (inspector). */
+type DevHint = { __devEdit?: number | 'new'; __devTab?: 'settings' | 'owners'; __devSelect?: number };
 
 function open(page: AdminPage, extra: Partial<AdminOpenData> & DevHint = {}) {
   return {
@@ -1012,10 +1034,34 @@ function open(page: AdminPage, extra: Partial<AdminOpenData> & DevHint = {}) {
   };
 }
 
-registerMock({ id: 'admin-garages', group: 'Admin', label: 'Garages (table + map)', messages: [open('garages')] });
+registerMock({ id: 'admin-garages', group: 'Admin', label: 'Garages (map command)', messages: [open('garages')] });
 registerMock({ id: 'admin-jobs', group: 'Admin', label: 'Job & gang garages', messages: [open('jobs')] });
 registerMock({ id: 'admin-private', group: 'Admin', label: 'Private garages', messages: [open('private')] });
 registerMock({ id: 'admin-impounds', group: 'Admin', label: 'Impounds', messages: [open('impounds')] });
+registerMock({
+  id: 'admin-garages-selected',
+  group: 'Admin',
+  label: 'Garages: Legion Square selected (inspector)',
+  messages: [open('garages', { __devSelect: 1 })],
+});
+registerMock({
+  id: 'admin-jobs-selected',
+  group: 'Admin',
+  label: 'Job garages: Mission Row PD selected',
+  messages: [open('jobs', { __devSelect: 13 })],
+});
+registerMock({
+  id: 'admin-private-selected',
+  group: 'Admin',
+  label: 'Private garages: Vinewood Hills Estate selected (owners)',
+  messages: [open('private', { __devSelect: 16 })],
+});
+registerMock({
+  id: 'admin-impounds-selected',
+  group: 'Admin',
+  label: 'Impounds: Davis Impound selected',
+  messages: [open('impounds', { __devSelect: 18 })],
+});
 registerMock({
   id: 'admin-edit-location',
   group: 'Admin',
@@ -1053,6 +1099,7 @@ registerMock({
   messages: [
     open('garages', {
       locations: [],
+      locationStats: {},
       interiors: [],
       gangs: [],
       gangsSupported: false,

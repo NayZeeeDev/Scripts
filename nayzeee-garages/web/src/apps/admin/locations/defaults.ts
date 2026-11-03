@@ -10,6 +10,10 @@
  * - defaultBlipSprite(kind, vt)     357 car / 356 sea / 359 air, 68 for impounds.
  * - DEFAULT_BLIP_COLOUR[kind]       3 garage, 38 job, 5 private, 1 impound.
  * - OPEN_RADIUS / STORE_RADIUS      Config.Interaction defaults (2.0 / 4.0 m).
+ * - defaultInteraction()            { mode: 'default', ped: null } (follow the server setting, no NPC).
+ * - normalizeInteraction(raw)       a complete LocationInteraction from whatever Lua sent (absent = defaults).
+ * - PED_DEFAULT_MODEL / PED_DEFAULT_SCENARIO / PED_SCENARIOS / PED_MODEL_PRESETS
+ *                                   NPC defaults (Config.Peds) and the choices offered in the editor.
  */
 import type {
   AccessConfig,
@@ -21,6 +25,7 @@ import type {
   JobLocation,
   Location,
   LocationBase,
+  LocationInteraction,
   PrivateLocation,
   SpawnerVehicle,
   VehicleType,
@@ -48,6 +53,53 @@ export function defaultBlip(kind: LocationPageKind, vt: VehicleType = 'car'): Bl
   return { enabled: true, sprite: defaultBlipSprite(kind, vt), color: DEFAULT_BLIP_COLOUR[kind], scale: 0.7 };
 }
 
+/** Config.Peds.defaultModel / defaultScenario (config/config.lua). */
+export const PED_DEFAULT_MODEL = 's_m_y_valet_01';
+export const PED_DEFAULT_SCENARIO = 'WORLD_HUMAN_CLIPBOARD';
+/** Same rule as the server (server/locations.lua): letters, digits and _, max 32. */
+export const PED_MODEL_MAX = 32;
+
+/** Scenarios offered for location NPCs ('' = stands idle). Labels are translated where shown. */
+export const PED_SCENARIOS: { value: string; label: string }[] = [
+  { value: 'WORLD_HUMAN_CLIPBOARD', label: 'Holding a clipboard' },
+  { value: 'WORLD_HUMAN_STAND_IMPATIENT', label: 'Waiting impatiently' },
+  { value: 'WORLD_HUMAN_SMOKING', label: 'Smoking' },
+  { value: 'WORLD_HUMAN_GUARD_STAND', label: 'Standing guard' },
+  { value: 'WORLD_HUMAN_AA_COFFEE', label: 'Drinking coffee' },
+  { value: 'WORLD_HUMAN_STAND_MOBILE', label: 'On the phone' },
+  { value: '', label: 'None (stands still)' },
+];
+
+/** Quick picks for the NPC model field (base-game ped models). */
+export const PED_MODEL_PRESETS: { value: string; label: string }[] = [
+  { value: 's_m_y_valet_01', label: 'Valet' },
+  { value: 's_m_m_autoshop_01', label: 'Mechanic' },
+  { value: 's_m_m_security_01', label: 'Security' },
+  { value: 's_m_y_cop_01', label: 'Police officer' },
+  { value: 's_m_y_airworker', label: 'Airport crew' },
+  { value: 's_m_m_dockwork_01', label: 'Dock worker' },
+];
+
+export const defaultInteraction = (): LocationInteraction => ({ mode: 'default', ped: null });
+
+const INTERACTION_MODES: LocationInteraction['mode'][] = ['default', 'prompt', 'target', 'both'];
+
+/** Complete LocationInteraction from Lua (the field is absent on locations using the defaults). */
+export function normalizeInteraction(raw: unknown): LocationInteraction {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return defaultInteraction();
+  const src = raw as Partial<LocationInteraction> & { ped?: unknown };
+  const mode = INTERACTION_MODES.includes(src.mode as LocationInteraction['mode']) ? (src.mode as LocationInteraction['mode']) : 'default';
+  let ped: LocationInteraction['ped'] = null;
+  if (src.ped && typeof src.ped === 'object' && !Array.isArray(src.ped)) {
+    const p = src.ped as { model?: unknown; scenario?: unknown };
+    ped = {
+      model: typeof p.model === 'string' ? p.model : '',
+      scenario: typeof p.scenario === 'string' ? p.scenario : PED_DEFAULT_SCENARIO,
+    };
+  }
+  return { mode, ped };
+}
+
 const capacity = (): CapacityConfig => ({ mode: 'unlimited', appliesTo: 'player', spaces: 8 });
 const access = (): AccessConfig => ({ mode: 'quick', interiorId: null });
 
@@ -63,6 +115,7 @@ function base(kind: LocationPageKind): Omit<LocationBase, 'kind'> {
     storePoints: [],
     returnToEntrance: false,
     blip: defaultBlip(kind, 'car'),
+    interaction: defaultInteraction(),
   };
 }
 
@@ -146,6 +199,7 @@ export function normalizeLocation(raw: Location, data: AdminOpenData): Location 
   out.openPoints = arr(src.openPoints);
   out.storePoints = arr(src.storePoints);
   out.blip = obj(src.blip, defaults.blip);
+  out.interaction = normalizeInteraction(src.interaction);
   if (out.kind === 'garage' || out.kind === 'job' || out.kind === 'private') {
     const d = defaults as GarageLocation;
     const capacity = obj(src.capacity, d.capacity);

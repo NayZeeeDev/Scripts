@@ -1,39 +1,40 @@
 /**
- * Player vehicles — level 3: one vehicle's dashboard (admin:vehicle:get) with owner, block,
- * delete and six editable panels. Every edit goes through admin:vehicle:update.
+ * Player vehicles — level 3: the vehicle Dossier (admin:vehicle:get).
+ * Hero band (stage, identity, plate, owner, record actions), pill tabs (Overview ·
+ * Condition · Upgrades & paint · Finance · History · Activity · Data; keys 1-7) and every
+ * edit modal. Every edit goes through admin:vehicle:update and refreshes the activity log.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, Badge, Button, ConfirmDialog, EmptyState, Icon, IconButton, PlateTag, Skeleton, Tooltip, VehicleImage } from '@/components/ui';
+import type { ReactNode } from 'react';
+import { Button, ConfirmDialog, EmptyState, IconButton, Kbd, Skeleton, Tabs, cx } from '@/components/ui';
 import { request } from '@/lib/nui';
 import { toast } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import { money } from '@/lib/format';
 import type { AdminOpenData, AdminVehicleDetail, AdminVehiclePatch, AdminVehicleRow } from '@/lib/types';
 import { useAdminShell } from '../shared/shell';
-import { StatusBadges } from './common';
-import { DetailsPanel, FinancePanel, ImpoundPanel, ModsPanel, OwnershipPanel, ServicePanel } from './panels';
 import { DetailsModal } from './modals/DetailsModal';
 import { ImpoundModal } from './modals/ImpoundModal';
 import { FinanceModal } from './modals/FinanceModal';
 import { OwnerModal } from './modals/OwnerModal';
 import { ServiceModal } from './modals/ServiceModal';
-import { ModsModal, OwnershipModal, ServiceListModal } from './modals/ListModals';
+import { ModsModal } from './modals/ListModals';
 import { PropsEditor } from './props/PropsEditor';
-import { ownerTypeLabel, rowFromDetail, vehicleTypeIcon } from './util';
+import { rowFromDetail } from './util';
+import { Hero } from './dossier/Hero';
+import { OverviewTab } from './dossier/OverviewTab';
+import { ConditionTab } from './dossier/ConditionTab';
+import { UpgradesTab } from './dossier/UpgradesTab';
+import { FinanceTab } from './dossier/FinanceTab';
+import { HistoryTab } from './dossier/HistoryTab';
+import { ActivityTab } from './dossier/ActivityTab';
+import { DataTab } from './dossier/DataTab';
+import { DOSSIER_TABS } from './dossier/tabs';
+import type { DossierTab } from './dossier/tabs';
+import { normDamage } from './dossier/data';
+import { useActivity } from './dossier/useActivity';
 
-type ModalId =
-  | 'details'
-  | 'impound'
-  | 'props'
-  | 'mods'
-  | 'finance'
-  | 'financeDelete'
-  | 'ownership'
-  | 'service'
-  | 'serviceList'
-  | 'owner'
-  | 'delete'
-  | null;
+type ModalId = 'details' | 'impound' | 'release' | 'props' | 'mods' | 'finance' | 'financeDelete' | 'service' | 'owner' | 'delete' | null;
 
 interface Props {
   data: AdminOpenData;
@@ -41,25 +42,34 @@ interface Props {
   /** Identifier of the player whose list we came from. */
   identifier: string;
   initialModal?: 'props' | null;
+  initialTab?: DossierTab | null;
   onBack: () => void;
   /** The vehicle changed (row) or was deleted / left this player (null). */
   onRowChange: (oldPlate: string, row: AdminVehicleRow | null) => void;
   onPlateChange: (plate: string) => void;
 }
 
-export function VehicleDetailView({ data, plate, identifier, initialModal = null, onBack, onRowChange, onPlateChange }: Props) {
+const isTyping = (el: EventTarget | null) => {
+  const n = el as HTMLElement | null;
+  return !!n && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.isContentEditable);
+};
+
+export function VehicleDetailView({ data, plate, identifier, initialModal = null, initialTab = null, onBack, onRowChange, onPlateChange }: Props) {
   const shell = useAdminShell();
   const [detail, setDetail] = useState<AdminVehicleDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<DossierTab>(initialTab ?? 'overview');
   const [modal, setModal] = useState<ModalId>(initialModal);
+  const [propsCategory, setPropsCategory] = useState<string | null>(null);
   // Bumped on every open so each modal mounts with fresh state from the current detail.
   const [session, setSession] = useState(0);
   const show = (id: Exclude<ModalId, null>) => {
     setSession((n) => n + 1);
     setModal(id);
   };
-  const [busy, setBusy] = useState<'block' | 'delete' | 'finance' | null>(null);
+  const [busy, setBusy] = useState<'block' | 'delete' | 'finance' | 'release' | null>(null);
+  const activity = useActivity(detail ? detail.vehicle.plate : null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,11 +89,27 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
     const p = detail?.vehicle.props;
     return p && typeof p === 'object' && !Array.isArray(p) ? p : {};
   }, [detail]);
+  const damage = useMemo(() => normDamage(detail?.damage), [detail]);
 
   const isOpen = (id: Exclude<ModalId, null>) => modal === id && !shell.hidden;
   const close = () => setModal(null);
 
-  /** Apply a patch, refresh the dashboard and the player's list. */
+  // 1-7 switch tabs (not while typing or while a dialog is open).
+  useEffect(() => {
+    if (!detail) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (modal || shell.hidden || e.ctrlKey || e.altKey || e.metaKey || isTyping(e.target)) return;
+      const i = Number(e.key) - 1;
+      if (Number.isInteger(i) && i >= 0 && i < DOSSIER_TABS.length) {
+        e.preventDefault();
+        setTab(DOSSIER_TABS[i].value);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [detail, modal, shell.hidden]);
+
+  /** Apply a patch, refresh the dossier, the activity and the player's list. */
   const patch = useCallback(
     async (p: AdminVehiclePatch, message: string): Promise<boolean> => {
       if (!detail) return false;
@@ -95,10 +121,11 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
       const stillHere = next.vehicle.ownerType === 'player' && next.vehicle.owner === identifier;
       onRowChange(oldPlate, stillHere ? rowFromDetail(next) : null);
       if (next.vehicle.plate !== oldPlate) onPlateChange(next.vehicle.plate);
+      else activity.reload();
       toast({ type: 'success', message });
       return true;
     },
-    [detail, identifier, onRowChange, onPlateChange],
+    [detail, identifier, onRowChange, onPlateChange, activity],
   );
 
   const toggleBlock = async () => {
@@ -107,6 +134,13 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
     const blocked = !detail.vehicle.blocked;
     await patch({ blocked }, blocked ? t('{vehicle} is blocked', { vehicle: detail.vehicle.label }) : t('{vehicle} is unblocked', { vehicle: detail.vehicle.label }));
     setBusy(null);
+  };
+
+  const release = async () => {
+    setBusy('release');
+    const ok = await patch({ impound: false }, t('Vehicle released from the impound'));
+    setBusy(null);
+    if (ok) setModal(null);
   };
 
   const remove = async () => {
@@ -128,127 +162,188 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
     if (ok) setModal(null);
   };
 
+  const openProps = (category?: string) => {
+    setPropsCategory(category ?? null);
+    show('props');
+  };
+
+  /* ── loading / error ── */
   if (!detail) {
     return (
-      <div className="nz-aveh-view">
-        <div className="nz-aveh-dhead">
-          <IconButton icon="arrowLeft" label={t('Back to vehicles')} variant="line" onClick={onBack} />
-          {error ? (
-            <div className="nz-aveh-dhead__titles">
-              <h2>{plate}</h2>
-            </div>
-          ) : (
-            <>
-              <Skeleton width={128} height={64} radius={8} />
-              <div className="nz-aveh-dhead__titles">
-                <Skeleton width={220} height={16} />
-                <Skeleton width={150} height={11} style={{ marginTop: 9 }} />
-              </div>
-            </>
-          )}
-        </div>
+      <div className="nz-aveh-view nz-dos">
         {error ? (
-          <div className="nz-aveh-card nz-aveh-card--center">
-            <EmptyState
-              icon="warning"
-              title={t('Could not load this vehicle')}
-              description={error}
-              action={
-                <div className="nz-aveh-row">
-                  <Button size="sm" icon="arrowLeft" onClick={onBack}>
-                    {t('Back')}
-                  </Button>
-                  <Button size="sm" variant="white" icon="refresh" onClick={load} loading={loading}>
-                    {t('Try again')}
-                  </Button>
-                </div>
-              }
-            />
-          </div>
-        ) : (
-          <div className="nz-aveh-dgrid">
-            {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="nz-aveh-dpanel nz-aveh-dpanel--skel">
-                <Skeleton width="40%" height={12} />
-                <Skeleton width="86%" height={9} />
-                <Skeleton width="64%" height={9} />
-                <Skeleton width="72%" height={9} />
+          <>
+            <div className="nz-dos-hero is-skel">
+              <IconButton icon="arrowLeft" label={t('Back to vehicles (Esc)')} variant="line" onClick={onBack} className="nz-dos-hero__back" />
+              <div className="nz-dos-hero__id">
+                <span className="nz-dos-hero__eyebrow">{t('Vehicle')}</span>
+                <h2 className="nz-dos-hero__plate-only">{plate}</h2>
               </div>
-            ))}
-          </div>
+            </div>
+            <div className="nz-dos-body nz-dos-pane--center">
+              <EmptyState
+                icon="warning"
+                title={t('Could not load this vehicle')}
+                description={error}
+                action={
+                  <div className="nz-aveh-row">
+                    <Button size="sm" icon="arrowLeft" onClick={onBack}>
+                      {t('Back')}
+                    </Button>
+                    <Button size="sm" variant="white" icon="refresh" onClick={load} loading={loading}>
+                      {t('Try again')}
+                    </Button>
+                  </div>
+                }
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="nz-dos-hero is-skel" aria-busy="true">
+              <IconButton icon="arrowLeft" label={t('Back to vehicles (Esc)')} variant="line" onClick={onBack} className="nz-dos-hero__back" />
+              <Skeleton width={236} height={132} radius={10} />
+              <div className="nz-dos-hero__id">
+                <Skeleton width={120} height={9} />
+                <Skeleton width={260} height={20} style={{ marginTop: 10 }} />
+                <Skeleton width={150} height={16} radius={999} style={{ marginTop: 10 }} />
+                <Skeleton width={190} height={28} style={{ marginTop: 12 }} />
+              </div>
+              <div className="nz-dos-hero__side">
+                <Skeleton width="100%" height={78} radius={10} />
+                <Skeleton width="100%" height={30} radius={6} style={{ marginTop: 8 }} />
+              </div>
+            </div>
+            <div className="nz-dos-tabrow">
+              <Skeleton width={520} height={30} radius={999} />
+            </div>
+            <div className="nz-dos-body">
+              <div className="nz-dos-pane">
+                <div className="nz-dos-sheet nz-dos-sheet--skel">
+                  {[0, 1, 2].map((c) => (
+                    <div key={c} className="nz-dos-col">
+                      <Skeleton width="34%" height={9} />
+                      {Array.from({ length: 6 }, (_, i) => (
+                        <Skeleton key={i} width={`${58 + ((i * 13 + c * 7) % 36)}%`} height={10} style={{ marginTop: 14 }} />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
     );
   }
 
   const v = detail.vehicle;
-  const groupLabel =
-    v.ownerType === 'job'
-      ? data.jobs.find((j) => j.name === v.job)?.label ?? v.job
-      : v.ownerType === 'gang'
-        ? data.gangs.find((g) => g.name === v.gang)?.label ?? v.gang
-        : v.job ?? v.gang;
+  const needsService = v.engine < data.settings.vehicles.needsServiceBelow;
+  const historyCount = detail.ownership.length + detail.service.length;
+
+  const tabActions: Partial<Record<DossierTab, ReactNode>> = {
+    overview: (
+      <span className="nz-dos-tabrow__hint">
+        <Kbd size="sm">1</Kbd>
+        <i>–</i>
+        <Kbd size="sm">7</Kbd>
+        {t('switch tabs')}
+      </span>
+    ),
+    condition: (
+      <Button size="sm" variant="line" icon="edit" onClick={() => show('details')}>
+        {t('Edit condition')}
+      </Button>
+    ),
+    upgrades: (
+      <Button size="sm" variant="line" icon="sliders" onClick={() => openProps()}>
+        {t('Edit modifications')}
+      </Button>
+    ),
+    finance: detail.finance ? (
+      <>
+        <Button size="sm" variant="red" icon="trash" onClick={() => show('financeDelete')}>
+          {t('Remove')}
+        </Button>
+        <Button size="sm" variant="line" icon="edit" onClick={() => show('finance')}>
+          {t('Edit finance')}
+        </Button>
+      </>
+    ) : (
+      <Button size="sm" variant="teal" icon="plus" onClick={() => show('finance')}>
+        {t('Add finance')}
+      </Button>
+    ),
+    history: (
+      <>
+        <Button size="sm" variant="line" icon="transfer" onClick={() => show('owner')}>
+          {t('Change owner')}
+        </Button>
+        <Button size="sm" variant="line" icon="wrench" onClick={() => show('service')}>
+          {t('Edit service history')}
+        </Button>
+      </>
+    ),
+    activity: (
+      <Button size="sm" variant="ghost" icon="refresh" onClick={activity.reload} loading={activity.loading && !!activity.current}>
+        {t('Refresh')}
+      </Button>
+    ),
+  };
 
   return (
-    <div className="nz-aveh-view nz-aveh-view--detail">
-      <div className="nz-aveh-dhead">
-        <IconButton icon="arrowLeft" label={t('Back to vehicles')} variant="line" onClick={onBack} />
-        <div className="nz-aveh-dhead__img">
-          <VehicleImage image={v.image} vehicleType={v.vehicleType} alt={v.label} />
-        </div>
-        <div className="nz-aveh-dhead__titles">
-          <div className="nz-aveh-row">
-            <h2 className="nz-aveh-ellipsis">{v.label || v.model}</h2>
-            {v.nickname && <span className="nz-aveh-nick">“{v.nickname}”</span>}
-          </div>
-          <div className="nz-aveh-row nz-aveh-dhead__meta">
-            <PlateTag plate={v.plate} />
-            <span className="nz-aveh-mono">{v.model}</span>
-            <Icon name={vehicleTypeIcon(v.vehicleType)} size={13} strokeWidth={1.7} />
-            <StatusBadges row={{ state: v.state, financed: !!detail.finance, blocked: v.blocked }} />
-          </div>
-        </div>
-        <div className="nz-aveh-dhead__actions">
-          <Tooltip content={t('Change owner')} side="bottom">
-            <button type="button" className="nz-aveh-ownerchip" onClick={() => show('owner')}>
-              <Avatar name={v.ownerName || '?'} size={22} />
-              <span className="nz-aveh-ellipsis">{v.ownerName || t('No owner')}</span>
-              {v.ownerType !== 'player' && (
-                <Badge size="sm" tone="blue">
-                  {ownerTypeLabel(v.ownerType)}
-                </Badge>
-              )}
-              <Icon name="edit" size={13} strokeWidth={1.7} className="nz-aveh-ownerchip__edit" />
-            </button>
-          </Tooltip>
-          <Tooltip
-            side="bottom"
-            content={v.blocked ? t('Players can take this vehicle out again.') : t('Blocked vehicles cannot be taken out of any garage.')}
-          >
-            <Button variant="line" icon={v.blocked ? 'unlock' : 'ban'} onClick={toggleBlock} loading={busy === 'block'}>
-              {v.blocked ? t('Unblock') : t('Block vehicle')}
-            </Button>
-          </Tooltip>
-          <Button variant="red" icon="trash" onClick={() => show('delete')}>
-            {t('Delete')}
-          </Button>
-        </div>
+    <div className="nz-aveh-view nz-dos">
+      <Hero
+        detail={detail}
+        data={data}
+        busy={busy}
+        onBack={onBack}
+        onOwner={() => show('owner')}
+        onBlock={toggleBlock}
+        onImpound={() => show('impound')}
+        onRelease={() => show('release')}
+        onDelete={() => show('delete')}
+      />
+
+      <div className="nz-dos-tabrow">
+        <Tabs<DossierTab>
+          value={tab}
+          onChange={setTab}
+          variant="pill"
+          className="nz-dos-tabs"
+          items={DOSSIER_TABS.map((x) => ({
+            value: x.value,
+            label: x.label(),
+            count: x.value === 'history' ? historyCount : x.value === 'activity' && activity.latest ? activity.latest.total : undefined,
+          }))}
+        />
+        <div className="nz-dos-tabrow__actions">{tabActions[tab]}</div>
       </div>
 
-      {v.blocked && (
-        <div className="nz-aveh-banner">
-          <Icon name="ban" size={14} strokeWidth={1.8} />
-          <span>{t('This vehicle is blocked — the owner cannot take it out of any garage until it is unblocked.')}</span>
-        </div>
-      )}
-
-      <div className="nz-aveh-dgrid">
-        <DetailsPanel detail={detail} onEdit={() => show('details')} jobLabel={groupLabel ?? null} />
-        <ImpoundPanel detail={detail} onEdit={() => show('impound')} />
-        <ModsPanel detail={detail} onEdit={() => show('props')} onViewAll={() => show('mods')} />
-        <FinancePanel detail={detail} onEdit={() => show('finance')} onDelete={() => show('financeDelete')} />
-        <OwnershipPanel detail={detail} onViewAll={() => show('ownership')} />
-        <ServicePanel detail={detail} onEdit={() => show('service')} onViewAll={() => show('serviceList')} />
+      <div className={cx('nz-dos-body', `is-${tab}`)} key={tab} role="tabpanel">
+        {tab === 'overview' && (
+          <OverviewTab
+            detail={detail}
+            data={data}
+            damage={damage}
+            props={props}
+            activity={activity}
+            needsService={needsService}
+            onTab={setTab}
+            onEditCondition={() => show('details')}
+            onRelease={() => show('release')}
+            onUnblock={toggleBlock}
+            busy={busy}
+          />
+        )}
+        {tab === 'condition' && (
+          <ConditionTab detail={detail} damage={damage} needsService={needsService} serviceBelow={data.settings.vehicles.needsServiceBelow} />
+        )}
+        {tab === 'upgrades' && <UpgradesTab detail={detail} props={props} onEdit={openProps} onViewAll={() => show('mods')} />}
+        {tab === 'finance' && <FinanceTab detail={detail} onEdit={() => show('finance')} />}
+        {tab === 'history' && <HistoryTab detail={detail} onOwner={() => show('owner')} onService={() => show('service')} />}
+        {tab === 'activity' && <ActivityTab detail={detail} data={data} activity={activity} />}
+        {tab === 'data' && <DataTab props={props} onEdit={() => openProps()} />}
       </div>
 
       <DetailsModal key={`DetailsModal-${session}`} open={isOpen('details')} detail={detail} onClose={close} onSave={patch} />
@@ -256,11 +351,31 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
       <FinanceModal key={`FinanceModal-${session}`} open={isOpen('finance')} detail={detail} onClose={close} onSave={patch} />
       <OwnerModal key={`OwnerModal-${session}`} open={isOpen('owner')} data={data} detail={detail} onClose={close} onSave={patch} />
       <ServiceModal key={`ServiceModal-${session}`} open={isOpen('service')} detail={detail} onClose={close} onSave={patch} />
-      <PropsEditor key={`PropsEditor-${session}`} open={isOpen('props')} props={props} vehicleLabel={`${v.label} · ${v.plate}`} onClose={close} onSave={patch} />
-      <OwnershipModal key={`OwnershipModal-${session}`} open={isOpen('ownership')} detail={detail} onClose={close} />
-      <ServiceListModal key={`ServiceListModal-${session}`} open={isOpen('serviceList')} detail={detail} onClose={close} onEdit={() => show('service')} />
-      <ModsModal key={`ModsModal-${session}`} open={isOpen('mods')} detail={detail} onClose={close} onEdit={() => show('props')} />
+      <PropsEditor
+        key={`PropsEditor-${session}`}
+        open={isOpen('props')}
+        props={props}
+        vehicleLabel={`${v.label} · ${v.plate}`}
+        initialCategory={propsCategory}
+        onClose={close}
+        onSave={patch}
+      />
+      <ModsModal key={`ModsModal-${session}`} open={isOpen('mods')} detail={detail} onClose={close} onEdit={() => openProps()} />
 
+      <ConfirmDialog
+        open={isOpen('release')}
+        tone="red"
+        icon="unlock"
+        title={t('Release vehicle?')}
+        message={t('{vehicle} leaves {impound} without paying the fee and goes back to its garage.', {
+          vehicle: v.label,
+          impound: detail.impound?.locationName ?? t('the impound'),
+        })}
+        confirmLabel={t('Release')}
+        busy={busy === 'release'}
+        onConfirm={release}
+        onCancel={close}
+      />
       <ConfirmDialog
         open={isOpen('financeDelete')}
         tone="red"
@@ -280,15 +395,11 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
         tone="red"
         icon="trash"
         title={t('Delete vehicle?')}
-        message={
-          <>
-            {t('{vehicle} ({plate}) is removed from {owner} permanently, with its history. This cannot be undone.', {
-              vehicle: v.label,
-              plate: v.plate,
-              owner: v.ownerName || t('its owner'),
-            })}
-          </>
-        }
+        message={t('{vehicle} ({plate}) is removed from {owner} permanently, with its history. This cannot be undone.', {
+          vehicle: v.label,
+          plate: v.plate,
+          owner: v.ownerName || t('its owner'),
+        })}
         confirmLabel={t('Delete vehicle')}
         busy={busy === 'delete'}
         onConfirm={remove}

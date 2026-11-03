@@ -13,11 +13,30 @@
  * - locationAnchor(loc)                first open point (else first spawn point) or null.
  * - coordsText(v)                      "215.8, -810.1, 30.7".
  * - gradeOptions(info)                 Select options for a job's grades.
+ * - plural(n, one, many)               t(one|many, { count: n }).
+ * - capacityLabel(cap)                 "Unlimited" / "8 per player" / "20 in total".
+ * - restrictionSummary(r, data)        { type, detail } e.g. { 'Job', 'LSPD 2+, Mechanic' }.
+ * - statsOf(data, loc)                 LocationStats (zeros when absent).
+ * - vehicleTotal(stats, kind)          parked + out + impounded (impounds: held).
+ * - stateLabel(loc)                    "Enabled" / "Disabled".
  * All strings go through t() at call time.
  */
 import { t } from '@/lib/i18n';
 import type { IconName } from '@/components/ui';
-import type { AccessConfig, AdminPage, JobInfo, JobRule, Location, LocationKind, RestrictionConfig, Vec3, VehicleType } from '@/lib/types';
+import type {
+  AccessConfig,
+  AdminOpenData,
+  AdminPage,
+  CapacityConfig,
+  JobInfo,
+  JobRule,
+  Location,
+  LocationKind,
+  LocationStats,
+  RestrictionConfig,
+  Vec3,
+  VehicleType,
+} from '@/lib/types';
 
 export type VehicleFilter = VehicleType | 'all';
 
@@ -135,4 +154,42 @@ const fx = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
 export function coordsText(v: Vec3 | null | undefined): string {
   if (!v) return '—';
   return `${fx(v.x)}, ${fx(v.y)}, ${fx(v.z)}`;
+}
+
+export function plural(n: number, one: string, many: string): string {
+  return t(n === 1 ? one : many, { count: n.toLocaleString('en-US') });
+}
+
+export function capacityLabel(cap: CapacityConfig): string {
+  if (cap.mode !== 'limited') return t('Unlimited');
+  return cap.appliesTo === 'total' ? t('{count} in total', { count: cap.spaces }) : t('{count} per player', { count: cap.spaces });
+}
+
+/** Who may use a public garage: type label + the rules / player count. */
+export function restrictionSummary(r: RestrictionConfig, data: Pick<AdminOpenData, 'jobs' | 'gangs'>): { type: string; detail: string } {
+  if (r.type === 'everyone') return { type: restrictionTypeLabel('everyone'), detail: '' };
+  if (r.type === 'identifier') return { type: restrictionTypeLabel('identifier'), detail: plural(r.identifiers.length, '{count} player', '{count} players') };
+  return { type: restrictionTypeLabel(r.type), detail: rulesSummary(r.rules, r.type === 'gang' ? data.gangs : data.jobs) };
+}
+
+const NO_STATS: LocationStats = { parked: 0, out: 0, impounded: 0, held: 0 };
+
+export function statsOf(data: Pick<AdminOpenData, 'locationStats'>, loc: Location): LocationStats {
+  if (loc.id === null) return NO_STATS;
+  const s = data.locationStats?.[String(loc.id)];
+  if (!s) return NO_STATS;
+  return {
+    parked: Number(s.parked) || 0,
+    out: Number(s.out) || 0,
+    impounded: Number(s.impounded) || 0,
+    held: Number(s.held) || 0,
+  };
+}
+
+export function vehicleTotal(s: LocationStats, kind: LocationKind): number {
+  return kind === 'impound' ? s.held : s.parked + s.out + s.impounded;
+}
+
+export function stateLabel(loc: Pick<Location, 'enabled'>): string {
+  return loc.enabled ? t('Enabled') : t('Disabled');
 }

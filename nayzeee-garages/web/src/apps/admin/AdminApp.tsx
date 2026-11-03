@@ -260,8 +260,8 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
         title={t('NAYZEEE GARAGES')}
         subtitle={t('Admin panel')}
         onClose={requestClose}
-        width="min(1240px, calc(100vw - 48px))"
-        height="min(704px, calc(100vh - 24px))"
+        width="min(1460px, calc(100vw - 48px))"
+        height="min(868px, calc(100vh - 24px))"
         className="nz-admin"
         style={{ maxHeight: 'calc(100vh - 24px)', ...(sideWidth ? { '--nz-admin-side': `${sideWidth}px` } : {}) } as CSSProperties}
         bodyClassName="nz-admin__body"

@@ -1,36 +1,42 @@
 /**
- * Impound app (app 'impound'): impounded vehicles at one impound lot.
- * Owners see their vehicles with the fee and a live availability countdown and can pay +
- * drive. Staff see every vehicle (with the owner) and can release it to the owner or send
- * it back to its garage. Reuses the garage collection (grid / list + inline panel).
+ * Impound app (app 'impound'): the impound lot as a showroom, same pattern as the garage.
+ * Rail: impounded vehicles grouped by availability (available / waiting / on hold), search
+ * (staff also by owner). Showcase: the vehicle on the stage, a status strip (impounded,
+ * fee, availability, owner / mileage), impound details with a live release countdown,
+ * condition + damage glyph, performance; dock: "Pay $fee & drive out" for the owner and
+ * "Release to owner" / "Return to garage" for staff.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import {
-  Badge,
-  Button,
-  ConfirmDialog,
-  EmptyState,
-  Icon,
-  KeyHint,
-  PlateTag,
-  SearchInput,
-  Segmented,
-  VehicleImage,
-  Window,
-  cx,
-} from '@/components/ui';
+import { Badge, Button, ConfirmDialog, EmptyState, Icon, KeyHint, PlateTag, Window, cx } from '@/components/ui';
+import type { SelectOption } from '@/components/ui';
 import { useApp, useUi, toast } from '@/lib/store';
 import { useEscape } from '@/lib/escape';
 import { request } from '@/lib/nui';
 import { t } from '@/lib/i18n';
-import { date, dateTime, distance, money } from '@/lib/format';
+import { dateTime, distance, money } from '@/lib/format';
 import type { ImpoundOpenData, ImpoundedVehicle } from '@/lib/types';
-import { countdown, displayName, isAppOpen, matchesQuery, useNow, useSessionView } from '../garage/model';
-import type { ViewMode } from '../garage/model';
-import { VehicleCollection } from '../garage/VehicleCollection';
-import { ConditionRings } from '../garage/VehicleTiles';
-import { AvailabilityBadge, AvailabilityText, useAvailability } from '../garage/VehicleDetail';
+import {
+  ago,
+  classGroup,
+  countdown,
+  displayName,
+  groupItems,
+  isAppOpen,
+  matchesQuery,
+  modelName,
+  normDamage,
+  useNow,
+  useSessionChoice,
+  useSessionView,
+  vehicleIcon,
+} from '../garage/model';
+import type { GroupBy, ItemGroup } from '../garage/model';
+import { RailList, RowBody, StatusDot } from '../garage/showroom/Rail';
+import { ClassTag, Plate, Stage, StageTitle } from '../garage/showroom/Stage';
+import { ConditionBlock, ImpoundBlock, PerformanceBlock, StripCell, useAvailability } from '../garage/showroom/blocks';
+import { useShowroomKeys } from '../garage/showroom/keys';
+import { RailToolbar } from '../garage/GarageRail';
+import { EmptyShowcase, PrimaryLabel, ShowcaseFrame, Tool } from '../garage/GarageShowcase';
 import '../garage/garage.css';
 import './impound.css';
 
@@ -49,11 +55,21 @@ function availabilityRank(v: ImpoundedVehicle, now: number) {
   return v.impound.releaseAt > now ? 1 : 0;
 }
 
+const AVAIL_GROUPS = [
+  { key: 'a:now', label: () => t('Available now') },
+  { key: 'a:wait', label: () => t('Waiting') },
+  { key: 'a:hold', label: () => t('On hold') },
+];
+
 function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => void }) {
   const { impound, staff, vehicles } = data;
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useSessionView('impound');
-  const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const compact = view === 'list';
+  const [groupBy, setGroupBy] = useSessionChoice<GroupBy>('impound:groupBy', 'status');
+  const [query, setQueryRaw] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
+  const lastIndex = useRef(0);
   const [retrieving, setRetrieving] = useState<string | null>(null);
   const [releasing, setReleasing] = useState<{ plate: string; mode: 'owner' | 'garage' } | null>(null);
   const [confirmGarage, setConfirmGarage] = useState<string | null>(null);
@@ -61,12 +77,18 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  // Re-sort when a countdown finishes (once a minute is plenty for ordering).
+  const setQuery = (q: string) => {
+    lastIndex.current = 0;
+    setQueryRaw(q);
+  };
+
+  // Re-sort / regroup when a countdown finishes (once a minute is plenty for ordering).
   const minute = useNow(true, 60000);
   const shown = useMemo(() => {
     const now = Math.floor(Date.now() / 1000);
+    const q = query.trim().toLowerCase();
     return vehicles
-      .filter((v) => matchesQuery(v, query) || (staff && v.ownerName.toLowerCase().includes(query.trim().toLowerCase())))
+      .filter((v) => matchesQuery(v, query) || (staff && !!q && (v.ownerName ?? '').toLowerCase().includes(q)))
       .sort(
         (a, b) =>
           availabilityRank(a, now) - availabilityRank(b, now) ||
@@ -76,13 +98,27 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
     // `minute` re-runs the sort as vehicles become available.
   }, [vehicles, query, staff, minute]);
 
-  // The open panel only counts while its vehicle is listed (a release / return or a search
-  // can remove it): otherwise Escape would "collapse" nothing instead of closing the app.
-  const openPlate = expanded !== null && shown.some((v) => v.plate === expanded) ? expanded : null;
-  useEscape(() => setExpanded(null), openPlate !== null);
+  const groups: ItemGroup<ImpoundedVehicle>[] = useMemo(() => {
+    if (groupBy === 'none') return [{ key: 'all', label: '', items: shown }];
+    if (groupBy === 'class') return groupItems(shown, classGroup);
+    const now = Math.floor(Date.now() / 1000);
+    return groupItems(shown, (v) => {
+      const r = availabilityRank(v, now);
+      return { key: AVAIL_GROUPS[r].key, label: AVAIL_GROUPS[r].label(), order: r };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, groupBy, minute]);
+
+  const flatKeys = useMemo(() => groups.flatMap((g) => g.items.map((v) => v.plate)), [groups]);
+  const currentKey =
+    selected !== null && flatKeys.includes(selected)
+      ? selected
+      : flatKeys[Math.min(lastIndex.current, flatKeys.length - 1)] ?? null;
   useEffect(() => {
-    if (expanded !== null && openPlate === null) setExpanded(null);
-  }, [expanded, openPlate]);
+    const i = currentKey ? flatKeys.indexOf(currentKey) : -1;
+    if (i >= 0) lastIndex.current = i;
+  }, [currentKey, flatKeys]);
+  const sv = vehicles.find((v) => v.plate === currentKey) ?? null;
 
   const retrieve = async (v: ImpoundedVehicle) => {
     if (retrieving) return;
@@ -114,17 +150,35 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
     if (res.data && isAppOpen('impound')) useUi.getState().openApp('impound', res.data);
   };
 
-  const viewOptions: { value: ViewMode; label: string; icon: 'grid' | 'list' }[] = [
-    { value: 'grid', label: t('Grid view'), icon: 'grid' },
-    { value: 'list', label: t('List view'), icon: 'list' },
-  ];
+  const canCollect = (v: ImpoundedVehicle) => !staff || v.isOwner;
 
+  useShowroomKeys(!confirmGarage, {
+    move: (dir) => {
+      if (!flatKeys.length) return;
+      const i = currentKey ? flatKeys.indexOf(currentKey) : -1;
+      setSelected(flatKeys[Math.max(0, Math.min(flatKeys.length - 1, i + dir))]);
+    },
+    enter: () => {
+      if (!sv || !canCollect(sv)) return;
+      const now = Math.floor(Date.now() / 1000);
+      const available = sv.impound.retrievable && sv.impound.releaseAt <= now;
+      if (sv.canDrive !== false && (available || staff)) void retrieve(sv);
+    },
+    focusSearch: () => bodyRef.current?.querySelector<HTMLInputElement>('.nz-garage__search input')?.focus(),
+  });
+
+  const groupOptions: SelectOption<GroupBy>[] = [
+    { value: 'status', label: t('By availability'), icon: 'clock' },
+    { value: 'class', label: t('By class'), icon: 'layers' },
+    { value: 'none', label: t('No groups'), icon: 'list' },
+  ];
   const confirmVehicle = vehicles.find((v) => v.plate === confirmGarage) ?? null;
 
-  let content: JSX.Element;
+  let railList: JSX.Element;
   if (vehicles.length === 0) {
-    content = (
+    railList = (
       <EmptyState
+        compact
         icon="impound"
         title={t('No impounded vehicles')}
         description={
@@ -135,8 +189,9 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       />
     );
   } else if (shown.length === 0) {
-    content = (
+    railList = (
       <EmptyState
+        compact
         icon="search"
         title={t('No vehicles match “{query}”', { query: query.trim() })}
         description={staff ? t('Try a name, plate or owner.') : t('Try a name, model or plate.')}
@@ -148,49 +203,90 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       />
     );
   } else {
-    content = (
-      <VehicleCollection<ImpoundedVehicle>
-        items={shown}
-        view={view}
+    railList = (
+      <RailList<ImpoundedVehicle>
+        groups={groups}
         getKey={(v) => v.plate}
-        expandedKey={openPlate}
-        onToggle={(plate) => setExpanded((cur) => (cur === plate ? null : plate))}
-        renderCard={(v) => <ImpoundCard v={v} staff={staff} />}
-        renderRow={(v, open) => <ImpoundRow v={v} staff={staff} open={open} />}
-        renderDetail={(v) => (
-          <ImpoundDetail
-            feeWaived={!!data.feeWaived}
-            v={v}
-            staff={staff}
-            variant={view}
-            retrieving={retrieving}
-            releasing={releasing}
-            onCollapse={view === 'grid' ? () => setExpanded(null) : undefined}
-            onRetrieve={() => void retrieve(v)}
-            onReleaseOwner={() => void release(v, 'owner')}
-            onReturnGarage={() => setConfirmGarage(v.plate)}
-          />
-        )}
+        selected={currentKey}
+        onSelect={setSelected}
+        compact={compact}
+        label={t('Impounded vehicles')}
+        renderRow={(v) => <ImpoundRow v={v} staff={staff} compact={compact} />}
       />
     );
   }
+
+  const showcase = sv ? (
+    <ImpoundShowcase
+      v={sv}
+      staff={staff}
+      feeWaived={!!data.feeWaived}
+      retrieving={retrieving}
+      releasing={releasing}
+      onRetrieve={() => void retrieve(sv)}
+      onReleaseOwner={() => void release(sv, 'owner')}
+      onReturnGarage={() => setConfirmGarage(sv.plate)}
+    />
+  ) : vehicles.length === 0 ? (
+    <EmptyShowcase
+      icon="checkCircle"
+      title={staff ? t('The lot is empty') : t('Nothing to collect')}
+      description={
+        staff
+          ? t('Vehicles you or your colleagues impound to {place} show up here.', { place: impound.name })
+          : t('Your vehicles are not being held here. Check your garages if one is missing.')
+      }
+    />
+  ) : (
+    <EmptyShowcase
+      icon="search"
+      title={t('No vehicles match')}
+      description={t('Nothing held here fits this search.')}
+      action={
+        <Button size="sm" icon="close" onClick={() => setQuery('')}>
+          {t('Clear search')}
+        </Button>
+      }
+    />
+  );
+
+  const now = Math.floor(Date.now() / 1000);
+  const readyCount = vehicles.filter((v) => availabilityRank(v, now) === 0).length;
 
   return (
     <>
       <Window
         className="nz-garage nz-impound"
         bodyClassName="nz-garage__body"
-        width={736}
-        style={{ maxHeight: '86vh' }}
+        width="min(1240px, 94vw)"
+        height="min(800px, 92vh)"
         title={impound.name}
-        icon="warning"
-        subtitle={staff ? t('Staff view — every vehicle held here') : t('Your impounded vehicles')}
+        icon="impound"
+        subtitle={staff ? t('Impound lot · staff view, every vehicle held here') : t('Impound lot · your vehicles held here')}
         badge={
           staff ? (
             <span className="nz-garage__badges">
-              <Badge tone="teal" icon="shield">
+              <Badge tone="teal" icon="shield" size="sm">
                 {t('Staff')}
               </Badge>
+              {data.feeWaived && (
+                <Badge tone="neutral" icon="money" size="sm">
+                  {t('Fees waived')}
+                </Badge>
+              )}
+            </span>
+          ) : undefined
+        }
+        headerExtra={
+          vehicles.length > 0 ? (
+            <span className="nz-impound__tally">
+              <span>
+                <b>{vehicles.length}</b> {t('held')}
+              </span>
+              <i aria-hidden="true" />
+              <span className="is-teal">
+                <b>{readyCount}</b> {t('ready')}
+              </span>
             </span>
           ) : undefined
         }
@@ -202,21 +298,30 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
               {shown.length === vehicles.length ? t('vehicle(s)') : t('of {total} vehicle(s)', { total: vehicles.length })}
             </span>
             <span className="nz-garage__spacer" />
-            {vehicles.length > 0 && <KeyHint keys={['Enter']} label={t('Details')} />}
-            <KeyHint keys={['Esc']} label={openPlate ? t('Collapse') : t('Close')} />
+            {vehicles.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
+            {vehicles.length > 0 && <KeyHint keys={['Enter']} label={t('Pay & drive')} />}
+            <KeyHint keys={['/']} label={t('Search')} />
+            <KeyHint keys={['Esc']} label={t('Close')} />
           </>
         }
       >
-        <div className="nz-garage__toolbar nz-impound__toolbar">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder={staff ? t('Search name, plate or owner') : t('Search name or plate')}
-            className="nz-garage__search"
-          />
-          <Segmented<ViewMode> value={view} onChange={setView} options={viewOptions} iconOnly />
+        <div ref={bodyRef} className="nz-garage__layout">
+          <aside className="nz-garage__rail" aria-label={t('Impounded vehicles')}>
+            <RailToolbar
+              query={query}
+              onQuery={setQuery}
+              placeholder={staff ? t('Search name, plate or owner') : t('Search name or plate')}
+              bare={vehicles.length === 0}
+              groupBy={groupBy}
+              onGroupBy={setGroupBy}
+              groupOptions={groupOptions}
+              view={view}
+              onView={setView}
+            />
+            {railList}
+          </aside>
+          <main className="nz-garage__stagearea">{showcase}</main>
         </div>
-        <div className={cx('nz-garage__scroll', 'nz-impound__scroll', `is-${view}`)}>{content}</div>
       </Window>
 
       <ConfirmDialog
@@ -243,123 +348,66 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
   );
 }
 
-/* ── tiles ───────────────────────────────────────────────────────────── */
+/* ── row ─────────────────────────────────────────────────────────────── */
 
-function ImpoundCard({ v, staff }: { v: ImpoundedVehicle; staff: boolean }) {
-  const name = displayName(v);
+function ImpoundRow({ v, staff, compact }: { v: ImpoundedVehicle; staff: boolean; compact: boolean }) {
+  const a = useAvailability(v.impound);
+  const nick = (v.nickname ?? '').trim();
+  const tone = a?.state === 'now' ? 'teal' : a?.state === 'waiting' ? 'amber' : 'red';
+  const label = a?.state === 'now' ? t('Available') : a?.state === 'waiting' ? t('In {time}', { time: countdown(a.seconds) }) : t('On hold');
   return (
-    <>
-      <div className="nz-garage__media">
-        <VehicleImage image={v.image} vehicleType={v.vehicleType} alt={v.label} className="nz-garage__img" />
-        <div className="nz-garage__overlay">
-          <span className="nz-garage__backing">
-            <AvailabilityBadge info={v.impound} />
-          </span>
-        </div>
-      </div>
-      <div className="nz-garage__cardbody">
-        <b className="nz-garage__name" title={name}>
-          {name}
-        </b>
-        {staff ? (
-          <span className="nz-garage__sub nz-impound__owner">
-            <Icon name="user" size={11} strokeWidth={1.8} />
-            {v.isOwner ? t('You') : v.ownerName}
-          </span>
+    <RowBody
+      image={v.image}
+      vehicleType={v.vehicleType}
+      alt={v.label}
+      compact={compact}
+      title={nick || modelName(v)}
+      aside={staff ? (v.isOwner ? t('You') : v.ownerName) : nick ? modelName(v) : undefined}
+      dot={tone}
+      meta={
+        compact ? (
+          <PlateTag plate={v.plate} size="sm" />
         ) : (
-          v.nickname && <span className="nz-garage__sub">{v.label}</span>
-        )}
-        <div className="nz-garage__meta">
-          <PlateTag plate={v.plate} size="sm" />
-          <span className="nz-garage__mileage">
-            <Icon name="money" size={12} strokeWidth={1.8} />
-            {v.impound.fee > 0 ? money(v.impound.fee) : t('Free')}
-          </span>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function ImpoundRow({ v, staff, open }: { v: ImpoundedVehicle; staff: boolean; open: boolean }) {
-  const name = displayName(v);
-  return (
-    <>
-      <div className="nz-garage__thumb">
-        <VehicleImage image={v.image} vehicleType={v.vehicleType} alt={v.label} className="nz-garage__img" />
-      </div>
-      <div className="nz-garage__rowtext">
-        <span className="nz-garage__rowtitle">
-          <b className="nz-garage__name" title={name}>
-            {name}
-          </b>
-          {staff ? (
-            <span className="nz-garage__sub nz-impound__owner">
-              <Icon name="user" size={11} strokeWidth={1.8} />
-              {v.isOwner ? t('You') : v.ownerName}
-            </span>
-          ) : (
-            v.nickname && <span className="nz-garage__sub">{v.label}</span>
-          )}
+          <>
+            <PlateTag plate={v.plate} size="sm" />
+            <StatusDot tone={tone} label={label} />
+          </>
+        )
+      }
+      side={
+        <span className={cx('nz-garage__price', v.impound.fee <= 0 && 'is-free')}>
+          {v.impound.fee > 0 ? money(v.impound.fee) : t('Free')}
         </span>
-        <span className="nz-garage__meta">
-          <PlateTag plate={v.plate} size="sm" />
-          <span className="nz-garage__mileage">
-            <Icon name="gauge" size={12} strokeWidth={1.8} />
-            {distance(v.mileage)}
-          </span>
-          <span className="nz-garage__mileage">
-            <Icon name="money" size={12} strokeWidth={1.8} />
-            {v.impound.fee > 0 ? money(v.impound.fee) : t('Free')}
-          </span>
-        </span>
-      </div>
-      <div className="nz-garage__rowside">
-        <AvailabilityBadge info={v.impound} />
-        <Icon name="chevronDown" size={15} strokeWidth={1.8} className={cx('nz-garage__chev', open && 'is-open')} />
-      </div>
-    </>
+      }
+      health={v.body}
+    />
   );
 }
 
-/* ── detail ──────────────────────────────────────────────────────────── */
+/* ── showcase ────────────────────────────────────────────────────────── */
 
-function Cell({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="nz-garage__cell">
-      <span className="nz-garage__cell-label">{label}</span>
-      <span className="nz-garage__cell-value">{children}</span>
-    </div>
-  );
-}
-
-function ImpoundDetail({
+function ImpoundShowcase({
   v,
   staff,
-  variant,
+  feeWaived,
   retrieving,
   releasing,
-  onCollapse,
   onRetrieve,
   onReleaseOwner,
   onReturnGarage,
-  feeWaived = false,
 }: {
   v: ImpoundedVehicle;
   staff: boolean;
-  feeWaived?: boolean;
-  variant: ViewMode;
+  feeWaived: boolean;
   retrieving: string | null;
   releasing: { plate: string; mode: 'owner' | 'garage' } | null;
-  onCollapse?: () => void;
   onRetrieve: () => void;
   onReleaseOwner: () => void;
   onReturnGarage: () => void;
 }) {
   const info = v.impound;
   const a = useAvailability(info);
-  const name = displayName(v);
-  const canCollect = !staff || v.isOwner;
+  const collect = !staff || v.isOwner;
   const available = a?.state === 'now';
   // The server's verdict (blocked, overdue finance, wrong vehicle type, staff override) wins.
   const serverAllows = v.canDrive !== false;
@@ -367,109 +415,134 @@ function ImpoundDetail({
   const fee = staff && feeWaived ? 0 : info.fee;
   const isRetrieving = retrieving === v.plate;
   const busy = retrieving !== null || releasing !== null;
+  const owner = v.isOwner ? t('You') : v.ownerName;
+
+  let reason: { tone: 'neutral' | 'amber' | 'red'; icon: 'lock' | 'clock' | 'ban' | 'info'; text: string } | null = null;
+  if (collect && a && !available && !staff) {
+    reason =
+      a.state === 'release'
+        ? { tone: 'red', icon: 'lock', text: t('Impound staff have to release this vehicle before you can pay the fee and drive it.') }
+        : { tone: 'amber', icon: 'clock', text: t('You can collect it in {time} — on {date}.', { time: countdown(a.seconds), date: dateTime(info.releaseAt) }) };
+  } else if (collect && !serverAllows && v.reason) {
+    reason = { tone: 'red', icon: 'ban', text: v.reason };
+  } else if (!collect) {
+    reason = {
+      tone: 'neutral',
+      icon: 'info',
+      text: available ? t('The owner can collect it now.') : t('Releasing makes it available to the owner right away.'),
+    };
+  }
+
+  const availValue = !a ? '—' : a.state === 'now' ? t('Now') : a.state === 'waiting' ? countdown(a.seconds) : t('On hold');
+  const availTone = !a ? undefined : a.state === 'now' ? ('teal' as const) : a.state === 'waiting' ? ('amber' as const) : ('red' as const);
 
   return (
-    <div className="nz-garage__dv">
-      <div className="nz-garage__dv-head">
-        <div className="nz-garage__dv-title">
-          {variant === 'grid' && (
-            <div className="nz-garage__dv-name">
-              <b title={name}>{name}</b>
-              {v.nickname && <span>{v.label}</span>}
-            </div>
+    <ShowcaseFrame
+      id={v.plate}
+      stage={
+        <Stage
+          id={v.plate}
+          image={v.image}
+          vehicleType={v.vehicleType}
+          alt={v.label}
+          className="nz-impound__stage"
+          topLeft={
+            <>
+              <ClassTag icon={<Icon name={vehicleIcon(v)} size={13} strokeWidth={1.8} />} label={v.classLabel || t('Vehicle')} />
+              <Badge tone="red" icon="impound" size="sm">
+                {t('Impounded')}
+              </Badge>
+            </>
+          }
+          topRight={
+            staff ? (
+              <Badge tone={v.isOwner ? 'white' : 'neutral'} icon="user" size="sm">
+                {owner}
+              </Badge>
+            ) : undefined
+          }
+          title={<StageTitle make={v.make} name={modelName(v)} nickname={v.nickname} />}
+          plate={<Plate plate={v.plate} />}
+        />
+      }
+      strip={
+        <>
+          <StripCell icon="calendar" label={t('Impounded')} value={ago(info.at)} sub={dateTime(info.at)} />
+          <StripCell
+            icon="money"
+            label={t('Fee')}
+            value={fee > 0 ? money(fee) : info.fee > 0 ? t('Waived') : t('Free')}
+            sub={info.fee > 0 && fee === 0 ? t('Normally {fee}', { fee: money(info.fee) }) : t('Paid on collection')}
+            tone={fee > 0 ? undefined : 'teal'}
+          />
+          <StripCell
+            icon="clock"
+            label={t('Available')}
+            value={availValue}
+            sub={a?.state === 'release' ? t('Release required') : dateTime(info.releaseAt)}
+            tone={availTone}
+          />
+          {staff ? (
+            <StripCell icon="user" label={t('Owner')} value={owner} sub={v.isOwner ? t('Your vehicle') : t('Player vehicle')} />
+          ) : (
+            <StripCell icon="gauge" label={t('Mileage')} value={distance(v.mileage)} sub={t('On the clock')} />
           )}
-          <div className="nz-garage__dv-meta">
-            {variant === 'grid' && <PlateTag plate={v.plate} />}
-            {staff && (
-              <span className="nz-garage__mileage">
-                <Icon name="user" size={12} strokeWidth={1.8} />
-                {t('Owner')} <b>{v.isOwner ? t('You') : v.ownerName}</b>
+        </>
+      }
+      dock={
+        <>
+          <div className="nz-garage__dock-main">
+            {collect && (
+              <Button
+                variant="teal"
+                size="lg"
+                icon="arrowRight"
+                loading={isRetrieving}
+                disabled={!canDriveNow || (busy && !isRetrieving)}
+                onClick={onRetrieve}
+                className="nz-garage__go"
+              >
+                <PrimaryLabel keycap={!isRetrieving && canDriveNow}>
+                  {isRetrieving
+                    ? t('Loading vehicle...')
+                    : fee > 0
+                      ? t('Pay {fee} & drive out', { fee: money(fee) })
+                      : t('Drive out')}
+                </PrimaryLabel>
+              </Button>
+            )}
+            {reason && (
+              <span className={cx('nz-garage__dock-reason', `is-${reason.tone}`)}>
+                <Icon name={reason.icon} size={13} strokeWidth={1.9} />
+                <span>{reason.text}</span>
               </span>
             )}
-            <span className="nz-garage__mileage" title={dateTime(info.at)}>
-              <Icon name="calendar" size={12} strokeWidth={1.8} />
-              {t('Impounded')} <b>{date(info.at)}</b>
-            </span>
           </div>
-        </div>
-        <div className="nz-garage__dv-badges">
-          <ConditionRings v={v} />
-          {onCollapse && <Button variant="ghost" size="sm" icon="close" onClick={onCollapse} title={t('Collapse')} />}
-        </div>
-      </div>
-
-      <div className="nz-garage__block is-danger">
-        <div className="nz-garage__cells nz-garage__cells--4">
-          <Cell label={t('Impounded by')}>{info.byName || t('Unknown')}</Cell>
-          <Cell label={t('Reason')}>
-            <span className="nz-garage__clamp" title={info.reason}>
-              {info.reason || t('No reason given')}
-            </span>
-          </Cell>
-          <Cell label={t('Retrieval fee')}>{info.fee > 0 ? money(info.fee) : t('Free')}</Cell>
-          <Cell label={t('Available')}>
-            <AvailabilityText info={info} />
-          </Cell>
-        </div>
-      </div>
-
-      {canCollect && !available && a && (
-        <div className={cx('nz-garage__reason', a.state === 'release' ? 'is-red' : 'is-amber')}>
-          <Icon name={a.state === 'release' ? 'lock' : 'clock'} size={14} strokeWidth={1.8} />
-          <span>
-            {a.state === 'release'
-              ? t('Impound staff have to release this vehicle before you can pay the fee and drive it.')
-              : t('You can collect it in {time} — on {date}.', { time: countdown(a.seconds), date: dateTime(info.releaseAt) })}
-          </span>
-        </div>
-      )}
-
-      {canCollect && available && !serverAllows && v.reason && (
-        <div className="nz-garage__reason is-red">
-          <Icon name="ban" size={14} strokeWidth={1.8} />
-          <span>{v.reason}</span>
-        </div>
-      )}
-
-      <div className="nz-garage__actions">
-        <div className="nz-garage__actions-main">
-          {canCollect && (
-            <Button
-              variant="teal"
-              icon="arrowRight"
-              loading={isRetrieving}
-              disabled={!canDriveNow || (busy && !isRetrieving)}
-              badge={!isRetrieving && fee > 0 ? money(fee) : undefined}
-              onClick={onRetrieve}
-            >
-              {isRetrieving ? t('Loading vehicle...') : t('Drive')}
-            </Button>
-          )}
           {staff && (
-            <>
-              <Button
-                variant={canCollect ? 'line' : 'white'}
+            <div className="nz-garage__tools" role="toolbar" aria-label={t('Staff actions')}>
+              <Tool
                 icon="unlock"
-                loading={releasing?.plate === v.plate && releasing.mode === 'owner'}
-                disabled={available || (busy && releasing?.plate !== v.plate)}
-                title={available ? t('Already available to the owner') : undefined}
+                label={releasing?.plate === v.plate && releasing.mode === 'owner' ? t('Releasing...') : t('Release to owner')}
                 onClick={onReleaseOwner}
-              >
-                {t('Release to owner')}
-              </Button>
-              <Button icon="garage" disabled={busy} onClick={onReturnGarage}>
-                {t('Return to garage')}
-              </Button>
-            </>
+                disabled={available || busy}
+                tip={available ? t('Already available to the owner') : t('Make it collectable right away')}
+              />
+              <Tool icon="garage" label={t('Return to garage')} onClick={onReturnGarage} disabled={busy} tip={t('Send it back to its last garage, free')} />
+            </div>
           )}
-        </div>
-        {staff && !canCollect && (
-          <span className="nz-impound__note">
-            <Icon name="info" size={12} strokeWidth={1.8} />
-            {available ? t('The owner can collect it now.') : t('Releasing makes it available right away.')}
-          </span>
-        )}
-      </div>
-    </div>
+        </>
+      }
+    >
+      <ImpoundBlock info={info} fee={fee} owner={staff ? owner : null} />
+      <ConditionBlock
+        engine={v.engine}
+        body={v.body}
+        fuel={v.fuel}
+        damage={normDamage(v.damage)}
+        vehicleType={v.vehicleType}
+        needsService={v.needsService}
+      />
+      {v.stats && <PerformanceBlock stats={v.stats} />}
+    </ShowcaseFrame>
   );
 }

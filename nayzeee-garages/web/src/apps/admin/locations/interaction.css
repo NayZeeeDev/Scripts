@@ -1,0 +1,261 @@
+/* Location editor — "Interaction" section (InteractionFields.tsx). Tokens only, CEF-safe. */
+
+.nz-admin-interaction {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 6px;
+}
+
+/* explainer of the selected mode */
+.nz-admin-interaction__explain {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 2px;
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  transition: border-color var(--fast), background var(--fast);
+}
+
+.nz-admin-interaction__explain.is-target {
+  border-color: var(--teal-edge);
+  background: linear-gradient(180deg, rgba(var(--teal-rgb), .07), rgba(var(--teal-rgb), .02)), var(--inset);
+}
+
+.nz-admin-interaction__glyph {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--raise);
+  color: var(--ink-2);
+}
+
+.nz-admin-interaction__explain.is-target .nz-admin-interaction__glyph {
+  border-color: var(--teal-edge);
+  background: var(--teal-wash);
+  color: var(--teal);
+}
+
+.nz-admin-interaction__explain-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nz-admin-interaction__explain-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.nz-admin-interaction__explain-head b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.nz-admin-interaction__explain-text p {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.nz-admin-interaction__explain-text p.nz-admin-interaction__muted {
+  margin-top: 8px;
+  color: var(--ink-3);
+}
+
+/* third-eye options preview */
+.nz-admin-interaction__options {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.nz-admin-interaction__caption {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-admin-interaction__options ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nz-admin-interaction__options li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--hud);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .04) inset;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.nz-admin-interaction__options li svg { flex: none; color: var(--teal); }
+
+.nz-admin-interaction__options li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-admin-interaction__options li small {
+  padding-left: 7px;
+  border-left: 1px solid var(--line-soft);
+  font-size: 10.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+/* NPC */
+.nz-admin-interaction__npc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.nz-admin-interaction__npc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0 0 14px;
+  border-left: 2px solid var(--teal-edge);
+  animation: nz-admin-interaction-in var(--slide) both;
+}
+
+@keyframes nz-admin-interaction-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.nz-admin-interaction__mono {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: .01em;
+}
+
+.nz-admin-interaction__presets .nz-admin-interaction__caption { margin-bottom: 6px; }
+
+.nz-admin-interaction__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nz-admin-interaction__chips .nz-chip {
+  height: 26px;
+  padding: 0 11px;
+  font-size: 11.5px;
+}
+
+.nz-admin-interaction__spot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 10px 6px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+}
+
+.nz-admin-interaction__spot-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--teal-edge);
+  background: var(--teal-wash);
+  color: var(--teal);
+}
+
+.nz-admin-interaction__spot.is-empty .nz-admin-interaction__spot-icon {
+  border-color: var(--line-soft);
+  background: var(--raise);
+  color: var(--ink-3);
+}
+
+.nz-admin-interaction__spot-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nz-admin-interaction__spot-text b {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--white);
+}
+
+.nz-admin-interaction__spot.is-empty .nz-admin-interaction__spot-text b { color: var(--ink-2); }
+
+.nz-admin-interaction__spot-text small {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-admin-interaction__spot.is-empty .nz-admin-interaction__spot-text small {
+  font-family: var(--font);
+  font-weight: 300;
+}
+
+/* NPC would never appear with this mode */
+.nz-admin-interaction__warn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px 7px 11px;
+  border: 1px solid var(--amber-edge);
+  border-radius: var(--r-sm);
+  background: var(--amber-wash);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.nz-admin-interaction__warn > svg { flex: none; color: var(--amber); }
+.nz-admin-interaction__warn > span { flex: 1 1 auto; min-width: 0; }
+.nz-admin-interaction__warn .nz-btn { flex: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nz-admin-interaction__npc-body { animation: none; }
+}

@@ -11,7 +11,6 @@ local openApps = {}        -- [app] = { focus = boolean }
 local closeHooks = {}      -- [app] = { fn, ... }
 local handlers = {}        -- [callbackName] = handler(data)
 local nuiReady = false     -- the page called 'ready' (or any callback)
-local pendingToasts = {}   -- toasts raised before the page was ready
 local initWithDefaults = false
 local hasFocus = false
 local lastPrompt = nil     -- 'key|label' of the prompt currently shown
@@ -88,14 +87,6 @@ local function sendInit()
       resource = NZ.ResourceName,
     },
   })
-end
-
-local function flushToasts()
-  local list = pendingToasts
-  pendingToasts = {}
-  for i = 1, #list do
-    SendNUIMessage({ action = 'notify', data = list[i] })
-  end
 end
 
 ---------------------------------------------------------------------------------------
@@ -185,34 +176,21 @@ function NUI.onClose(app, fn)
   list[#list + 1] = fn
 end
 
---- Toast. Also reachable from the server through the 'nz:client:notify' event.
----@param ntype string|table 'success'|'error'|'info'|'warning' (or a full toast table)
+--- Notification through the configured notify integration (NZ.Notify.show,
+--- bridge/client/notify.lua). Also reachable from the server through the
+--- 'nz:client:notify' event and from the interface through the 'notify' callback.
+--- Call shapes: NUI.notify(type, message, title) or NUI.notify({ type, message, title?, duration? }).
+---@param ntype string|table 'success'|'error'|'info'|'warning' (or a notification table)
 ---@param message string|nil
 ---@param title string|nil
 function NUI.notify(ntype, message, title)
-  local toast
+  local duration
   if type(ntype) == 'table' then
-    toast = {
-      type = ntype.type or 'info',
-      message = ntype.message,
-      title = ntype.title,
-      duration = tonumber(ntype.duration),
-    }
-  else
-    toast = { type = ntype or 'info', message = message, title = title }
+    local n = ntype
+    ntype, message, title, duration = n.type, n.message, n.title, n.duration
   end
-  if toast.type ~= 'success' and toast.type ~= 'error' and toast.type ~= 'warning' then
-    toast.type = 'info'
-  end
-  if type(toast.message) ~= 'string' or toast.message == '' then return end
-  if not nuiReady then
-    -- The page has not loaded yet: keep the last few toasts until it has.
-    -- (NZ.Bridge.notify routes back here, so it cannot be used as a fallback.)
-    if #pendingToasts >= 5 then table.remove(pendingToasts, 1) end
-    pendingToasts[#pendingToasts + 1] = toast
-    return
-  end
-  NUI.send('notify', toast)
+  if type(message) ~= 'string' or message == '' then return end
+  NZ.Notify.show(ntype, message, title, tonumber(duration))
 end
 
 --- Show (label) or hide (nil) the interaction prompt.
@@ -296,7 +274,6 @@ function NUI.syncSettings()
     -- missed this (re)initialises it, otherwise 'ready' will send init again anyway.
     sendInit()
     nuiReady = true
-    flushToasts()
   else
     NUI.send('settings', settings)
   end
@@ -317,10 +294,7 @@ function NUI.register(name, handler)
   handlers[name] = handler
   if already then return end
   RegisterNUICallback(name, function(data, cb)
-    if not nuiReady then
-      nuiReady = true
-      flushToasts()
-    end
+    nuiReady = true
     CreateThread(function()
       local fn = handlers[name]
       local okCall, res = pcall(fn, type(data) == 'table' and data or {})
@@ -380,13 +354,47 @@ end
 NUI.register('ready', function()
   nuiReady = true
   sendInit()
-  flushToasts()
   return nil
 end)
 
 NUI.register('close', function(data)
   local app = type(data.app) == 'string' and data.app or nil
   NUI.close(app, 'nui')
+  return nil
+end)
+
+-- 'notify' { type, message, title? }: the interface raises a notification (every toast()
+-- and request() error in the web app). Validated and lightly rate limited.
+local NOTIFY_KINDS = { success = true, error = true, info = true, warning = true }
+local NOTIFY_MAX_MESSAGE, NOTIFY_MAX_TITLE = 300, 60
+local NOTIFY_WINDOW_MS, NOTIFY_PER_WINDOW = 3000, 8
+local notifyWindowStart, notifyWindowCount = 0, 0
+
+--- Character count (UTF-8 code points; byte length when the text is not valid UTF-8).
+local function textLength(s)
+  return utf8.len(s) or #s
+end
+
+NUI.register('notify', function(data)
+  local kind, message, title = data.type, data.message, data.title
+  if type(kind) ~= 'string' or not NOTIFY_KINDS[kind] then
+    return NZ.Utils.fail(L('Invalid notification'))
+  end
+  if type(message) ~= 'string' or message:find('%S') == nil or textLength(message) > NOTIFY_MAX_MESSAGE then
+    return NZ.Utils.fail(L('Invalid notification'))
+  end
+  if title ~= nil and (type(title) ~= 'string' or textLength(title) > NOTIFY_MAX_TITLE) then
+    return NZ.Utils.fail(L('Invalid notification'))
+  end
+  local now = GetGameTimer()
+  if now - notifyWindowStart >= NOTIFY_WINDOW_MS then
+    notifyWindowStart, notifyWindowCount = now, 0
+  end
+  if notifyWindowCount >= NOTIFY_PER_WINDOW then
+    return NZ.Utils.fail(L('Too many notifications, slow down'))
+  end
+  notifyWindowCount = notifyWindowCount + 1
+  NZ.Notify.show(kind, message, title)
   return nil
 end)
 
@@ -465,6 +473,7 @@ local forwarded = {
   'admin:group:member', 'admin:interior:delete', 'admin:interior:toggle',
   'admin:settings:save', 'admin:players:search', 'admin:players:vehicles',
   'admin:vehicle:get', 'admin:vehicle:assign', 'admin:vehicle:update', 'admin:vehicle:delete',
+  'admin:vehicle:activity',
 }
 
 for i = 1, #forwarded do
@@ -476,9 +485,17 @@ end
 -- Events & cleanup
 ---------------------------------------------------------------------------------------
 
-RegisterNetEvent('nz:client:notify', function(toast)
-  if type(toast) ~= 'table' then return end
-  NUI.notify(toast)
+-- Notification from the server (NZ.Bridge.notify) or another resource. Both call shapes:
+-- ({ type, message, title?, duration? }) or (type, message, title?); a lone string is an
+-- 'info' message.
+RegisterNetEvent('nz:client:notify', function(a, b, c)
+  if type(a) == 'table' then
+    NUI.notify(a)
+  elseif type(a) == 'string' and type(b) == 'string' then
+    NUI.notify(a, b, type(c) == 'string' and c or nil)
+  elseif type(a) == 'string' then
+    NUI.notify('info', a)
+  end
 end)
 
 AddEventHandler('onResourceStop', function(resource)

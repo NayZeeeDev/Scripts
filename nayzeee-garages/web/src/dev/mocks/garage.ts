@@ -1,13 +1,17 @@
 /**
  * Garage app mocks (browser dev only): scenarios for every garage flavour and stateful
  * mockNui handlers for every garage:* callback, so the whole menu is clickable.
- * Scenario ids: garage-grid, garage-list, garage-empty, garage-private, garage-spawner,
- * garage-air, garage-sea, garage-full.
+ * Vehicles carry what the client adds in game (class label, model stats) plus stored
+ * upgrades (mods) and damage, so the showroom can be judged with realistic data.
+ * Scenario ids: garage-grid, garage-list, garage-empty, garage-full, garage-private,
+ * garage-spawner, garage-air, garage-sea, garage-damaged, garage-finance, garage-house,
+ * garage-job, garage-rental, garage-big.
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui, onNuiMessage } from '../../lib/nui';
-import { defaultInterface } from '../../lib/store';
+import { defaultInterface, toast } from '../../lib/store';
 import type {
+  DamageSummary,
   Finance,
   GarageOpenData,
   GarageOptions,
@@ -15,10 +19,12 @@ import type {
   GarageVehicle,
   ImpoundInfo,
   MemberData,
+  ModSummary,
   NuiMessage,
   PlayerOption,
   Role,
   SpawnerVehicleView,
+  VehicleStats,
   VehicleType,
 } from '../../lib/types';
 
@@ -61,6 +67,116 @@ export const ONLINE_PLAYERS: PlayerOption[] = [
   { serverId: 90, name: 'Grace Okafor' },
 ];
 
+/**
+ * What NZ.Veh.modelInfo reads in game: [classId, classLabel, topSpeed km/h, speed, acceleration,
+ * braking, traction, seats]. Models missing here behave like unknown add-ons (no class / stats).
+ */
+const MODEL_INFO: Record<string, [number, string, number, number, number, number, number, number]> = {
+  // compacts / sedans / coupes
+  blista: [0, 'Compacts', 166, 69, 56, 48, 73, 2],
+  issi2: [0, 'Compacts', 158, 66, 54, 47, 72, 2],
+  panto: [0, 'Compacts', 148, 62, 47, 44, 70, 2],
+  asea: [1, 'Sedans', 162, 68, 50, 45, 70, 4],
+  schafter3: [1, 'Sedans', 186, 78, 69, 55, 78, 4],
+  tailgater2: [1, 'Sedans', 189, 79, 69, 55, 79, 4],
+  kanjosj: [3, 'Coupes', 181, 75, 66, 53, 78, 2],
+  felon: [3, 'Coupes', 184, 77, 64, 52, 77, 4],
+  // SUVs / off-road / vans / commercial
+  granger2: [2, 'SUVs', 166, 69, 52, 44, 71, 4],
+  baller7: [2, 'SUVs', 178, 74, 60, 47, 73, 4],
+  rebla: [2, 'SUVs', 181, 75, 63, 49, 76, 4],
+  rebel2: [9, 'Off-road', 158, 66, 54, 42, 74, 2],
+  bodhi2: [9, 'Off-road', 152, 63, 48, 40, 71, 4],
+  sanchez: [8, 'Motorcycles', 168, 70, 68, 49, 72, 2],
+  bison: [12, 'Vans', 151, 63, 38, 34, 62, 4],
+  rumpo: [12, 'Vans', 146, 61, 36, 32, 58, 4],
+  mule: [20, 'Commercial', 128, 53, 27, 28, 56, 2],
+  // muscle / sports / super
+  buffalo4: [4, 'Muscle', 199, 83, 76, 57, 80, 4],
+  dominator3: [4, 'Muscle', 196, 82, 74, 56, 79, 2],
+  gauntlet4: [4, 'Muscle', 195, 81, 75, 54, 77, 2],
+  vigero2: [4, 'Muscle', 197, 82, 77, 57, 80, 2],
+  elegy: [6, 'Sports', 196, 82, 74, 61, 84, 2],
+  jester4: [6, 'Sports', 201, 84, 78, 63, 86, 2],
+  paragon: [6, 'Sports', 199, 83, 76, 58, 81, 2],
+  comet7: [6, 'Sports', 198, 83, 75, 62, 85, 2],
+  italigto: [6, 'Sports', 205, 86, 81, 66, 87, 2],
+  tenf2: [6, 'Sports', 200, 84, 77, 64, 86, 2],
+  zr350: [6, 'Sports', 192, 80, 71, 57, 80, 4],
+  euros: [6, 'Sports', 194, 81, 73, 58, 82, 2],
+  sultan2: [6, 'Sports', 188, 79, 70, 56, 83, 4],
+  neon: [6, 'Sports', 197, 82, 79, 60, 84, 4],
+  kuruma: [6, 'Sports', 182, 76, 64, 52, 80, 4],
+  coquette4: [6, 'Sports', 203, 85, 79, 64, 85, 2],
+  turismo3: [7, 'Super', 209, 87, 82, 67, 88, 2],
+  torero2: [7, 'Super', 212, 89, 83, 70, 90, 2],
+  t20: [7, 'Super', 214, 89, 86, 71, 91, 2],
+  banshee2: [7, 'Super', 207, 86, 80, 66, 86, 2],
+  entityxf: [7, 'Super', 210, 88, 82, 68, 88, 2],
+  // bikes
+  bati: [8, 'Motorcycles', 211, 88, 82, 60, 76, 2],
+  hakuchou2: [8, 'Motorcycles', 219, 91, 88, 58, 74, 1],
+  faggio: [8, 'Motorcycles', 92, 38, 34, 30, 52, 2],
+  // air
+  luxor2: [16, 'Planes', 330, 100, 64, 22, 30, 10],
+  shamal: [16, 'Planes', 320, 100, 61, 21, 30, 10],
+  mammatus: [16, 'Planes', 210, 88, 40, 18, 28, 4],
+  buzzard2: [15, 'Helicopters', 160, 67, 72, 40, 50, 4],
+  frogger: [15, 'Helicopters', 156, 65, 66, 38, 50, 4],
+  swift: [15, 'Helicopters', 164, 68, 70, 40, 50, 4],
+  // sea
+  speeder: [14, 'Boats', 118, 49, 70, 20, 40, 4],
+  jetmax: [14, 'Boats', 124, 52, 74, 22, 42, 4],
+  seashark: [14, 'Boats', 104, 43, 79, 26, 48, 2],
+  toro: [14, 'Boats', 121, 50, 72, 21, 41, 4],
+  tropic: [14, 'Boats', 96, 40, 58, 18, 36, 4],
+  // emergency
+  police: [18, 'Emergency', 176, 73, 58, 50, 72, 4],
+  police2: [18, 'Emergency', 182, 76, 63, 53, 75, 4],
+  police3: [18, 'Emergency', 187, 78, 66, 55, 77, 4],
+  police4: [18, 'Emergency', 179, 74, 60, 51, 73, 4],
+  policeb: [18, 'Emergency', 172, 72, 69, 51, 70, 1],
+  policet: [18, 'Emergency', 148, 62, 37, 34, 60, 8],
+  fbi2: [18, 'Emergency', 171, 71, 55, 46, 71, 4],
+  riot: [18, 'Emergency', 141, 59, 30, 31, 58, 4],
+  ambulance: [18, 'Emergency', 152, 63, 41, 38, 63, 4],
+  lguard: [18, 'Emergency', 164, 68, 52, 44, 70, 4],
+  firetruk: [18, 'Emergency', 139, 58, 29, 30, 60, 4],
+};
+
+/** Class label + model stats the client enrichment adds (absent for unknown models). */
+export function modelInfo(model: string): { classId?: number; classLabel?: string; stats?: VehicleStats } {
+  const m = MODEL_INFO[model.toLowerCase()];
+  if (!m) return {};
+  const [classId, classLabel, topSpeed, speed, acceleration, braking, traction, seats] = m;
+  return { classId, classLabel, stats: { topSpeed, speed, acceleration, braking, traction, seats } };
+}
+
+/** Installed upgrades (level 0 = stock). */
+export const mods = (engine: number, brakes: number, transmission: number, suspension: number, armor: number, turbo = false): ModSummary => ({
+  engine,
+  brakes,
+  transmission,
+  suspension,
+  armor,
+  turbo,
+});
+
+/** Stored damage summary (health 0–1000, part indexes as in types.ts). */
+export const dmg = (d: Partial<DamageSummary> = {}): DamageSummary => ({
+  engine: 1000,
+  body: 1000,
+  tank: 1000,
+  doors: [],
+  windows: [],
+  tyres: [],
+  deformed: false,
+  ...d,
+});
+
+/** Lua encodes an empty list as an object: the interface has to cope with `{}`. */
+const luaEmpty = {} as unknown as number[];
+
 /** Vehicle factory with sensible defaults (parked here, healthy, owned by ME). */
 export function veh(
   model: string,
@@ -73,6 +189,7 @@ export function veh(
     label,
     make,
     image: model.toLowerCase(),
+    ...modelInfo(model),
     plate,
     model,
     hash: joaat(model),
@@ -101,6 +218,8 @@ export function veh(
     needsService: false,
     blocked: false,
     lastUsed: nowS() - 2 * D,
+    damage: dmg({ engine: 970, body: 940 }),
+    mods: mods(0, 0, 0, 0, 0),
     ...extra,
   };
 }
@@ -207,6 +326,8 @@ export function legionSquare(): GarageOpenData {
         needsService: true,
         mileage: 28360,
         lastUsed: t - 3 * H,
+        damage: dmg({ engine: 410, body: 880, windows: [6] }),
+        mods: mods(4, 3, 3, 2, 0, true),
       }),
       veh('jester4', 'Dinka Jester RR', 'Dinka', 'MIDNIGHT', {
         ...elsewhere('L4', 'Mirror Park Garage'),
@@ -214,32 +335,57 @@ export function legionSquare(): GarageOpenData {
         mileage: 12482,
         engine: 63,
         needsService: true,
+        damage: dmg({ engine: 630, body: 910 }),
+        mods: mods(3, 2, 2, 1, 0, true),
       }),
-      veh('paragon', 'Enus Paragon R', 'Enus', 'ENUS 1', { ...outInCity(), favourite: true, mileage: 7620, fuel: 54, lastUsed: t - 40 * 60 }),
+      veh('paragon', 'Enus Paragon R', 'Enus', 'ENUS 1', {
+        ...outInCity(),
+        favourite: true,
+        mileage: 7620,
+        fuel: 54,
+        lastUsed: t - 40 * 60,
+        mods: mods(2, 1, 1, 0, 3),
+      }),
       veh('comet7', 'Pfister Comet S2 Cabrio', 'Pfister', 'PACIFIC', {
         ...elsewhere('L9', 'Paleto Bay Garage'),
         favourite: true,
         sharedWith: 2,
         mileage: 3240,
+        mods: mods(4, 3, 3, 3, 0, true),
       }),
       veh('bison', 'Bravado Bison', 'Bravado', 'BGLMK537', {
         trailer: { model: 'boattrailer', label: 'Boat Trailer' },
         mileage: 1240,
         fuel: 64,
+        body: 81,
+        damage: dmg({ body: 810, doors: [5], deformed: true }),
       }),
       veh('italigto', 'Grotti Itali GTO', 'Grotti', 'GTO 88', {
         finance: finance({}),
         fuel: 98,
         mileage: 1842,
         lastUsed: t - 26 * H,
+        mods: mods(4, 3, 3, 4, 2, true),
       }),
-      veh('turismo3', 'Grotti Turismo Omaggio', 'Grotti', 'OMAGGIO', { nickname: 'Sunday Driver', mileage: 326, fuel: 91, favourite: false }),
-      veh('tenf2', 'Obey 10F Widebody', 'Obey', 'WIDE 10', { mileage: 3249, lastUsed: t - 6 * D }),
-      veh('torero2', 'Pegassi Torero XO', 'Pegassi', 'XO CLUB', { mileage: 484, body: 71 }),
+      veh('turismo3', 'Grotti Turismo Omaggio', 'Grotti', 'OMAGGIO', {
+        nickname: 'Sunday Driver',
+        mileage: 326,
+        fuel: 91,
+        mods: mods(1, 1, 1, 1, 0),
+      }),
+      veh('tenf2', 'Obey 10F Widebody', 'Obey', 'WIDE 10', { mileage: 3249, lastUsed: t - 6 * D, mods: null }),
+      veh('torero2', 'Pegassi Torero XO', 'Pegassi', 'XO CLUB', {
+        mileage: 484,
+        body: 71,
+        damage: dmg({ body: 710, doors: [1], windows: [1] }),
+        mods: mods(3, 3, 2, 2, 1, true),
+      }),
       veh('zr350', 'Annis ZR350', 'Annis', 'ZR 350', {
         ...impounded(impoundInfo({ releaseAt: t + 2 * H + 14 * 60, reason: 'Parked in a fire lane outside Pillbox Medical' })),
         mileage: 18320,
         body: 46,
+        damage: dmg({ body: 460, doors: [0], windows: [0, 6], tyres: [{ index: 1, state: 1 }], deformed: true }),
+        mods: mods(2, 2, 2, 3, 0, true),
       }),
       veh('euros', 'Annis Euros', 'Annis', 'DVS 23', {
         ...impounded(
@@ -258,11 +404,13 @@ export function legionSquare(): GarageOpenData {
         ownerName: 'Marcus Reid',
         sharedBy: 'Marcus Reid',
         mileage: 7860,
+        mods: mods(3, 2, 3, 2, 0, true),
       }),
       veh('neon', 'Pfister Neon', 'Pfister', 'SILENT', { ...outInCity(750), mileage: 4173, fuel: 34, lastUsed: t - 3 * D }),
       veh('kuruma', 'Karin Kuruma', 'Karin', 'KRM 404', {
         finance: finance({ balance: 42000, payment: 7000, paymentsLeft: 6, paymentsTotal: null, intervalHours: 24, nextPaymentHours: 12 }),
         mileage: 22140,
+        mods: mods(1, 1, 1, 1, 5),
       }),
       veh('buffalo4', 'Bravado Buffalo STX', 'Bravado', 'BUFF 4', {
         finance: finance({ balance: 186000, payment: 31000, paymentsLeft: 6, paymentsTotal: 12, intervalHours: 72, nextPaymentHours: 0, overdue: true }),
@@ -270,20 +418,35 @@ export function legionSquare(): GarageOpenData {
         reason: 'A finance payment is overdue',
         mileage: 9312,
       }),
-      veh('granger2', 'Declasse Granger 3600LX', 'Declasse', 'FAMILY 3', { nickname: 'The Tank', mileage: 41230, fuel: 47 }),
-      veh('sanchez', 'Maibatsu Sanchez', 'Maibatsu', 'DIRT 77', { fuel: 18, body: 54, engine: 72, mileage: 6620 }),
+      veh('granger2', 'Declasse Granger 3600LX', 'Declasse', 'FAMILY 3', { nickname: 'The Tank', mileage: 41230, fuel: 47, mods: mods(1, 1, 0, 2, 4) }),
+      veh('sanchez', 'Maibatsu Sanchez', 'Maibatsu', 'DIRT 77', {
+        fuel: 18,
+        body: 54,
+        engine: 72,
+        mileage: 6620,
+        damage: dmg({ engine: 720, body: 540, tyres: [{ index: 4, state: 2 }] }),
+      }),
       veh('bati', 'Pegassi Bati 801', 'Pegassi', 'BATI 801', { ...elsewhere('L3', 'Del Perro Pier'), mileage: 11050 }),
-      veh('coquette4', 'Invetero Coquette D10', 'Invetero', 'D10 GOLD', { mileage: 2215, lastUsed: t - 34 * D }),
+      veh('coquette4', 'Invetero Coquette D10', 'Invetero', 'D10 GOLD', { mileage: 2215, lastUsed: t - 34 * D, mods: mods(4, 3, 3, 4, 0, true) }),
       veh('baller7', 'Gallivanter Baller ST', 'Gallivanter', 'BALLER', {
         blocked: true,
         canDrive: false,
         reason: 'Blocked by server staff — contact an admin',
         mileage: 30110,
       }),
-      veh('dominator3', 'Vapid Dominator GTX', 'Vapid', 'GTX 69', { sharedWith: 1, mileage: 15900, lastUsed: t - 9 * H }),
+      veh('dominator3', 'Vapid Dominator GTX', 'Vapid', 'GTX 69', { sharedWith: 1, mileage: 15900, lastUsed: t - 9 * H, mods: mods(3, 2, 2, 1, 0) }),
       veh('rebla', 'Übermacht Rebla GTS', 'Übermacht', 'REBLA', { ...elsewhere('L2', 'Pillbox Hill Parking'), mileage: 5240 }),
-      veh('hakuchou2', 'Shitzu Hakuchou Drag', 'Shitzu', 'HAKU 2', { needsService: true, engine: 22, mileage: 19870, fuel: 66 }),
-      veh('rumpo', 'Bravado Rumpo', 'Bravado', 'DELIVER', { nickname: 'Work Van', mileage: 94210, body: 63, lastUsed: t - 12 * D }),
+      veh('hakuchou2', 'Shitzu Hakuchou Drag', 'Shitzu', 'HAKU 2', {
+        needsService: true,
+        engine: 22,
+        mileage: 19870,
+        fuel: 66,
+        damage: dmg({ engine: 220, body: 900 }),
+        mods: mods(4, 2, 3, 0, 0, true),
+      }),
+      veh('rumpo', 'Bravado Rumpo', 'Bravado', 'DELIVER', { nickname: 'Work Van', mileage: 94210, body: 63, lastUsed: t - 12 * D, damage: null, mods: null }),
+      // Add-on model the server no longer streams: no class / stats, never stored with damage saving.
+      veh('sultanrsv8', 'Karin Sultan RS V8', 'Karin', 'RSV8', { mileage: 640, lastUsed: t - 20 * D, damage: null, mods: null, image: null }),
     ],
   };
 }
@@ -291,7 +454,7 @@ export function legionSquare(): GarageOpenData {
 function lsiaHangar(): GarageOpenData {
   const t = nowS();
   const air = (model: string, label: string, make: string, plate: string, extra: Partial<GarageVehicle> = {}) =>
-    veh(model, label, make, plate, { vehicleType: 'air', garageKey: 'A1', garageName: 'LSIA Hangar', ...extra });
+    veh(model, label, make, plate, { vehicleType: 'air', garageKey: 'A1', garageName: 'LSIA Hangar', mods: null, ...extra });
   return {
     garage: summary({ key: 'A1', locationId: 14, name: 'LSIA Hangar', vehicleType: 'air', canGoInside: false }),
     capacity: { mode: 'limited', appliesTo: 'player', used: 3, total: 4 },
@@ -313,7 +476,7 @@ function lsiaHangar(): GarageOpenData {
 
 function marina(): GarageOpenData {
   const sea = (model: string, label: string, make: string, plate: string, extra: Partial<GarageVehicle> = {}) =>
-    veh(model, label, make, plate, { vehicleType: 'sea', garageKey: 'S1', garageName: 'Puerto Del Sol Marina', ...extra });
+    veh(model, label, make, plate, { vehicleType: 'sea', garageKey: 'S1', garageName: 'Puerto Del Sol Marina', mods: null, ...extra });
   return {
     garage: summary({ key: 'S1', locationId: 18, name: 'Puerto Del Sol Marina', vehicleType: 'sea', canGoInside: false }),
     capacity: { mode: 'unlimited', appliesTo: 'player', used: 4, total: 0 },
@@ -347,9 +510,15 @@ function mirrorParkFull(): GarageOpenData {
     options: { ...OPTIONS, sell: false, share: false },
     spawner: [],
     vehicles: [
-      veh('jester4', 'Dinka Jester RR', 'Dinka', 'MIDNIGHT', { ...here, favourite: true, mileage: 12482 }),
-      veh('t20', 'Progen T20', 'Progen', 'T20 PRO', { ...here, mileage: 3410 }),
-      veh('banshee2', 'Bravado Banshee 900R', 'Bravado', 'BNSHEE', { ...here, mileage: 8812, engine: 39, needsService: true }),
+      veh('jester4', 'Dinka Jester RR', 'Dinka', 'MIDNIGHT', { ...here, favourite: true, mileage: 12482, mods: mods(3, 2, 2, 1, 0, true) }),
+      veh('t20', 'Progen T20', 'Progen', 'T20 PRO', { ...here, mileage: 3410, mods: mods(4, 3, 3, 3, 2, true) }),
+      veh('banshee2', 'Bravado Banshee 900R', 'Bravado', 'BNSHEE', {
+        ...here,
+        mileage: 8812,
+        engine: 39,
+        needsService: true,
+        damage: dmg({ engine: 390, body: 860, windows: [6, 7] }),
+      }),
       veh('schafter3', 'Benefactor Schafter V12', 'Benefactor', 'SCHFTR', { ...here, mileage: 25120 }),
       veh('gauntlet4', 'Bravado Gauntlet Hellfire', 'Bravado', 'HELLFIRE', { ...here, mileage: 6050, fuel: 29 }),
       veh('entityxf', 'Överflöd Entity XF', 'Överflöd', 'ENTITY', { ...here, mileage: 1999 }),
@@ -406,16 +575,155 @@ function laMesa(groupId = 12): GarageOpenData {
     options: OPTIONS,
     spawner: [],
     vehicles: [
-      veh('elegy', 'Annis Elegy Retro Custom', 'Annis', 'MESA R6', { ...base, mileage: 26520 }),
-      veh('zr350', 'Annis ZR350', 'Annis', 'MESA RX', { ...base, mileage: 16915, engine: 44, needsService: true }),
+      veh('elegy', 'Annis Elegy Retro Custom', 'Annis', 'MESA R6', { ...base, mileage: 26520, mods: mods(4, 3, 3, 3, 0, true) }),
+      veh('zr350', 'Annis ZR350', 'Annis', 'MESA RX', { ...base, mileage: 16915, engine: 44, needsService: true, damage: dmg({ engine: 440, body: 900 }) }),
       veh('jester4', 'Dinka Jester RR', 'Dinka', 'MESA RR', { ...base, isOwner: false, ownerName: 'Ava Brooks', mileage: 10820 }),
       veh('sultan2', 'Karin Sultan Classic', 'Karin', 'MESA RS', { ...base, isOwner: false, ownerName: 'Ava Brooks', mileage: 7860, favourite: true }),
     ],
   };
 }
 
-function policeSpawner(): GarageOpenData {
-  const s = (index: number, model: string, label: string, make: string, plate: string, price = 0): SpawnerVehicleView => ({
+/* damaged vehicles after a rough night in Sandy Shores (first one is selected on open) */
+function sandyShores(): GarageOpenData {
+  const t = nowS();
+  const here = { garageKey: 'L7', garageName: 'Sandy Shores Garage' };
+  return {
+    garage: summary({ key: 'L7', locationId: 7, name: 'Sandy Shores Garage', canGoInside: false }),
+    capacity: { mode: 'limited', appliesTo: 'player', used: 5, total: 8 },
+    options: { ...OPTIONS, retrieveMode: 'anywhere' },
+    spawner: [],
+    vehicles: [
+      veh('rebel2', 'Karin Rebel', 'Karin', 'DUST 4X4', {
+        ...here,
+        favourite: true,
+        nickname: 'Rust Bucket',
+        fuel: 12,
+        engine: 23,
+        body: 31,
+        needsService: true,
+        mileage: 148320,
+        lastUsed: t - 50 * 60,
+        damage: dmg({
+          engine: 230,
+          body: 310,
+          tank: 640,
+          doors: [0, 3, 4],
+          windows: [0, 1, 6],
+          tyres: [
+            { index: 0, state: 1 },
+            { index: 5, state: 2 },
+          ],
+          deformed: true,
+        }),
+        mods: mods(1, 0, 0, 3, 2),
+      }),
+      veh('mule', 'Maibatsu Mule', 'Maibatsu', 'HAUL 66', {
+        ...here,
+        fuel: 58,
+        engine: 74,
+        body: 62,
+        mileage: 64210,
+        damage: dmg({ engine: 740, body: 620, doors: [5], windows: [4, 7], tyres: [{ index: 45, state: 1 }] }),
+      }),
+      veh('bodhi2', 'Canis Bodhi', 'Canis', 'BODHI', {
+        ...here,
+        engine: 88,
+        body: 79,
+        mileage: 32040,
+        // Lua sent empty lists as objects
+        damage: { ...dmg({ engine: 880, body: 790, windows: [2] }), doors: luaEmpty, tyres: {} as unknown as DamageSummary['tyres'] },
+        mods: mods(2, 1, 1, 4, 0),
+      }),
+      veh('sanchez', 'Maibatsu Sanchez', 'Maibatsu', 'MUDDY', {
+        ...here,
+        fuel: 40,
+        engine: 66,
+        body: 48,
+        mileage: 9120,
+        damage: dmg({ engine: 660, body: 480, tyres: [{ index: 0, state: 1 }] }),
+      }),
+      veh('dominator3', 'Vapid Dominator GTX', 'Vapid', 'GTX 70', {
+        ...elsewhere('L1', 'Legion Square'),
+        canDrive: true,
+        reason: null,
+        mileage: 15900,
+        mods: mods(3, 2, 2, 1, 0),
+      }),
+    ],
+  };
+}
+
+/* financed vehicles: the overdue one is selected on open */
+function financeLot(): GarageOpenData {
+  const here = { garageKey: 'L5', garageName: 'Grove Street Garage' };
+  return {
+    garage: summary({ key: 'L5', locationId: 5, name: 'Grove Street Garage', canGoInside: false }),
+    capacity: { mode: 'limited', appliesTo: 'player', used: 3, total: 6 },
+    options: OPTIONS,
+    spawner: [],
+    vehicles: [
+      veh('buffalo4', 'Bravado Buffalo STX', 'Bravado', 'BUFF 4', {
+        ...here,
+        favourite: true,
+        finance: finance({ balance: 186000, payment: 31000, paymentsLeft: 6, paymentsTotal: 12, intervalHours: 72, nextPaymentHours: 0, overdue: true }),
+        canDrive: false,
+        reason: 'A finance payment is overdue',
+        mileage: 9312,
+        mods: mods(3, 2, 2, 2, 1, true),
+      }),
+      veh('italigto', 'Grotti Itali GTO', 'Grotti', 'GTO 88', { ...here, finance: finance({}), fuel: 98, mileage: 1842, mods: mods(4, 3, 3, 4, 2, true) }),
+      veh('kuruma', 'Karin Kuruma', 'Karin', 'KRM 404', {
+        ...here,
+        finance: finance({ balance: 42000, payment: 7000, paymentsLeft: 6, paymentsTotal: null, intervalHours: 24, nextPaymentHours: 12 }),
+        mileage: 22140,
+        mods: mods(1, 1, 1, 1, 5),
+      }),
+    ],
+  };
+}
+
+/* housing integration: a house garage (key H…) */
+function houseGarage(): GarageOpenData {
+  const here = { garageKey: 'H3671', garageName: '3671 Whispymound Dr' };
+  return {
+    garage: summary({ key: 'H3671', locationId: 'H3671', kind: 'house', name: '3671 Whispymound Dr', canGoInside: false }),
+    capacity: { mode: 'limited', appliesTo: 'total', used: 3, total: 4 },
+    options: OPTIONS,
+    spawner: [],
+    vehicles: [
+      veh('tailgater2', 'Obey Tailgater S', 'Obey', 'HOME 1', { ...here, favourite: true, mileage: 8840, mods: mods(2, 2, 1, 1, 0) }),
+      veh('felon', 'Lampadati Felon', 'Lampadati', 'FELON', { ...here, isOwner: false, ownerName: 'Ava Brooks', sharedBy: 'Ava Brooks', mileage: 21980 }),
+      veh('faggio', 'Pegassi Faggio', 'Pegassi', 'ZOOM', { ...here, nickname: 'Errand Runner', fuel: 31, mileage: 1430 }),
+    ],
+  };
+}
+
+/* job garage with a persistent fleet (owned by the job) */
+function emsFleet(): GarageOpenData {
+  const t = nowS();
+  const fleet = { garageKey: 'J8', garageName: 'Pillbox Medical Fleet', isOwner: false, ownerName: 'Los Santos EMS' };
+  return {
+    garage: summary({ key: 'J8', locationId: 8, kind: 'job', name: 'Pillbox Medical Fleet', source: 'owned', canGoInside: false, jobLabel: 'EMS' }),
+    capacity: { mode: 'limited', appliesTo: 'total', used: 4, total: 10 },
+    options: { ...OPTIONS, garageTransfer: false, playerTransfer: false, sell: false, share: false },
+    spawner: [],
+    vehicles: [
+      veh('ambulance', 'Brute Ambulance', 'Brute', 'EMS 01', { ...fleet, mileage: 40320, lastUsed: t - 4 * H, mods: mods(2, 2, 2, 1, 0) }),
+      veh('ambulance', 'Brute Ambulance', 'Brute', 'EMS 02', {
+        ...fleet,
+        mileage: 51280,
+        engine: 46,
+        needsService: true,
+        damage: dmg({ engine: 460, body: 820, windows: [6] }),
+      }),
+      veh('lguard', 'Declasse Lifeguard', 'Declasse', 'EMS 07', { ...fleet, mileage: 12010 }),
+      veh('firetruk', 'MTL Fire Truck', 'MTL', 'LSFD 3', { ...fleet, ...outInCity(), mileage: 9020 }),
+    ],
+  };
+}
+
+function spawnerVehicle(index: number, model: string, label: string, make: string, plate: string, price = 0): SpawnerVehicleView {
+  return {
     index,
     model,
     hash: joaat(model),
@@ -425,7 +733,12 @@ function policeSpawner(): GarageOpenData {
     label,
     make,
     image: model,
-  });
+    ...modelInfo(model),
+  };
+}
+
+function policeSpawner(): GarageOpenData {
+  const s = spawnerVehicle;
   return {
     garage: summary({
       key: 'J3',
@@ -452,6 +765,36 @@ function policeSpawner(): GarageOpenData {
   };
 }
 
+/* public spawner (rental lot) */
+function rentalLot(): GarageOpenData {
+  const s = spawnerVehicle;
+  return {
+    garage: summary({ key: 'L12', locationId: 12, name: 'Del Perro Rentals', source: 'spawner', canGoInside: false }),
+    capacity: null,
+    options: OPTIONS,
+    vehicles: [],
+    spawner: [
+      s(1, 'panto', 'Benefactor Panto', 'Benefactor', 'RENT####', 150),
+      s(2, 'blista', 'Dinka Blista', 'Dinka', 'RENT####', 250),
+      s(3, 'issi2', 'Weeny Issi', 'Weeny', 'RENT####', 250),
+      s(4, 'asea', 'Declasse Asea', 'Declasse', 'RENT####', 300),
+      s(5, 'faggio', 'Pegassi Faggio', 'Pegassi', '', 90),
+      s(6, 'bison', 'Bravado Bison', 'Bravado', 'RENT##@@', 600),
+      s(7, 'rumpo', 'Bravado Rumpo', 'Bravado', 'RENT##@@', 650),
+    ],
+  };
+}
+
+/* a big collection (40 spaces) to check the compact capacity bar */
+function bigCollection(): GarageOpenData {
+  const d = legionSquare();
+  return {
+    ...d,
+    garage: { ...d.garage, key: 'L20', name: 'Vinewood Car Club', canGoInside: true },
+    capacity: { mode: 'limited', appliesTo: 'player', used: 25, total: 40 },
+  };
+}
+
 /* ───────────────────────── stateful mock backend ───────────────────────── */
 
 const state: { data: GarageOpenData | null } = { data: null };
@@ -461,8 +804,9 @@ onNuiMessage((msg: NuiMessage) => {
 });
 
 const find = (plate: string) => state.data?.vehicles.find((v) => v.plate === plate) ?? null;
+/** In game Lua shows these through the notify integration; the browser harness logs them. */
 const notify = (type: 'success' | 'error' | 'info' | 'warning', message: string, title?: string) =>
-  emitNuiMessage({ action: 'notify', data: { type, message, title } });
+  toast({ type, message, title });
 const closeGarage = () => emitNuiMessage({ action: 'close', data: { app: 'garage' } });
 
 const shares = new Map<string, { identifier: string; name: string }[]>([
@@ -726,13 +1070,21 @@ mockNui('garage:switchGroup', async ({ groupId }) => {
 const view = (defaultView: 'grid' | 'list'): NuiMessage => ({ action: 'settings', data: { ...defaultInterface, defaultView } });
 const open = (data: GarageOpenData): NuiMessage => ({ action: 'open', data: { app: 'garage', data } });
 
-registerMock({ id: 'garage-grid', group: 'Garage', label: 'Public garage — grid (24 vehicles)', messages: [view('grid'), open(legionSquare())] });
-registerMock({ id: 'garage-list', group: 'Garage', label: 'Public garage — list', messages: [view('list'), open(legionSquare())] });
+const km: NuiMessage = { action: 'settings', data: { ...defaultInterface, defaultView: 'grid', distanceUnit: 'km' } };
+
+registerMock({ id: 'garage-grid', group: 'Garage', label: 'Public garage — comfortable rows (25 vehicles)', messages: [view('grid'), open(legionSquare())] });
+registerMock({ id: 'garage-list', group: 'Garage', label: 'Public garage — compact rows', messages: [view('list'), open(legionSquare())] });
 registerMock({ id: 'garage-empty', group: 'Garage', label: 'Empty garage', messages: [view('grid'), open(pillboxEmpty())] });
 registerMock({ id: 'garage-full', group: 'Garage', label: 'Full garage (6/6)', messages: [view('grid'), open(mirrorParkFull())] });
+registerMock({ id: 'garage-big', group: 'Garage', label: 'Big collection (25/40 spaces)', messages: [view('grid'), open(bigCollection())] });
+registerMock({ id: 'garage-damaged', group: 'Garage', label: 'Damaged vehicles (wreck selected)', messages: [km, open(sandyShores())] });
+registerMock({ id: 'garage-finance', group: 'Garage', label: 'Financed vehicles (overdue selected)', messages: [view('grid'), open(financeLot())] });
 registerMock({ id: 'garage-private', group: 'Garage', label: 'Private garage (members, 2 copies)', messages: [view('grid'), open(laMesa())] });
+registerMock({ id: 'garage-house', group: 'Garage', label: 'House garage (housing integration)', messages: [view('grid'), open(houseGarage())] });
+registerMock({ id: 'garage-job', group: 'Garage', label: 'Job garage — owned fleet (EMS)', messages: [view('grid'), open(emsFleet())] });
 registerMock({ id: 'garage-spawner', group: 'Garage', label: 'Job spawner (LSPD)', messages: [view('list'), open(policeSpawner())] });
-registerMock({ id: 'garage-air', group: 'Garage', label: 'Air hangar', messages: [view('grid'), open(lsiaHangar())] });
+registerMock({ id: 'garage-rental', group: 'Garage', label: 'Public spawner (rentals, prices)', messages: [view('grid'), open(rentalLot())] });
+registerMock({ id: 'garage-air', group: 'Garage', label: 'Air hangar (km/h)', messages: [km, open(lsiaHangar())] });
 registerMock({ id: 'garage-sea', group: 'Garage', label: 'Boat marina (unlimited)', messages: [view('list'), open(marina())] });
 
 /** Used by the for-sale mocks: the garage menu that opens after buying. */

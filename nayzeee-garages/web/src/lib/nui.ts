@@ -63,13 +63,14 @@ export async function fetchNui<K extends NuiCallbackName>(name: K, data?: Req<K>
 type ErrorReporter = (message: string) => void;
 let reportError: ErrorReporter = () => undefined;
 
-/** Wired by the store so request() can raise error toasts without a circular import. */
+/** Wired by the store so request() can raise error notifications without a circular import. */
 export function setErrorReporter(fn: ErrorReporter) {
   reportError = fn;
 }
 
 /**
- * Call Lua and show an error toast automatically when the call fails.
+ * Call Lua and raise an error notification automatically when the call fails (shown by Lua
+ * through the configured notify integration; `toastError: false` turns it off).
  * Returns the full ApiResult so callers can branch on `ok`.
  */
 export async function request<K extends NuiCallbackName>(

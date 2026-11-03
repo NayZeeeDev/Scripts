@@ -53,7 +53,7 @@ local function started(name)
   return Utils.resourceStarted and Utils.resourceStarted(name) or GetResourceState(name) == 'started'
 end
 
-local TOAST_TYPES = {
+local NOTIFY_TYPES = {
   success = 'success', error = 'error', info = 'info', warning = 'warning',
   inform = 'info', warn = 'warning', primary = 'info',
 }
@@ -370,22 +370,29 @@ function Bridge.searchCharacters(query, limit, offset)
   return rows, #matches
 end
 
---- Toast through our NUI (nz:client:notify). src 0 prints to the console, -1 broadcasts.
+--- Notification for a player: sent to the client event nz:client:notify, which hands it to
+--- NZ.Notify.show (the configured notify integration, bridge/client/notify.lua).
+--- src 0 prints to the console, -1 broadcasts.
 ---@param src integer
 ---@param message string
 ---@param kind 'success'|'error'|'info'|'warning'|nil
-function Bridge.notify(src, message, kind)
+---@param title string|nil defaults to Config.Notify.title on the client
+function Bridge.notify(src, message, kind, title)
   if message == nil then return end
+  message = tostring(message)
+  if message == '' then return end
   local n = tonumber(src)
   if n == 0 then
-    lib.print.info(('[nayzeee-garages] %s'):format(tostring(message)))
+    lib.print.info(('[nayzeee-garages] %s'):format(message))
     return
   end
   if n ~= -1 then
     n = toSrc(n)
     if not n then return end
   end
-  TriggerClientEvent('nz:client:notify', n, { type = TOAST_TYPES[kind] or 'info', message = tostring(message) })
+  local payload = { type = NOTIFY_TYPES[kind] or 'info', message = message }
+  if type(title) == 'string' and title ~= '' then payload.title = title end
+  TriggerClientEvent('nz:client:notify', n, payload)
 end
 
 ---------------------------------------------------------------------------------------

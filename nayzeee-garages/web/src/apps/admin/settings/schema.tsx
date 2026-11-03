@@ -598,11 +598,17 @@ export const TABS: TabDef[] = [
             {
               id: 'interface.interaction',
               label: () => t('Interaction'),
-              description: (c) =>
-                c.s.interface.interaction === 'target'
-                  ? t('Garages are opened with your target resource (ox_target / qb-target).')
-                  : t('Players press a key near a garage point.'),
-              keywords: () => t('target prompt key E ox_target qb-target'),
+              description: (c) => {
+                const mode = c.s.interface.interaction;
+                const text =
+                  mode === 'target'
+                    ? t('Third-eye (ox_target / qb-target) on garage points, NPCs and parked vehicles. Drivers still park with the key prompt.')
+                    : mode === 'both'
+                      ? t('Players can press the key or use third-eye (ox_target / qb-target), whichever they prefer.')
+                      : t('Players press a key inside the garage marker to open it or to park.');
+                return `${text} ${t('Locations can override this in their editor.')}`;
+              },
+              keywords: () => t('target prompt key E ox_target qb-target third eye both npc ped'),
               control: (c) => (
                 <Segmented<Settings['interface']['interaction']>
                   size="sm"
@@ -611,6 +617,7 @@ export const TABS: TabDef[] = [
                   options={[
                     { value: 'prompt', label: t('Press E') },
                     { value: 'target', label: t('Target') },
+                    { value: 'both', label: t('Both') },
                   ]}
                 />
               ),

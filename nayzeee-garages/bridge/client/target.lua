@@ -7,6 +7,12 @@
   onSelect receives { entity, coords, distance } whatever the target resource is.
   Everything registered is remembered so it can be re-created when the target resource
   restarts and removed when this resource stops.
+
+  API: Target.addSphere(id, coords, radius, options)   sphere zone
+       Target.addLocalEntity(id, entity, options)      options on one local entity (garage NPC)
+       Target.addVehicleOption(id, option)             option on every vehicle
+       Target.remove(id)                               removes any of the above
+       Target.available() / Target.resource()
 ]]
 
 local Target = NZ.Target
@@ -14,9 +20,10 @@ local Utils = NZ.Utils
 
 local TARGET_RESOURCES = { 'ox_target', 'qb-target' }
 local DEFAULT_VEHICLE_DISTANCE = 2.5
+local DEFAULT_ENTITY_DISTANCE = 3.0
 local MAX_DISTANCE = 10.0
 
--- [id] = { kind = 'zone'|'vehicle', resource, handle, spec }
+-- [id] = { kind = 'zone'|'entity'|'vehicle', resource, handle, spec }
 local registry = {}
 
 ---------------------------------------------------------------------------------------
@@ -184,8 +191,43 @@ local function deleteVehicleOption(resource, handle)
   end
 end
 
+--- Options on one entity. The handle keeps the entity and the option names / labels so only
+--- our options are removed (ox_target: removeLocalEntity, qb-target: RemoveTargetEntity).
+local function createEntity(resource, id, spec)
+  local entity = spec.entity
+  if not DoesEntityExist(entity) then error('entity does not exist') end
+  local name = scopedName(id)
+  if resource == 'ox_target' then
+    local options, names = {}, {}
+    for i = 1, #spec.options do
+      options[i] = toOx(spec.options[i], ('%s:%d'):format(name, i), spec.distances[i])
+      names[i] = options[i].name
+    end
+    exports.ox_target:addLocalEntity(entity, options)
+    return { entity = entity, names = names }
+  end
+  local options, labels, maxDistance = {}, {}, 0.0
+  for i = 1, #spec.options do
+    options[i] = toQb(spec.options[i])
+    labels[i] = options[i].label
+    if spec.distances[i] > maxDistance then maxDistance = spec.distances[i] end
+  end
+  exports['qb-target']:AddTargetEntity(entity, { options = options, distance = maxDistance })
+  return { entity = entity, labels = labels }
+end
+
+local function deleteEntity(resource, handle)
+  if type(handle) ~= 'table' then return end
+  if resource == 'ox_target' then
+    exports.ox_target:removeLocalEntity(handle.entity, handle.names)
+  else
+    exports['qb-target']:RemoveTargetEntity(handle.entity, handle.labels)
+  end
+end
+
 local function create(entry, id)
   if entry.kind == 'zone' then return createZone(entry.resource, id, entry.spec) end
+  if entry.kind == 'entity' then return createEntity(entry.resource, id, entry.spec) end
   return createVehicleOption(entry.resource, id, entry.spec)
 end
 
@@ -194,6 +236,8 @@ local function destroy(entry)
   local ok, err
   if entry.kind == 'zone' then
     ok, err = pcall(deleteZone, entry.resource, entry.handle)
+  elseif entry.kind == 'entity' then
+    ok, err = pcall(deleteEntity, entry.resource, entry.handle)
   else
     ok, err = pcall(deleteVehicleOption, entry.resource, entry.handle)
   end
@@ -252,6 +296,23 @@ function Target.addSphere(id, coords, radius, options)
   return register(id, 'zone', { coords = center, radius = r + 0.0, options = list, distances = distances })
 end
 
+--- Add (or replace) options on one local (non-networked) entity, e.g. a garage NPC.
+--- Remove them with Target.remove(id) BEFORE deleting the entity (handles are reused).
+---@param id string unique id inside this resource
+---@param entity number entity handle
+---@param options table list of neutral options
+---@return boolean added
+function Target.addLocalEntity(id, entity, options)
+  if id == nil or type(entity) ~= 'number' or entity == 0 or not DoesEntityExist(entity) then return false end
+  local list = cleanOptions(options)
+  if #list == 0 then return false end
+  local distances = {}
+  for i = 1, #list do
+    distances[i] = clampDistance(list[i].distance, DEFAULT_ENTITY_DISTANCE)
+  end
+  return register(id, 'entity', { entity = entity, options = list, distances = distances })
+end
+
 --- Add (or replace) an option shown on every vehicle.
 ---@param id string unique id inside this resource
 ---@param option table neutral option
@@ -266,7 +327,7 @@ function Target.addVehicleOption(id, option)
   })
 end
 
---- Remove a zone or vehicle option added with addSphere / addVehicleOption.
+--- Remove a zone, entity or vehicle option added with addSphere / addLocalEntity / addVehicleOption.
 ---@param id string
 function Target.remove(id)
   local entry = id ~= nil and registry[id] or nil
@@ -287,7 +348,10 @@ AddEventHandler('onClientResourceStart', function(resource)
     local active = Target.resource()
     if not active then return end
     for id, entry in pairs(registry) do
-      if entry.resource == resource or not Utils.resourceStarted(entry.resource) then
+      if entry.kind == 'entity' and not DoesEntityExist(entry.spec.entity) then
+        -- the NPC is gone: NZ.Peds registers it again when it is re-created
+        registry[id] = nil
+      elseif entry.resource == resource or not Utils.resourceStarted(entry.resource) then
         entry.resource = active
         local ok, handle = pcall(create, entry, id)
         if ok then

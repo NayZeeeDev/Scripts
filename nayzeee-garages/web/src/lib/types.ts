@@ -59,6 +59,15 @@ export interface LocationBase {
   storePoints: InteractionPoint[];
   returnToEntrance: boolean;
   blip: BlipConfig;
+  /** Per-location interaction override and optional NPC (target mode). Absent = defaults. */
+  interaction?: LocationInteraction;
+}
+
+export interface LocationInteraction {
+  /** 'default' follows settings.interface.interaction. */
+  mode: 'default' | 'prompt' | 'target' | 'both';
+  /** NPC standing at the first open point (target option on the ped). null = none. */
+  ped: { model: string; scenario: string } | null;
 }
 
 export interface GarageLocation extends LocationBase {
@@ -132,6 +141,18 @@ export interface ImpoundInfo {
   retrievable: boolean;
 }
 
+/** Model performance read by the client from the model info (NZ.Veh.modelInfo). */
+export interface VehicleStats {
+  /** Estimated top speed in km/h (convert with settings.distanceUnit for display). */
+  topSpeed: number;
+  /** 0-100 ratings against fixed reference maxima. */
+  speed: number;
+  acceleration: number;
+  braking: number;
+  traction: number;
+  seats: number;
+}
+
 /** Added by the client (NZ.Veh.enrichDeep) to every table with a numeric `hash`. */
 export interface VehicleLabel {
   /** "Make Name", e.g. "Annis Elegy Retro Custom" */
@@ -139,6 +160,40 @@ export interface VehicleLabel {
   make: string;
   /** Lower-case model name used to build image URLs (settings.interface.imageUrl). */
   image: string | null;
+  /** GTA vehicle class id (0-22) and its translated name ("Super", "SUVs"...). Absent for unknown models. */
+  classId?: number;
+  classLabel?: string;
+  stats?: VehicleStats;
+}
+
+/**
+ * Stored damage, summarised by the server (NZ.Vehicles.damageSummary).
+ * Doors: 0 front left, 1 front right, 2 rear left, 3 rear right, 4 bonnet, 5 boot.
+ * Windows: 0 front left, 1 front right, 2 rear left, 3 rear right, 4/5 middle, 6 windscreen, 7 rear windscreen.
+ * Tyres: 0 front left, 1 front right, 2/45 middle left, 3/47 middle right, 4 rear left, 5 rear right.
+ */
+export interface DamageSummary {
+  /** 0-1000 health values */
+  engine: number;
+  body: number;
+  tank: number;
+  /** damaged / missing doors */
+  doors: number[];
+  /** smashed windows */
+  windows: number[];
+  /** 1 = burst, 2 = on the rim */
+  tyres: { index: number; state: 1 | 2 }[];
+  deformed: boolean;
+}
+
+/** Installed performance upgrades (NZ.Vehicles.modSummary). Level 0 = stock. */
+export interface ModSummary {
+  engine: number;
+  brakes: number;
+  transmission: number;
+  suspension: number;
+  armor: number;
+  turbo: boolean;
 }
 
 export interface GarageVehicle extends VehicleLabel {
@@ -176,6 +231,10 @@ export interface GarageVehicle extends VehicleLabel {
   needsService: boolean;
   blocked: boolean;
   lastUsed: number | null;
+  /** null when the vehicle was never stored with damage saving on. Empty lists arrive as [] or {}: use asList(). */
+  damage: DamageSummary | null;
+  /** null when no props are stored. */
+  mods: ModSummary | null;
 }
 
 export interface SpawnerVehicleView extends VehicleLabel {
@@ -325,8 +384,16 @@ export interface SetupData {
 export interface PromptData { key: string; label: string }
 export interface HintData { title?: string; keys: { keys: string[]; label: string }[] }
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning';
-export interface Toast { id?: string; type: ToastType; title?: string; message: string; duration?: number }
+/** Notification raised by the interface (NUI callback 'notify'); Lua shows it through the
+ *  configured notify integration (ox_lib, framework, okokNotify, ...). */
+export type NotifyType = 'success' | 'error' | 'info' | 'warning';
+export interface NotifyRequest {
+  type: NotifyType;
+  /** plain text, max 300 characters */
+  message: string;
+  /** max 60 characters; defaults to Config.Notify.title */
+  title?: string;
+}
 
 /* ───────────────────────── interiors & creator ───────────────────────── */
 
@@ -388,7 +455,8 @@ export interface InterfaceSettings {
   showImages: boolean;
   /** Hex accent colour, default #08afa2. */
   accent: string;
-  interaction: 'prompt' | 'target';
+  /** 'both': prompt and target zones together. */
+  interaction: 'prompt' | 'target' | 'both';
 }
 
 export interface Settings {
@@ -450,7 +518,21 @@ export interface GroupInfo {
   createdAt: number;
 }
 
+/** Vehicles counted per location (DB.garageStats, cached 30 s on the server). */
+export interface LocationStats {
+  /** vehicles parked at this location (all owned copies for private locations) */
+  parked: number;
+  /** vehicles taken out from here and still out */
+  out: number;
+  /** vehicles last parked here that are impounded now */
+  impounded: number;
+  /** impound locations: vehicles held here */
+  held: number;
+}
+
 export interface AdminOpenData {
+  /** Keyed by String(location.id). Locations without vehicles are absent. */
+  locationStats: Record<string, LocationStats>;
   page: AdminPage;
   settings: Settings;
   locations: Location[];
@@ -511,6 +593,25 @@ export interface AdminVehicleDetail {
   service: ServiceEntry[];
   garages: { key: string; name: string }[];
   impounds: { id: number; name: string }[];
+  damage: DamageSummary | null;
+  /** unix seconds the vehicle was last taken out */
+  lastUsed: number | null;
+}
+
+/** One nz_logs row of a vehicle (admin:vehicle:activity). Event names: 'vehicle.retrieve', 'vehicle.store',
+ * 'vehicle.transfer', 'vehicle.share', 'vehicle.sell', 'vehicle.rename', 'vehicle.recover', 'vehicle.garage',
+ * 'vehicle.finance', 'vehicle.service', 'vehicle.add', 'impound.add', 'impound.release', 'impound.retrieve',
+ * 'interior.driveOut', 'admin.vehicle.update', 'admin.vehicle.assign', 'security.*' ... (unknown names must still render). */
+export interface VehicleActivity {
+  id: number;
+  event: string;
+  /** unix seconds */
+  at: number;
+  /** identifier of the acting player, null for the server */
+  actor: string | null;
+  actorName: string | null;
+  /** free-form details (garage, fee, target, actorName...) */
+  data: Record<string, unknown> | null;
 }
 
 /**
@@ -564,8 +665,7 @@ export type NuiMessage =
   | { action: 'close'; data: { app?: AppName | null } }
   | { action: 'hud'; data: HudVehicle | null }
   | { action: 'prompt'; data: PromptData | null }
-  | { action: 'hint'; data: HintData | null }
-  | { action: 'notify'; data: Toast };
+  | { action: 'hint'; data: HintData | null };
 
 type Cb<Req, Res> = { req: Req; res: Res };
 
@@ -573,6 +673,7 @@ type Cb<Req, Res> = { req: Req; res: Res };
 export interface NuiCallbacks {
   ready: Cb<Record<string, never>, null>;
   close: Cb<{ app: AppName }, null>;
+  notify: Cb<NotifyRequest, null>;
 
   'garage:refresh': Cb<Record<string, never>, GarageOpenData>;
   'garage:drive': Cb<{ plate: string }, null>;
@@ -664,6 +765,7 @@ export interface NuiCallbacks {
   'admin:vehicle:assign': Cb<{ identifier: string; model: string; plate: string; garageKey: string }, AdminVehicleRow>;
   'admin:vehicle:update': Cb<{ plate: string; patch: AdminVehiclePatch }, AdminVehicleDetail>;
   'admin:vehicle:delete': Cb<{ plate: string }, null>;
+  'admin:vehicle:activity': Cb<{ plate: string; page: number }, Paged<VehicleActivity>>;
 }
 
 export type NuiCallbackName = keyof NuiCallbacks;

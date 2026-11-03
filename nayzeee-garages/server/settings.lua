@@ -67,7 +67,7 @@ local schema = {
     imageUrl = { t = 'url', max = 300, def = 'https://docs.fivem.net/vehicles/{model}.webp' },
     showImages = { t = 'boolean', def = true },
     accent = { t = 'color', def = '#08afa2' },
-    interaction = { t = 'enum', values = { 'prompt', 'target' }, def = 'prompt' },
+    interaction = { t = 'enum', values = { 'prompt', 'target', 'both' }, def = 'prompt' },
   },
 }
 

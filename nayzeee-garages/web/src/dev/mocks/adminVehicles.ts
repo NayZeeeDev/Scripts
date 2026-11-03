@@ -6,10 +6,12 @@
  * ./admin so admin:refresh stays consistent.
  *
  * Scenarios: admin-interiors, admin-interiors-create, admin-interiors-empty, admin-vehicles,
- * admin-vehicles-results, admin-vehicles-player, admin-vehicles-detail,
- * admin-vehicles-impounded, admin-vehicles-props, admin-settings, admin-settings-interface.
+ * admin-vehicles-results, admin-vehicles-player, admin-vehicles-detail (+ one per dossier tab:
+ * -condition, -upgrades, -finance, -history, -activity, -data), admin-vehicles-impounded,
+ * admin-vehicles-damaged, admin-vehicles-nostats, admin-vehicles-props, admin-settings,
+ * admin-settings-interface.
  *
- * mockNui: admin:players:search, admin:players:vehicles, admin:vehicle:get|assign|update|delete,
+ * mockNui: admin:players:search, admin:players:vehicles, admin:vehicle:get|assign|update|delete|activity,
  * admin:interior:create|edit|toggle|delete, admin:settings:save, admin:pickPosition.
  * Like the real bridge, update/save handlers drop JSON nulls (nil in Lua), so a UI that relies
  * on null to clear something shows up as "nothing changed" here too.
@@ -24,6 +26,7 @@ import type {
   AdminPage,
   AdminVehicleDetail,
   AdminVehicleRow,
+  DamageSummary,
   Finance,
   ImpoundInfo,
   Interior,
@@ -31,6 +34,8 @@ import type {
   PlayerSearchRow,
   ServiceEntry,
   Settings,
+  VehicleActivity,
+  VehicleLabel,
   VehicleState,
   VehicleType,
 } from '../../lib/types';
@@ -140,6 +145,59 @@ const modelOf = (model: string): Model =>
     type: 'car',
   };
 
+/** What the client adds from the model info (class + estimated performance). Unknown models get nothing. */
+// model: [classId, classLabel, topSpeed km/h, speed, acceleration, braking, traction, seats]
+const MODEL_INFO: Record<string, [number, string, number, number, number, number, number, number]> = {
+  sultan: [6, 'Sports', 189, 74, 64, 41, 72, 4],
+  sultanrs: [7, 'Super', 197, 78, 79, 42, 76, 2],
+  elegy: [6, 'Sports', 212, 82, 76, 45, 78, 2],
+  elegy2: [6, 'Sports', 204, 80, 72, 40, 77, 2],
+  zentorno: [7, 'Super', 222, 87, 86, 47, 83, 2],
+  adder: [7, 'Super', 225, 88, 81, 42, 79, 2],
+  comet2: [6, 'Sports', 198, 78, 70, 40, 74, 2],
+  jester: [6, 'Sports', 201, 79, 74, 41, 78, 2],
+  banshee: [6, 'Sports', 199, 78, 73, 39, 75, 2],
+  buffalo: [6, 'Sports', 186, 73, 62, 38, 71, 4],
+  dominator: [4, 'Muscle', 193, 76, 70, 33, 66, 2],
+  kuruma: [6, 'Sports', 184, 72, 64, 36, 74, 4],
+  schafter2: [1, 'Sedans', 181, 71, 60, 34, 70, 4],
+  baller: [2, 'SUVs', 167, 65, 52, 30, 66, 4],
+  granger: [2, 'SUVs', 160, 62, 47, 28, 63, 8],
+  sandking: [9, 'Off-road', 155, 60, 50, 28, 70, 4],
+  bison: [12, 'Vans', 158, 61, 45, 27, 64, 4],
+  cypher: [6, 'Sports', 203, 80, 75, 42, 77, 2],
+  euros: [6, 'Sports', 200, 79, 72, 41, 76, 2],
+  zr350: [6, 'Sports', 199, 78, 73, 40, 77, 2],
+  futo: [6, 'Sports', 176, 69, 56, 33, 61, 2],
+  issi2: [0, 'Compacts', 160, 62, 49, 30, 62, 2],
+  t20: [7, 'Super', 224, 88, 87, 46, 82, 2],
+  turismor: [7, 'Super', 221, 87, 84, 45, 81, 2],
+  infernus: [7, 'Super', 214, 84, 78, 41, 78, 2],
+  feltzer2: [6, 'Sports', 196, 77, 72, 40, 75, 2],
+  ninef: [6, 'Sports', 199, 78, 73, 41, 76, 2],
+  rapidgt: [6, 'Sports', 197, 77, 70, 40, 75, 2],
+  bati: [8, 'Motorcycles', 214, 84, 82, 38, 60, 2],
+  sanchez: [8, 'Motorcycles', 154, 60, 58, 32, 55, 2],
+  jetmax: [14, 'Boats', 129, 50, 62, 20, 30, 4],
+  speeder: [14, 'Boats', 137, 54, 66, 22, 32, 4],
+  dinghy: [14, 'Boats', 112, 44, 48, 18, 28, 4],
+  seashark: [14, 'Boats', 118, 46, 60, 18, 26, 2],
+  luxor: [16, 'Planes', 380, 100, 40, 10, 50, 10],
+  frogger: [15, 'Helicopters', 260, 100, 55, 30, 60, 4],
+  swift: [15, 'Helicopters', 270, 100, 58, 32, 62, 6],
+  mammatus: [16, 'Planes', 245, 96, 35, 15, 40, 4],
+};
+
+function labelExtras(model: string): Pick<VehicleLabel, 'classId' | 'classLabel' | 'stats'> {
+  const i = MODEL_INFO[model];
+  if (!i) return {};
+  return {
+    classId: i[0],
+    classLabel: i[1],
+    stats: { topSpeed: i[2], speed: i[3], acceleration: i[4], braking: i[5], traction: i[6], seats: i[7] },
+  };
+}
+
 const GARAGES: Record<VehicleType, { key: string; name: string }[]> = {
   car: [
     { key: 'L1', name: 'Legion Square' },
@@ -171,6 +229,9 @@ interface MockVehicle {
   finance: Finance | null;
   ownership: OwnershipEntry[];
   service: ServiceEntry[];
+  /** DamageSummary as Lua sends it (empty lists may be {}), or null = no damage data. */
+  damage: unknown;
+  lastUsed: number | null;
 }
 
 const COSMETIC_KEYS = [
@@ -274,6 +335,7 @@ function addVehicle(
       label: m.make ? `${m.make} ${m.name}` : m.name,
       make: m.make,
       image: m.model,
+      ...labelExtras(m.model),
       garageKey: garage?.key ?? null,
       garageName: garage?.name ?? null,
       state,
@@ -296,7 +358,30 @@ function addVehicle(
       { identifier: owner, name: person?.name ?? owner, via: 'dealership', at: boughtAt, price: Math.round((40 + rand() * 900) * 1000) },
     ],
     service: [],
+    damage: null,
+    lastUsed: null,
   };
+
+  // Boats / aircraft and a few old records were never stored with damage saving on.
+  if (m.type === 'car' && rand() > 0.12) {
+    const h = (pct: number) => Math.round(pct * 10);
+    rec.damage = {
+      engine: h(engine),
+      body: h(body),
+      tank: 1000,
+      // Lua encodes empty tables as {} (or []): the UI must cope with both.
+      doors: rand() < 0.5 ? {} : [],
+      windows: body < 70 ? [Math.floor(rand() * 4)] : {},
+      tyres: [],
+      deformed: body < 90,
+    };
+  }
+  rec.lastUsed =
+    state === 'out'
+      ? now - Math.round((5 + rand() * 170) * 60)
+      : opts.mileage === 0
+        ? null
+        : now - Math.round((1 + rand() * 480) * 3600);
 
   if (opts.financed) {
     const total = 24 + Math.floor(rand() * 4) * 6;
@@ -327,6 +412,7 @@ function addVehicle(
     };
     rec.row.garageKey = null;
     rec.row.garageName = null;
+    rec.lastUsed = rec.impound.at - 3600;
   }
 
   const services = Math.floor(rand() * 4);
@@ -420,6 +506,9 @@ function seedJordan() {
     { id: 5, item: 'Tyres', shop: 'Hayes Autos', mileage: 6120, at: now - 74 * DAY },
     { id: 6, item: 'Suspension', shop: "Beeker's Garage", mileage: 2205, at: now - 160 * DAY },
   ];
+  // One smashed window and a saved body deformation; empty lists the way Lua sends them.
+  showcase.damage = { engine: 1000, body: 958, tank: 1000, doors: {}, windows: [3], tyres: {}, deformed: true };
+  showcase.lastUsed = now - 5 * 3600 - 12 * 60;
 
   const list: [string, Parameters<typeof addVehicle>[2]][] = [
     ['sultanrs', { plate: 'VALE 01', financed: true }],
@@ -456,7 +545,39 @@ function seedJordan() {
     ['frogger', {}],
     ['swift', { state: 'impounded' }],
   ];
-  list.forEach(([model, opts]) => addVehicle(me, model, opts));
+  const made = new Map<string, MockVehicle>();
+  list.forEach(([model, opts]) => made.set(model, addVehicle(me, model, opts)));
+
+  // Wrecked and impounded.
+  const jester = made.get('jester');
+  if (jester) {
+    jester.damage = {
+      engine: 410,
+      body: 220,
+      tank: 640,
+      doors: [0, 4],
+      windows: [0, 1, 6],
+      tyres: [
+        { index: 1, state: 1 },
+        { index: 4, state: 2 },
+      ],
+      deformed: true,
+    };
+    if (jester.impound) jester.impound.reason = 'Wrecked after a pursuit on Del Perro Freeway';
+  }
+  // Out in the world with body damage.
+  const sandking = made.get('sandking');
+  if (sandking) sandking.damage = { engine: 880, body: 380, tank: 1000, doors: [1, 3, 5], windows: {}, tyres: [{ index: 5, state: 1 }], deformed: true };
+  // Engine below the service threshold.
+  const baller = made.get('baller');
+  if (baller) baller.damage = { engine: 470, body: 1000, tank: 1000, doors: [], windows: [], tyres: [], deformed: false };
+
+  // An add-on model the client cannot identify: no class, no stats, no props yet.
+  const proto = addVehicle(me, 'nzproto', { plate: 'PROTO 1', garage: GARAGES.car[0], mileage: 214, fuel: 92 });
+  proto.row.label = 'nzproto';
+  proto.row.make = '';
+  proto.props = {};
+  proto.damage = null;
 }
 
 function seedOthers() {
@@ -526,11 +647,143 @@ function detailOf(v: MockVehicle): AdminVehicleDetail {
     service: [...v.service].sort((a, b) => b.at - a.at),
     garages: garageChoices(),
     impounds: adminMockDb.locations.filter((l) => l.kind === 'impound').map((l) => ({ id: l.id as number, name: l.name })),
+    damage: v.damage as DamageSummary | null,
+    lastUsed: v.lastUsed,
   });
 }
 
 /** false and {} mean "clear" (server/admin.lua isClear); null never arrives (see stripNulls). */
 const isClear = (v: unknown) => v === false || (typeof v === 'object' && v !== null && Object.keys(v as object).length === 0);
+
+/* ───────────────────────── activity (nz_logs) ───────────────────────── */
+
+const ACTIVITY_PAGE = 25;
+const STAFF = { identifier: 'MR73315', name: 'Marcus Reid' };
+const activity = new Map<string, VehicleActivity[]>();
+let activitySeq = 90000;
+
+type Draft = Omit<VehicleActivity, 'id'>;
+
+/** Player action (actorName enrichment like NZ.Logs.add). */
+function byPlayer(event: string, at: number, who: { identifier: string | null; name: string }, data: Record<string, unknown>): Draft {
+  return { event, at, actor: who.identifier, actorName: who.name, data: { ...data, actorName: who.name } };
+}
+
+/** Server / export action (no actor). */
+function byServer(event: string, at: number, data: Record<string, unknown>): Draft {
+  return { event, at, actor: null, actorName: null, data };
+}
+
+const GARAGE_NAMES: Record<string, string> = Object.fromEntries(Object.values(GARAGES).flat().map((g) => [g.key, g.name]));
+
+/** Retrieve / store pairs at a garage, `count` trips ending `endAt`. */
+function trips(plate: string, who: { identifier: string; name: string }, key: string, endAt: number, count: number, rand: () => number, mileage: number): Draft[] {
+  const out: Draft[] = [];
+  let t = endAt;
+  let km = mileage;
+  for (let i = 0; i < count; i++) {
+    const stored = t;
+    const taken = stored - Math.round((0.4 + rand() * 3) * 3600);
+    out.push(byPlayer('vehicle.store', stored, who, { plate, garage: key, garageName: GARAGE_NAMES[key] ?? key, owner: who.identifier, mileage: Math.round(km), fuel: Math.round(40 + rand() * 60) }));
+    out.push(byPlayer('vehicle.retrieve', taken, who, { plate, garage: key, fee: 0, fromImpound: false, fromInterior: false, serverSpawn: true }));
+    km -= 20 + rand() * 90;
+    t = taken - Math.round((6 + rand() * 60) * 3600);
+  }
+  return out;
+}
+
+function showcaseActivity(v: MockVehicle): Draft[] {
+  const plate = v.row.plate;
+  const now = nowS();
+  const H = 3600;
+  const me = { identifier: 'NZV41207', name: 'Jordan Vale' };
+  const ava = { identifier: 'AB10077', name: 'Ava Brooks' };
+  const dmitri = { identifier: 'DV66012', name: 'Dmitri Volkov' };
+  const maya = { identifier: 'MC80412', name: 'Maya Chen' };
+  const kenji = { identifier: 'KT90344', name: 'Kenji Tanaka' };
+  const rand = rng(7);
+  const list: Draft[] = [
+    byPlayer('vehicle.store', now - 5 * H + 1400, me, { plate, garage: 'L3', garageName: 'Mirror Park', owner: me.identifier, mileage: 11048, fuel: 81, engine: 100, body: 96, trailer: false }),
+    byPlayer('vehicle.retrieve', now - 5 * H - 12 * 60, me, { plate, garage: 'L3', fee: 0, fromImpound: false, fromInterior: true, serverSpawn: true }),
+    byPlayer('racing.lapRecord', now - 26 * H, me, { plate, track: 'Vinewood Bowl', lap: '1:12.48', position: 1, entrants: 9 }),
+    byPlayer('vehicle.favourite', now - 27 * H, me, { plate, value: true }),
+    byServer('vehicle.service', now - 3 * DAY, { plate, item: 'Spark plugs', shop: 'Los Santos Customs', mileage: 10951 }),
+    byServer('vehicle.service', now - 3 * DAY - 600, { plate, item: 'Engine oil', shop: 'Los Santos Customs', mileage: 10956 }),
+    byPlayer('vehicle.finance', now - 4 * DAY, me, { plate, amount: 18000, paidOff: false, balance: 324000 }),
+    byPlayer('vehicle.share', now - 6 * DAY, me, { plate, action: 'add', target: 'QX55821', targetName: 'Lena Ortiz' }),
+    byPlayer('vehicle.recover', now - 8 * DAY, me, { plate, garage: 'L3', garageName: 'Mirror Park', fee: 250, owner: me.identifier, removedEntity: true }),
+    byPlayer('admin.vehicle.update', now - 12 * DAY, STAFF, { plate, changed: ['finance', 'details'], removedEntity: false }),
+    byPlayer('vehicle.transfer', now - 14 * DAY, me, { plate, type: 'garage', from: 'L1', to: 'L3', toName: 'Mirror Park', fee: 250 }),
+    byPlayer('impound.retrieve', now - 19 * DAY, me, { plate, owner: me.identifier, impound: 18, impoundName: 'Davis Impound', fee: 500, staff: false, impoundedBy: 'Kenji Tanaka', reason: 'Parked in a red zone' }),
+    byPlayer('impound.add', now - 20 * DAY, kenji, { plate, owner: me.identifier, previousState: 'out', impound: 18, impoundName: 'Davis Impound', reason: 'Parked in a red zone', fee: 500, hours: 2, retrievable: true, by: kenji.identifier, byName: kenji.name, removedEntity: true }),
+    byPlayer('vehicle.finance', now - 24 * DAY, me, { plate, amount: 18000, paidOff: false, balance: 342000 }),
+    byPlayer('impound.release', now - 30 * DAY + 2 * H, STAFF, { plate, mode: 'garage', owner: me.identifier, impound: 18, impoundName: 'Davis Impound', garage: 'L1', garageName: 'Legion Square', previousGarage: 'L3' }),
+    byServer('impound.add', now - 30 * DAY, { plate, npc: true, impound: 18, impoundName: 'Davis Impound', reason: 'Abandoned vehicle', by: null, byName: 'Tow service' }),
+    byPlayer('vehicle.rename', now - 40 * DAY, me, { plate, from: null, to: 'Midnight' }),
+    byPlayer('vehicle.sell', now - 41 * DAY, me, { plate, action: 'sold', price: 465000, seller: ava.identifier, sellerName: ava.name, buyer: me.identifier, buyerName: me.name }),
+    byPlayer('vehicle.sell', now - 41 * DAY - 900, ava, { plate, action: 'offer', price: 465000, buyer: me.identifier, buyerName: me.name }),
+    byPlayer('vehicle.transfer', now - 172 * DAY, dmitri, { plate, type: 'player', fee: 2500, from: dmitri.identifier, fromName: dmitri.name, to: ava.identifier, toName: ava.name }),
+    byPlayer('vehicle.sell', now - 260 * DAY, dmitri, { plate, action: 'sold', price: 510000, seller: maya.identifier, sellerName: maya.name, buyer: dmitri.identifier, buyerName: dmitri.name }),
+    byPlayer('vehicle.sell', now - 262 * DAY, maya, { plate, action: 'declined', price: 560000, seller: maya.identifier, buyer: 'SR38410' }),
+    byServer('vehicle.add', now - 388 * DAY, { plate, owner: maya.identifier, ownerName: maya.name, model: 'elegy', garageKey: 'L3', vehicleType: 'car' }),
+  ];
+  // Everyday garage use between the notable events.
+  list.push(...trips(plate, me, 'L3', now - 2 * DAY, 6, rand, 10900));
+  list.push(...trips(plate, me, 'L1', now - 15 * DAY, 4, rand, 9600));
+  list.push(...trips(plate, ava, 'L2', now - 60 * DAY, 3, rand, 6200));
+  return list;
+}
+
+function generatedActivity(v: MockVehicle): Draft[] {
+  const plate = v.row.plate;
+  const rand = rng(fakeHash(plate) >>> 0);
+  const owner = personOf(v.owner) ?? { identifier: v.owner ?? 'unknown', name: v.owner ?? 'Unknown', online: false };
+  const who = { identifier: owner.identifier, name: owner.name };
+  const key = v.row.garageKey ?? GARAGES[v.row.vehicleType][0].key;
+  const now = nowS();
+  const list: Draft[] = [];
+  const bought = v.ownership[v.ownership.length - 1]?.at ?? now - 90 * DAY;
+  list.push(byServer('vehicle.add', bought, { plate, owner: who.identifier, ownerName: who.name, model: v.row.model, garageKey: key, vehicleType: v.row.vehicleType }));
+  const end = v.lastUsed ?? now - 3 * DAY;
+  const n = 2 + Math.floor(rand() * 7);
+  list.push(...trips(plate, who, key, v.row.state === 'out' ? end - 2 * DAY : end + 2 * 3600, n, rand, v.mileage));
+  if (v.row.state === 'out' && v.lastUsed) {
+    list.push(byPlayer('vehicle.retrieve', v.lastUsed, who, { plate, garage: key, fee: 0, fromImpound: false, fromInterior: false, serverSpawn: true }));
+  }
+  for (const sv of v.service) list.push(byServer('vehicle.service', sv.at, { plate, item: sv.item, shop: sv.shop, mileage: sv.mileage }));
+  if (rand() < 0.35) list.push(byPlayer('vehicle.share', end - Math.round(rand() * 20) * DAY, who, { plate, action: 'add', target: 'SR38410', targetName: 'Sofia Romero' }));
+  if (rand() < 0.3) list.push(byPlayer('fuel.refill', end - Math.round(rand() * 9) * DAY - 3600, who, { plate, station: 'Ron Alternates, Grove Street', litres: Math.round(20 + rand() * 40) }));
+  if (v.finance) list.push(byPlayer('vehicle.finance', end - DAY, who, { plate, amount: v.finance.payment, paidOff: false, balance: v.finance.balance }));
+  if (v.impound) {
+    list.push(
+      byPlayer('impound.add', v.impound.at, { identifier: v.impound.by, name: v.impound.byName }, {
+        plate, owner: who.identifier, previousState: 'out', impound: v.impound.locationId, impoundName: v.impound.locationName,
+        reason: v.impound.reason, fee: v.impound.fee, hours: 6, retrievable: v.impound.retrievable, by: v.impound.by, byName: v.impound.byName, removedEntity: true,
+      }),
+    );
+  }
+  if (v.row.blocked) list.push(byPlayer('admin.vehicle.update', now - 2 * DAY, STAFF, { plate, changed: ['blocked'] }));
+  if (rand() < 0.15) list.push(byPlayer('security.dupe', end - 4 * DAY, who, { plate, reason: 'retrieve while an occupied copy exists' }));
+  return list;
+}
+
+/** Newest first, ids assigned once. */
+function activityOf(v: MockVehicle): VehicleActivity[] {
+  let list = activity.get(v.row.plate);
+  if (!list) {
+    const drafts = v.row.plate === 'NZ ELEGY' ? showcaseActivity(v) : v.row.model === 'nzproto' ? [] : generatedActivity(v);
+    list = drafts.sort((a, b) => b.at - a.at).map((d) => ({ ...d, id: ++activitySeq }));
+    activity.set(v.row.plate, list);
+  }
+  return list;
+}
+
+function logActivity(plate: string, event: string, data: Record<string, unknown>) {
+  const v = vehicles.get(plate);
+  if (!v) return;
+  const list = activityOf(v);
+  list.unshift({ id: ++activitySeq, event, at: nowS(), actor: 'NZV41207', actorName: 'Admin (you)', data: { plate, ...data, actorName: 'Admin (you)' } });
+}
 
 /* ───────────────────────── handlers: players & vehicles ───────────────────────── */
 
@@ -577,6 +830,17 @@ mockNui('admin:vehicle:get', async ({ plate }) => {
   return detailOf(v);
 });
 
+mockNui('admin:vehicle:activity', async ({ plate, page }) => {
+  await wait(300);
+  const v = vehicles.get(plate);
+  if (!v) return fail('Vehicle not found');
+  const list = activityOf(v);
+  const p = Math.max(1, Math.floor(page || 1));
+  const rows = list.slice((p - 1) * ACTIVITY_PAGE, p * ACTIVITY_PAGE);
+  // Lua encodes an empty rows table as {}.
+  return { rows: (rows.length ? clone(rows) : {}) as VehicleActivity[], total: list.length, page: p, pageSize: ACTIVITY_PAGE };
+});
+
 mockNui('admin:vehicle:assign', async ({ identifier, model, plate, garageKey }) => {
   await wait(520);
   const m = (model ?? '').trim().toLowerCase();
@@ -600,6 +864,8 @@ mockNui('admin:vehicle:assign', async ({ identifier, model, plate, garageKey }) 
   rec.row.vehicleType = loc?.vehicleType ?? rec.row.vehicleType;
   rec.service = [];
   rec.ownership = [{ identifier, name: personOf(identifier)?.name ?? identifier, via: 'admin', at: nowS() }];
+  activity.set(rec.row.plate, []);
+  logActivity(rec.row.plate, 'admin.vehicle.assign', { model: m, identifier, garage: garage.key });
   return clone(rec.row);
 });
 
@@ -731,8 +997,22 @@ mockNui('admin:vehicle:update', async ({ plate, patch: raw }) => {
       .map((s, i) => ({ ...s, id: s.id ?? 5000 + i, item: s.item.trim().slice(0, 64), shop: (s.shop ?? '').slice(0, 64) }));
   }
 
+  const changed = ['plate', 'details', 'owner', 'props', 'impound', 'finance', 'blocked', 'service'].filter((k) =>
+    k === 'plate' ? next.row.plate !== plate : (patch as Record<string, unknown>)[k] !== undefined,
+  );
+  const history = activityOf(v);
   vehicles.delete(plate);
   vehicles.set(next.row.plate, next);
+  if (next.row.plate !== plate) {
+    activity.delete(plate);
+    activity.set(next.row.plate, history);
+  }
+  if (patch.impound === false || isClear(patch.impound)) {
+    if (v.impound) logActivity(next.row.plate, 'impound.release', { mode: 'garage', impound: v.impound.locationId, impoundName: v.impound.locationName, garage: next.row.garageKey, garageName: next.row.garageName });
+  } else if (patch.impound && next.impound && !v.impound) {
+    logActivity(next.row.plate, 'impound.add', { impound: next.impound.locationId, impoundName: next.impound.locationName, reason: next.impound.reason, fee: next.impound.fee, by: 'NZV41207', byName: 'Admin (you)' });
+  }
+  logActivity(next.row.plate, 'admin.vehicle.update', { newPlate: next.row.plate !== plate ? next.row.plate : undefined, changed });
   return detailOf(next);
 });
 
@@ -887,8 +1167,37 @@ registerMock({
 registerMock({
   id: 'admin-vehicles-detail',
   group: G,
-  label: 'Vehicle detail (finance, mods, history)',
+  label: 'Vehicle dossier — overview',
   messages: [open('vehicles', { __adminB: { search: 'jor', player: 'NZV41207', plate: 'NZ ELEGY' } })],
+});
+(
+  [
+    ['condition', 'condition'],
+    ['upgrades', 'upgrades & paint'],
+    ['finance', 'finance'],
+    ['history', 'history'],
+    ['activity', 'activity log'],
+    ['data', 'props JSON'],
+  ] as const
+).forEach(([tab, label]) =>
+  registerMock({
+    id: `admin-vehicles-${tab}`,
+    group: G,
+    label: `Vehicle dossier — ${label}`,
+    messages: [open('vehicles', { __adminB: { player: 'NZV41207', plate: 'NZ ELEGY', dossierTab: tab } })],
+  }),
+);
+registerMock({
+  id: 'admin-vehicles-damaged',
+  group: G,
+  label: 'Vehicle dossier — wrecked (condition)',
+  messages: [open('vehicles', { __adminB: { player: 'NZV41207', plate: [...vehicles.values()].find((v) => v.owner === 'NZV41207' && v.row.model === 'jester')?.row.plate, dossierTab: 'condition' } })],
+});
+registerMock({
+  id: 'admin-vehicles-nostats',
+  group: G,
+  label: 'Vehicle dossier — add-on model (no stats, no props)',
+  messages: [open('vehicles', { __adminB: { player: 'NZV41207', plate: 'PROTO 1' } })],
 });
 registerMock({
   id: 'admin-vehicles-impounded',

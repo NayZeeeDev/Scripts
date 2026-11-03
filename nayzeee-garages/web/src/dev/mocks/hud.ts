@@ -1,52 +1,9 @@
 /**
- * Mock scenarios for the in-world HUD widgets: toasts, interaction prompt, key hints.
- * (These widgets never call Lua, so there are no mockNui handlers here.)
+ * Mock scenarios for the in-world HUD widgets: interaction prompt and key hints.
+ * (These widgets never call Lua, so there are no mockNui handlers here. Notifications are
+ * not part of the interface: they go through the configured notify integration in Lua.)
  */
 import { registerMock } from '../registry';
-
-registerMock({
-  id: 'hud-toasts',
-  group: 'HUD',
-  label: 'Toasts (4 types)',
-  messages: [
-    {
-      action: 'notify',
-      data: { type: 'success', title: 'Vehicle stored', message: 'Your Elegy Retro Custom is parked at Legion Square.', duration: 9000 },
-    },
-    {
-      action: 'notify',
-      data: { type: 'info', title: 'Waypoint set', message: 'Follow the route to Pillbox Hill Parking (1.2 mi).', duration: 10000 },
-    },
-    {
-      action: 'notify',
-      data: { type: 'warning', title: 'Payment due soon', message: 'Your next finance payment of $4,250 is due in 6 hours.', duration: 11000 },
-    },
-    { action: 'notify', data: { type: 'error', message: 'You do not have enough money in your bank account.', duration: 12000 } },
-  ],
-});
-
-registerMock({
-  id: 'hud-toasts-stack',
-  group: 'HUD',
-  label: 'Toasts (overflow, sticky, long text)',
-  messages: [
-    { action: 'notify', data: { type: 'info', message: 'Garage menu opened.', duration: 3000 } },
-    { action: 'notify', data: { type: 'success', title: 'Transfer complete', message: 'Sent to Mirror Park Garage.' } },
-    {
-      action: 'notify',
-      data: {
-        type: 'warning',
-        title: 'Garage almost full',
-        message:
-          'Only one space is left in this garage. Vehicles stored after that will be suggested to the nearest garage with free spaces instead.',
-        duration: 15000,
-      },
-    },
-    { action: 'notify', data: { type: 'error', title: 'Cannot drive', message: 'This vehicle is impounded until 18:30.', duration: 0 } },
-    { action: 'notify', data: { type: 'success', message: 'Nickname saved.' } },
-    { action: 'notify', data: { type: 'info', title: 'Sixth toast', message: 'The oldest one is dropped (max 5).' } },
-  ],
-});
 
 registerMock({
   id: 'hud-prompt',
@@ -120,6 +77,5 @@ registerMock({
         ],
       },
     },
-    { action: 'notify', data: { type: 'success', title: 'Welcome home', message: 'Mirror Park Garage · 6 of 12 spaces used.', duration: 20000 } },
   ],
 });

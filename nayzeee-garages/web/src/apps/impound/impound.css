@@ -1,31 +1,39 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   Impound apps: the impound list reuses the garage layout (garage.css); this file
-   only adds impound-specific bits and the "Impound vehicle" form.
+   Impound apps: the impound lot uses the garage showroom (garage.css); this file only
+   adds impound-specific bits and the "Impound vehicle" form.
    ═══════════════════════════════════════════════════════════════════════ */
 
-.nz-impound__toolbar { padding-bottom: 14px; border-bottom: 1px solid var(--line-hair); }
-
-.nz-impound__owner {
+/* header tally: "8 held · 3 ready" */
+.nz-impound__tally {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  color: var(--ink-2);
-}
-
-.nz-impound__owner svg { flex: none; color: var(--ink-3); }
-
-.nz-impound__note {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
+  gap: 10px;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-soft);
+  background: var(--inset);
   font-size: 11px;
-  font-weight: 300;
   color: var(--ink-3);
-  text-align: right;
+  white-space: nowrap;
 }
 
-.nz-impound__note svg { flex: none; }
+.nz-impound__tally b { margin-right: 2px; font-size: 12px; font-weight: 600; color: var(--white); }
+.nz-impound__tally > i { width: 1px; height: 12px; background: var(--line); }
+.nz-impound__tally .is-teal b { color: var(--teal); }
+
+/* the lot: a colder, red-tinged floor light instead of the teal showroom glow */
+.nz-impound__stage .nz-garage__stage-horizon {
+  background: linear-gradient(90deg, rgba(var(--red-rgb), 0), rgba(var(--red-rgb), .45) 50%, rgba(var(--red-rgb), 0));
+  box-shadow: 0 0 16px rgba(var(--red-rgb), .3);
+}
+
+.nz-impound__stage .nz-garage__stage-ring {
+  box-shadow: 0 0 0 6px rgba(var(--red-rgb), .025), inset 0 0 18px rgba(var(--red-rgb), .07);
+}
+
+.nz-impound__block-note { grid-column: 1 / -1; }
 
 /* ── impound form ── */
 .nz-impound-form .nz-impound-form__body {

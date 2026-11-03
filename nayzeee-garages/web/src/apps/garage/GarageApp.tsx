@@ -1,29 +1,26 @@
 /**
- * Garage app (app 'garage'): the player's garage menu.
- * Header: garage name + type icon, Private / job badges, capacity meter, more menu.
- * Toolbar: group switcher, search, grid/list, Manage, Go inside. Filter chips + sort.
- * Vehicles in a grid or list with an inline detail panel; spawner garages list spawnable
- * vehicles instead. Modals: rename, transfer, share, sell, members, confirmations.
+ * Garage app (app 'garage'): the player's garage as a two-pane "Showroom".
+ * Left: the collection rail (search, filter chips, sort, group-by, density, rows grouped by
+ * class or status). Right: the showcase of the selected vehicle (stage, status strip,
+ * condition + damage glyph, performance, upgrades, finance / impound / trailer, action dock).
+ * Spawner garages list spawnable vehicles in the same layout. Header: capacity slot strip,
+ * private garage controls, Enter interior. Modals: rename, transfer, share, sell, members,
+ * finance payment and sell-garage confirmations.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Badge,
   Button,
-  Chip,
   ConfirmDialog,
   EmptyState,
-  Badge,
   Icon,
   KeyHint,
   Menu,
-  Meter,
-  SearchInput,
-  Segmented,
   Select,
   Window,
   cx,
 } from '@/components/ui';
-import type { MenuItem, SelectOption } from '@/components/ui';
+import type { IconName, MenuItem, SelectOption } from '@/components/ui';
 import { useApp, useUi, toast } from '@/lib/store';
 import { useEscape } from '@/lib/escape';
 import { request } from '@/lib/nui';
@@ -31,21 +28,27 @@ import { t } from '@/lib/i18n';
 import { money } from '@/lib/format';
 import type { GarageOpenData, GarageVehicle, SpawnerVehicleView } from '@/lib/types';
 import {
+  classGroup,
   displayName,
+  groupItems,
   isAppOpen,
+  isHere,
   isShared,
   kindLabel,
   matchesFilter,
   matchesQuery,
   sortVehicles,
+  statusGroup,
+  useSessionChoice,
   useSessionView,
   vehicleTypeIcon,
 } from './model';
-import type { GarageFilter, GarageSort, ViewMode } from './model';
-import { VehicleCollection } from './VehicleCollection';
-import { GarageCard, GarageRow } from './VehicleTiles';
-import { VehicleDetail } from './VehicleDetail';
-import { SpawnerCard, SpawnerRow } from './SpawnerTiles';
+import type { GarageFilter, GarageSort, GroupBy, ItemGroup } from './model';
+import { RailList, RailSkeleton } from './showroom/Rail';
+import { SlotStrip } from './showroom/SlotStrip';
+import { useShowroomKeys } from './showroom/keys';
+import { GarageRow, RailToolbar, SpawnerRow } from './GarageRail';
+import { EmptyShowcase, SpawnerShowcase, VehicleShowcase } from './GarageShowcase';
 import { RenameModal } from './modals/RenameModal';
 import { TransferModal } from './modals/TransferModal';
 import { ShareModal } from './modals/ShareModal';
@@ -85,20 +88,29 @@ async function refreshGarage() {
   if (res.ok && res.data && isAppOpen('garage')) useUi.getState().openApp('garage', res.data);
 }
 
+const typeWord = (type: GarageOpenData['garage']['vehicleType']) =>
+  type === 'air' ? t('aircraft') : type === 'sea' ? t('boat') : t('vehicle');
+
 /* ── window ──────────────────────────────────────────────────────────── */
 
 function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void }) {
   const { garage, capacity, vehicles, spawner, options } = data;
   const spawnerMode = garage.source === 'spawner';
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const [view, setView] = useSessionView('garage');
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<GarageFilter>('all');
-  const [sort, setSort] = useState<GarageSort>('relevance');
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const compact = view === 'list';
+  const [groupBy, setGroupBy] = useSessionChoice<GroupBy>('garage:groupBy', 'class');
+  const [sort, setSort] = useSessionChoice<GarageSort>('garage:sort', 'relevance');
+  const [query, setQueryRaw] = useState('');
+  const [filter, setFilterRaw] = useState<GarageFilter>('all');
+  const [selected, setSelected] = useState<string | null>(null);
+  const lastIndex = useRef(0);
+
   const [driving, setDriving] = useState<string | null>(null);
   const [spawning, setSpawning] = useState<number | null>(null);
   const [recovering, setRecovering] = useState<string | null>(null);
+  const [tracking, setTracking] = useState<string | null>(null);
   const [modal, setModal] = useState<{ kind: ModalKind; plate: string } | null>(null);
   const [members, setMembers] = useState(false);
   const [pay, setPay] = useState<{ plate: string; full: boolean } | null>(null);
@@ -109,51 +121,66 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
 
   useEffect(() => () => window.clearTimeout(driveTimer.current), []);
 
+  const setQuery = (q: string) => {
+    lastIndex.current = 0;
+    setQueryRaw(q);
+  };
+  const setFilter = (f: GarageFilter) => {
+    lastIndex.current = 0;
+    setFilterRaw(f);
+  };
+
   const byPlate = (plate: string | null | undefined) => (plate ? vehicles.find((v) => v.plate === plate) ?? null : null);
 
-  /* ── derived lists ── */
+  /* ── owned vehicles: search → filter → sort → group ── */
   const searched = useMemo(() => vehicles.filter((v) => matchesQuery(v, query)), [vehicles, query]);
   const counts = useMemo(() => {
     const c: Record<GarageFilter, number> = { all: 0, favourites: 0, here: 0, shared: 0, impounded: 0, out: 0 };
     for (const v of searched) {
       c.all++;
       if (v.favourite) c.favourites++;
-      if (matchesFilter(v, 'here')) c.here++;
+      if (isHere(v)) c.here++;
       if (isShared(v)) c.shared++;
       if (v.state === 'impounded') c.impounded++;
       if (v.state === 'out') c.out++;
     }
     return c;
   }, [searched]);
-  const anyOf = useMemo(
+  // Chips exist when the whole collection has such vehicles (they do not vanish while typing).
+  const present = useMemo(
     () => ({
+      favourites: vehicles.some((v) => v.favourite),
+      here: vehicles.some(isHere),
       shared: vehicles.some(isShared),
       impounded: vehicles.some((v) => v.state === 'impounded'),
       out: vehicles.some((v) => v.state === 'out'),
     }),
     [vehicles],
   );
-  const chips: { value: GarageFilter; label: string }[] = [
-    { value: 'all', label: t('All') },
-    { value: 'favourites', label: t('Favourites') },
-    { value: 'here', label: t('Parked here') },
-  ];
-  if (anyOf.shared) chips.push({ value: 'shared', label: t('Shared') });
-  if (anyOf.impounded) chips.push({ value: 'impounded', label: t('Impounded') });
-  if (anyOf.out) chips.push({ value: 'out', label: t('Out') });
+  const chips = (
+    [
+      { value: 'all', label: t('All'), on: true },
+      { value: 'favourites', label: t('Favourites'), icon: 'star', on: present.favourites },
+      { value: 'here', label: t('Here'), on: present.here },
+      { value: 'shared', label: t('Shared'), on: present.shared },
+      { value: 'impounded', label: t('Impounded'), on: present.impounded },
+      { value: 'out', label: t('Out'), on: present.out },
+    ] as { value: GarageFilter; label: string; icon?: IconName; on: boolean }[]
+  )
+    .filter((c) => c.on)
+    .map((c) => ({ value: c.value, label: c.label, icon: c.icon, count: counts[c.value] }));
   const activeFilter: GarageFilter = chips.some((c) => c.value === filter) ? filter : 'all';
 
   const shown = useMemo(
     () => sortVehicles(searched.filter((v) => matchesFilter(v, activeFilter)), sort),
     [searched, activeFilter, sort],
   );
-  // The open panel only counts while its vehicle is listed: after a transfer, a refresh or a
-  // search / filter hides it, Escape must close the app again instead of "collapsing" nothing.
-  const openPlate = expanded !== null && shown.some((v) => v.plate === expanded) ? expanded : null;
-  useEscape(() => setExpanded(null), openPlate !== null);
-  useEffect(() => {
-    if (expanded !== null && openPlate === null) setExpanded(null);
-  }, [expanded, openPlate]);
+  const groups: ItemGroup<GarageVehicle>[] = useMemo(() => {
+    if (groupBy === 'none') return [{ key: 'all', label: '', items: shown }];
+    return groupItems(shown, groupBy === 'status' ? statusGroup : classGroup);
+  }, [shown, groupBy]);
+
+  /* ── spawner vehicles ── */
   const shownSpawner = useMemo(
     () =>
       spawner
@@ -161,6 +188,30 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         .sort((a, b) => a.index - b.index),
     [spawner, query],
   );
+  const spawnerGroups: ItemGroup<SpawnerVehicleView>[] = useMemo(() => {
+    if (groupBy === 'none') return [{ key: 'all', label: '', items: shownSpawner }];
+    return groupItems(shownSpawner, classGroup);
+  }, [shownSpawner, groupBy]);
+
+  /* ── selection (always a visible row; falls back to the same position) ── */
+  const flatKeys = useMemo(
+    () =>
+      spawnerMode
+        ? spawnerGroups.flatMap((g) => g.items.map((s) => String(s.index)))
+        : groups.flatMap((g) => g.items.map((v) => v.plate)),
+    [spawnerMode, spawnerGroups, groups],
+  );
+  const currentKey =
+    selected !== null && flatKeys.includes(selected)
+      ? selected
+      : flatKeys[Math.min(lastIndex.current, flatKeys.length - 1)] ?? null;
+  useEffect(() => {
+    const i = currentKey ? flatKeys.indexOf(currentKey) : -1;
+    if (i >= 0) lastIndex.current = i;
+  }, [currentKey, flatKeys]);
+
+  const sv = !spawnerMode ? byPlate(currentKey) : null;
+  const ss = spawnerMode ? spawner.find((s) => String(s.index) === currentKey) ?? null : null;
 
   /* ── actions ── */
   const toggleFavourite = async (v: GarageVehicle) => {
@@ -204,15 +255,19 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     toast({
       type: 'success',
       title: t('Vehicle recovered'),
-      message: v.recoverFee > 0
-        ? t('{vehicle} is back for {fee}.', { vehicle: displayName(v), fee: money(v.recoverFee) })
-        : t('{vehicle} is back.', { vehicle: displayName(v) }),
+      message:
+        v.recoverFee > 0
+          ? t('{vehicle} is back for {fee}.', { vehicle: displayName(v), fee: money(v.recoverFee) })
+          : t('{vehicle} is back.', { vehicle: displayName(v) }),
     });
     void refreshGarage();
   };
 
   const track = async (v: GarageVehicle) => {
+    if (tracking) return;
+    setTracking(v.plate);
     await request('garage:track', { plate: v.plate });
+    setTracking(null);
   };
 
   const rename = async (v: GarageVehicle, name: string | null) => {
@@ -263,6 +318,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   };
 
   const directions = async () => {
+    if (headerBusy) return;
     setHeaderBusy('directions');
     await request('garage:directions', {});
     setHeaderBusy(null);
@@ -275,64 +331,32 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     if (res.ok) setSellGarage(false);
   };
 
+  /* ── keyboard ── */
+  const anyModal = !!modal || members || !!pay || sellGarage;
+  const focusSearch = () => bodyRef.current?.querySelector<HTMLInputElement>('.nz-garage__search input')?.focus();
+  useShowroomKeys(!anyModal, {
+    move: (dir) => {
+      if (!flatKeys.length) return;
+      const i = currentKey ? flatKeys.indexOf(currentKey) : -1;
+      setSelected(flatKeys[Math.max(0, Math.min(flatKeys.length - 1, i + dir))]);
+    },
+    enter: () => {
+      if (ss) void spawn(ss);
+      else if (sv?.canDrive) void drive(sv);
+      else if (sv?.canRecover) void recover(sv);
+    },
+    favourite: spawnerMode ? undefined : () => sv && void toggleFavourite(sv),
+    rename: spawnerMode ? undefined : () => sv?.isOwner && setModal({ kind: 'rename', plate: sv.plate }),
+    focusSearch,
+  });
+
   /* ── header ── */
   const limited = !!capacity && capacity.mode === 'limited' && capacity.total > 0;
-  const isFull = limited && capacity!.used >= capacity!.total;
+  const isFull = limited && capacity!.used >= capacity!.total && !spawnerMode;
   const menuItems: MenuItem[] = [];
-  if (garage.isPrivate) {
-    menuItems.push({
-      label: garage.canManage ? t('Manage members') : t('View members'),
-      icon: 'users',
-      onSelect: () => setMembers(true),
-    });
-  }
-  if (isFull && !spawnerMode) {
-    menuItems.push({ label: t('Find a garage with space'), icon: 'route', onSelect: () => void directions() });
-  }
-  if (garage.canSellGarage) {
-    menuItems.push({ label: t('Sell garage'), icon: 'tag', danger: true, onSelect: () => setSellGarage(true) });
-  }
+  if (isFull) menuItems.push({ label: t('Find a garage with space'), icon: 'route', onSelect: () => void directions() });
+  if (garage.canSellGarage) menuItems.push({ label: t('Sell garage'), icon: 'tag', danger: true, onSelect: () => setSellGarage(true) });
 
-  const subtitle = [
-    kindLabel(garage.kind, garage.vehicleType),
-    garage.groups.length > 1 ? garage.groups.find((g) => g.id === garage.groupId)?.label : null,
-    garage.role === 'owner' ? t('Owner') : garage.role === 'member' ? t('Member') : null,
-    spawnerMode ? t('Spawner') : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
-  const badges =
-    garage.isPrivate || garage.jobLabel ? (
-      <span className="nz-garage__badges">
-        {garage.isPrivate && (
-          <Badge tone="neutral" icon="lock">
-            {t('Private')}
-          </Badge>
-        )}
-        {garage.jobLabel && (
-          <Badge tone="teal" icon="briefcase">
-            {garage.jobLabel}
-          </Badge>
-        )}
-      </span>
-    ) : undefined;
-
-  const headerExtra = (
-    <>
-      {limited && (
-        <Meter
-          label={capacity!.appliesTo === 'player' ? t('Your spaces') : t('Spaces')}
-          icon="parking"
-          used={capacity!.used}
-          total={capacity!.total}
-        />
-      )}
-      {menuItems.length > 0 && <Menu items={menuItems} label={t('Garage options')} />}
-    </>
-  );
-
-  /* ── toolbar ── */
   // Group labels usually repeat the garage name ("La Mesa Motor Club #2"): show the distinct part.
   const groupLabel = (label: string) => {
     const rest = label.startsWith(garage.name) ? label.slice(garage.name.length).trim() : '';
@@ -345,103 +369,228 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     hint: groupLabel(g.label) !== g.label ? g.label : undefined,
     icon: 'key',
   }));
-  const viewOptions: { value: ViewMode; label: string; icon: 'grid' | 'list' }[] = [
-    { value: 'grid', label: t('Grid view'), icon: 'grid' },
-    { value: 'list', label: t('List view'), icon: 'list' },
-  ];
-  const sortOptions: SelectOption<GarageSort>[] = [
-    { value: 'relevance', label: t('Relevance') },
-    { value: 'name', label: t('Name') },
-    { value: 'mileage', label: t('Mileage') },
-    { value: 'condition', label: t('Condition') },
-    { value: 'lastUsed', label: t('Last used') },
-  ];
+  const activeGroup = garage.groups.find((g) => g.id === garage.groupId);
 
+  const subtitle = [
+    kindLabel(garage.kind, garage.vehicleType),
+    garage.isPrivate && activeGroup && garage.groups.length > 1 ? groupLabel(activeGroup.label) : null,
+    garage.role === 'owner' ? t('Owner') : garage.role === 'member' ? t('Member') : null,
+    garage.jobLabel,
+    spawnerMode ? t('Fleet') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const badges =
+    garage.isPrivate || garage.kind === 'house' ? (
+      <span className="nz-garage__badges">
+        {garage.isPrivate && (
+          <Badge tone="neutral" icon="lock" size="sm">
+            {t('Private')}
+          </Badge>
+        )}
+        {garage.kind === 'house' && (
+          <Badge tone="neutral" icon="key" size="sm">
+            {t('Home')}
+          </Badge>
+        )}
+      </span>
+    ) : undefined;
+
+  const headerExtra = (
+    <>
+      {garage.groups.length > 1 && (
+        <Select<number>
+          value={garage.groupId}
+          onChange={(id) => void switchGroup(id)}
+          options={groupOptions}
+          icon="key"
+          size="sm"
+          disabled={!!headerBusy}
+          className="nz-garage__groupsel"
+        />
+      )}
+      {garage.isPrivate && (
+        <Button size="sm" icon="users" onClick={() => setMembers(true)}>
+          {t('Members')}
+        </Button>
+      )}
+      {menuItems.length > 0 && <Menu items={menuItems} label={t('Garage options')} />}
+      {!spawnerMode && <SlotStrip capacity={capacity} stored={vehicles.filter(isHere).length} />}
+      {garage.canGoInside && (
+        <Button
+          size="sm"
+          variant="line"
+          icon="walk"
+          loading={headerBusy === 'inside'}
+          disabled={!!headerBusy && headerBusy !== 'inside'}
+          onClick={() => void goInside()}
+          className="nz-garage__inside"
+        >
+          {t('Enter interior')}
+        </Button>
+      )}
+    </>
+  );
+
+  /* ── rail ── */
   const total = spawnerMode ? spawner.length : vehicles.length;
   const count = spawnerMode ? shownSpawner.length : shown.length;
+  const clearAll = () => {
+    setQuery('');
+    setFilter('all');
+  };
+  const filtered = query.trim() !== '' || activeFilter !== 'all';
 
-  /* ── body content ── */
-  let content: JSX.Element;
-  if (spawnerMode) {
-    content =
+  const fullNotice = isFull ? (
+    <div className="nz-garage__notice">
+      <Icon name="parking" size={14} strokeWidth={1.8} />
+      <span>
+        <b>{t('Garage full.')}</b> {t('You can still take vehicles out.')}
+      </span>
+      <Button size="sm" variant="ghost" icon="route" loading={headerBusy === 'directions'} onClick={() => void directions()}>
+        {t('Find space')}
+      </Button>
+    </div>
+  ) : null;
+
+  let railList: JSX.Element;
+  if (headerBusy === 'group') {
+    railList = <RailSkeleton compact={compact} />;
+  } else if (spawnerMode) {
+    railList =
       spawner.length === 0 ? (
         <EmptyState
+          compact
           icon={vehicleTypeIcon(garage.vehicleType)}
           title={t('No vehicles available')}
           description={t('There are no vehicles for your rank at this garage. Ask a supervisor if you need access.')}
         />
       ) : shownSpawner.length === 0 ? (
-        <SearchEmpty query={query} onClear={() => setQuery('')} />
+        <NoMatch query={query} onClear={clearAll} />
       ) : (
-        <VehicleCollection<SpawnerVehicleView>
-          items={shownSpawner}
-          view={view}
+        <RailList<SpawnerVehicleView>
+          groups={spawnerGroups}
           getKey={(s) => String(s.index)}
-          renderCard={(s) => <SpawnerCard s={s} spawning={spawning} onDrive={() => void spawn(s)} />}
-          renderRow={(s) => <SpawnerRow s={s} spawning={spawning} onDrive={() => void spawn(s)} />}
-          className="nz-garage__collection--spawner"
+          selected={currentKey}
+          onSelect={setSelected}
+          onActivate={(k) => {
+            const s = spawner.find((x) => String(x.index) === k);
+            if (s) void spawn(s);
+          }}
+          compact={compact}
+          label={t('Vehicles')}
+          renderRow={(s) => <SpawnerRow s={s} compact={compact} />}
         />
       );
   } else if (vehicles.length === 0) {
-    content = (
+    railList = (
       <EmptyState
+        compact
         icon="garage"
         title={t('No vehicles here yet')}
-        description={t('Drive a vehicle you own up to {garage} and store it — it will show up here.', { garage: garage.name })}
+        description={t('Store a {type} you own here and it shows up in this list.', { type: typeWord(garage.vehicleType) })}
       />
     );
   } else if (shown.length === 0) {
-    content = query ? (
-      <SearchEmpty query={query} onClear={() => setQuery('')} />
+    railList = <NoMatch query={query} filter={activeFilter} onClear={clearAll} />;
+  } else {
+    railList = (
+      <RailList<GarageVehicle>
+        groups={groups}
+        getKey={(v) => v.plate}
+        selected={currentKey}
+        onSelect={setSelected}
+        onActivate={(plate) => {
+          const v = byPlate(plate);
+          if (v?.canDrive) void drive(v);
+        }}
+        compact={compact}
+        label={t('Vehicles')}
+        rowClass={(v) => cx(`is-${v.state}`, !v.canDrive && 'is-locked')}
+        renderRow={(v) => <GarageRow v={v} compact={compact} onFavourite={() => void toggleFavourite(v)} />}
+      />
+    );
+  }
+
+  /* ── showcase ── */
+  let showcase: JSX.Element;
+  if (spawnerMode) {
+    showcase = ss ? (
+      <SpawnerShowcase s={ss} garage={garage} spawning={spawning} onSpawn={() => void spawn(ss)} />
     ) : (
-      <FilterEmpty filter={activeFilter} onReset={() => setFilter('all')} />
+      <EmptyShowcase
+        icon={spawner.length === 0 ? 'lock' : 'search'}
+        title={spawner.length === 0 ? t('Nothing to take out') : t('No vehicles match')}
+        description={
+          spawner.length === 0
+            ? t('This garage has no vehicles for your rank.')
+            : t('Try another name or model.')
+        }
+      />
+    );
+  } else if (sv) {
+    showcase = (
+      <VehicleShowcase
+        v={sv}
+        garage={garage}
+        options={options}
+        driving={driving}
+        recovering={recovering === sv.plate}
+        tracking={tracking === sv.plate}
+        onDrive={() => void drive(sv)}
+        onRecover={() => void recover(sv)}
+        onTrack={() => void track(sv)}
+        onRename={() => setModal({ kind: 'rename', plate: sv.plate })}
+        onTransfer={() => setModal({ kind: 'transfer', plate: sv.plate })}
+        onShare={() => setModal({ kind: 'share', plate: sv.plate })}
+        onSell={() => setModal({ kind: 'sell', plate: sv.plate })}
+        onFavourite={() => void toggleFavourite(sv)}
+        onPay={(full) => setPay({ plate: sv.plate, full })}
+      />
+    );
+  } else if (vehicles.length === 0) {
+    const word = typeWord(garage.vehicleType);
+    showcase = (
+      <EmptyShowcase
+        icon="garage"
+        title={t('Your showroom is empty')}
+        description={t('Nothing is parked at {garage} yet.', { garage: garage.name })}
+        steps={[
+          { icon: vehicleTypeIcon(garage.vehicleType), text: t('Bring a {type} you own (or one shared with you) to {garage}.', { type: word, garage: garage.name }) },
+          { icon: 'parking', text: t('Stop at the marked store point and use the store prompt.') },
+          { icon: 'arrowRight', text: t('It appears here, ready to drive out again.') },
+        ]}
+      />
     );
   } else {
-    content = (
-      <VehicleCollection<GarageVehicle>
-        items={shown}
-        view={view}
-        getKey={(v) => v.plate}
-        expandedKey={openPlate}
-        onToggle={(plate) => setExpanded((cur) => (cur === plate ? null : plate))}
-        itemClass={(v) => (v.state === 'impounded' || v.blocked ? 'is-alert' : v.state === 'out' ? 'is-out' : undefined)}
-        renderCard={(v) => <GarageCard v={v} onFavourite={() => void toggleFavourite(v)} />}
-        renderRow={(v, open) => <GarageRow v={v} open={open} onFavourite={() => void toggleFavourite(v)} />}
-        renderDetail={(v) => (
-          <VehicleDetail
-            v={v}
-            options={options}
-            variant={view}
-            driving={driving}
-            recovering={recovering === v.plate}
-            onCollapse={view === 'grid' ? () => setExpanded(null) : undefined}
-            onDrive={() => void drive(v)}
-            onRecover={() => void recover(v)}
-            onTransfer={() => setModal({ kind: 'transfer', plate: v.plate })}
-            onSell={() => setModal({ kind: 'sell', plate: v.plate })}
-            onShare={() => setModal({ kind: 'share', plate: v.plate })}
-            onRename={() => setModal({ kind: 'rename', plate: v.plate })}
-            onTrack={() => void track(v)}
-            onFavourite={() => void toggleFavourite(v)}
-            onPay={(full) => setPay({ plate: v.plate, full })}
-          />
-        )}
+    showcase = (
+      <EmptyShowcase
+        icon="filter"
+        title={t('No vehicles match')}
+        description={t('Nothing in your collection fits this search or filter.')}
+        action={
+          <Button size="sm" icon="close" onClick={clearAll}>
+            {t('Clear filters')}
+          </Button>
+        }
       />
     );
   }
 
   const modalVehicle = (kind: ModalKind) => (modal?.kind === kind ? byPlate(modal.plate) : null);
   const payVehicle = byPlate(pay?.plate);
+  const hereCount = vehicles.filter(isHere).length;
 
   return (
     <>
       <Window
         className="nz-garage"
         bodyClassName="nz-garage__body"
-        width={736}
-        style={{ maxHeight: '86vh' }}
+        width="min(1240px, 94vw)"
+        height="min(800px, 92vh)"
         title={garage.name}
-        icon={vehicleTypeIcon(garage.vehicleType)}
+        icon={garage.kind === 'house' ? 'building' : spawnerMode || garage.kind === 'job' ? 'briefcase' : vehicleTypeIcon(garage.vehicleType)}
         subtitle={subtitle}
         badge={badges}
         headerExtra={headerExtra}
@@ -458,85 +607,64 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
                   <b>{count}</b> {t('of {total} vehicle(s)', { total })}
                 </>
               )}
+              {!spawnerMode && hereCount > 0 && (
+                <>
+                  {' · '}
+                  <b>{hereCount}</b> {t('parked here')}
+                </>
+              )}
             </span>
-            {isFull && !spawnerMode && (
+            {isFull && (
               <span className="nz-garage__foot-warn">
                 <Icon name="warning" size={12} strokeWidth={1.8} />
                 {t('Garage full')}
               </span>
             )}
             <span className="nz-garage__spacer" />
-            {!spawnerMode && vehicles.length > 0 && <KeyHint keys={['Enter']} label={t('Details')} />}
-            <KeyHint keys={['Esc']} label={openPlate ? t('Collapse') : t('Close')} />
+            {total > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
+            {total > 0 && <KeyHint keys={['Enter']} label={spawnerMode ? t('Take out') : t('Drive')} />}
+            {!spawnerMode && total > 0 && <KeyHint keys={['F']} label={t('Favourite')} />}
+            {!spawnerMode && total > 0 && <KeyHint keys={['R']} label={t('Rename')} />}
+            <KeyHint keys={['/']} label={t('Search')} />
+            <KeyHint keys={['Esc']} label={t('Close')} />
           </>
         }
       >
-        <div className="nz-garage__toolbar">
-          {garage.groups.length > 1 && (
-            <Select<number>
-              value={garage.groupId}
-              onChange={(id) => void switchGroup(id)}
-              options={groupOptions}
-              icon="key"
-              disabled={headerBusy === 'group'}
-              className="nz-garage__group"
+        <div ref={bodyRef} className={cx('nz-garage__layout', headerBusy === 'group' && 'is-busy')}>
+          <aside className="nz-garage__rail" aria-label={t('Your vehicles')}>
+            <RailToolbar
+              query={query}
+              onQuery={setQuery}
+              placeholder={spawnerMode ? t('Search name or model') : t('Search name, plate or class')}
+              bare={spawnerMode ? spawner.length === 0 : vehicles.length === 0}
+              chips={spawnerMode || vehicles.length === 0 ? undefined : chips}
+              filter={activeFilter}
+              onFilter={setFilter}
+              sort={spawnerMode ? undefined : sort}
+              onSort={setSort}
+              groupBy={groupBy}
+              onGroupBy={setGroupBy}
+              groupOptions={
+                spawnerMode
+                  ? [
+                      { value: 'class', label: t('By class'), icon: 'layers' },
+                      { value: 'none', label: t('No groups'), icon: 'list' },
+                    ]
+                  : undefined
+              }
+              view={view}
+              onView={setView}
+              notice={fullNotice}
             />
-          )}
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder={spawnerMode ? t('Search by name or model') : t('Search name or plate')}
-            className="nz-garage__search"
-          />
-          <Segmented<ViewMode> value={view} onChange={setView} options={viewOptions} iconOnly />
-          {garage.isPrivate && (
-            <Button icon="users" onClick={() => setMembers(true)}>
-              {garage.canManage ? t('Manage') : t('Members')}
-            </Button>
-          )}
-          {garage.canGoInside && (
-            <Button variant="white" icon="walk" loading={headerBusy === 'inside'} disabled={!!headerBusy && headerBusy !== 'inside'} onClick={() => void goInside()}>
-              {t('Go inside')}
-            </Button>
-          )}
-        </div>
-
-        {!spawnerMode && vehicles.length > 0 && (
-          <div className="nz-garage__filters">
-            <ChipStrip label={t('Filter vehicles')}>
-              {chips.map((c) => (
-                <Chip key={c.value} active={activeFilter === c.value} onClick={() => setFilter(c.value)} count={counts[c.value]}>
-                  {c.label}
-                </Chip>
-              ))}
-            </ChipStrip>
-            <Select<GarageSort> value={sort} onChange={setSort} options={sortOptions} icon="sort" size="sm" className="nz-garage__sort" />
-          </div>
-        )}
-        {spawnerMode && spawner.length > 0 && (
-          <div className="nz-garage__hintbar">
-            <Icon name="info" size={13} strokeWidth={1.8} />
-            <span>
-              {garage.jobLabel
-                ? t('{job} vehicles. Store them back here when your shift is over.', { job: garage.jobLabel })
-                : t('Pick a vehicle to take out. Store it back here when you are done.')}
-            </span>
-          </div>
-        )}
-
-        <div className={cx('nz-garage__scroll', `is-${view}`)}>
-          {isFull && !spawnerMode && vehicles.length > 0 && (
-            <div className="nz-garage__notice">
-              <Icon name="parking" size={15} strokeWidth={1.8} />
-              <span>
-                <b>{t('This garage is full.')}</b> {t('You can still take vehicles out, but nothing more can be stored here.')}
-              </span>
-              <Button size="sm" variant="line" icon="route" loading={headerBusy === 'directions'} onClick={() => void directions()}>
-                {t('Find space')}
-              </Button>
-            </div>
-          )}
-          {content}
+            {railList}
+            {filtered && count > 0 && (
+              <button type="button" className="nz-garage__railfoot" onClick={clearAll}>
+                <Icon name="close" size={11} strokeWidth={2} />
+                {t('Showing {count} of {total} · clear filters', { count, total })}
+              </button>
+            )}
+          </aside>
+          <main className="nz-garage__stagearea">{showcase}</main>
         </div>
       </Window>
 
@@ -569,7 +697,11 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
             )
           ) : null
         }
-        confirmLabel={pay?.full ? t('Pay {amount}', { amount: money(payVehicle?.finance?.balance ?? 0) }) : t('Pay {amount}', { amount: money(Math.min(payVehicle?.finance?.payment ?? 0, payVehicle?.finance?.balance ?? 0)) })}
+        confirmLabel={
+          pay?.full
+            ? t('Pay {amount}', { amount: money(payVehicle?.finance?.balance ?? 0) })
+            : t('Pay {amount}', { amount: money(Math.min(payVehicle?.finance?.payment ?? 0, payVehicle?.finance?.balance ?? 0)) })
+        }
         busy={paying}
         onConfirm={() => void confirmPay()}
         onCancel={() => setPay(null)}
@@ -594,80 +726,26 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   );
 }
 
-/* ── chip strip: scrolls sideways (fade at the edge) only when it overflows ── */
+/* ── rail empty state ────────────────────────────────────────────────── */
 
-function ChipStrip({ label, children }: { label: string; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setOverflow(el.scrollWidth > el.clientWidth + 1);
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    Array.from(el.children).forEach((c) => ro.observe(c));
-    return () => ro.disconnect();
-  });
-  return (
-    <div
-      ref={ref}
-      className={cx('nz-garage__chips', overflow && 'is-overflow')}
-      role="toolbar"
-      aria-label={label}
-      onWheel={(e) => {
-        if (overflow && ref.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) ref.current.scrollLeft += e.deltaY;
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/* ── empty states ────────────────────────────────────────────────────── */
-
-function SearchEmpty({ query, onClear }: { query: string; onClear: () => void }) {
+function NoMatch({ query, filter = 'all', onClear }: { query: string; filter?: GarageFilter; onClear: () => void }) {
+  const q = query.trim();
+  const copy: Partial<Record<GarageFilter, string>> = {
+    favourites: t('Tap the star on a vehicle to keep it at the top of your list.'),
+    here: t('Your vehicles are stored at other garages or are out right now.'),
+    shared: t('Vehicles you share or that are shared with you show up here.'),
+    impounded: t('None of your vehicles are at an impound lot.'),
+    out: t('All of your vehicles are parked.'),
+  };
   return (
     <EmptyState
-      icon="search"
-      title={t('No vehicles match “{query}”', { query: query.trim() })}
-      description={t('Try a name, nickname, model or plate.')}
+      compact
+      icon={q ? 'search' : 'filter'}
+      title={q ? t('No vehicles match “{query}”', { query: q }) : t('No vehicles match')}
+      description={q ? t('Try a name, nickname, model, class or plate.') : copy[filter]}
       action={
         <Button size="sm" icon="close" onClick={onClear}>
-          {t('Clear search')}
-        </Button>
-      }
-    />
-  );
-}
-
-function FilterEmpty({ filter, onReset }: { filter: GarageFilter; onReset: () => void }) {
-  const copy: Record<GarageFilter, { icon: 'star' | 'parking' | 'users' | 'impound' | 'route' | 'garage'; title: string; desc: string }> = {
-    all: { icon: 'garage', title: t('No vehicles'), desc: '' },
-    favourites: {
-      icon: 'star',
-      title: t('No favourites yet'),
-      desc: t('Tap the star on a vehicle to keep it at the top of your list.'),
-    },
-    here: {
-      icon: 'parking',
-      title: t('Nothing parked here'),
-      desc: t('Your vehicles are stored at other garages or are out right now.'),
-    },
-    shared: { icon: 'users', title: t('No shared vehicles'), desc: t('Vehicles you share or that are shared with you show up here.') },
-    impounded: { icon: 'impound', title: t('Nothing impounded'), desc: t('None of your vehicles are at an impound lot.') },
-    out: { icon: 'route', title: t('Nothing out'), desc: t('All of your vehicles are parked.') },
-  };
-  const c = copy[filter];
-  return (
-    <EmptyState
-      icon={c.icon}
-      title={c.title}
-      description={c.desc || undefined}
-      action={
-        <Button size="sm" icon="layers" onClick={onReset}>
-          {t('Show all vehicles')}
+          {t('Clear filters')}
         </Button>
       }
     />

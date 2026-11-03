@@ -9,8 +9,8 @@
  *
  * Sections: vehicle source (garage/job), general, locations (in-world point manager via
  * requestPoints → admin:points: the whole admin UI is hidden by CSS while it runs and this
- * modal stays mounted, so the draft, scroll position and focus survive), spawner vehicles +
- * vehicle rules, parking
+ * modal stays mounted, so the draft, scroll position and focus survive), interaction (mode
+ * override + garage NPC, see InteractionFields), spawner vehicles + vehicle rules, parking
  * capacity, garage access, access restriction (garage), sale & copies (private), impound
  * settings, map blip. Saved private locations get two tabs: Settings and Owners & copies
  * (live, see OwnersSection — those changes do not wait for Save).
@@ -66,6 +66,7 @@ import type { LocationPageKind } from '../shared/labels';
 import { defaultBlipSprite, newLocation, normalizeLocation } from './defaults';
 import { SpawnerEditor } from './SpawnerEditor';
 import { OwnersSection } from './OwnersSection';
+import { InteractionFields } from './InteractionFields';
 
 export interface LocationEditorProps {
   open: boolean;
@@ -486,6 +487,15 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                 </>
               )}
             </div>
+          </Section>
+
+          {/* ── interaction ── */}
+          <Section title={t('Interaction')}>
+            <InteractionFields
+              draft={draft}
+              globalMode={data.settings?.interface?.interaction ?? 'prompt'}
+              onChange={(interaction) => set({ interaction })}
+            />
           </Section>
 
           {/* ── spawner ── */}

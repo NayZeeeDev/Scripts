@@ -241,13 +241,6 @@ export function KitGallery() {
     [],
   );
 
-  const fireToasts = () => {
-    toast({ type: 'success', title: t('Vehicle stored'), message: t('Your Elegy is parked at Legion Square.') });
-    toast({ type: 'info', message: t('Waypoint set to the nearest garage.') });
-    toast({ type: 'warning', title: t('Payment due'), message: t('Next finance payment in 6 hours.') });
-    toast({ type: 'error', title: t('Not enough money'), message: t('You need {amount} in your bank.', { amount: money(4250) }) });
-  };
-
   return (
     <div className="nz-kitgal">
       <style>{GALLERY_CSS}</style>
@@ -832,7 +825,7 @@ export function KitGallery() {
           </Window>
 
           {/* ── Overlays ────────────────────────────────────────────── */}
-          <Window title={t('Overlays')} icon="layers" subtitle={t('Tooltips, menus, modals, toasts')}>
+          <Window title={t('Overlays')} icon="layers" subtitle={t('Tooltips, menus, modals, HUD')}>
             <Section title={t('Tooltips')}>
               <div className="kg-row">
                 {(['top', 'bottom', 'left', 'right'] as const).map((s) => (
@@ -859,11 +852,8 @@ export function KitGallery() {
                 </Button>
               </div>
             </Section>
-            <Section title={t('Toasts & HUD')}>
+            <Section title={t('HUD')}>
               <div className="kg-row">
-                <Button icon="sparkle" onClick={fireToasts}>
-                  {t('Fire 4 toasts')}
-                </Button>
                 <Button
                   icon="key"
                   onClick={() => {

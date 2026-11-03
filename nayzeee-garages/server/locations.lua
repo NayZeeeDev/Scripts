@@ -37,6 +37,9 @@ local CAPACITY_MODES = { unlimited = true, limited = true }
 local CAPACITY_SCOPES = { player = true, total = true }
 local ACCESS_MODES = { quick = true, interior = true, both = true }
 local RESTRICTION_TYPES = { everyone = true, job = true, gang = true, identifier = true }
+local INTERACTION_MODES = { default = true, prompt = true, target = true, both = true }
+local DEFAULT_PED_MODEL = 's_m_y_valet_01'
+local DEFAULT_PED_SCENARIO = 'WORLD_HUMAN_CLIPBOARD'
 
 local BLIP_SPRITES = { car = 357, sea = 356, air = 359 }
 local BLIP_COLOURS = { garage = 3, job = 38, private = 5, impound = 1 }
@@ -287,6 +290,45 @@ local function blipConfig(value, kind, vehicleType)
   }
 end
 
+--- Ped model name (^[%w_]+$, max 32): nil / '' = Config.Peds.defaultModel, invalid = nil.
+local function pedModel(value)
+  local default = type(Config.Peds) == 'table' and Config.Peds.defaultModel or nil
+  if type(default) ~= 'string' or #default > 32 or not default:match('^[%w_]+$') then default = DEFAULT_PED_MODEL end
+  if value == nil then return default end
+  if type(value) ~= 'string' then return nil end
+  local s = Utils.trim(value)
+  if s == '' then return default end
+  if #s > 32 or not s:match('^[%w_]+$') then return nil end
+  return s
+end
+
+--- Scenario name (^[%w_]*$, max 64, '' = none): nil = Config.Peds.defaultScenario, invalid = nil.
+local function pedScenario(value)
+  local default = type(Config.Peds) == 'table' and Config.Peds.defaultScenario or nil
+  if type(default) ~= 'string' or #default > 64 or not default:match('^[%w_]*$') then default = DEFAULT_PED_SCENARIO end
+  if value == nil then return default end
+  if type(value) ~= 'string' then return nil end
+  local s = Utils.trim(value)
+  if #s > 64 or not s:match('^[%w_]*$') then return nil end
+  return s
+end
+
+--- Per-location interaction override: { mode, ped = { model, scenario } | nil }. Anything
+--- invalid falls back to the defaults (nil = follow settings.interface.interaction, no NPC),
+--- so locations saved before this field existed keep working unchanged.
+local function interactionConfig(value)
+  if type(value) ~= 'table' then return nil end
+  local mode = enum(value.mode, INTERACTION_MODES, 'default')
+  local ped = nil
+  -- an empty table ([] / {} after a JSON round trip) is "no NPC", not "default NPC"
+  if type(value.ped) == 'table' and next(value.ped) ~= nil then
+    local model, scenario = pedModel(value.ped.model), pedScenario(value.ped.scenario)
+    if model and scenario then ped = { model = model, scenario = scenario } end
+  end
+  if mode == 'default' and not ped then return nil end
+  return { mode = mode, ped = ped }
+end
+
 local function societyName(value)
   if type(value) ~= 'string' then return '' end
   local s = Utils.trim(value):gsub('[^%w_%-]', '')
@@ -373,6 +415,7 @@ function Locations.normalize(raw)
     storePoints = pointList(raw.storePoints, LIMITS.points, storeRadius()),
     returnToEntrance = bool(raw.returnToEntrance, false),
     blip = blipConfig(raw.blip, kind, vehicleType),
+    interaction = interactionConfig(raw.interaction),
   }
   -- Without dedicated store points, vehicles are stored at the open points.
   if not loc.useOpenForStore and #loc.storePoints == 0 then loc.useOpenForStore = true end
@@ -621,6 +664,7 @@ function Locations.clientView(location)
     blip = copy(location.blip),
     access = copy(location.access),
     source = location.source,
+    interaction = copy(location.interaction),
   }
   if kind == 'garage' then
     local r = location.restriction or {}

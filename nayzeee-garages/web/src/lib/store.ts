@@ -1,9 +1,10 @@
 /**
- * Global UI state: which apps are open and their data, HUD widgets, toasts, settings.
+ * Global UI state: which apps are open and their data, HUD widgets, settings.
  * Apps read their slot with useApp('<name>'); nothing else should hold app data globally.
+ * Notifications are not drawn here: toast() hands them to Lua (see below).
  */
 import { create } from 'zustand';
-import { fetchNui, onNuiMessage, setErrorReporter } from './nui';
+import { fetchNui, isBrowser, onNuiMessage, setErrorReporter } from './nui';
 import { applyAccent } from './theme';
 import type {
   AppDataMap,
@@ -11,9 +12,10 @@ import type {
   HintData,
   HudVehicle,
   InterfaceSettings,
+  NotifyRequest,
+  NotifyType,
   NuiMessage,
   PromptData,
-  Toast,
 } from './types';
 
 export const defaultInterface: InterfaceSettings = {
@@ -47,16 +49,11 @@ export interface UiState {
   hud: HudVehicle | null;
   prompt: PromptData | null;
   hint: HintData | null;
-  toasts: (Toast & { id: string })[];
   openApp: <K extends AppName>(app: K, data: AppDataMap[K]) => void;
   updateApp: <K extends AppName>(app: K, partial: Partial<AppDataMap[K]>) => void;
   /** Close locally only (Lua already knows). Use closeApp() to also tell Lua. */
   hideApp: (app?: AppName | null) => void;
-  pushToast: (t: Toast) => void;
-  dismissToast: (id: string) => void;
 }
-
-let toastSeq = 0;
 
 export const useUi = create<UiState>((set) => ({
   ready: false,
@@ -66,7 +63,6 @@ export const useUi = create<UiState>((set) => ({
   hud: null,
   prompt: null,
   hint: null,
-  toasts: [],
   openApp: (app, data) =>
     set((s) => ({ apps: { ...s.apps, [app]: { open: true, data } } })),
   updateApp: (app, partial) =>
@@ -84,20 +80,43 @@ export const useUi = create<UiState>((set) => ({
       if (!app) return { apps: emptySlots() };
       return { apps: { ...s.apps, [app]: { open: false, data: s.apps[app].data } } };
     }),
-  pushToast: (t) =>
-    set((s) => {
-      const id = t.id ?? `t${++toastSeq}`;
-      const next = [...s.toasts.filter((x) => x.id !== id), { ...t, id }];
-      return { toasts: next.slice(-5) };
-    }),
-  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
-/** Show a toast from anywhere (React or not). */
-export function toast(t: Toast) {
-  useUi.getState().pushToast(t);
+/* ───────────────────────── notifications ───────────────────────── */
+
+/** Limits of the Lua 'notify' callback, in characters (code points). */
+const NOTIFY_MAX_MESSAGE = 300;
+const NOTIFY_MAX_TITLE = 60;
+const NOTIFY_TYPES: readonly NotifyType[] = ['success', 'error', 'info', 'warning'];
+
+/** Collapse whitespace and cap to `max` characters, ending with an ellipsis when cut. */
+function clipText(value: unknown, max: number): string {
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const chars = Array.from(text);
+  return chars.length > max ? `${chars.slice(0, max - 1).join('').trimEnd()}…` : text;
 }
 
+/**
+ * Raise a notification from anywhere (React or not). The interface draws none: Lua shows it
+ * through the configured notify integration (Config.Integrations.notify: ox_lib, the
+ * framework's own, okokNotify, ...). In the browser dev harness it is logged instead.
+ */
+export function toast(n: NotifyRequest) {
+  const message = clipText(n.message, NOTIFY_MAX_MESSAGE);
+  if (!message) return;
+  const title = n.title ? clipText(n.title, NOTIFY_MAX_TITLE) : '';
+  const type: NotifyType = NOTIFY_TYPES.includes(n.type) ? n.type : 'info';
+  const payload: NotifyRequest = title ? { type, title, message } : { type, message };
+  if (isBrowser) {
+    console.info(`[notify:${type}] ${title ? `${title} · ` : ''}${message}`);
+    return;
+  }
+  void fetchNui('notify', payload);
+}
+
+// Failed request() calls are reported the same way (see lib/nui.ts).
 setErrorReporter((message) => toast({ type: 'error', message }));
 
 /** Close an app: tell Lua (releases focus / cleans up) and hide it locally. */
@@ -154,9 +173,6 @@ function handleMessage(msg: NuiMessage) {
       break;
     case 'hint':
       useUi.setState({ hint: msg.data });
-      break;
-    case 'notify':
-      st.pushToast(msg.data);
       break;
   }
 }

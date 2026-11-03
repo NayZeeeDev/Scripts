@@ -1,0 +1,404 @@
+--[[
+  nayzeee-garages — notification integration (client): NZ.Notify.
+  Every notification of the resource ends in NZ.Notify.show(kind, message, title, duration):
+  client code (NZ.NUI.notify / NZ.Bridge.notify), the server (event nz:client:notify) and the
+  interface (NUI callback 'notify'). It is handed to the system picked with
+  Config.Integrations.notify; when that resource is not started (or its call fails) the
+  notification is shown with ox_lib instead. NZ.Notify.show never throws.
+]]
+
+local Notify = NZ.Notify
+
+---------------------------------------------------------------------------------------
+-- Custom notifications  (Config.Integrations.notify = 'custom')
+--
+-- Edit this function to send the garage notifications to any notification resource.
+--   kind      'success' | 'error' | 'info' | 'warning'
+--   message   string, already translated, plain text (max 300 characters)
+--   title     string|nil: the notification's own title, otherwise Config.Notify.title
+--             (nil when there is none)
+--   duration  number, milliseconds (Config.Notify.duration unless the sender chose one)
+-- Return false (or raise an error) to show that notification with ox_lib instead.
+-- Out of the box it returns false, so ox_lib is used until you fill it in, e.g.:
+--   exports['my_notify']:Send({ type = kind, title = title, text = message, time = duration })
+--   return true
+---------------------------------------------------------------------------------------
+function Notify.custom(kind, message, title, duration) -- luacheck: ignore 212
+  return false
+end
+
+---------------------------------------------------------------------------------------
+-- Limits & tables
+---------------------------------------------------------------------------------------
+
+local MAX_MESSAGE = 300        -- characters (UTF-8 code points)
+local MAX_TITLE = 60
+local DEFAULT_DURATION = 5000  -- ms
+local MIN_DURATION, MAX_DURATION = 1000, 30000
+local REPEAT_MS = 1500         -- the same notification twice within this window is shown once
+
+-- Accepted kinds (+ the aliases other systems use) -> our four kinds.
+local KINDS = {
+  success = 'success', error = 'error', info = 'info', warning = 'warning',
+  inform = 'info', primary = 'info', warn = 'warning', danger = 'error',
+}
+
+-- ox_lib (and lation_ui) positions.
+local POSITIONS = {
+  ['top'] = true, ['top-right'] = true, ['top-left'] = true,
+  ['bottom'] = true, ['bottom-right'] = true, ['bottom-left'] = true,
+  ['center-right'] = true, ['center-left'] = true,
+}
+
+-- Config value (lower case, punctuation-insensitive) -> adapter name.
+local ALIASES = {
+  ox_lib = 'ox_lib', oxlib = 'ox_lib', ox = 'ox_lib', lib = 'ox_lib',
+  framework = 'framework', auto = 'auto',
+  qb = 'qb', qbcore = 'qb', ['qb-core'] = 'qb',
+  qbx = 'qbx', qbox = 'qbx', qbx_core = 'qbx',
+  esx = 'esx', es_extended = 'esx', esx_notify = 'esx',
+  okoknotify = 'okokNotify', okok = 'okokNotify',
+  mythic_notify = 'mythic_notify', mythic = 'mythic_notify',
+  pnotify = 'pNotify',
+  wasabi_notify = 'wasabi_notify', wasabi = 'wasabi_notify',
+  brutal_notify = 'brutal_notify', brutal = 'brutal_notify',
+  lation_ui = 'lation_ui', lation = 'lation_ui',
+  ['t-notify'] = 't-notify', t_notify = 't-notify', tnotify = 't-notify',
+  custom = 'custom',
+}
+
+-- 'auto': the first dedicated notification resource that is running, otherwise ox_lib.
+local AUTO_ORDER = {
+  'okokNotify', 'wasabi_notify', 'brutal_notify', 'lation_ui', 't-notify', 'mythic_notify', 'pNotify',
+}
+
+---------------------------------------------------------------------------------------
+-- Text helpers
+---------------------------------------------------------------------------------------
+
+local function running(resource)
+  return GetResourceState(resource) == 'started'
+end
+
+local function trim(s)
+  return (s:gsub('^%s+', ''):gsub('%s+$', ''))
+end
+
+--- Plain text: no control characters except line breaks, and no angle brackets, so
+--- notification UIs that render HTML (qb-core, esx_notify, mythic, pNotify, ...) cannot be
+--- injected through player-chosen names.
+local function plain(value)
+  local s = tostring(value)
+  s = s:gsub('\r\n', '\n'):gsub('[\0-\9\11-\31\127]', ''):gsub('<', '‹'):gsub('>', '›')
+  return trim(s)
+end
+
+--- Cap to `max` characters (UTF-8 aware), ending with an ellipsis when cut.
+local function clip(s, max)
+  local len = utf8.len(s)
+  if not len then
+    return #s > max and s:sub(1, max) or s
+  end
+  if len <= max then return s end
+  return s:sub(1, utf8.offset(s, max) - 1) .. '…'
+end
+
+--- "Title: message" for systems without a title field (explicit titles only).
+local function joined(title, message)
+  if title:find('[%.!%?:]$') then return title .. ' ' .. message end
+  return title .. ': ' .. message
+end
+
+local function escapeHtml(s)
+  return (s:gsub('&', '&amp;'):gsub('"', '&quot;'))
+end
+
+local function configured()
+  local cfg = Config.Notify
+  return type(cfg) == 'table' and cfg or {}
+end
+
+--- Build the normalized notification or nil when there is nothing to show.
+local function build(kind, message, title, duration)
+  if message == nil then return nil end
+  message = plain(message)
+  if message == '' then return nil end
+
+  local n = {
+    kind = KINDS[type(kind) == 'string' and kind:lower() or ''] or 'info',
+    message = clip(message, MAX_MESSAGE),
+    explicitTitle = false,
+  }
+
+  if type(title) == 'string' then
+    title = plain(title)
+    if title ~= '' then
+      n.title = clip(title, MAX_TITLE)
+      n.explicitTitle = true
+    end
+  end
+  if not n.title then
+    local cfgTitle = configured().title
+    if type(cfgTitle) == 'string' and trim(cfgTitle) ~= '' then
+      n.title = clip(plain(L(trim(cfgTitle))), MAX_TITLE)
+    end
+  end
+
+  local ms = tonumber(duration)
+  if not ms or ms ~= ms or ms <= 0 then ms = tonumber(configured().duration) end
+  if not ms or ms ~= ms then ms = DEFAULT_DURATION end
+  n.duration = math.floor(math.max(MIN_DURATION, math.min(ms, MAX_DURATION)))
+
+  local position = configured().position
+  if type(position) == 'string' and POSITIONS[position] then n.position = position end
+  return n
+end
+
+---------------------------------------------------------------------------------------
+-- Adapters: show(n) displays the notification; returning false means "not handled".
+-- n = { kind, message, title|nil, explicitTitle, duration, position|nil }
+---------------------------------------------------------------------------------------
+
+local adapters = {}
+
+-- ox_lib: lib.notify (types info / warning / success / error; description is markdown).
+adapters.ox_lib = {
+  resource = 'ox_lib',
+  show = function(n)
+    lib.notify({
+      title = n.title,
+      description = n.message,
+      type = n.kind,
+      duration = n.duration,
+      position = n.position,
+    })
+  end,
+}
+
+-- QBCore: QBCore.Functions.Notify(text, type, length) through its 'QBCore:Notify' event.
+-- `text` may be { text, caption }: the caption is the smaller, dimmed line below. An explicit
+-- title becomes the headline with the message as caption; the generic Config.Notify.title is
+-- shown as the caption under the message.
+local QB_TYPES = { success = 'success', error = 'error', info = 'primary', warning = 'warning' }
+adapters.qb = {
+  resource = 'qb-core',
+  show = function(n)
+    local text = n.message
+    if n.explicitTitle then
+      text = { text = n.title, caption = n.message }
+    elseif n.title then
+      text = { text = n.message, caption = n.title }
+    end
+    TriggerEvent('QBCore:Notify', text, QB_TYPES[n.kind], n.duration)
+  end,
+}
+
+-- Qbox: exports.qbx_core:Notify(text, type, duration, subTitle). qbx_core uses the title as
+-- the ox_lib notification id, so a shared title would make every garage notification
+-- replace the previous one: only explicit titles are passed.
+local QBX_TYPES = { success = 'success', error = 'error', info = 'inform', warning = 'warning' }
+adapters.qbx = {
+  resource = 'qbx_core',
+  show = function(n)
+    if n.explicitTitle then
+      exports.qbx_core:Notify(n.title, QBX_TYPES[n.kind], n.duration, n.message)
+    else
+      exports.qbx_core:Notify(n.message, QBX_TYPES[n.kind], n.duration)
+    end
+  end,
+}
+
+-- ESX: ESX.ShowNotification(message, type, length, title) via the 'esx:showNotification'
+-- event (ESX Legacy forwards it to esx_notify; older versions ignore the extra arguments).
+adapters.esx = {
+  resource = 'es_extended',
+  show = function(n)
+    TriggerEvent('esx:showNotification', n.message, n.kind, n.duration, n.title)
+  end,
+}
+
+-- okokNotify: exports.okokNotify:Alert(title, message, time, type, playSound).
+adapters.okokNotify = {
+  resource = 'okokNotify',
+  show = function(n)
+    exports['okokNotify']:Alert(n.title or '', n.message, n.duration, n.kind, false)
+  end,
+}
+
+-- mythic_notify: DoCustomHudText(type, text, length, style). Types: inform / error /
+-- success, so warnings use 'inform' with an amber style. No title field.
+local MYTHIC_TYPES = { success = 'success', error = 'error', info = 'inform', warning = 'inform' }
+local MYTHIC_WARNING = { ['background-color'] = 'rgb(229, 165, 10)', ['color'] = '#1d1400' }
+adapters.mythic_notify = {
+  resource = 'mythic_notify',
+  show = function(n)
+    local text = n.explicitTitle and joined(n.title, n.message) or n.message
+    exports['mythic_notify']:DoCustomHudText(MYTHIC_TYPES[n.kind], text, n.duration,
+      n.kind == 'warning' and MYTHIC_WARNING or nil)
+  end,
+}
+
+-- pNotify: SendNotification({ text (HTML), type, timeout, layout }).
+local PNOTIFY_LAYOUTS = {
+  ['top'] = 'topCenter', ['top-right'] = 'topRight', ['top-left'] = 'topLeft',
+  ['bottom'] = 'bottomCenter', ['bottom-right'] = 'bottomRight', ['bottom-left'] = 'bottomLeft',
+  ['center-right'] = 'centerRight', ['center-left'] = 'centerLeft',
+}
+adapters.pNotify = {
+  resource = 'pNotify',
+  show = function(n)
+    local text = escapeHtml(n.message)
+    if n.title then text = ('<b>%s</b><br>%s'):format(escapeHtml(n.title), text) end
+    exports['pNotify']:SendNotification({
+      text = text,
+      type = n.kind,
+      timeout = n.duration,
+      layout = PNOTIFY_LAYOUTS[n.position] or 'topRight',
+    })
+  end,
+}
+
+-- wasabi_notify: exports.wasabi_notify:notify(title, message, duration, type).
+adapters.wasabi_notify = {
+  resource = 'wasabi_notify',
+  show = function(n)
+    exports['wasabi_notify']:notify(n.title or '', n.message, n.duration, n.kind)
+  end,
+}
+
+-- brutal_notify: exports.brutal_notify:SendAlert(title, message, time, type, playSound).
+adapters.brutal_notify = {
+  resource = 'brutal_notify',
+  show = function(n)
+    exports['brutal_notify']:SendAlert(n.title or '', n.message, n.duration, n.kind, false)
+  end,
+}
+
+-- lation_ui: exports.lation_ui:notify({ title, message, type, duration, position }).
+adapters.lation_ui = {
+  resource = 'lation_ui',
+  show = function(n)
+    exports['lation_ui']:notify({
+      title = n.title,
+      message = n.message,
+      type = n.kind,
+      duration = n.duration,
+      position = n.position,
+    })
+  end,
+}
+
+-- t-notify: Alert({ style, message, duration }) / Custom({ style, title, message, duration }).
+-- (Its position field must be a table, so the resource's own position config is used.)
+adapters['t-notify'] = {
+  resource = 't-notify',
+  show = function(n)
+    if n.title then
+      exports['t-notify']:Custom({ style = n.kind, title = n.title, message = n.message, duration = n.duration })
+    else
+      exports['t-notify']:Alert({ style = n.kind, message = n.message, duration = n.duration })
+    end
+  end,
+}
+
+-- custom: NZ.Notify.custom at the top of this file.
+adapters.custom = {
+  show = function(n)
+    return Notify.custom(n.kind, n.message, n.title, n.duration)
+  end,
+}
+
+---------------------------------------------------------------------------------------
+-- Selection
+---------------------------------------------------------------------------------------
+
+local FRAMEWORK_ADAPTER = { qb = 'qb', qbx = 'qbx', esx = 'esx' }
+
+local configuredName -- normalized Config.Integrations.notify (resolved once)
+local warned = {}
+
+local function warnOnce(key, text)
+  if warned[key] then return end
+  warned[key] = true
+  lib.print.warn(('[nayzeee-garages] Notifications: %s'):format(text))
+end
+
+local function configuredAdapter()
+  if configuredName then return configuredName end
+  local value = Config.Integrations and Config.Integrations.notify
+  local name = 'ox_lib'
+  if type(value) == 'string' and value ~= '' then
+    name = ALIASES[value:lower():gsub('%s+', '')] or ALIASES[value:lower():gsub('[%s%-]+', '_')]
+    if not name then
+      warnOnce('unknown', ('unknown Config.Integrations.notify "%s", using ox_lib.'):format(value))
+      name = 'ox_lib'
+    end
+  end
+  configuredName = name
+  return name
+end
+
+--- Adapter name used for the next notification ('auto' / 'framework' resolved).
+---@return string
+function Notify.current()
+  local name = configuredAdapter()
+  if name == 'framework' then
+    return FRAMEWORK_ADAPTER[NZ.Framework] or 'ox_lib'
+  end
+  if name == 'auto' then
+    for i = 1, #AUTO_ORDER do
+      if running(AUTO_ORDER[i]) then return AUTO_ORDER[i] end
+    end
+    return 'ox_lib'
+  end
+  return name
+end
+
+---------------------------------------------------------------------------------------
+-- Public API
+---------------------------------------------------------------------------------------
+
+local lastKey, lastAt = nil, -REPEAT_MS
+
+local function showSafe(kind, message, title, duration)
+  local n = build(kind, message, title, duration)
+  if not n then return false end
+
+  local key = n.kind .. '\0' .. (n.title or '') .. '\0' .. n.message
+  local now = GetGameTimer()
+  if key == lastKey and now - lastAt < REPEAT_MS then return true end
+  lastKey, lastAt = key, now
+
+  local name = Notify.current()
+  local adapter = adapters[name]
+  if adapter and name ~= 'ox_lib' then
+    if adapter.resource and not running(adapter.resource) then
+      warnOnce('stopped:' .. name, ('%s is not started, using ox_lib instead.'):format(adapter.resource))
+    else
+      local ok, res = pcall(adapter.show, n)
+      if ok and res ~= false then return true end
+      if not ok then
+        warnOnce('failed:' .. name, ('%s failed (%s), using ox_lib instead.'):format(name, tostring(res)))
+      end
+    end
+  end
+
+  local ok, err = pcall(adapters.ox_lib.show, n)
+  if ok then return true end
+  warnOnce('failed:ox_lib', ('ox_lib notify failed (%s).'):format(tostring(err)))
+  print(('[nayzeee-garages] %s%s'):format(n.title and (n.title .. ': ') or '', n.message))
+  return false
+end
+
+--- Show a notification through the configured integration.
+---@param kind 'success'|'error'|'info'|'warning'|string|nil unknown kinds show as 'info'
+---@param message string
+---@param title string|nil defaults to Config.Notify.title ('' = none)
+---@param duration number|nil milliseconds, defaults to Config.Notify.duration
+---@return boolean shown
+function Notify.show(kind, message, title, duration)
+  local ok, res = pcall(showSafe, kind, message, title, duration)
+  if ok then return res == true end
+  lib.print.error(('[nayzeee-garages] NZ.Notify.show failed: %s'):format(tostring(res)))
+  return false
+end

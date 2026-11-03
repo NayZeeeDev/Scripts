@@ -1,9 +1,9 @@
 /**
  * Small presentational pieces shared by the player-vehicles views:
- * Highlight, OnlineDot, StatusBadges, Condition, KeyValue, Timeline, PanelFoot, PlateList.
+ * Highlight, OnlineDot, StatusBadges, Condition, PlateList.
  */
 import type { ReactNode } from 'react';
-import { Badge, Button, Icon, PlateTag, Tooltip, autoTone, cx } from '@/components/ui';
+import { Badge, Icon, PlateTag, Tooltip, autoTone, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { percent } from '@/lib/format';
@@ -98,56 +98,6 @@ export function Condition({ fuel, engine, body }: { fuel: number; engine: number
       <CondItem icon="engine" value={engine} label={t('Engine')} />
       <CondItem icon="shield" value={body} label={t('Body')} />
     </span>
-  );
-}
-
-export function KeyValue({ label, children, mono }: { label: ReactNode; children: ReactNode; mono?: boolean }) {
-  return (
-    <div className="nz-aveh-kv">
-      <span className="nz-aveh-kv__label">{label}</span>
-      <span className={cx('nz-aveh-kv__value', mono && 'is-mono')}>{children}</span>
-    </div>
-  );
-}
-
-export interface TimelineItem {
-  key: string | number;
-  title: ReactNode;
-  meta: ReactNode;
-  aside?: ReactNode;
-  current?: boolean;
-  actions?: ReactNode;
-}
-
-export function Timeline({ items, className }: { items: TimelineItem[]; className?: string }) {
-  return (
-    <ol className={cx('nz-aveh-tl', className)}>
-      {items.map((it) => (
-        <li key={it.key} className={cx('nz-aveh-tl__item', it.current && 'is-current')}>
-          <span className="nz-aveh-tl__dot" aria-hidden="true" />
-          <div className="nz-aveh-tl__text">
-            <b>{it.title}</b>
-            <span>{it.meta}</span>
-          </div>
-          {it.aside !== undefined && <span className="nz-aveh-tl__aside">{it.aside}</span>}
-          {it.actions && <span className="nz-aveh-tl__actions">{it.actions}</span>}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/** Panel footer: grey summary left, "View all" right. */
-export function PanelFoot({ summary, onViewAll, viewAllDisabled }: { summary: ReactNode; onViewAll?: () => void; viewAllDisabled?: boolean }) {
-  return (
-    <div className="nz-aveh-pfoot">
-      <span>{summary}</span>
-      {onViewAll && (
-        <Button variant="ghost" size="sm" iconRight="arrowRight" onClick={onViewAll} disabled={viewAllDisabled}>
-          {t('View all')}
-        </Button>
-      )}
-    </div>
   );
 }
 

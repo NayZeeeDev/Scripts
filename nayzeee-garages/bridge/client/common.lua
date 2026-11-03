@@ -9,17 +9,18 @@ local State = NZ.State
 
 local STANDALONE = NZ.Framework == 'standalone'
 
-local TOAST_TYPES = {
-  success = 'success', error = 'error', info = 'info', warning = 'warning',
-  inform = 'info', warn = 'warning', primary = 'info',
-}
-
---- Toast through our NUI (handled by client/nui.lua via the local event nz:client:notify).
+--- Notification through the configured notify integration (NZ.Notify.show in
+--- bridge/client/notify.lua, resolved at call time because that file loads after this one).
+--- Goes straight to NZ.Notify: no event round trip, so it can never loop back here.
 ---@param message string
 ---@param kind 'success'|'error'|'info'|'warning'|nil
-function Bridge.notify(message, kind)
+---@param title string|nil defaults to Config.Notify.title
+function Bridge.notify(message, kind, title)
   if message == nil then return end
-  TriggerEvent('nz:client:notify', { type = TOAST_TYPES[kind] or 'info', message = tostring(message) })
+  local show = NZ.Notify and NZ.Notify.show
+  if type(show) == 'function' then
+    show(kind, message, title)
+  end
 end
 
 ---------------------------------------------------------------------------------------

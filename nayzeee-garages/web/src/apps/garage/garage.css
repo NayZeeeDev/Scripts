@@ -1,20 +1,29 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   Garage app (also used by the impound app): window layout, toolbar, filters,
-   vehicle grid / list, inline detail panel, finance & impound blocks, modals.
+   Garage "Showroom" (also used by the impound app): two panes — the collection rail
+   on the left, the showcase of the selected vehicle on the right (stage, status strip,
+   detail sections, action dock). Modals at the end.
    CEF rules: no backdrop-filter, color-mix(), :has() or nesting. Accent via var(--teal*).
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── window: anchored near the top so expanding a vehicle only grows downward ── */
-.nz-window.nz-garage {
-  inset: 7vh 0 auto 0;
-  margin: 0 auto;
-}
-
+/* ── window & layout ── */
 .nz-garage .nz-garage__body {
   display: flex;
-  flex-direction: column;
   padding: 0;
   overflow: hidden;
+}
+
+.nz-garage__layout {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: clamp(300px, 29%, 360px) minmax(0, 1fr);
+}
+
+.nz-garage__layout.is-busy .nz-garage__stagearea {
+  opacity: .45;
+  pointer-events: none;
+  transition: opacity var(--slide);
 }
 
 .nz-garage__badges {
@@ -24,102 +33,6 @@
   margin-left: 2px;
 }
 
-/* ── toolbar ── */
-.nz-garage__toolbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 18px 0;
-}
-
-.nz-garage__search {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.nz-garage__group {
-  flex: 0 1 auto;
-  width: 168px;
-  min-width: 120px;
-}
-
-.nz-garage__filters {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--line-hair);
-}
-
-.nz-garage__chips {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.nz-garage__chips.is-overflow {
-  padding-right: 22px;
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
-  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
-}
-
-.nz-garage__chips::-webkit-scrollbar { display: none; }
-
-.nz-garage__sort {
-  flex: none;
-  width: 124px;
-}
-
-.nz-garage__hintbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 18px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line-hair);
-  font-size: 11.5px;
-  font-weight: 300;
-  color: var(--ink-3);
-}
-
-.nz-garage__hintbar svg { color: var(--teal); }
-
-.nz-garage__scroll {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 14px 18px 18px;
-}
-
-/* full-garage notice */
-.nz-garage__notice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 9px 10px 9px 12px;
-  border-radius: var(--r-sm);
-  background: var(--amber-wash);
-  border: 1px solid var(--amber-edge);
-  font-size: 12px;
-  font-weight: 300;
-  line-height: 1.45;
-  color: var(--ink-2);
-}
-
-.nz-garage__notice > svg { flex: none; color: var(--amber); }
-.nz-garage__notice b { color: var(--white); font-weight: 500; }
-.nz-garage__notice .nz-btn { margin-left: auto; }
-
-/* footer strip */
 .nz-garage__spacer { flex: 1 1 auto; }
 
 .nz-garage__foot-warn {
@@ -127,290 +40,266 @@
   align-items: center;
   gap: 5px;
   color: var(--amber);
-  font-weight: 500;
 }
 
-/* ═══════════════════════════ GRID ═══════════════════════════ */
-.nz-garage__grid {
-  --gap: 12px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--gap);
-  align-items: stretch;
-}
+/* ── header: capacity slot strip, group switcher ── */
+.nz-garage__groupsel { flex: 0 1 auto; width: 176px; min-width: 120px; }
 
-.nz-garage__card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-md);
-  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
-  overflow: hidden;
-  transition: border-color var(--fast), background var(--fast), box-shadow var(--fast), transform var(--fast);
-}
-
-.nz-garage__card.is-clickable { cursor: pointer; }
-
-.nz-garage__card.is-clickable:hover {
-  border-color: var(--line);
-  background: var(--raise);
-}
-
-.nz-garage__card.is-clickable:active { transform: translateY(1px); }
-
-.nz-garage__card.is-open {
-  border-color: var(--teal-edge);
-  background: var(--raise);
-  box-shadow: 0 1px 0 var(--lift) inset, 0 0 0 1px rgba(var(--teal-rgb), .22), 0 10px 26px rgba(0, 0, 0, .4);
-}
-
-.nz-garage__card:focus-visible {
-  outline: 2px solid var(--teal);
-  outline-offset: 2px;
-}
-
-.nz-garage__media {
-  position: relative;
-  padding: 16px 14px 4px;
-  border-bottom: 1px solid var(--line-hair);
-  background:
-    radial-gradient(70% 46% at 50% 92%, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, 0) 70%);
-  transition: background var(--fast);
-}
-
-.nz-garage__card.is-open .nz-garage__media {
-  background:
-    radial-gradient(70% 46% at 50% 92%, rgba(var(--teal-rgb), .16), rgba(var(--teal-rgb), 0) 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, 0) 70%);
-}
-
-.nz-garage__card.is-out .nz-garage__img,
-.nz-garage__item.is-out .nz-garage__img { opacity: .55; }
-
-.nz-garage__card.is-alert .nz-garage__img,
-.nz-garage__item.is-alert .nz-garage__img { opacity: .45; }
-
-.nz-garage__media .nz-garage__img,
-.nz-garage__thumb .nz-garage__img,
-.nz-garage__mv-img .nz-garage__img {
-  aspect-ratio: 2 / 1;
-  transition: opacity var(--fast), transform 260ms var(--ease);
-}
-
-.nz-garage__card.is-clickable:hover .nz-garage__img { transform: translateY(-1px) scale(1.025); }
-
-.nz-garage__overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 40px;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  pointer-events: none;
-}
-
-/* solid backing so translucent badge washes stay legible over vehicle art */
-.nz-garage__backing {
-  display: inline-flex;
-  max-width: 100%;
-  border-radius: var(--r-pill);
-  background: var(--base);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .45);
-}
-
-.nz-garage__backing:empty { display: none; }
-
-/* favourite star */
-.nz-garage__fav {
-  display: inline-grid;
-  place-items: center;
+.nz-garage__slots {
   flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-sm);
-  color: var(--ink-3);
-  transition: color var(--fast), background var(--fast), opacity var(--fast), transform var(--fast);
-}
-
-.nz-garage__fav:hover { color: var(--white); background: var(--raise-2); }
-.nz-garage__fav:active { transform: scale(.92); }
-.nz-garage__fav.is-on { color: var(--amber); }
-.nz-garage__fav.is-on:hover { color: var(--amber); }
-.nz-garage__fav--lg { width: 32px; height: 32px; }
-
-.nz-garage__fav--float {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  z-index: 3;
-  width: 26px;
-  height: 26px;
-  background: rgba(8, 9, 10, .72);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--inset);
   border: 1px solid var(--line-soft);
-}
-
-.nz-garage__card .nz-garage__fav--float:not(.is-on) { opacity: 0; }
-.nz-garage__card:hover .nz-garage__fav--float,
-.nz-garage__card:focus-within .nz-garage__fav--float { opacity: 1; }
-
-.nz-garage__cardbody {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 12px 11px;
-}
-
-.nz-garage__name {
-  min-width: 0;
-  overflow: hidden;
+  font-size: 11px;
+  color: var(--ink-3);
   white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13px;
+}
+
+.nz-garage__slots > svg { color: var(--teal); }
+.nz-garage__slots-label { font-weight: 400; }
+
+.nz-garage__slots-cells {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.nz-garage__slots-cells i {
+  width: 7px;
+  height: 13px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .02);
+}
+
+.nz-garage__slots-cells i.is-used {
+  border-color: var(--teal);
+  background: var(--teal);
+  box-shadow: 0 0 6px rgba(var(--teal-rgb), .4);
+}
+
+.nz-garage__slots.is-full > svg { color: var(--red); }
+.nz-garage__slots.is-full .nz-garage__slots-cells i.is-used { border-color: var(--red); background: var(--red); box-shadow: 0 0 6px rgba(var(--red-rgb), .45); }
+.nz-garage__slots.is-full .nz-garage__slots-bar span { background: var(--red); }
+
+.nz-garage__slots-bar {
+  width: 96px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .07);
+  overflow: hidden;
+}
+
+.nz-garage__slots-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--teal);
+}
+
+.nz-garage__slots b {
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: -.01em;
   color: var(--white);
 }
 
-.nz-garage__sub {
+.nz-garage__slots b small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* ═══════════════════════════ RAIL ═══════════════════════════ */
+.nz-garage__rail {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line-soft);
+  background: var(--side);
+}
+
+.nz-garage__railtop {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--line-hair);
+  background: linear-gradient(180deg, var(--base), var(--side));
+}
+
+.nz-garage__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nz-garage__chips .nz-chip {
+  height: 26px;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.nz-garage__chips .nz-chip__icon { width: 12px; height: 12px; }
+
+.nz-garage__railctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nz-garage__ctl-sort { flex: 0 1 auto; width: 140px; min-width: 0; }
+.nz-garage__ctl-group { flex: 0 1 auto; width: 132px; min-width: 0; }
+.nz-garage__ctl-group.is-wide { width: 180px; }
+.nz-garage__railctl .nz-seg { padding: 2px; }
+.nz-garage__railctl .nz-seg--sm .nz-seg__btn { height: 22px; }
+.nz-garage__railctl .nz-seg__ind { top: 2px; bottom: 2px; }
+
+.nz-garage__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--amber-edge);
+  background: var(--amber-wash);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.nz-garage__notice > svg { flex: none; color: var(--amber); }
+.nz-garage__notice > span { flex: 1 1 auto; min-width: 0; }
+.nz-garage__notice b { color: var(--white); font-weight: 600; }
+.nz-garage__notice .nz-btn { flex: none; }
+
+/* list */
+.nz-garage__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 8px 12px;
+  outline: none;
+}
+
+.nz-garage__rail > .nz-empty {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 24px 22px;
+}
+
+.nz-garage__grouphead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  margin: 0 -8px;
+  padding: 4px 16px 0;
+  background: linear-gradient(180deg, var(--side) 78%, rgba(5, 6, 7, 0));
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-garage__grouphead span {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 11px;
-  font-weight: 300;
-  color: var(--ink-3);
 }
 
-.nz-garage__meta {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  height: 20px;
-  margin-top: auto;
-  padding-top: 8px;
+.nz-garage__grouphead b { flex: none; font-weight: 600; color: var(--ink-3); opacity: .8; }
+.nz-garage__grouphead b::before { content: '·'; margin-right: 7px; }
+
+.nz-garage__grouphead::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  margin-left: 4px;
+  background: var(--line-hair);
 }
 
-.nz-garage__mileage {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
+.nz-garage__group + .nz-garage__group { margin-top: 4px; }
 
-.nz-garage__mileage svg { color: var(--ink-3); }
-.nz-garage__mileage b { color: var(--ink); font-weight: 500; }
-
-.nz-garage__metaicons {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  height: 20px;
-  margin-left: auto;
-}
-
-.nz-garage__metaicon {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 20px;
-  padding: 0 4px;
-  border-radius: var(--r-xs);
-  font-size: 10.5px;
-  color: var(--ink-3);
-}
-
-.nz-garage__metaicon b { font-weight: 600; }
-.nz-garage__metaicon.is-amber { color: var(--amber); }
-.nz-garage__metaicon.is-red { color: var(--red); }
-.nz-garage__metaicon.is-teal { color: var(--teal); }
-
-.nz-garage__cardaction { margin-top: 10px; }
-
-.nz-garage__plate-tpl { display: inline-flex; }
-
-/* ═══════════════════════════ LIST ═══════════════════════════ */
-.nz-garage__list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.nz-garage__item {
+/* row */
+.nz-garage__row {
   position: relative;
-  background: var(--inset);
-  border: 1px solid var(--line-hair);
-  border-radius: var(--r-md);
-  transition: border-color var(--fast), background var(--fast), box-shadow var(--fast);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  margin-top: 2px;
+  padding: 8px 8px 10px 9px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  overflow: hidden;
+  outline: none;
+  transition: background var(--fast);
 }
 
-.nz-garage__item:hover { border-color: var(--line); }
+.nz-garage__row:hover { background: var(--raise); }
+.nz-garage__row:focus-visible { box-shadow: inset 0 0 0 1px var(--teal-edge); }
 
-.nz-garage__item.is-open {
-  background: var(--panel);
-  border-color: var(--line);
-  box-shadow: 0 1px 0 var(--lift) inset, 0 10px 26px rgba(0, 0, 0, .35);
+.nz-garage__row.is-selected {
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), .16), rgba(var(--teal-rgb), .07));
 }
 
-.nz-garage__item.is-open::before {
+.nz-garage__row.is-selected::before {
   content: '';
   position: absolute;
-  left: -1px;
-  top: 14px;
-  height: 34px;
+  left: 0;
+  top: 9px;
+  bottom: 11px;
   width: 2px;
   border-radius: 0 2px 2px 0;
   background: var(--teal);
   box-shadow: 0 0 9px var(--teal);
 }
 
-.nz-garage__row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 62px;
-  padding: 6px 12px 6px 7px;
-  border-radius: inherit;
-}
-
-.nz-garage__row.is-clickable { cursor: pointer; }
-.nz-garage__row.is-clickable:hover .nz-garage__thumb { border-color: var(--line); }
-
-.nz-garage__row:focus-visible {
-  outline: 2px solid var(--teal);
-  outline-offset: 1px;
-}
+.nz-garage__row.is-skel { cursor: default; }
+.nz-garage__row.is-skel:hover { background: none; }
 
 .nz-garage__thumb {
+  position: relative;
   flex: none;
-  width: 96px;
-  padding: 2px 6px;
+  width: 76px;
+  height: 46px;
+  display: grid;
+  place-items: center;
   border-radius: var(--r-sm);
   border: 1px solid var(--line-hair);
   background:
-    radial-gradient(70% 50% at 50% 92%, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0) 70%),
-    var(--panel);
+    radial-gradient(70% 60% at 50% 100%, rgba(255, 255, 255, .07), rgba(255, 255, 255, 0) 70%),
+    var(--inset);
+  overflow: hidden;
   transition: border-color var(--fast);
 }
 
-.nz-garage__item.is-open .nz-garage__thumb {
+.nz-garage__row.is-selected .nz-garage__thumb {
   border-color: var(--teal-edge);
   background:
-    radial-gradient(70% 50% at 50% 92%, rgba(var(--teal-rgb), .18), rgba(var(--teal-rgb), 0) 70%),
-    var(--raise);
+    radial-gradient(70% 60% at 50% 100%, rgba(var(--teal-rgb), .2), rgba(var(--teal-rgb), 0) 70%),
+    var(--inset);
 }
+
+.nz-garage__thumb-img { width: 100%; }
+.nz-garage__row.is-out .nz-garage__thumb-img,
+.nz-garage__row.is-impounded .nz-garage__thumb-img { opacity: .45; }
 
 .nz-garage__rowtext {
   flex: 1 1 auto;
@@ -420,337 +309,1337 @@
   gap: 6px;
 }
 
-.nz-garage__rowtitle {
+.nz-garage__rowname {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
 }
 
-.nz-garage__rowtitle .nz-garage__name { flex: 0 1 auto; }
-.nz-garage__rowtitle .nz-garage__sub { flex: 0 10 auto; }
-
-.nz-garage__plus {
-  flex: none;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.nz-garage__rowtext .nz-garage__meta {
-  margin-top: 0;
-  padding-top: 0;
-}
-
-.nz-garage__rowtext .nz-garage__metaicons { margin-left: 0; }
-
-.nz-garage__rowside {
+.nz-garage__rowname b {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.nz-garage__rings {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0 2px 0 4px;
-  color: var(--ink-2);
-}
-
-.nz-garage__chev {
-  flex: none;
-  margin-left: 2px;
-  color: var(--ink-3);
-  transition: transform var(--slide), color var(--fast);
-}
-
-.nz-garage__chev.is-open { transform: rotate(180deg); color: var(--teal); }
-
-/* ═══════════════════════════ DETAIL PANEL ═══════════════════════════ */
-.nz-garage__detail {
-  animation: nz-garage-drop 220ms var(--ease) both;
-}
-
-.nz-garage__detail--grid {
-  grid-column: 1 / -1;
-  position: relative;
-  margin: 1px 0 6px;
-  padding: 16px 16px 14px;
-  background: var(--inset);
-  border: 1px solid var(--teal-edge);
-  border-radius: var(--r-md);
-  box-shadow: 0 1px 0 var(--lift) inset, 0 14px 32px rgba(0, 0, 0, .4);
-}
-
-/* pointer to the opened card */
-.nz-garage__detail--grid::before {
-  content: '';
-  position: absolute;
-  top: -7px;
-  left: calc((100% - 2 * var(--gap)) / 3 * (var(--ptr-col) + .5) + var(--ptr-col) * var(--gap) - 6px);
-  width: 12px;
-  height: 12px;
-  background: var(--inset);
-  border-top: 1px solid var(--teal-edge);
-  border-left: 1px solid var(--teal-edge);
-  border-top-left-radius: 2px;
-  transform: rotate(45deg);
-}
-
-.nz-garage__detail--list {
-  padding: 12px 14px 14px;
-  border-top: 1px solid var(--line-hair);
-}
-
-@keyframes nz-garage-drop {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
-}
-
-.nz-garage__dv {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.nz-garage__dv-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
-
-.nz-garage__dv-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  min-height: 28px;
-}
-
-.nz-garage__dv-name {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  min-width: 0;
-}
-
-.nz-garage__dv-name b {
-  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 16px;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: -.02em;
-  color: var(--white);
+  letter-spacing: -.005em;
+  color: var(--ink);
 }
 
-.nz-garage__dv-name span {
+.nz-garage__row.is-selected .nz-garage__rowname b { color: var(--white); }
+
+.nz-garage__rowname em {
+  flex: 0 1000 auto;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 11.5px;
+  font-style: normal;
+  font-size: 11px;
   font-weight: 300;
   color: var(--ink-3);
 }
 
-.nz-garage__dv-meta {
+.nz-garage__rowmeta {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 14px;
+  gap: 8px;
   min-width: 0;
 }
 
-.nz-garage__dv-badges {
-  flex: 0 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
+.nz-garage__rowmeta.is-compact { flex: none; }
+.nz-garage__rowmeta .nz-plate { flex: none; }
 
-.nz-garage__stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-/* finance / impound blocks */
-.nz-garage__block {
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  padding: 12px 14px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-md);
-  box-shadow: 0 1px 0 var(--lift) inset;
-}
-
-.nz-garage__block.is-danger {
-  border-color: var(--red-edge);
-  background:
-    linear-gradient(180deg, rgba(var(--red-rgb), .07), rgba(var(--red-rgb), 0) 70%),
-    var(--panel);
-}
-
-.nz-garage__block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-}
-
-.nz-garage__block-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
+.nz-garage__rowmake {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-garage__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 400;
   color: var(--ink-2);
 }
 
-.nz-garage__block-title svg { color: var(--ink-3); }
-.nz-garage__block.is-danger .nz-garage__block-title svg { color: var(--red); }
-
-.nz-garage__cells {
-  display: grid;
-  gap: 12px;
-}
-
-.nz-garage__cells--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.nz-garage__cells--4 { grid-template-columns: 1fr 1.35fr .8fr 1.1fr; }
-
-.nz-garage__cell {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+.nz-garage__status > span {
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.nz-garage__cell-label {
-  font-size: 10px;
+.nz-garage__status > i,
+.nz-garage__cdot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-2);
+}
+
+.nz-garage__status.is-teal { color: var(--teal); }
+.nz-garage__status.is-amber { color: var(--amber); }
+.nz-garage__status.is-red { color: var(--red); }
+.nz-garage__status.is-grey { color: var(--ink-3); }
+.nz-garage__status.is-teal > i,
+.nz-garage__cdot.is-teal { background: var(--teal); box-shadow: 0 0 6px rgba(var(--teal-rgb), .7); }
+.nz-garage__status.is-amber > i,
+.nz-garage__cdot.is-amber { background: var(--amber); box-shadow: 0 0 6px rgba(var(--amber-rgb), .6); }
+.nz-garage__status.is-red > i,
+.nz-garage__cdot.is-red { background: var(--red); box-shadow: 0 0 6px rgba(var(--red-rgb), .6); }
+.nz-garage__status.is-grey > i,
+.nz-garage__cdot.is-grey { background: var(--ink-3); }
+.nz-garage__cdot.is-ink { background: var(--ink-2); }
+
+.nz-garage__marks {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.nz-garage__mark {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-xs);
+  color: var(--ink-3);
+}
+
+.nz-garage__mark.is-amber { color: var(--amber); }
+.nz-garage__mark.is-red { color: var(--red); }
+.nz-garage__mark.is-teal { color: var(--blue); }
+
+.nz-garage__rowside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+}
+
+.nz-garage__row.is-compact .nz-garage__rowside { align-self: center; }
+
+.nz-garage__star {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity var(--fast), color var(--fast), background var(--fast);
+}
+
+.nz-garage__row:hover .nz-garage__star,
+.nz-garage__row.is-selected .nz-garage__star,
+.nz-garage__star:focus-visible { opacity: 1; }
+.nz-garage__star:hover { color: var(--white); background: var(--lift); }
+.nz-garage__star.is-on { opacity: 1; color: var(--amber); }
+.nz-garage__star.is-on:hover { color: var(--amber); }
+
+.nz-garage__price {
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: .1em;
-  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.nz-garage__price.is-free { font-weight: 400; color: var(--ink-3); }
+
+.nz-garage__randplate {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  border: 1px dashed var(--line);
+  font-size: 10px;
   color: var(--ink-3);
   white-space: nowrap;
 }
 
-.nz-garage__cell-value {
-  min-width: 0;
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -.025em;
-  color: var(--white);
+/* engine health along the bottom edge */
+.nz-garage__health {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .03);
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.nz-garage__cell-value small {
-  margin-left: 1px;
+.nz-garage__health > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  opacity: .42;
+  transition: width var(--slide), opacity var(--fast);
+}
+
+.nz-garage__health > .is-teal { background: var(--teal); }
+.nz-garage__health > .is-amber { background: var(--amber); opacity: .8; }
+.nz-garage__health > .is-red { background: var(--red); opacity: .9; }
+.nz-garage__row.is-selected .nz-garage__health > span { opacity: 1; }
+
+/* compact rows */
+.nz-garage__row.is-compact {
+  gap: 9px;
+  margin-top: 1px;
+  padding: 7px 8px 9px 11px;
+}
+
+.nz-garage__row.is-compact .nz-garage__rowtext { gap: 0; }
+.nz-garage__row.is-compact .nz-garage__health { height: 2px; bottom: 2px; }
+.nz-garage__row.is-compact .nz-garage__star { width: 22px; height: 22px; }
+
+.nz-garage__railfoot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border-top: 1px solid var(--line-hair);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  transition: color var(--fast), background var(--fast);
+}
+
+.nz-garage__railfoot:hover { color: var(--teal); background: var(--teal-wash); }
+
+/* ═══════════════════════════ SHOWCASE ═══════════════════════════ */
+.nz-garage__stagearea {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--base);
+}
+
+.nz-garage__show {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* stage: turntable with spotlight, perspective floor and a teal horizon */
+.nz-garage__stage {
+  position: relative;
+  flex: none;
+  height: clamp(196px, 29vh, 296px);
+  overflow: hidden;
+  border-bottom: 1px solid var(--line-soft);
+  background:
+    radial-gradient(48% 70% at 50% -6%, rgba(255, 255, 255, .075), rgba(255, 255, 255, 0) 72%),
+    radial-gradient(64% 42% at 50% 70%, rgba(var(--teal-rgb), .075), rgba(var(--teal-rgb), 0) 70%),
+    linear-gradient(180deg, #0e1011 0%, #0a0b0c 60%, #060707 100%);
+}
+
+.nz-garage__stage-light {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 64%;
+  height: 92%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 88%);
+  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+.nz-garage__stage-floor {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  top: 63%;
+  height: 80%;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .07) 1px, rgba(255, 255, 255, 0) 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .07) 1px, rgba(255, 255, 255, 0) 1px);
+  background-size: 46px 46px;
+  background-position: 50% 0;
+  transform: perspective(240px) rotateX(62deg);
+  transform-origin: 50% 0;
+  -webkit-mask-image: radial-gradient(48% 70% at 50% 0%, #000000 25%, rgba(0, 0, 0, 0) 78%);
+  mask-image: radial-gradient(48% 70% at 50% 0%, #000000 25%, rgba(0, 0, 0, 0) 78%);
+  pointer-events: none;
+}
+
+.nz-garage__stage-horizon {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 63%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), 0), rgba(var(--teal-rgb), .6) 50%, rgba(var(--teal-rgb), 0));
+  box-shadow: 0 0 16px rgba(var(--teal-rgb), .4);
+  pointer-events: none;
+}
+
+.nz-garage__stage-ring {
+  position: absolute;
+  left: 50%;
+  top: 77%;
+  width: min(58%, 520px);
+  height: 21%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .07);
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .045), rgba(255, 255, 255, 0));
+  box-shadow: 0 0 0 6px rgba(var(--teal-rgb), .025), inset 0 0 18px rgba(var(--teal-rgb), .08);
+  pointer-events: none;
+}
+
+.nz-garage__stage-car {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  height: 76%;
+  aspect-ratio: 16 / 9;
+  max-width: 64%;
+  transform: translateX(-50%);
+  animation: nz-garage-car-in 280ms var(--ease) both;
+}
+
+.nz-garage__stage-shadow {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 3%;
+  height: 16%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, .8), rgba(0, 0, 0, 0));
+}
+
+.nz-garage__stage-img { position: relative; width: 100%; height: 100%; }
+.nz-garage__stage-img .nz-vimg__img { filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .55)); }
+.nz-garage__stage.is-ghost .nz-garage__stage-img { opacity: .26; filter: grayscale(1); }
+.nz-garage__stage.is-ghost .nz-garage__stage-shadow { opacity: .3; }
+.nz-garage__stage.is-ghost .nz-garage__stage-horizon { opacity: .4; }
+
+.nz-garage__stage-note {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 70%;
+  height: 28px;
+  padding: 0 13px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: rgba(8, 9, 10, .86);
+  box-shadow: var(--sh-2);
   font-size: 11.5px;
   font-weight: 500;
-  letter-spacing: 0;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.nz-garage__stage-note > svg { flex: none; color: var(--ink-2); }
+
+.nz-garage__stage-top {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 14px;
+  z-index: 4;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.nz-garage__stage-tl,
+.nz-garage__stage-tr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.nz-garage__classtag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px 0 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: rgba(8, 9, 10, .78);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.nz-garage__classtag > svg { color: var(--teal); }
+
+.nz-garage__stage-fav.nz-ibtn { background: rgba(8, 9, 10, .78); }
+.nz-garage__stage-fav.is-on.nz-ibtn { color: var(--amber); border-color: var(--amber-edge); background: rgba(8, 9, 10, .78); }
+
+.nz-garage__stage-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 34px 18px 14px;
+  background: linear-gradient(180deg, rgba(6, 7, 7, 0), rgba(6, 7, 7, .78) 58%, rgba(6, 7, 7, .92));
+  animation: nz-garage-rise 240ms var(--ease) both;
+}
+
+.nz-garage__stage-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nz-garage__st-make {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+.nz-garage__st-line {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nz-garage__st-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -.025em;
+  line-height: 1.12;
+  color: var(--white);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, .8);
+}
+
+.nz-garage__st-nick {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 300;
+  color: var(--ink-2);
+}
+
+/* registration plate */
+.nz-garage__plate {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 116px;
+  padding: 4px 13px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #15181a, #0a0b0c);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .08),
+    inset 0 -1px 0 rgba(var(--teal-rgb), .45),
+    0 8px 20px rgba(0, 0, 0, .55);
+}
+
+.nz-garage__plate small {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .32em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 1px 0 3px;
+}
+
+.nz-garage__plate b {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  line-height: 1.15;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.nz-garage__plate.is-muted b { color: var(--ink-2); font-size: 12.5px; letter-spacing: .1em; }
+
+/* status strip */
+.nz-garage__strip {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--panel), var(--base));
+}
+
+.nz-garage__cell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 16px 11px;
+}
+
+.nz-garage__cell + .nz-garage__cell { border-left: 1px solid var(--line-hair); }
+
+.nz-garage__cell-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   color: var(--ink-3);
 }
 
-.nz-garage__cells--4 .nz-garage__cell-value {
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: 0;
+.nz-garage__cell-value,
+.nz-garage__cell-sub {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.nz-garage__clamp {
+.nz-garage__cell-value {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  color: var(--white);
+}
+
+.nz-garage__cell-sub {
+  font-size: 10.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-garage__cell.is-teal .nz-garage__cell-label > svg,
+.nz-garage__cell.is-teal .nz-garage__cell-sub { color: var(--teal); }
+.nz-garage__cell.is-amber .nz-garage__cell-label > svg,
+.nz-garage__cell.is-amber .nz-garage__cell-sub { color: var(--amber); }
+.nz-garage__cell.is-red .nz-garage__cell-label > svg,
+.nz-garage__cell.is-red .nz-garage__cell-sub { color: var(--red); }
+.nz-garage__cell.is-grey .nz-garage__cell-value { color: var(--ink-2); }
+
+/* detail sections */
+.nz-garage__sections {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px;
+  padding: 14px 16px 22px;
+  -webkit-mask-image: linear-gradient(180deg, #000000 calc(100% - 20px), rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(180deg, #000000 calc(100% - 20px), rgba(0, 0, 0, 0));
+  animation: nz-garage-rise 220ms var(--ease) both;
+}
+
+.nz-garage__blk {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
+}
+
+.nz-garage__blk.is-wide { grid-column: 1 / -1; }
+
+.nz-garage__blk.is-red {
+  border-color: var(--red-edge);
+  background: linear-gradient(180deg, rgba(var(--red-rgb), .07), rgba(var(--red-rgb), 0) 70%), var(--panel);
+}
+
+.nz-garage__blk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line-hair);
+}
+
+.nz-garage__blk-head h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-garage__blk-head h4 > svg { flex: none; color: var(--teal); }
+.nz-garage__blk.is-red .nz-garage__blk-head h4 > svg { color: var(--red); }
+
+.nz-garage__blk-aside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nz-garage__blk-body { padding: 12px 14px 14px; }
+
+.nz-garage__blk-note {
+  max-width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.nz-garage__nodata {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.nz-garage__nodata > svg { flex: none; }
+
+/* condition: segmented gauges + damage glyph */
+.nz-garage__cond {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nz-garage__gauges {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.nz-garage__gauge {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+}
+
+.nz-garage__gauge-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.nz-garage__gauge-label > svg { flex: none; color: var(--ink-3); }
+
+.nz-garage__gauge-cells {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.nz-garage__gauge-cells i {
+  height: 11px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .055);
+}
+
+.nz-garage__gauge.is-teal .nz-garage__gauge-cells i.is-on { background: var(--teal); box-shadow: 0 0 6px rgba(var(--teal-rgb), .35); }
+.nz-garage__gauge.is-amber .nz-garage__gauge-cells i.is-on { background: var(--amber); box-shadow: 0 0 6px rgba(var(--amber-rgb), .35); }
+.nz-garage__gauge.is-red .nz-garage__gauge-cells i.is-on { background: var(--red); box-shadow: 0 0 6px rgba(var(--red-rgb), .4); }
+
+.nz-garage__gauge-val {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.nz-garage__gauge-val small { margin-left: 1px; font-size: 10px; font-weight: 400; color: var(--ink-3); }
+.nz-garage__gauge.is-amber .nz-garage__gauge-val { color: var(--amber); }
+.nz-garage__gauge.is-red .nz-garage__gauge-val { color: var(--red); }
+
+.nz-garage__cond-cap {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-hair);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.nz-garage__cond-cap > svg { flex: none; margin-top: 1px; color: var(--teal); }
+.nz-garage__cond-cap.is-hit > svg { color: var(--red); }
+.nz-garage__cond-cap.is-hit { color: var(--ink); }
+.nz-garage__cond-cap.is-nodata,
+.nz-garage__cond-cap.is-nodata > svg { color: var(--ink-3); }
+
+.nz-garage__glyph {
+  flex: none;
+  width: 88px;
+  height: 147px;
+  margin: -4px 2px -4px 0;
+  overflow: visible;
+}
+
+.nz-garage__glyph-body { fill: rgba(255, 255, 255, .025); stroke: rgba(255, 255, 255, .28); stroke-width: 1.2; }
+.nz-garage__glyph-body.is-amber { stroke: var(--amber); }
+.nz-garage__glyph-body.is-red { stroke: var(--red); fill: rgba(var(--red-rgb), .05); }
+.nz-garage__glyph-roof { fill: rgba(255, 255, 255, .03); stroke: rgba(255, 255, 255, .1); stroke-width: 1; }
+.nz-garage__glyph-line { fill: none; stroke: rgba(255, 255, 255, .22); stroke-width: 1; stroke-linejoin: round; }
+.nz-garage__glyph-part { fill: rgba(255, 255, 255, .035); stroke: rgba(255, 255, 255, .17); stroke-width: 1; }
+.nz-garage__glyph-glass { fill: rgba(255, 255, 255, .075); stroke: rgba(255, 255, 255, .2); stroke-width: .8; }
+.nz-garage__glyph-tyre { fill: #1b1e20; stroke: rgba(255, 255, 255, .3); stroke-width: 1; }
+
+.nz-garage__glyph-part.is-hit,
+.nz-garage__glyph-glass.is-hit,
+.nz-garage__glyph-tyre.is-rim {
+  fill: rgba(var(--red-rgb), .42);
+  stroke: var(--red);
+  filter: drop-shadow(0 0 3px rgba(var(--red-rgb), .85));
+}
+
+.nz-garage__glyph-tyre.is-burst {
+  fill: rgba(var(--amber-rgb), .45);
+  stroke: var(--amber);
+  filter: drop-shadow(0 0 3px rgba(var(--amber-rgb), .85));
+}
+
+.nz-garage__glyph-lamp { fill: none; stroke: var(--teal); stroke-width: 2.2; stroke-linecap: round; opacity: .85; }
+.nz-garage__glyph-tail { fill: none; stroke: var(--red); stroke-width: 2.2; stroke-linecap: round; opacity: .6; }
+.nz-garage__glyph.is-nodata { opacity: .4; }
+
+/* performance */
+.nz-garage__perf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nz-garage__perf-top {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nz-garage__perf-speed {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.nz-garage__perf-speed b {
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -.035em;
+  line-height: 1;
+  color: var(--white);
+}
+
+.nz-garage__perf-speed span { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+
+.nz-garage__perf-cap {
+  padding-bottom: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-garage__perf-seats {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-soft);
+  background: var(--inset);
+  font-size: 11px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.nz-garage__perf-seats > svg { color: var(--ink-3); }
+
+.nz-garage__ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nz-garage__rating {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.nz-garage__rating-track {
+  position: relative;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .06);
+  overflow: hidden;
+}
+
+.nz-garage__rating-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--teal-lo), var(--teal-hi));
+  transition: width var(--slide);
+}
+
+.nz-garage__rating-track::after {
+  /* quarter ticks */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(14, 16, 17, 0) 0, rgba(14, 16, 17, 0) calc(25% - 2px), var(--panel) calc(25% - 2px), var(--panel) 25%);
+}
+
+.nz-garage__rating b { text-align: right; font-weight: 600; color: var(--white); }
+
+/* upgrades */
+.nz-garage__lvls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nz-garage__lvl {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+}
+
+.nz-garage__lvl-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.nz-garage__lvl-label > svg { flex: none; color: var(--ink-3); }
+
+.nz-garage__lvl-pips {
+  display: flex;
+  gap: 4px;
+}
+
+.nz-garage__lvl-pips i {
+  flex: 1 1 0;
+  max-width: 30px;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .07);
+}
+
+.nz-garage__lvl-pips i.is-on { background: var(--teal); box-shadow: 0 0 5px rgba(var(--teal-rgb), .35); }
+
+.nz-garage__lvl b {
+  text-align: right;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.nz-garage__lvl.is-stock b { font-weight: 400; color: var(--ink-3); }
+.nz-garage__lvl.is-max b { color: var(--teal); }
+
+.nz-garage__turbo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-garage__turbo > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  opacity: .6;
+}
+
+.nz-garage__turbo.is-on { color: var(--teal); }
+.nz-garage__turbo.is-on > i { background: var(--teal); opacity: 1; box-shadow: 0 0 7px var(--teal); }
+
+/* finance */
+.nz-garage__fin {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nz-garage__fin-figs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.nz-garage__fin-figs > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nz-garage__fin-figs span { font-size: 10.5px; font-weight: 300; color: var(--ink-3); }
+
+.nz-garage__fin-figs b {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nz-garage__fin-figs b small { font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
+.nz-garage__fin-figs b.is-red { color: var(--red); }
+
+.nz-garage__fin-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nz-garage__fin-progress .nz-pips,
+.nz-garage__fin-progress .nz-bar { flex: 1 1 auto; }
+
+.nz-garage__fin-progress > span {
+  flex: none;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.nz-garage__fin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.nz-garage__fin-warn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--red);
+}
+
+.nz-garage__fin-warn > svg { flex: none; }
+
+/* impound */
+.nz-garage__imp {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+}
+
+.nz-garage__imp-reason {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nz-garage__imp-reason > span {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-garage__imp-reason p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.nz-garage__imp-facts {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-garage__clock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 168px;
+  padding: 10px 13px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--inset);
+}
+
+.nz-garage__clock > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nz-garage__clock b {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.nz-garage__clock span { font-size: 10.5px; font-weight: 300; color: var(--ink-3); white-space: nowrap; }
+.nz-garage__clock.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); }
+.nz-garage__clock.is-amber > svg { color: var(--amber); }
+.nz-garage__clock.is-red { border-color: var(--red-edge); background: var(--red-wash); }
+.nz-garage__clock.is-red > svg { color: var(--red); }
+.nz-garage__clock.is-teal { border-color: var(--teal-edge); background: var(--teal-wash); }
+.nz-garage__clock.is-teal > svg { color: var(--teal); }
+
+/* facts (details / impound) */
+.nz-garage__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nz-garage__facts.is-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 28px;
+  row-gap: 8px;
+}
+
+.nz-garage__fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  font-size: 11.5px;
+}
+
+.nz-garage__fact > span { flex: none; font-weight: 300; color: var(--ink-3); }
+
+.nz-garage__fact > b {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: right;
+}
+
+.nz-garage__fact > b.is-mono { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; }
+
+/* callouts */
+.nz-garage__callout {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  background: var(--raise);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.nz-garage__callout > svg { flex: none; color: var(--ink-3); }
+.nz-garage__callout-text { flex: 1 1 auto; min-width: 0; }
+.nz-garage__callout b { font-weight: 600; color: var(--white); }
+.nz-garage__callout.is-teal { border-color: var(--teal-edge); background: var(--teal-wash); }
+.nz-garage__callout.is-teal > svg { color: var(--teal); }
+.nz-garage__callout.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); }
+.nz-garage__callout.is-amber > svg { color: var(--amber); }
+.nz-garage__callout.is-red { border-color: var(--red-edge); background: var(--red-wash); color: var(--ink); }
+.nz-garage__callout.is-red > svg { color: var(--red); }
+
+.nz-garage__trailer { margin-top: 12px; }
+
+/* action dock */
+.nz-garage__dock {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 62px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, var(--panel), var(--base));
+}
+
+.nz-garage__dock-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nz-garage__go { flex: none; min-width: 150px; }
+
+.nz-garage__primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nz-garage__primary-key.nz-kbd {
+  background: rgba(0, 0, 0, .16);
+  border-color: rgba(0, 0, 0, .22);
+  color: inherit;
+  opacity: .85;
+}
+
+.nz-garage__dock-reason {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.38;
+  color: var(--ink-2);
+}
+
+.nz-garage__dock-reason > span {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.nz-garage__avail {
+.nz-garage__dock-reason > svg { flex: none; color: var(--ink-3); }
+.nz-garage__dock-reason.is-amber > svg { color: var(--amber); }
+.nz-garage__dock-reason.is-red > svg { color: var(--red); }
+
+.nz-garage__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: var(--inset);
+}
+
+.nz-garage__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: background var(--fast), color var(--fast);
+}
+
+.nz-garage__tool > svg { color: var(--ink-3); transition: color var(--fast); }
+.nz-garage__tool:hover:not(:disabled) { background: var(--raise-2); color: var(--white); }
+.nz-garage__tool:hover:not(:disabled) > svg { color: var(--teal); }
+.nz-garage__tool:disabled { opacity: .4; }
+
+.nz-garage__tool > b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--teal-edge);
+  background: var(--teal-wash);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--teal);
+}
+
+/* empty turntable */
+.nz-garage__show.is-empty .nz-garage__stage {
+  flex: 1 1 auto;
+  height: auto;
+  border-bottom: 0;
+}
+
+.nz-garage__vacant {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-}
-
-.nz-garage__avail small {
-  font-size: 10.5px;
-  font-weight: 300;
-  color: var(--ink-3);
-}
-
-.nz-garage__red { color: var(--red); }
-.nz-garage__amber { color: var(--amber); }
-.nz-garage__teal { color: var(--teal); }
-
-.nz-garage__block-foot {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 12px;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 40px 6%;
+  text-align: center;
+  animation: nz-garage-rise 240ms var(--ease) both;
 }
 
-.nz-garage__block-note {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: 11px;
+.nz-garage__vacant-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--teal-edge);
+  background: var(--teal-wash);
+  color: var(--teal);
+  box-shadow: 0 0 24px rgba(var(--teal-rgb), .18);
+}
+
+.nz-garage__vacant b {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -.015em;
+  color: var(--white);
+}
+
+.nz-garage__vacant p {
+  max-width: 400px;
+  font-size: 12px;
   font-weight: 300;
-  color: var(--ink-3);
-}
-
-.nz-garage__block-note > svg { flex: none; }
-.nz-garage__block-note b { color: var(--ink-2); font-weight: 500; }
-
-.nz-garage__block-actions {
-  display: inline-flex;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.nz-garage__lines {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
-}
-
-.nz-garage__line {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11.5px;
-  font-weight: 300;
+  line-height: 1.5;
   color: var(--ink-2);
 }
 
-.nz-garage__line svg { color: var(--teal); }
+.nz-garage__vacant .nz-btn { margin-top: 6px; }
 
-/* why it cannot be driven */
+.nz-garage__steps {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--line-soft);
+  list-style: none;
+  background: linear-gradient(180deg, var(--panel), var(--base));
+}
+
+.nz-garage__steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.nz-garage__steps li > svg { flex: none; margin-top: 1px; color: var(--ink-3); }
+
+.nz-garage__steps-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--teal-edge);
+  background: var(--teal-wash);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--teal);
+}
+
+/* why it cannot be driven (members modal note) */
 .nz-garage__reason {
   display: flex;
   align-items: center;
@@ -760,62 +1649,85 @@
   border: 1px solid var(--line-soft);
   background: var(--raise);
   font-size: 12px;
-  font-weight: 400;
   line-height: 1.45;
   color: var(--ink);
 }
 
 .nz-garage__reason > svg { flex: none; color: var(--ink-3); }
-.nz-garage__reason.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); }
-.nz-garage__reason.is-amber > svg { color: var(--amber); }
-.nz-garage__reason.is-red { border-color: var(--red-edge); background: var(--red-wash); }
-.nz-garage__reason.is-red > svg { color: var(--red); }
 
-/* action bar */
-.nz-garage__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-hair);
+/* ── motion ── */
+@keyframes nz-garage-car-in {
+  from { opacity: 0; transform: translateX(calc(-50% + 28px)); }
+  to { opacity: 1; transform: translateX(-50%); }
 }
 
-.nz-garage__actions-main {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
+@keyframes nz-garage-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
-.nz-garage__actions-side {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+@media (prefers-reduced-motion: reduce) {
+  .nz-garage__stage-car,
+  .nz-garage__stage-foot,
+  .nz-garage__sections,
+  .nz-garage__vacant { animation: none; }
+}
+
+/* ── small screens (720p) ── */
+@media (max-height: 800px) {
+  .nz-garage__railtop { gap: 8px; padding: 12px 12px 10px; }
+  .nz-garage__row { padding-top: 7px; padding-bottom: 9px; }
+  .nz-garage__thumb { width: 70px; height: 40px; }
+  .nz-garage__cell { padding: 8px 14px 9px; }
+  .nz-garage__sections { gap: 10px; padding: 12px 14px 14px; }
+  .nz-garage__blk-body { padding: 10px 12px 12px; }
+  .nz-garage__dock { min-height: 56px; padding: 9px 14px; }
+  .nz-garage__st-name { font-size: 21px; }
+  .nz-garage__stage-foot { padding: 26px 16px 12px; }
+}
+
+@media (max-width: 1360px) {
+  .nz-garage__tool { padding: 0 8px; }
+  .nz-garage__go { min-width: 0; }
 }
 
 /* ═══════════════════════════ MODALS ═══════════════════════════ */
 .nz-garage__mv {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   min-width: 0;
-  padding: 7px 12px 7px 7px;
-  background: var(--inset);
-  border: 1px solid var(--line-hair);
+  padding: 8px 12px 8px 8px;
   border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), .06), rgba(var(--teal-rgb), 0) 45%), var(--inset);
+  overflow: hidden;
 }
 
 .nz-garage__mv-img {
+  position: relative;
   flex: none;
-  width: 86px;
-  padding: 2px 5px;
+  width: 104px;
+  padding: 4px 6px 2px;
   border-radius: var(--r-sm);
   border: 1px solid var(--line-hair);
   background:
-    radial-gradient(70% 50% at 50% 92%, rgba(var(--teal-rgb), .14), rgba(var(--teal-rgb), 0) 70%),
-    var(--raise);
+    radial-gradient(60% 60% at 50% 0%, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(70% 40% at 50% 100%, rgba(var(--teal-rgb), .18), rgba(var(--teal-rgb), 0) 70%),
+    #0c0e0f;
+  overflow: hidden;
+}
+
+.nz-garage__mv-img::after {
+  /* the stage's teal horizon, in miniature */
+  content: '';
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 22%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), 0), rgba(var(--teal-rgb), .55), rgba(var(--teal-rgb), 0));
 }
 
 .nz-garage__mv-text {
@@ -823,7 +1735,15 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+}
+
+.nz-garage__mv-text small {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--teal);
 }
 
 .nz-garage__mv-text b {
@@ -831,9 +1751,17 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
+  letter-spacing: -.01em;
   color: var(--white);
+}
+
+.nz-garage__mv-text b em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--ink-2);
 }
 
 .nz-garage__mv-text span {
@@ -841,16 +1769,19 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  margin-top: 2px;
 }
 
-.nz-garage__mv-text em {
+.nz-garage__mv-text i {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font-style: normal;
-  font-size: 11px;
-  font-weight: 300;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
   color: var(--ink-3);
 }
 
@@ -1041,16 +1972,4 @@
 
 .nz-garage__foot-left { margin-right: auto; }
 
-/* small screens (720p): flatter cards so more fit */
-@media (max-height: 820px) {
-  .nz-garage__media { padding-top: 10px; }
-  .nz-garage__media .nz-garage__img { aspect-ratio: 2.35 / 1; }
-  .nz-garage__cardbody { padding-top: 8px; padding-bottom: 9px; }
-  .nz-garage__row { min-height: 56px; }
-  .nz-garage__thumb { width: 86px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nz-garage__detail { animation: none; }
-  .nz-garage__card.is-clickable:hover .nz-garage__img { transform: none; }
-}
+.nz-garage__mv-img .nz-garage__img { aspect-ratio: 2 / 1; }

@@ -13,6 +13,7 @@ import { PlayerView, emptyPlayerUi } from '../vehicles/PlayerView';
 import type { PlayerData, PlayerUi } from '../vehicles/PlayerView';
 import { VehicleDetailView } from '../vehicles/VehicleDetailView';
 import { devHint } from '../vehicles/devHint';
+import { isDossierTab } from '../vehicles/dossier/tabs';
 import '../vehicles/vehicles.css';
 
 type View =
@@ -36,6 +37,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
   const [ui, setUi] = useState<PlayerUi>(emptyPlayerUi);
   // Dev deep link "open the props editor" applies to the first vehicle view only.
   const [propsHint, setPropsHint] = useState(!!hint.props);
+  const [tabHint, setTabHint] = useState(() => (isDossierTab(hint.dossierTab) ? hint.dossierTab : null));
   const searchSeq = useRef(0);
   const playerSeq = useRef(0);
 
@@ -95,6 +97,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
 
   const back = () => {
     setPropsHint(false);
+    setTabHint(null);
     if (view.level === 'vehicle') setView({ level: 'player', identifier: view.identifier, name: view.name });
     else if (view.level === 'player') setView({ level: 'search' });
   };
@@ -156,6 +159,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
           plate={view.plate}
           identifier={view.identifier}
           initialModal={propsHint ? 'props' : null}
+          initialTab={tabHint}
           onBack={back}
           onRowChange={onRowChange}
           onPlateChange={onPlateChange}

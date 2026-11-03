@@ -1,13 +1,15 @@
 /**
  * Impound mocks (browser dev only): owner + staff impound lists with live countdowns and
  * the "Impound vehicle" form, plus stateful handlers for impound:* / impoundForm:submit.
- * Scenario ids: impound-owner, impound-staff, impound-empty, impound-form, impound-form-npc.
+ * Vehicles carry class / stats (via veh()), stored damage and upgrades like in game.
+ * Scenario ids: impound-owner, impound-staff, impound-waived, impound-empty, impound-form,
+ * impound-form-npc.
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui, onNuiMessage } from '../../lib/nui';
-import { defaultInterface } from '../../lib/store';
+import { defaultInterface, toast } from '../../lib/store';
 import type { ImpoundFormData, ImpoundInfo, ImpoundOpenData, ImpoundedVehicle, NuiMessage } from '../../lib/types';
-import { impoundInfo, nowS, veh } from './garage';
+import { dmg, impoundInfo, mods, nowS, veh } from './garage';
 
 const H = 3600;
 const D = 86400;
@@ -48,27 +50,32 @@ function ownerView(): ImpoundOpenData {
         fee: 500,
         at: t - 26 * H,
         releaseAt: t - 2 * H,
-      }, { mileage: 15430, fuel: 61 }),
+      }, { mileage: 15430, fuel: 61, mods: mods(2, 2, 1, 1, 0, true) }),
       impounded('zr350', 'Annis ZR350', 'Annis', 'DVS RX', {
         reason: 'Abandoned on the freeway shoulder',
         fee: 750,
         byName: 'Officer Delgado',
         at: t - 9 * H,
         releaseAt: t - 20 * 60,
-      }, { mileage: 18320, body: 46 }),
+      }, {
+        mileage: 18320,
+        body: 46,
+        engine: 71,
+        damage: dmg({ engine: 710, body: 460, doors: [0, 4], windows: [0, 6], tyres: [{ index: 1, state: 1 }, { index: 4, state: 2 }], deformed: true }),
+      }),
       impounded('jester4', 'Dinka Jester RR', 'Dinka', 'DVS RR', {
         reason: 'Parked across two disabled bays',
         fee: 350,
         at: t - 40 * 60,
         releaseAt: t + 95,
-      }, { nickname: 'Night Shift', mileage: 12482 }),
+      }, { nickname: 'Night Shift', mileage: 12482, mods: mods(3, 2, 2, 1, 0, true) }),
       impounded('neon', 'Pfister Neon', 'Pfister', 'SILENT', {
         reason: 'Street racing in Vinewood Hills',
         fee: 2500,
         byName: 'Sgt. Morales',
         at: t - 3 * H,
         releaseAt: t + 21 * H + 12 * 60,
-      }, { mileage: 4173 }),
+      }, { mileage: 4173, damage: dmg({ body: 820, windows: [7] }), mods: mods(4, 3, 3, 2, 0, true) }),
       impounded('coquette4', 'Invetero Coquette D10', 'Invetero', 'D10 GOLD', {
         reason: 'Held as evidence in an ongoing investigation',
         fee: 5000,
@@ -96,7 +103,13 @@ function staffView(): ImpoundOpenData {
         retrievable: false,
         byName: 'Det. Hayes',
         at: t - 3 * D,
-      }, { ...owner('Dmitri Volkov'), mileage: 22140, body: 31 }),
+      }, {
+        ...owner('Dmitri Volkov'),
+        mileage: 22140,
+        body: 31,
+        damage: dmg({ body: 310, doors: [0, 1, 2], windows: [0, 1, 2, 3, 6], deformed: true }),
+        mods: mods(2, 2, 2, 2, 5),
+      }),
       impounded('granger2', 'Declasse Granger 3600LX', 'Declasse', 'FAMILY 3', { reason: 'Blocking an ambulance bay', fee: 800, releaseAt: t + 35 * 60 }, { ...owner('Priya Shah'), mileage: 41230 }),
       impounded('sanchez', 'Maibatsu Sanchez', 'Maibatsu', 'DIRT 77', { reason: 'Riding on the sidewalk', fee: 250, releaseAt: t - 10 * 60 }, { ...owner('Sam Carter'), mileage: 6620, fuel: 12 }),
       impounded('tenf2', 'Obey 10F Widebody', 'Obey', 'WIDE 10', { reason: 'Excessive noise after midnight', fee: 400, releaseAt: t + 2 * D }, { ...owner('Isabella Rossi'), mileage: 3249 }),
@@ -138,12 +151,29 @@ const NPC_FORM: ImpoundFormData = {
 
 /* ───────────────────────── stateful backend ───────────────────────── */
 
+/** Mirrors server/impound.lua retrievalCheck: canDrive + reason per viewer. */
+function withRetrieval(d: ImpoundOpenData): ImpoundOpenData {
+  const now = nowS();
+  for (const v of d.vehicles) {
+    let ok = true;
+    let reason: string | null = null;
+    if (v.blocked) [ok, reason] = [false, 'This vehicle is blocked'];
+    else if (v.finance?.overdue) [ok, reason] = [false, 'Finance payment overdue'];
+    else if (d.staff) [ok, reason] = [true, null];
+    else if (!v.impound.retrievable) [ok, reason] = [false, 'Contact the authorities to release this vehicle'];
+    else if (v.impound.releaseAt > now) [ok, reason] = [false, 'Not available yet'];
+    v.canDrive = ok;
+    v.reason = reason;
+  }
+  return d;
+}
+
 const state: { data: ImpoundOpenData | null } = { data: null };
 onNuiMessage((msg: NuiMessage) => {
   if (msg.action === 'open' && msg.data.app === 'impound') state.data = clone(msg.data.data as ImpoundOpenData);
 });
-const notify = (type: 'success' | 'error' | 'info', message: string, title?: string) =>
-  emitNuiMessage({ action: 'notify', data: { type, message, title } });
+/** In game Lua shows these through the notify integration; the browser harness logs them. */
+const notify = (type: 'success' | 'error' | 'info', message: string, title?: string) => toast({ type, message, title });
 
 mockNui('impound:refresh', async () => {
   await wait(150);
@@ -175,7 +205,7 @@ mockNui('impound:release', async ({ plate, mode }) => {
   } else {
     d.vehicles = d.vehicles.filter((x) => x.plate !== plate);
   }
-  return clone(d);
+  return clone(withRetrieval(d));
 });
 
 mockNui('impoundForm:submit', async (req) => {
@@ -193,8 +223,14 @@ const open = (app: 'impound' | 'impoundForm', data: ImpoundOpenData | ImpoundFor
   data: { app, data },
 });
 
-registerMock({ id: 'impound-owner', group: 'Impound', label: 'Impound — owner (countdowns)', messages: [settings, open('impound', ownerView())] });
-registerMock({ id: 'impound-staff', group: 'Impound', label: 'Impound — staff view', messages: [settings, open('impound', staffView())] });
-registerMock({ id: 'impound-empty', group: 'Impound', label: 'Impound — nothing held', messages: [settings, open('impound', emptyView())] });
+registerMock({ id: 'impound-owner', group: 'Impound', label: 'Impound — owner (countdowns)', messages: [settings, open('impound', withRetrieval(ownerView()))] });
+registerMock({ id: 'impound-staff', group: 'Impound', label: 'Impound — staff view', messages: [settings, open('impound', withRetrieval(staffView()))] });
+registerMock({
+  id: 'impound-waived',
+  group: 'Impound',
+  label: 'Impound — staff, fees waived',
+  messages: [{ ...settings, data: { ...defaultInterface, defaultView: 'grid' } }, open('impound', withRetrieval({ ...staffView(), feeWaived: true }))],
+});
+registerMock({ id: 'impound-empty', group: 'Impound', label: 'Impound — nothing held', messages: [settings, open('impound', withRetrieval(emptyView()))] });
 registerMock({ id: 'impound-form', group: 'Impound', label: 'Impound form (owned)', messages: [open('impoundForm', FORM)] });
 registerMock({ id: 'impound-form-npc', group: 'Impound', label: 'Impound form (no owner)', messages: [open('impoundForm', NPC_FORM)] });

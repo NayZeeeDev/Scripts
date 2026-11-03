@@ -1,9 +1,19 @@
 --[[
   nayzeee-garages — world interaction points (NZ.Points).
-  Builds lib.points (and optional target zones), markers and blips for every location the
+  Builds lib.points, target zones / garage NPCs, markers and blips for every location the
   player can use, shows the "Open garage" / "Store vehicle" prompt while inside a point and
   dispatches the single interaction keybind to the active point.
   No per-frame work unless the player is near a point (markers only).
+
+  Interaction mode per location: location.interaction.mode ('default' follows
+  settings.interface.interaction) — 'prompt' (press E), 'target' (ox_target / qb-target:
+  open options on a sphere zone or on the location NPC; drivers still park with the key
+  prompt) or 'both'. Without a running target resource every location uses prompts.
+  Target options per point: Open garage / hangar / marina, Enter interior (access mode
+  interior / both), View garage for sale (private, not owned), Open impound and Store vehicle
+  (in or next to a vehicle). The global "Store vehicle" vehicle option (client/impound.lua)
+  asks Points.canStoreVehicle / Points.storeVehicle, which only look at the store zones near
+  the player (refreshed by the 200 ms loop).
 ]]
 
 local Points = NZ.Points
@@ -12,6 +22,7 @@ local records = {}        -- every interaction record built by the last rebuild
 local pointObjs = {}      -- lib.points objects
 local near = {}           -- [record] = true while the player is within its point distance
 local nearCount = 0
+local nearStores = {}     -- target store records near the player (refreshed every 200 ms)
 local blips = {}
 local targetZones = {}
 local keybind = nil
@@ -19,6 +30,11 @@ local active = nil        -- { rec, action, label } currently shown as prompt
 local looping = false
 local acting = false
 local markerRGB = { 8, 175, 162 }
+
+local MODES = { prompt = true, target = true, both = true }
+local TARGET_REACH = 3.0           -- metres a player can target a vehicle from (store zones)
+local NEXT_TO_VEHICLE = 6.0        -- metres: "next to a vehicle" for the store option
+local CANDIDATE_TTL = 400          -- ms: cache of the vehicle a store option would park
 
 ---------------------------------------------------------------------------------------
 -- Helpers
@@ -184,17 +200,38 @@ function Points.isVisible(loc)
   return true
 end
 
+--- Access mode of a garage-like location: 'quick' | 'interior' | 'both' (server falls back to
+--- 'quick' when no interior is set).
+local function accessMode(loc)
+  local a = type(loc.access) == 'table' and loc.access or nil
+  if a and (a.mode == 'interior' or a.mode == 'both') then return a.mode end
+  return 'quick'
+end
+
+--- "Open garage" / "Open hangar" / "Open marina" ("Open job garage" for job car garages).
+local function openLabelFor(loc)
+  if loc.vehicleType == 'air' then return L('Open hangar') end
+  if loc.vehicleType == 'sea' then return L('Open marina') end
+  if loc.kind == 'job' then return L('Open job garage') end
+  return L('Open garage')
+end
+
+local function openIconFor(loc)
+  if loc.vehicleType == 'air' then return 'fas fa-plane' end
+  if loc.vehicleType == 'sea' then return 'fas fa-anchor' end
+  return 'fas fa-warehouse'
+end
+
 --- Open action + prompt label for a location (nil when the player cannot open it).
 local function openActionFor(loc)
   local kind = loc.kind
-  if kind == 'impound' then return 'impound', L('Open impound'), 'fas fa-car-burst' end
-  if kind == 'job' then return 'garage', L('Open job garage'), 'fas fa-warehouse' end
-  if kind == 'private' then
-    if Points.isMember(loc) then return 'garage', L('Open garage'), 'fas fa-warehouse' end
-    if loc.purchasable then return 'forSale', L('View garage'), 'fas fa-key' end
+  if kind == 'impound' then return 'impound', L('Open impound') end
+  if kind == 'private' and not Points.isMember(loc) then
+    if loc.purchasable then return 'forSale', L('View garage') end
     return nil
   end
-  return 'garage', L('Open garage'), 'fas fa-warehouse'
+  if accessMode(loc) == 'interior' then return 'inside', L('Enter interior') end
+  return 'garage', openLabelFor(loc)
 end
 
 local function canStoreAt(loc)
@@ -203,12 +240,34 @@ local function canStoreAt(loc)
   return true
 end
 
+--- Interaction mode of a location: its own override, else the server setting. 'prompt' when
+--- no target resource runs (players must always be able to open their garage).
+local function modeFor(loc, globalMode, targetOk)
+  local mode = MODES[globalMode] and globalMode or 'prompt'
+  local own = type(loc.interaction) == 'table' and loc.interaction.mode or nil
+  if own ~= nil and MODES[own] then mode = own end
+  if mode ~= 'prompt' and not targetOk then return 'prompt' end
+  return mode
+end
+
+--- The location NPC ({ model, scenario }) or nil.
+local function pedConfig(loc)
+  local i = loc.interaction
+  local ped = type(i) == 'table' and i.ped or nil
+  if type(ped) ~= 'table' or type(ped.model) ~= 'string' or ped.model == '' then return nil end
+  return ped
+end
+
 local function categoryOf(vehicle)
   if NZ.Veh and NZ.Veh.categoryOf then
     local ok, cat = pcall(NZ.Veh.categoryOf, GetEntityModel(vehicle))
     if ok and cat then return cat end
   end
   return NZ.Utils.vehicleTypeFromClass(GetVehicleClass(vehicle))
+end
+
+local function isVehicleEntity(entity)
+  return type(entity) == 'number' and entity ~= 0 and DoesEntityExist(entity) and GetEntityType(entity) == 2
 end
 
 local function currentKey()
@@ -231,6 +290,70 @@ local function groundZ(rec)
     rec.groundZ = c.z
   end
   return rec.groundZ
+end
+
+---------------------------------------------------------------------------------------
+-- Store candidates (target "Store vehicle")
+---------------------------------------------------------------------------------------
+
+--- Whether this player can park `vehicle` at store record `rec`: inside the store radius,
+--- the right vehicle type and nobody else behind the wheel (the server re-checks everything).
+local function parkableAt(rec, vehicle, ped)
+  if not isVehicleEntity(vehicle) then return false end
+  local driver = GetPedInVehicleSeat(vehicle, -1)
+  if driver ~= 0 and driver ~= ped then return false end
+  if #(GetEntityCoords(vehicle) - rec.coords) > rec.storeRadius then return false end
+  local vt = rec.location.vehicleType
+  return vt == nil or vt == categoryOf(vehicle)
+end
+
+--- The vehicle a "Store vehicle" option at `rec` would park: the one the player drives, else
+--- (on foot, next to it) their last vehicle or the closest one. Cached briefly: target
+--- resources ask many times per second while the option is on screen.
+local function storeCandidate(rec)
+  local now = GetGameTimer()
+  local cached = rec.candidate
+  if cached and now - cached.at < CANDIDATE_TTL then return cached.vehicle end
+  local ped = cache.ped
+  local vehicle = nil
+  local current = GetVehiclePedIsIn(ped, false)
+  if current ~= 0 then
+    if GetPedInVehicleSeat(current, -1) == ped and parkableAt(rec, current, ped) then vehicle = current end
+  else
+    local pos = GetEntityCoords(ped)
+    local last = GetVehiclePedIsIn(ped, true)
+    if last ~= 0 and parkableAt(rec, last, ped) and #(GetEntityCoords(last) - pos) <= NEXT_TO_VEHICLE then
+      vehicle = last
+    else
+      local closest = lib.getClosestVehicle(pos, NEXT_TO_VEHICLE, false)
+      if closest and parkableAt(rec, closest, ped) then vehicle = closest end
+    end
+  end
+  rec.candidate = { at = now, vehicle = vehicle }
+  return vehicle
+end
+
+--- Nearest store record near the player (target mode) whose zone holds `vehicle`.
+local function storeRecordFor(vehicle)
+  if #nearStores == 0 or not isVehicleEntity(vehicle) then return nil end
+  local ped = cache.ped
+  local driver = GetPedInVehicleSeat(vehicle, -1)
+  if driver ~= 0 and driver ~= ped then return nil end
+  local pos = GetEntityCoords(vehicle)
+  local category = nil
+  local best, bestDist = nil, nil
+  for i = 1, #nearStores do
+    local rec = nearStores[i]
+    local dist = #(pos - rec.coords)
+    if dist <= rec.storeRadius and (bestDist == nil or dist < bestDist) then
+      local vt = rec.location.vehicleType
+      if vt ~= nil and category == nil then category = categoryOf(vehicle) end
+      if (vt == nil or vt == category) and Points.isVisible(rec.location) then
+        best, bestDist = rec, dist
+      end
+    end
+  end
+  return best
 end
 
 ---------------------------------------------------------------------------------------
@@ -270,7 +393,8 @@ local function evaluate()
           if dist <= rec.storeRadius then action, label = 'store', L('Store vehicle') end
         end
       elseif rec.open and rec.openAction then
-        rec.marker = 'open'
+        -- the NPC marks the spot itself
+        if not rec.hasPed then rec.marker = 'open' end
         if not rec.targeted and dist <= rec.radius then action, label = rec.openAction, rec.openLabel end
       end
       if action and (bestDist == nil or dist < bestDist) then
@@ -281,15 +405,26 @@ local function evaluate()
   return best
 end
 
+--- Target store records near the player, for the cheap global vehicle option check.
+local function refreshNearStores()
+  local list = {}
+  for rec in pairs(near) do
+    if rec.targetStore then list[#list + 1] = rec end
+  end
+  nearStores = list
+end
+
 local function startLoop()
   if looping then return end
   looping = true
   CreateThread(function()
     while nearCount > 0 do
       setActive(evaluate())
+      refreshNearStores()
       Wait(200)
     end
     for rec in pairs(near) do rec.marker = nil end
+    nearStores = {}
     setActive(nil)
     looping = false
   end)
@@ -332,9 +467,9 @@ end
 -- Actions
 ---------------------------------------------------------------------------------------
 
-local function openGarage(loc)
+local function openGarage(loc, inside)
   local extra = {}
-  if type(loc.access) == 'table' and loc.access.mode == 'interior' then extra.goInside = true end
+  if inside or accessMode(loc) == 'interior' then extra.goInside = true end
   if loc.kind == 'house' then
     extra.houseId = NZ.Garage.houseIdOf(loc)
     return NZ.Garage.open(nil, extra)
@@ -342,24 +477,70 @@ local function openGarage(loc)
   return NZ.Garage.open(loc.id, extra)
 end
 
-local function runAction(action, loc)
+--- Park `vehicle` at `loc`. On foot the player first gets behind the wheel: the server only
+--- stores a vehicle for its driver.
+local function storeEntity(loc, vehicle)
+  local ped = cache.ped
+  if not isVehicleEntity(vehicle) then
+    NZ.NUI.notify('error', L('Vehicle not found'))
+    return false
+  end
+  local current = GetVehiclePedIsIn(ped, false)
+  if current == vehicle and GetPedInVehicleSeat(vehicle, -1) == ped then return NZ.Garage.store(loc) end
+  if current ~= 0 then
+    NZ.NUI.notify('error', L('You must be driving the vehicle'))
+    return false
+  end
+  local driver = GetPedInVehicleSeat(vehicle, -1)
+  if driver ~= 0 and driver ~= ped then
+    NZ.NUI.notify('error', L('Someone is in the driver seat'))
+    return false
+  end
+  if (tonumber(GetVehicleDoorLockStatus(vehicle)) or 0) >= 2 then
+    NZ.NUI.notify('error', L('The vehicle is locked'))
+    return false
+  end
+
+  TaskEnterVehicle(ped, vehicle, 8000, -1, 1.5, 1, 0)
+  local started = GetGameTimer()
+  while GetGameTimer() - started < 9000 do
+    Wait(100)
+    if not DoesEntityExist(vehicle) or Points.incapacitated() then break end
+    if GetPedInVehicleSeat(vehicle, -1) == ped and IsPedInVehicle(ped, vehicle, false) then break end
+    -- walked away / pushed out: the enter task ended without getting in
+    if GetGameTimer() - started > 1000 and not IsPedInVehicle(ped, vehicle, true) and not GetIsTaskActive(ped, 160) then
+      break
+    end
+  end
+  if not DoesEntityExist(vehicle) or GetPedInVehicleSeat(vehicle, -1) ~= ped then
+    NZ.NUI.notify('error', L('Get behind the wheel to store the vehicle'))
+    return false
+  end
+  return NZ.Garage.store(loc)
+end
+
+local function runAction(action, loc, arg)
   if action == 'store' then
     NZ.Garage.store(loc)
+  elseif action == 'storeEntity' then
+    storeEntity(loc, arg)
   elseif action == 'impound' then
     NZ.ImpoundClient.open(loc.id)
   elseif action == 'forSale' then
     NZ.PrivateClient.openForSale(loc.id)
   elseif action == 'garage' then
-    openGarage(loc)
+    openGarage(loc, false)
+  elseif action == 'inside' then
+    openGarage(loc, true)
   end
 end
 
-local function perform(action, loc)
+local function perform(action, loc, arg)
   if acting then return end
   acting = true
   setActive(nil)
   CreateThread(function()
-    local ok, err = pcall(runAction, action, loc)
+    local ok, err = pcall(runAction, action, loc, arg)
     if not ok then
       lib.print.error(('[nayzeee-garages] interaction "%s" failed: %s'):format(action, err))
     end
@@ -386,9 +567,91 @@ local function ensureKeybind()
   })
 end
 
-local function targetCanInteract()
-  return NZ.State.ready and not acting and not insideInterior() and not NZ.NUI.isOpen()
-    and GetVehiclePedIsIn(cache.ped, false) == 0 and not Points.incapacitated()
+---------------------------------------------------------------------------------------
+-- Target options (sphere zones and location NPCs)
+---------------------------------------------------------------------------------------
+
+--- Shared target checks, the same rules the prompt follows (the server stays the authority).
+local function targetReady(loc)
+  return NZ.State.ready == true and not acting and not insideInterior() and not NZ.NUI.isOpen()
+    and not IsPauseMenuActive() and not Points.incapacitated() and Points.isVisible(loc)
+end
+
+local function onFoot()
+  return GetVehiclePedIsIn(cache.ped, false) == 0
+end
+
+local function actionOption(loc, label, icon, action)
+  return {
+    label = label,
+    icon = icon,
+    canInteract = function()
+      return targetReady(loc) and onFoot()
+    end,
+    onSelect = function()
+      if targetReady(loc) and onFoot() then perform(action, loc) end
+    end,
+  }
+end
+
+local function storeOption(rec)
+  local loc = rec.location
+  return {
+    label = L('Store vehicle'),
+    icon = 'fas fa-square-parking',
+    canInteract = function(entity)
+      -- a targeted vehicle gets the global "Store vehicle" vehicle option instead
+      if isVehicleEntity(entity) or not targetReady(loc) then return false end
+      return storeCandidate(rec) ~= nil
+    end,
+    onSelect = function()
+      if not targetReady(loc) then return end
+      rec.candidate = nil
+      local vehicle = storeCandidate(rec)
+      if vehicle then perform('storeEntity', loc, vehicle) end
+    end,
+  }
+end
+
+--- Target options of an interaction point: open actions first, then "Store vehicle".
+local function pointOptions(loc, rec)
+  local list = {}
+  if rec.open then
+    if loc.kind == 'impound' then
+      list[#list + 1] = actionOption(loc, L('Open impound'), 'fas fa-car-burst', 'impound')
+    elseif loc.kind == 'private' and not Points.isMember(loc) then
+      list[#list + 1] = actionOption(loc, L('View garage for sale'), 'fas fa-key', 'forSale')
+    else
+      local access = accessMode(loc)
+      if access ~= 'interior' then list[#list + 1] = actionOption(loc, openLabelFor(loc), openIconFor(loc), 'garage') end
+      if access ~= 'quick' then list[#list + 1] = actionOption(loc, L('Enter interior'), 'fas fa-door-open', 'inside') end
+    end
+  end
+  if rec.store then list[#list + 1] = storeOption(rec) end
+  return list
+end
+
+local function addZone(zoneId, coords, radius, options)
+  if #options == 0 then return false end
+  local ok, added = pcall(NZ.Target.addSphere, zoneId, coords, radius, options)
+  if ok and added then
+    targetZones[#targetZones + 1] = zoneId
+    return true
+  end
+  if not ok then lib.print.warn(('[nayzeee-garages] target zone failed: %s'):format(added)) end
+  return false
+end
+
+--- NPC heading: the point's own heading when it has one, else facing the first spawn point.
+local function pedHeading(loc, point, coords)
+  local h = tonumber(point.heading) or (type(point.coords) == 'table' and tonumber(point.coords.w)) or nil
+  if h then return h % 360.0 end
+  local spawn = type(loc.spawnPoints) == 'table' and NZ.Utils.v3(loc.spawnPoints[1]) or nil
+  if spawn then
+    local dx, dy = spawn.x - coords.x, spawn.y - coords.y
+    if dx * dx + dy * dy > 0.01 then return (math.deg(math.atan(dy, dx)) - 90.0) % 360.0 end
+  end
+  return 0.0
 end
 
 ---------------------------------------------------------------------------------------
@@ -425,7 +688,9 @@ end
 
 local function addRecord(rec, drawMarkers)
   local markerDistance = drawMarkers and (tonumber(Config.Interaction.markerDistance) or 15.0) or 0.0
-  local distance = math.max(rec.radius or 0.0, rec.store and rec.storeRadius or 0.0, markerDistance) + 0.5
+  -- target store zones join `near` a little earlier: vehicles are targeted from a few metres
+  local storeReach = rec.store and (rec.storeRadius + (rec.targetStore and TARGET_REACH or 0.0)) or 0.0
+  local distance = math.max(rec.radius or 0.0, storeReach, markerDistance) + 0.5
   records[#records + 1] = rec
   pointObjs[#pointObjs + 1] = lib.points.new({
     coords = rec.coords,
@@ -437,12 +702,16 @@ local function addRecord(rec, drawMarkers)
   })
 end
 
-local function addLocation(loc, useTarget, showBlips, drawMarkers)
+--- ctx = { globalMode, targetOk, drawMarkers, peds = {} (NPC specs for NZ.Peds.sync) }
+local function addLocation(loc, ctx, showBlips)
   if not Points.isVisible(loc) then return end
-  local openAction, openLabel, icon = openActionFor(loc)
+  local openAction, openLabel = openActionFor(loc)
   local storable = canStoreAt(loc)
   if not openAction and not storable then return end
 
+  local mode = modeFor(loc, ctx.globalMode, ctx.targetOk)
+  local useTarget = mode ~= 'prompt'
+  local ped = useTarget and pedConfig(loc) or nil
   local defaultOpen = tonumber(Config.Interaction.openRadius) or 2.0
   local defaultStore = tonumber(Config.Interaction.storeRadius) or 4.0
   local useOpenForStore = loc.useOpenForStore ~= false
@@ -462,44 +731,52 @@ local function addLocation(loc, useTarget, showBlips, drawMarkers)
           store = storable and useOpenForStore,
           storeRadius = math.max(radius, defaultStore),
         }
-        if openAction and useTarget then
-          local zoneId = ('nz_open_%s_%d'):format(tostring(loc.id), i)
-          local ok, err = pcall(NZ.Target.addSphere, zoneId, coords, radius, {
-            {
-              label = openLabel,
-              icon = icon,
-              onSelect = function()
-                if targetCanInteract() then perform(openAction, loc) end
-              end,
-              canInteract = function()
-                return targetCanInteract()
-              end,
-            },
-          })
-          if ok then
-            rec.targeted = true
-            targetZones[#targetZones + 1] = zoneId
+        rec.targetStore = useTarget and rec.store
+        if useTarget then
+          local options = pointOptions(loc, rec)
+          local handled
+          if ped and i == 1 and #options > 0 then
+            -- the NPC carries the options of the first open point (NZ.Peds falls back to a
+            -- sphere zone when its model cannot be loaded)
+            rec.hasPed = true
+            ctx.peds[#ctx.peds + 1] = {
+              id = tostring(loc.id),
+              coords = coords,
+              heading = pedHeading(loc, p, coords),
+              model = ped.model,
+              scenario = type(ped.scenario) == 'string' and ped.scenario or '',
+              radius = radius,
+              options = options,
+            }
+            handled = true
           else
-            lib.print.warn(('[nayzeee-garages] target zone failed: %s'):format(err))
+            handled = addZone(('nz_open_%s_%d'):format(tostring(loc.id), i), coords, radius, options)
           end
+          -- 'target' replaces the on-foot prompt; drivers still park with the key prompt
+          rec.targeted = handled and mode == 'target' and rec.open
         end
-        if rec.open or rec.store then addRecord(rec, drawMarkers) end
+        if rec.open or rec.store then addRecord(rec, ctx.drawMarkers) end
       end
     end
   end
 
   if storable and not useOpenForStore and type(loc.storePoints) == 'table' then
-    for _, p in ipairs(loc.storePoints) do
+    for i, p in ipairs(loc.storePoints) do
       local coords = type(p) == 'table' and NZ.Utils.toVec3(p.coords)
       if coords then
-        addRecord({
+        local rec = {
           location = loc,
           coords = coords,
           open = false,
           radius = 0.0,
           store = true,
           storeRadius = tonumber(p.radius) or defaultStore,
-        }, drawMarkers)
+          targetStore = useTarget,
+        }
+        if useTarget then
+          addZone(('nz_store_%s_%d'):format(tostring(loc.id), i), coords, rec.storeRadius, { storeOption(rec) })
+        end
+        addRecord(rec, ctx.drawMarkers)
       end
     end
   end
@@ -507,8 +784,8 @@ local function addLocation(loc, useTarget, showBlips, drawMarkers)
   if showBlips and loc.kind ~= 'house' then addBlip(loc) end
 end
 
---- Remove every point, target zone and blip and hide the prompt.
-function Points.clear()
+--- Remove points, target zones and blips (NPCs are kept: rebuild hands them to NZ.Peds.sync).
+local function clearPoints()
   for i = 1, #pointObjs do
     pcall(pointObjs[i].remove, pointObjs[i])
   end
@@ -517,6 +794,7 @@ function Points.clear()
   records = {}
   near = {}
   nearCount = 0
+  nearStores = {}
   for i = 1, #targetZones do
     pcall(NZ.Target.remove, targetZones[i])
   end
@@ -528,24 +806,41 @@ function Points.clear()
   setActive(nil)
 end
 
---- (Re)create lib.points, target zones, markers and blips from NZ.State.
+--- Remove every point, target zone, NPC and blip and hide the prompt.
+function Points.clear()
+  clearPoints()
+  if type(NZ.Peds.clear) == 'function' then
+    local ok, err = pcall(NZ.Peds.clear)
+    if not ok then lib.print.error(('[nayzeee-garages] could not remove garage NPCs: %s'):format(err)) end
+  end
+end
+
+--- (Re)create lib.points, target zones, NPCs, markers and blips from NZ.State.
 function Points.rebuild()
-  Points.clear()
+  clearPoints()
   ensureKeybind()
   local iface = interfaceSettings()
   parseAccent(iface.accent)
-  local useTarget = iface.interaction == 'target' and type(NZ.Target.available) == 'function'
-    and NZ.Target.available() == true
+  local ctx = {
+    globalMode = iface.interaction,
+    targetOk = type(NZ.Target.available) == 'function' and NZ.Target.available() == true,
+    drawMarkers = Config.Interaction.drawMarkers == true,
+    peds = {},
+  }
   local showBlips = garageSettings().showBlips ~= false
-  local drawMarkers = Config.Interaction.drawMarkers == true
 
   for _, loc in pairs(NZ.State.locations or {}) do
-    addLocation(loc, useTarget, showBlips, drawMarkers)
+    addLocation(loc, ctx, showBlips)
   end
   for _, loc in pairs(NZ.State.houses or {}) do
-    addLocation(loc, useTarget, false, drawMarkers)
+    addLocation(loc, ctx, false)
   end
-  NZ.Utils.debug(('points rebuilt: %d interaction points, %d blips'):format(#records, #blips))
+  if type(NZ.Peds.sync) == 'function' then
+    local ok, err = pcall(NZ.Peds.sync, ctx.peds)
+    if not ok then lib.print.error(('[nayzeee-garages] garage NPCs failed: %s'):format(err)) end
+  end
+  NZ.Utils.debug(('points rebuilt: %d interaction points, %d target zones, %d NPCs, %d blips'):format(
+    #records, #targetZones, #ctx.peds, #blips))
 end
 
 --- The action currently offered by the prompt: { action, location } or nil.
@@ -572,6 +867,60 @@ function Points.nearestLocation(filter, maxDist)
   end
   return best
 end
+
+---------------------------------------------------------------------------------------
+-- Global "Store vehicle" vehicle option (registered in client/impound.lua)
+---------------------------------------------------------------------------------------
+
+local vehicleCheck = { entity = nil, at = -100000, rec = nil }
+
+--- Cheap canInteract for the vehicle option: true when `vehicle` stands in a store zone of a
+--- target / both mode garage this player can use. Only looks at the store zones near the
+--- player (none nearby = one table length check).
+---@param vehicle number
+---@return boolean
+function Points.canStoreVehicle(vehicle)
+  if #nearStores == 0 then return false end
+  if not NZ.State.ready or acting or insideInterior() or NZ.NUI.isOpen() or Points.incapacitated() then return false end
+  local now = GetGameTimer()
+  if vehicleCheck.entity ~= vehicle or now - vehicleCheck.at >= CANDIDATE_TTL then
+    vehicleCheck = { entity = vehicle, at = now, rec = storeRecordFor(vehicle) }
+  end
+  return vehicleCheck.rec ~= nil
+end
+
+--- Park the targeted vehicle at the garage whose store zone holds it (the player gets in
+--- first when on foot).
+---@param vehicle number
+---@return boolean started
+function Points.storeVehicle(vehicle)
+  if acting or not NZ.State.ready or Points.incapacitated() then return false end
+  local rec = storeRecordFor(vehicle)
+  if not rec then
+    NZ.NUI.notify('error', L('Park the vehicle in a garage parking zone first'))
+    return false
+  end
+  perform('storeEntity', rec.location, vehicle)
+  return true
+end
+
+-- A target resource started or stopped: rebuild so target-mode locations switch between
+-- third-eye and the prompt fallback (the bridge only re-creates what already exists).
+local targetRebuildQueued = false
+local function onTargetResource(resource)
+  if (resource ~= 'ox_target' and resource ~= 'qb-target') or targetRebuildQueued then return end
+  targetRebuildQueued = true
+  SetTimeout(1000, function()
+    targetRebuildQueued = false
+    if not NZ.State.ready then return end
+    local ok, err = pcall(Points.rebuild)
+    if not ok then lib.print.error(('[nayzeee-garages] points rebuild failed: %s'):format(err)) end
+    -- global vehicle options when the target resource was not running at boot (idempotent)
+    if type(NZ.ImpoundClient.setupTarget) == 'function' then pcall(NZ.ImpoundClient.setupTarget) end
+  end)
+end
+AddEventHandler('onClientResourceStart', onTargetResource)
+AddEventHandler('onClientResourceStop', onTargetResource)
 
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= NZ.ResourceName then return end

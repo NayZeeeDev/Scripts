@@ -1,7 +1,8 @@
 --[[
   nayzeee-garages — impound client (NZ.ImpoundClient).
   Impound menu (owner retrieval / staff view), the impound form for the closest vehicle,
-  the "Impound vehicle" target option for impound staff and the impound exports (§7.4).
+  the global vehicle target options ("Impound vehicle" for impound staff, "Store vehicle" in
+  the store zones of target-mode garages, see NZ.Points) and the impound exports (§7.4).
 ]]
 
 local Impound = NZ.ImpoundClient
@@ -10,7 +11,9 @@ local ctx = nil              -- { locationId, location, data } of the last opene
 local opening = false
 local formBusy = false
 local targetOptionId = 'nz_impound_vehicle'
+local storeOptionId = 'nz_store_vehicle'
 local targetAdded = false
+local storeTargetAdded = false
 local staffCache = { at = -10000, value = false }
 
 ---------------------------------------------------------------------------------------
@@ -184,11 +187,40 @@ function Impound.openForm(vehicle)
   return res == true
 end
 
---- Register the "Impound vehicle" target option (once, when a target resource exists).
+local function targetEntity(arg)
+  local entity = type(arg) == 'table' and arg.entity or arg
+  if type(entity) ~= 'number' or entity == 0 or not DoesEntityExist(entity) then return nil end
+  return entity
+end
+
+--- "Store vehicle" on vehicles parked in the store zone of a garage that uses target
+--- interaction (NZ.Points keeps the nearby zones, so the check is cheap).
+local function setupStoreTarget()
+  if storeTargetAdded then return end
+  local ok, res = pcall(NZ.Target.addVehicleOption, storeOptionId, {
+    label = L('Store vehicle'),
+    icon = 'fas fa-square-parking',
+    onSelect = function(arg)
+      local entity = targetEntity(arg)
+      if entity then NZ.Points.storeVehicle(entity) end
+    end,
+    canInteract = function(entity)
+      return NZ.State.ready == true and NZ.Points.canStoreVehicle(entity)
+    end,
+  })
+  if ok and res == true then
+    storeTargetAdded = true
+  elseif not ok then
+    lib.print.warn(('[nayzeee-garages] store target option failed: %s'):format(res))
+  end
+end
+
+--- Register the global vehicle target options (once, when a target resource exists).
 function Impound.setupTarget()
-  if targetAdded then return end
   if type(NZ.Target.available) ~= 'function' or not NZ.Target.available() then return end
-  local ok, err = pcall(NZ.Target.addVehicleOption, targetOptionId, {
+  setupStoreTarget()
+  if targetAdded then return end
+  local ok, res = pcall(NZ.Target.addVehicleOption, targetOptionId, {
     label = L('Impound vehicle'),
     icon = 'fas fa-truck-pickup',
     onSelect = function(arg)
@@ -200,10 +232,10 @@ function Impound.setupTarget()
       return NZ.State.ready == true and Impound.isStaff()
     end,
   })
-  if ok then
+  if ok and res == true then
     targetAdded = true
-  else
-    lib.print.warn(('[nayzeee-garages] impound target option failed: %s'):format(err))
+  elseif not ok then
+    lib.print.warn(('[nayzeee-garages] impound target option failed: %s'):format(res))
   end
 end
 
@@ -263,6 +295,7 @@ exports('OpenImpoundForm', function()
 end)
 
 AddEventHandler('onResourceStop', function(resource)
-  if resource ~= NZ.ResourceName or not targetAdded then return end
-  pcall(NZ.Target.remove, targetOptionId)
+  if resource ~= NZ.ResourceName then return end
+  if targetAdded then pcall(NZ.Target.remove, targetOptionId) end
+  if storeTargetAdded then pcall(NZ.Target.remove, storeOptionId) end
 end)

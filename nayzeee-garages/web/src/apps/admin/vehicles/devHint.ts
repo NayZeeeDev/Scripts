@@ -15,6 +15,8 @@ export interface AdminBDevHint {
   plate?: string;
   /** PlayerVehiclesPage: open the props editor on the detail. */
   props?: boolean;
+  /** PlayerVehiclesPage: initial dossier tab ('overview', 'condition', 'upgrades', 'finance', 'history', 'activity', 'data'). */
+  dossierTab?: string;
   /** InteriorsPage: open the create modal. */
   create?: boolean;
   /** SettingsPage: initial tab. */

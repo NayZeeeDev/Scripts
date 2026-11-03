@@ -570,6 +570,158 @@ else
     callHandlers(ev, {})
   end
   runThreads(100)
+
+  -- Interaction flow with a target resource running (ox_target, then qb-target): prompt /
+  -- target / both locations, a location NPC (entity options), the fallback zone of an unknown
+  -- NPC model, the global vehicle options and the NPC removal when its location changes.
+  local function targetFlow(resource)
+    local target = { zones = {}, entities = {}, vehicles = {}, removedEntities = 0 }
+    local live = { [777] = true }
+    local saved = {
+      GetResourceState = GetResourceState, DoesEntityExist = DoesEntityExist, newPoint = lib.points.new,
+      closest = lib.getClosestVehicle,
+    }
+    local points = {}
+    local function fail(msg) report('target flow ' .. resource, msg) end
+    local function run(label, fn, ...)
+      local ok, err = xpcall(fn, debug.traceback, ...)
+      if not ok then fail(label .. ': ' .. tostring(err)) end
+      return ok and err
+    end
+    GetResourceState = function(name) if name == resource then return 'started' end return saved.GetResourceState(name) end
+    DoesEntityExist = function(e) return live[e] == true end
+    IsModelInCdimage = function(hash) return hash ~= joaat('not_a_ped') end
+    IsModelAPed = function() return true end
+    HasModelLoaded = function() return true end
+    local nextPed = 500
+    CreatePed = function() nextPed = nextPed + 1 live[nextPed] = true return nextPed end
+    DeleteEntity = function(e) live[e] = nil end
+    GetEntityType = function(e) return e == 777 and 2 or 1 end
+    GetPedInVehicleSeat = function() return 0 end
+    lib.points.new = function(o)
+      local p = saved.newPoint(o)
+      points[#points + 1] = p
+      return p
+    end
+    lib.getClosestVehicle = function() return 777, vector3(0, 0, 0) end
+    if resource == 'ox_target' then
+      exportTables[resource] = {
+        addSphereZone = function(o) target.zones[o.name] = o.options return o.name end,
+        removeZone = function(name) target.zones[name] = nil end,
+        addLocalEntity = function(e, options) target.entities[e] = options end,
+        removeLocalEntity = function(e) target.entities[e] = nil target.removedEntities = target.removedEntities + 1 end,
+        addGlobalVehicle = function(options) for _, o in ipairs(options) do target.vehicles[o.label] = o end end,
+        removeGlobalVehicle = function(names) for _, n in ipairs(names) do for k, o in pairs(target.vehicles) do if o.name == n then target.vehicles[k] = nil end end end end,
+      }
+    else
+      exportTables[resource] = {
+        AddCircleZone = function(name, _, _, _, opts) target.zones[name] = opts.options end,
+        RemoveZone = function(name) target.zones[name] = nil end,
+        AddTargetEntity = function(e, opts) target.entities[e] = opts.options end,
+        RemoveTargetEntity = function(e) target.entities[e] = nil target.removedEntities = target.removedEntities + 1 end,
+        AddGlobalVehicle = function(opts) for _, o in ipairs(opts.options) do target.vehicles[o.label] = o end end,
+        RemoveGlobalVehicle = function(label) target.vehicles[label] = nil end,
+      }
+    end
+
+    local function view(id, kind, extra)
+      local v = { id = id, kind = kind, name = 'Flow ' .. id, vehicleType = 'car', enabled = true,
+        openPoints = { { coords = { x = 0.0, y = 0.0, z = 1.0 }, radius = 2.0 } }, storePoints = {}, useOpenForStore = true,
+        spawnPoints = { { x = 4.0, y = 4.0, z = 0.0, w = 90.0 } }, blip = { enabled = false }, access = { mode = 'quick' } }
+      for k, val in pairs(extra or {}) do v[k] = val end
+      return v
+    end
+    local settings = NZ.Utils.deepCopy(Config.DefaultSettings)
+    settings.interface.interaction = 'prompt'
+    NZ.State.settings = settings
+    NZ.State.job = { name = 'police', grade = 2 }
+    NZ.State.groups = {}
+    NZ.State.locations = {
+      [1] = view(1, 'garage', { access = { mode = 'both', interiorId = 1 },
+        interaction = { mode = 'target', ped = { model = 's_m_y_valet_01', scenario = 'WORLD_HUMAN_CLIPBOARD' } } }),
+      [2] = view(2, 'private', { purchasable = true, interaction = { mode = 'both' } }),
+      [3] = view(3, 'impound', { jobs = { { name = 'police', minGrade = 0 } },
+        interaction = { mode = 'target', ped = { model = 'not_a_ped', scenario = '' } } }),
+      [4] = view(4, 'job', { owner = 'job', jobs = { { name = 'police', minGrade = 0 } }, vehicleType = 'air',
+        useOpenForStore = false, storePoints = { { coords = { x = 1.0, y = 0.0, z = 0.0 }, radius = 4.0 } },
+        interaction = { mode = 'both' } }),
+      [5] = view(5, 'garage'),   -- follows the global setting ('prompt')
+    }
+    NZ.State.ready = true
+
+    if resource == 'qb-target' then
+      -- switching target resource: the bridge re-creates the global vehicle options there
+      callHandlers('onClientResourceStart', resource)
+      runThreads(20)
+    end
+    run('setupTarget', NZ.ImpoundClient.setupTarget)
+    run('rebuild', NZ.Points.rebuild)
+    for _, p in ipairs(points) do if p.onEnter then run('onEnter', p.onEnter, p) end end
+    runThreads(80)
+
+    local zoneCount, entityCount, labels = 0, 0, {}
+    for _, options in pairs(target.zones) do
+      zoneCount = zoneCount + 1
+      for _, o in ipairs(options) do labels[o.label] = true end
+    end
+    for _, options in pairs(target.entities) do
+      entityCount = entityCount + 1
+      for _, o in ipairs(options) do labels[o.label] = true end
+    end
+    if entityCount ~= 1 then fail(('expected 1 NPC with options, got %d'):format(entityCount)) end
+    if nextPed ~= 501 then fail(('expected 1 NPC to be created, got %d'):format(nextPed - 500)) end
+    -- private (both) + impound fallback zone + job open point + job store point; garage 5 has none
+    if zoneCount ~= 4 then fail(('expected 4 target zones, got %d'):format(zoneCount)) end
+    for _, label in ipairs({ 'Open garage', 'Enter interior', 'Store vehicle', 'View garage for sale', 'Open impound', 'Open hangar' }) do
+      if not labels[label] then fail('missing target option "' .. label .. '"') end
+    end
+    local storeVehicle = target.vehicles['Store vehicle']
+    if not storeVehicle then fail('global "Store vehicle" option missing') end
+    if not target.vehicles['Impound vehicle'] then fail('global "Impound vehicle" option missing') end
+
+    -- every option: canInteract + select, in the resource's own call shapes
+    local function select(o, entity)
+      if resource == 'ox_target' then return o.onSelect({ entity = entity, coords = vector3(0, 0, 0), distance = 1.0 }) end
+      return o.action(entity)
+    end
+    local function exercise(options)
+      for _, o in ipairs(options) do
+        run('canInteract ' .. o.label, o.canInteract, 0, 1.0, vector3(0, 0, 0))
+        run('select ' .. o.label, select, o, 0)
+        runThreads(30)
+      end
+    end
+    for _, options in pairs(target.zones) do exercise(options) end
+    for _, options in pairs(target.entities) do exercise(options) end
+    if storeVehicle then
+      if run('vehicle canInteract', storeVehicle.canInteract, 777, 1.0, vector3(0, 0, 0)) ~= true then
+        fail('"Store vehicle" hidden on a vehicle inside a target store zone')
+      end
+      run('vehicle select', select, storeVehicle, 777)
+      runThreads(150)
+    end
+
+    -- the NPC goes away when its location drops the NPC, and with Points.clear()
+    NZ.State.locations[1].interaction = { mode = 'target' }
+    run('rebuild without NPC', NZ.Points.rebuild)
+    runThreads(20)
+    if next(target.entities) ~= nil or target.removedEntities < 1 then fail('NPC options not removed after the location changed') end
+    for e in pairs(live) do
+      if e > 500 and e <= nextPed then fail(('NPC %d still exists after the location changed'):format(e)) end
+    end
+    run('clear', NZ.Points.clear)
+    if next(target.zones) ~= nil then fail('target zones left after Points.clear()') end
+
+    GetResourceState, DoesEntityExist, lib.points.new, lib.getClosestVehicle =
+      saved.GetResourceState, saved.DoesEntityExist, saved.newPoint, saved.closest
+    IsModelInCdimage, IsModelAPed, HasModelLoaded, CreatePed, DeleteEntity, GetEntityType, GetPedInVehicleSeat =
+      nil, nil, nil, nil, nil, nil, nil
+    exportTables[resource] = nil
+    NZ.State.ready = false
+    runThreads(50)
+  end
+  targetFlow('ox_target')
+  targetFlow('qb-target')
   print(('client: %d NUI callbacks registered'):format(#names))
 end
 
