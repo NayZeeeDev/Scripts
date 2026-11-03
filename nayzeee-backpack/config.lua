@@ -51,7 +51,7 @@ Config.Vehicle = {
     back        = -0.10,             -- Push it back against the seat back (m)
 }
 
--- Who counts as an admin for the studio (/bagtune), live storage edits and /bagitems.
+-- Who counts as an admin for the studio (/bagstudio), live storage edits and /bagitems.
 -- Either the ACE below, or one of the framework groups.
 Config.Admin = {
     ace    = 'nayzeee.backpack', -- add_ace group.admin nayzeee.backpack allow
@@ -66,7 +66,7 @@ Config.Admin = {
 -- ╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 
 -- Fallback storage for any bag that doesn't set its own slots/weight.
--- Admins can also change slots/weight per bag live from /bagtune > Look;
+-- Admins can also change slots/weight per bag live from /bagstudio > Look;
 -- those edits are saved to data/overrides.json and win over this file.
 Config.Storage = {
     slots  = 8,     -- Number of inventory slots
@@ -82,7 +82,7 @@ Config.Storage = {
 
 -- Where the prop sits on the player's back.
 -- Bags built from the same clothing base share this pivot, so most need nothing here.
--- Use the studio (/bagtune) to fit a bag, then hit Save (or Copy).
+-- Use the studio (/bagstudio) to fit a bag, then hit Save (or Copy).
 Config.DefaultOffset = {
     bone = 24818, -- SKEL_Spine3 (upper back)
     pos  = { x = -0.270, y = 0.010, z = -0.020 }, -- Position offset from the bone
@@ -121,22 +121,19 @@ Config.Carry = {
     letPlayersPick = true,
 
     -- 'carry' is GTA's own one-handed carry (the jerrycan / briefcase hold):
-    -- the arm hangs naturally and the walk stays clean. The others are the
-    -- custom photo poses; they look great standing still but stiffen the
-    -- upper body while walking, so they're opt-in from the pose menu.
+    -- the arm hangs naturally and the walk stays clean.
+    --
+    -- Your own poses: drop the .ycd in nayzeee-backpack-props/stream/anims/ and
+    -- add a line with its dict / clip names. With more than one pose, players
+    -- get a Pose option in the bag menu to pick from them.
+    --   { key = 'mypose', label = 'My pose', dict = 'my@pose_dict', clip = 'my_pose_clip' },
     Poses = {
-        { key = 'carry',    label = 'Carry',                dict = 'move_weapon@jerrycan@generic',     clip = 'idle' },
-        { key = 'withbag1', label = 'Classic (custom)',     dict = 'clementine@withyourbag01',         clip = 'withyourbag01_clip' },
-        { key = 'withbag2', label = 'Arm crook (custom)',   dict = 'clementine@withyourbag02',         clip = 'withyourbag02_clip' },
-        { key = 'withbag3', label = 'Hip hold (custom)',    dict = 'clementine@withyourbag03',         clip = 'withyourbag03_clip' },
-        { key = 'withbag4', label = 'Shoulder (custom)',    dict = 'clementine@withyourbag04',         clip = 'withyourbag04_clip' },
-        { key = 'withbag5', label = 'Clutch (custom)',      dict = 'clementine@withyourbag05',         clip = 'withyourbag05_clip' },
-        { key = 'model1',   label = 'Runway (custom)',      dict = 'f_modelpose_withbag_1@avenelanim', clip = 'f_modelpose_withbag_1_clip' },
+        { key = 'carry', label = 'Carry', dict = 'move_weapon@jerrycan@generic', clip = 'idle' },
     },
 
     -- A style = which pose plays + a starting offset.
     -- Every purse model has its own pivot, so fit each one once:
-    -- /bagtune > pick the purse (its pose starts by itself) > Carry preset
+    -- /bagstudio > pick the purse (its pose starts by itself) > Carry preset
     -- "Right hand" > nudge / rotate > Save fit. That saved fit is what everyone sees.
     Styles = {
         purse = {
@@ -153,15 +150,6 @@ Config.Carry = {
             pose  = 'carry',
             offset = {
                 bone = 60309, -- PH_L_Hand
-                pos  = { x = 0.000, y = 0.000, z = 0.000 },
-                rot  = { x = 0.0,   y = 0.0,   z = 0.0 },
-            },
-        },
-        forearm = {
-            label = 'On the forearm',
-            pose  = 'withbag2',
-            offset = {
-                bone = 28252, -- SKEL_R_Forearm
                 pos  = { x = 0.000, y = 0.000, z = 0.000 },
                 rot  = { x = 0.0,   y = 0.0,   z = 0.0 },
             },
@@ -823,10 +811,10 @@ Config.OutfitBag = {
 -- The in-game backpack studio. Admin only (see Config.Admin).
 Config.Studio = {
     enabled = true,
-    command = 'bagtune',
+    command = 'bagstudio',
 }
 
--- Icon studio (/bagtune > Icon). Works like uz_AutoShot, built for bags:
+-- Icon studio (/bagstudio > Icon). Works like uz_AutoShot, built for bags:
 -- the prop is lit inside a chroma box, the background is keyed out in the
 -- browser, the image is trimmed + centred and saved as a transparent PNG.
 -- Needs screenshot-basic. No yarn / node modules required.
@@ -871,8 +859,8 @@ Config.IconCapture = {
 -- price    = shop price, leave nil to keep a bag out of the store
 -- slots    = optional, overrides Config.Storage.slots
 -- weight   = optional, overrides Config.Storage.weight
--- offset   = optional, overrides Config.DefaultOffset (use /bagtune to get these)
--- carry    = optional, a Config.Carry.Styles key ('purse', 'forearm' ...)
+-- offset   = optional, overrides Config.DefaultOffset (use /bagstudio to get these)
+-- carry    = optional, a Config.Carry.Styles key ('purse', 'purse_left', 'duffel')
 -- pose     = optional, default pose key for this bag (Config.Carry.Poses)
 -- loose    = optional, true when every model also has a '<model>_loose' twin with the
 --            shoulder straps lying flat: shown whenever the bag isn't on a back
@@ -1082,7 +1070,7 @@ Config.Backpacks = {
 
     -- CONVERTED FROM CLOTHING -------------------------------------------
     -- Converted from clothing to props. Every colour is its own small texture
-    -- pack sharing one model. Fit them once with /bagtune: purses use
+    -- pack sharing one model. Fit them once with /bagstudio: purses use
     -- Carry preset > Right hand, worn bags look right on the default fit.
 
     ['nayzeee_purse_fluffy'] = {
@@ -1294,7 +1282,7 @@ Config.Backpacks = {
 
     -- NAYZEEE ORIGINALS ----------------------------------------------------
     -- Built from code (nayzeee-backpack-props/tools/bagforge). Each pivots on
-    -- the handle grip, so the purse hold starts close; fine-tune with /bagtune.
+    -- the handle grip, so the purse hold starts close; fine-tune with /bagstudio.
 
     ['nayzeee_bag_barrel'] = {
         label    = 'Barrel Bag',
@@ -1407,7 +1395,7 @@ Config.Backpacks = {
         },
     },
     -- Street backpacks (bagforge): built to sit where the converted backpacks do,
-    -- so they start on the default fit (nudge with /bagtune if needed). Worn, the
+    -- so they start on the default fit (nudge with /bagstudio if needed). Worn, the
     -- straps wrap round the shoulders; set down, handed over, on a car seat or in
     -- the shop they show their '_loose' twin with the straps lying flat.
 

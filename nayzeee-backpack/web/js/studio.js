@@ -1,4 +1,4 @@
-/* Backpack studio UI (/bagtune) */
+/* Backpack studio UI (/bagstudio) */
 (function () {
   const $ = (id) => document.getElementById(id);
   const post = (name, data) => fetch(`https://${GetParentResourceName()}/${name}`, {

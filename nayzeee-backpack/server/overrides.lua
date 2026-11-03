@@ -1,7 +1,7 @@
 -----------------------------------------------------------------
 -- Live bag overrides
 --
--- What admins change in /bagtune (offsets, slots, weight, price,
+-- What admins change in /bagstudio (offsets, slots, weight, price,
 -- carry style) is saved to data/overrides.json and pushed to every
 -- client through GlobalState. It survives restarts and wins over
 -- config.lua, so nobody has to copy-paste offsets by hand any more.

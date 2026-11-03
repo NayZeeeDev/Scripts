@@ -1,5 +1,5 @@
 -----------------------------------------------------------------
--- Icon studio  (/bagtune > Icon)
+-- Icon studio  (/bagstudio > Icon)
 --
 -- Built the way uz_AutoShot does clothing, but for bag props:
 --   * the bag floats inside a flat chroma box, lit by studio lights,

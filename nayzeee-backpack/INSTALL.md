@@ -1,4 +1,4 @@
-# nayzeee-backpack — install & guide
+# nayzeee-backpack 1.0.0 — install & guide
 
 ## 1. Dependencies
 
@@ -101,7 +101,7 @@ Run `install.sql` if `Config.Placement.persist = true`.
 1. Drop the `.ydr / .ytd / .ytyp` in a new folder in `nayzeee-backpack-props/stream/`.
 2. Add an entry to `Config.Backpacks` (purses: `category = 'pocketbook'`, `carry = 'purse'`).
 3. `/bagitems` → paste the item into ox_inventory.
-4. `/bagtune` → pick the bag → **Carry preset** → nudge → **Save fit to server**.
+4. `/bagstudio` → pick the bag → **Carry preset** → nudge → **Save fit to server**.
 5. **Icon** tab → Enter icon studio → **This bag**. Done.
 
 No copy-pasting offsets: Save writes to `data/overrides.json`, which every
@@ -115,10 +115,10 @@ Clothing bags (`.ydd` + a `.ytd` per colour) get converted to props first:
 `nayzeee-backpack-props/tools/convert_bag.sh` (see the props README). Each
 colour becomes its own small texture pack sharing one model, listed as
 `variants` in `Config.Backpacks`. After converting, fit purses once in
-`/bagtune` (**Carry preset → Right hand**, nudge, **Save**). Bags worn on the
+`/bagstudio` (**Carry preset → Right hand**, nudge, **Save**). Bags worn on the
 body sit where the clothing did on the default fit.
 
-## The studio — `/bagtune` (admin)
+## The studio — `/bagstudio` (admin)
 
 ### Fit
 - **Carry preset** — Back, Low back, Chest, hips, shoulders, hands, forearms.
@@ -173,15 +173,15 @@ arm holds the bag instead of letting it swing. It pauses automatically in
 vehicles, swimming, climbing, ragdoll, with a weapon out, during progress bars
 and while another script (emotes) is animating, then comes back by itself.
 
-The default pose is **Carry**, GTA's own one-handed carry (the jerrycan /
-briefcase hold), so the arm hangs naturally and the walk stays clean. The
-custom photo poses are still in the list as *(custom)*; they look great
-standing still but stiffen the upper body while walking.
+The pose is **Carry**, GTA's own one-handed carry (the jerrycan / briefcase
+hold), so the arm hangs naturally and the walk stays clean.
 
-Players can pick their pose from the bag menu (**Change pose**), saved on the
-item. `Config.Carry.walkStyle` optionally sets a walk style while carrying.
+Your own poses: drop the `.ycd` in `nayzeee-backpack-props/stream/anims/` and
+add it to `Config.Carry.Poses` (dict + clip). With more than one pose, players
+get a **Pose** option in the bag menu to pick theirs, saved on the item.
+`Config.Carry.walkStyle` optionally sets a walk style while carrying.
 
-**Fitting a purse:** `/bagtune` → pick the purse (its carry pose starts by
+**Fitting a purse:** `/bagstudio` → pick the purse (its carry pose starts by
 itself) → Carry preset **Right hand** → nudge / rotate → **Save fit**. Every
 purse model has its own pivot, so each one needs this once; after that the
 saved fit is what everyone sees.
@@ -426,7 +426,7 @@ exports['nayzeee-backpack']:GiveBag(src, key, variant)
 
 | Command | Who | |
 |---|---|---|
-| `/bagtune` | admin | studio |
+| `/bagstudio` | admin | studio |
 | `/bagitems` | admin / console | print missing ox_inventory items |
 | `/givebag id bag [variant]` | admin / console | give a bag |
 | `/bagmenu` `/openbag` `/placebag` `/bagnearby` | everyone | bindable in key settings (defaults: `Config.Keybinds`) |

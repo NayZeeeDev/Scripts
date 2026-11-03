@@ -1,4 +1,5 @@
-# Licensed poses: one copy per server, never commit them publicly
+# Animations ship in the zip; poses you buy are often licensed one copy per
+# server, so keep them out of public repos
 stream/**/*.ycd
 
 # Bag models are large; they ship in the zip

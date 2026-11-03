@@ -13,9 +13,7 @@ stream/
 ├─ ... one folder per bag ...
 ├─ duffel/                      BzZz open duffels (renamed, never escrowed)
 └─ anims/
-   ├─ nayzeee_grab_cash_01.ycd  BzZz cash grab (renamed, never escrowed)
-   ├─ clementine@withyourbag01.ycd … 05.ycd
-   └─ f_modelpose_withbag_1@avenelanim.ycd
+   └─ nayzeee_grab_cash_01.ycd  BzZz cash grab (renamed, never escrowed)
 ```
 
 ## Adding a bag
@@ -71,16 +69,10 @@ in `Config.Backpacks`).
 
 ## Poses
 
-`.ycd` files anywhere in `stream/` just work. The dict / clip names are set in
-`Config.Carry.Poses`:
-
-| dict | clip |
-|---|---|
-| `clementine@withyourbag01` … `05` | `withyourbag01_clip` … `05` |
-| `f_modelpose_withbag_1@avenelanim` | `f_modelpose_withbag_1_clip` |
-
-The Clementine poses are licensed one copy per server: don't commit them to a
-public repo.
+Purses use GTA's own one-handed carry, so no pose files are needed. To add
+your own carry poses, put the `.ycd` files in `anims/` (anything in `stream/`
+works) and add each one's dict / clip names to `Config.Carry.Poses` in
+nayzeee-backpack.
 
 ## BzZz duffels
 

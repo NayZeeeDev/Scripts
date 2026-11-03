@@ -1,1 +1,1 @@
-The icon studio (/bagtune > Icon) writes transparent PNGs here.
+The icon studio (/bagstudio > Icon) writes transparent PNGs here.

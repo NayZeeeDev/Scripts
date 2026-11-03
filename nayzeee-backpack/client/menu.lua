@@ -73,8 +73,9 @@ function OpenBackpackMenu(bagKey)
         }
     end
 
+    -- only worth a menu when there's more than one pose to pick from
     if Config.Carry and Config.Carry.enabled and Config.Carry.letPlayersPick
-       and not stowed and Bags.carryStyle(bagKey) then
+       and #(Config.Carry.Poses or {}) > 1 and not stowed and Bags.carryStyle(bagKey) then
         local pose = Bags.poseFor(bagKey, worn().pose)
         options[#options + 1] = {
             title = P.pose,

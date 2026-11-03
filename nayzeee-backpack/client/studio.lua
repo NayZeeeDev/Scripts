@@ -1,5 +1,5 @@
 -----------------------------------------------------------------
--- Backpack studio  (/bagtune, admin only)
+-- Backpack studio  (/bagstudio, admin only)
 --
 -- FIT    character-relative move + rotate pads, carry presets, the
 --        right bone list, raw values, live pose preview, Save.
@@ -708,8 +708,8 @@ local function openStudio()
     SendNUIMessage({ action = 'studioOpen', data = payload() })
 end
 
-RegisterCommand(Config.Studio.command or 'bagtune', function() openStudio() end, false)
-RegisterKeyMapping(Config.Studio.command or 'bagtune', 'Open backpack studio (admin)', 'keyboard', '')
+RegisterCommand(Config.Studio.command or 'bagstudio', function() openStudio() end, false)
+RegisterKeyMapping(Config.Studio.command or 'bagstudio', 'Open backpack studio (admin)', 'keyboard', '')
 
 AddEventHandler('nayzeee-backpack:overridesChanged', function()
     if open then push() end

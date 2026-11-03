@@ -22,8 +22,8 @@ files {
 -- line per bag instead: data_file 'DLC_ITYP_REQUEST' 'stream/my_bag/my_bag.ytyp')
 data_file 'DLC_ITYP_REQUEST' 'stream/**/*.ytyp'
 
--- Purse poses and the cash grab (.ycd) stream from stream/anims/ with no
--- extra lines.
+-- Animations (.ycd: the cash grab, and any carry poses you add) stream from
+-- stream/anims/ with no extra lines.
 
 dependency '/assetpacks' -- needed once the props are escrowed through Tebex
 
