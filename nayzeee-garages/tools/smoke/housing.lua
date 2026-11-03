@@ -319,8 +319,9 @@ lib.callback = { register = function(name, fn) callbacks[name] = fn end }
 -- Fake exports: exports[resource][name](self, ...)
 local api = {}           -- [resource] = { name = fn(...) }
 local exportCalls = {}   -- ['resource:name'] = count
+local ownExports = {}    -- exports this resource registers (exports(name, fn))
 exports = setmetatable({}, {
-  __call = function() end,
+  __call = function(_, name, fn) ownExports[name] = fn end,
   __index = function(_, resource)
     return setmetatable({}, { __index = function(_, name)
       return function(_, ...)
@@ -377,6 +378,7 @@ local rateBlocked = false
 NZ.Access.rateLimit = function() return not rateBlocked end
 
 load_('server/locations.lua')
+load_('server/exports.lua')
 load_('bridge/server/housing.lua')
 for _, name in ipairs({ 'qb', 'ps', 'qs', 'esx', 'loaf', 'vms', 'bcs', 'tk', 'rtx', 'rx', 'nolag' }) do
   load_('bridge/server/housing/' .. name .. '.lua')
@@ -769,11 +771,23 @@ check(Housing.hasAccess('CID2', 'nolag:21'), 'nolag: live HasKey')
 positions[1] = vec3(9000.0, 9000.0, 10.0)
 advance(2000)
 res = hook(1, 'nolag:22')
-check(res.ok, 'hook: nolag society property for that job')
+check(not res.ok, 'hook: nolag society property refused for a job member without a key (default)')
+convars.nayzeee_housing_nolag_society = '1'
+advance(11000) -- live cache
+res = hook(1, 'nolag:22')
+check(res.ok, 'hook: nolag society property for that job (society convar on)')
 online[3] = 'CID3'
 advance(2000)
 res = hook(3, 'nolag:22')
 check(not res.ok, 'hook: nolag society property refused for another job')
+convars.nayzeee_housing_nolag_society = nil
+local savedNolagHasKey = api.nolag_properties.HasKey
+api.nolag_properties.HasKey = function() error('signature changed') end
+advance(11000)
+check(Housing.hasAccess('CID1', 'nolag:22', 1), 'nolag: job members of a society property when HasKey fails')
+check(not Housing.hasAccess('CID3', 'nolag:22', 3), 'nolag: not other jobs when HasKey fails')
+api.nolag_properties.HasKey = savedNolagHasKey
+advance(11000)
 reloadAll()
 check(viewIds('CID2')['nolag:21'] ~= nil, 'nolag: reload reads GetKeyHolders of known houses')
 
@@ -1073,6 +1087,216 @@ resourceStates.vms_housing = 'started'
 for i = 100, 549 do vmsProps[tostring(i)] = nil end
 advance(11000)
 reloadAll()
+
+---------------------------------------------------------------------------------------
+-- Review round 2: houses missing from a complete read, unowned / rented properties, hook
+-- grants vs cached sets, failing fallback reads, read intervals, deleted nolag properties,
+-- SetHouseAccess list shapes, the store point
+---------------------------------------------------------------------------------------
+
+-- (a) One partial read (vms_housing still loading after a restart) never deletes a hook garage.
+-- (vms:14 keeps the reads non-empty: an empty read has its own guard.)
+vmsProps['14'] = { id = 14, type = 'house', owner = 'CID3', keys = '{}', name = 'VMS Cottage', metadata = '{}' }
+positions[1] = vec3(2010.0, 2005.0, 10.0)
+advance(11000)
+reloadAll()
+check(hook(1, 'vms:12').ok and house('vms:12') ~= nil, 'missing: vms:12 has a hook garage')
+local vmsSpot = kvp['nz_housing:spot:vms:12']
+local saved12 = vmsProps['12']
+vmsProps['12'] = nil
+advance(11000)
+reloadAll()
+check(house('vms:12') ~= nil and kvp['nz_housing:spot:vms:12'] == vmsSpot, 'missing: a read without vms:12 keeps its garage and position')
+resourceStates.vms_housing = 'stopped' -- cached sets only
+check(Housing.hasAccess('CID2', 'vms:12'), 'missing: and its cached access')
+resourceStates.vms_housing = 'started'
+vmsProps['12'] = saved12
+advance(11000)
+reloadAll()
+check(house('vms:12') ~= nil and kvp['nz_housing:spot:vms:12'] == vmsSpot, 'missing: the next full read keeps it (Hvms:12 registered, spot kept)')
+-- A miss confirmed by a read at least a minute later drops the house.
+vmsProps['12'] = nil
+advance(11000)
+reloadAll()
+advance(15000)
+reloadAll()
+check(house('vms:12') ~= nil, 'missing: a second miss soon after keeps it')
+advance(30000)
+reloadAll()
+check(house('vms:12') == nil and kvp['nz_housing:spot:vms:12'] == nil, 'missing: a miss confirmed a minute later drops it')
+check(Housing.hasAccess('CID3', 'vms:14'), 'missing: the other houses stay')
+vmsProps['12'] = saved12
+vmsProps['14'] = nil
+advance(11000)
+reloadAll()
+
+-- (b) RxHousing: an unowned property whose renter passes HasKey keeps its hook garage.
+local rxApi = api.RxHousing
+local rxProps = {
+  ['9'] = { id = 9, owner = 'CID3', label = 'RX Flat', keyholders = { 'CID1' }, coords = { entrance = vec3(7000.0, 7000.0, 10.0) } },
+  ['10'] = { id = 10, label = 'RX Rented', coords = { entrance = vec3(7100.0, 7000.0, 10.0) } },
+}
+local rxHolderCalls = 0
+api.RxHousing = {
+  GetAllProperties = function() return rxProps end,
+  GetProperty = function(id) return rxProps[tostring(math.tointeger(tonumber(id)) or id)] end,
+  GetPropertyKeyholders = function() rxHolderCalls = rxHolderCalls + 1 return {} end,
+  HasKey = function(id, identifier)
+    id = tonumber(id)
+    return (id == 9 and identifier == 'CID1') or (id == 10 and identifier == 'CID2')
+  end,
+}
+advance(11000)
+reloadAll()
+positions[2] = vec3(7103.0, 7000.0, 10.0)
+advance(2000)
+res = hook(2, 'rx:10')
+check(res.ok and house('rx:10') ~= nil and kvp['nz_housing:spot:rx:10'] ~= nil, 'rx: renter (HasKey) places the garage of an unowned property')
+advance(11000)
+reloadAll()
+advance(11000)
+reloadAll()
+check(house('rx:10') ~= nil and kvp['nz_housing:spot:rx:10'] ~= nil, 'rx: unowned property garage kept across reloads')
+check(rxHolderCalls == 0, 'rx: no GetPropertyKeyholders call for unowned properties')
+rxProps['10'].renter = 'CID2'
+advance(11000)
+reloadAll()
+resourceStates.RxHousing = 'stopped' -- cached sets only
+check(Housing.hasAccess('CID2', 'rx:10'), 'rx: renter in the cached access set')
+resourceStates.RxHousing = 'started'
+api.RxHousing = rxApi
+
+-- tk: the same for an unowned property (hook garage kept, nobody in the cached set).
+tkProps[3] = { id = 3, name = 'TK Empty', owner = '', coords = vec3(4200.0, 4000.0, 30.0) }
+advance(11000)
+reloadAll()
+check(not Housing.hasAccess('CID1', 'tk:3'), 'tk: unowned property listed without access')
+tkProps[3] = nil
+advance(11000)
+reloadAll()
+
+-- (c) A hook grant is not kept on top of the cached sets: a revoked loaf key ends at the next read.
+positions[3] = vec3(1001.0, -500.0, 60.0)
+advance(2000)
+res = hook(3, 'loaf:3')
+check(res.ok, 'grant: loaf key holder opens through the hook')
+local loafKeys = db.loaf_keys
+db.loaf_keys = { { identifier = 'CID1', key_id = 'housing_key_3_ZZ-9999' } }
+advance(11000)
+reloadAll()
+check(not Housing.hasAccess('CID3', 'loaf:3'), 'grant: revoked loaf key denied after the reload (no 30 min hook grant)')
+check(viewIds('CID3')['loaf:3'] == nil, 'grant: and the house leaves the list')
+db.loaf_keys = loafKeys
+advance(11000)
+reloadAll()
+check(Housing.hasAccess('CID3', 'loaf:3'), 'grant: key given back')
+-- A player with live-only access still keeps the grant (vms item keys).
+positions[3] = vec3(2010.0, 2005.0, 10.0)
+local vmsHasKeys = api.vms_housing.HasKeys
+api.vms_housing.HasKeys = function(src) return src == 3 end
+advance(2000)
+check(hook(3, 'vms:12').ok, 'grant: vms item key holder (live only) accepted')
+check(viewIds('CID3')['vms:12'] ~= nil, 'grant: live-only access keeps the house in the list')
+api.vms_housing.HasKeys = vmsHasKeys
+advance(11000)
+
+-- (d) loaf fallback path: a failing GetHouse aborts the read (houses read before are kept).
+-- (loaf:5 keeps the read non-empty: an empty read has its own guard.)
+local loafGetHouse = api.loaf_housing.GetHouse
+local loafRows = db.loaf_properties
+db.loaf_properties = { loafRows[1], loafRows[2], loafRows[3], { owner = 'CID2', propertyid = 5, id = 'AC-0003' } }
+api.loaf_housing.GetHouse = function(id)
+  if id == 5 then return { label = 'Loaf 5', garage = { entrance = vec3(1200.0, -500.0, 60.0), exit = vector4(1205.0, -505.0, 60.0, 0.0) } } end
+  return loafGetHouse(id)
+end
+advance(11000)
+reloadAll()
+check(house('loaf:5') ~= nil and house('loaf:3') ~= nil, 'loaf: second property with a garage')
+local loafWorking = api.loaf_housing.GetHouse
+api.loaf_housing.GetHouse = function(id) if id == 3 then error('timeout') end return loafWorking(id) end
+advance(11000)
+reloadAll()
+advance(65000)
+reloadAll()
+check(house('loaf:3') ~= nil and Housing.hasAccess('CID1', 'loaf:3'), 'loaf: failing GetHouse keeps the house and its access')
+api.loaf_housing.GetHouse = loafGetHouse
+db.loaf_properties = loafRows
+advance(11000)
+reloadAll()
+advance(65000)
+reloadAll()
+check(house('loaf:5') == nil and house('loaf:3') ~= nil, 'loaf: property 5 gone after a confirmed miss, 3 kept')
+
+-- The loaf exit is passed on as the store point.
+local registerHouse = NZ.Locations.registerHouse
+local passed
+NZ.Locations.registerHouse = function(id, data)
+  if id == 'loaf:3' then passed = data end
+  return registerHouse(id, data)
+end
+Housing.remove('loaf:3')
+advance(11000)
+reloadAll()
+check(passed and passed.store and near(passed.store.x, 1005.0) and near(passed.coords.x, 1000.0), 'loaf: exit passed as the store point')
+NZ.Locations.registerHouse = registerHouse
+
+-- (e) Interval loaders whose reads fail are re-read at their interval, not on every tick.
+local esxGet = api.esx_property.GetProperties
+api.esx_property.GetProperties = function() return {} end
+db.tables.esx_properties = true -- table present, query fails
+local esxBefore = exportCalls['esx_property:GetProperties'] or 0
+advance(300000)
+local esxReads = (exportCalls['esx_property:GetProperties'] or 0) - esxBefore
+check(esxReads >= 2 and esxReads <= 5, ('interval: failing esx reads -> %d read(s) in 5 minutes'):format(esxReads))
+check(house('esx:1') ~= nil, 'interval: failing esx reads keep the houses')
+local esxLoader = Housing.loaders.esx
+esxLoader.ctx.resource = 'esx_property'
+check(esxLoader.load(esxLoader.ctx) == nil, 'esx: empty export + failing table read is not trusted')
+db.esx_properties = {}
+local emptyRead = esxLoader.load(esxLoader.ctx)
+check(type(emptyRead) == 'table' and next(emptyRead) == nil, 'esx: empty export + empty table is a valid empty read')
+db.esx_properties = nil
+api.esx_property.GetProperties = esxGet
+advance(130000)
+check(house('esx:1') ~= nil, 'esx: houses back to normal')
+
+-- (f) nolag: every known property deleted -> dropped (after the confirming read), check says no.
+local savedNolag21 = nolagProps[21]
+nolagProps[21] = nil
+advance(11000)
+check(not Housing.hasAccess('CID1', 'nolag:21', 1) and not Housing.hasAccess('CID2', 'nolag:21'),
+  'nolag: a deleted property is a live "no" for owner and cached key holders')
+reloadAll()
+check(house('nolag:21') ~= nil, 'nolag: first read without any known property keeps it')
+advance(45000)
+reloadAll()
+check(house('nolag:21') == nil and kvp['nz_housing:spot:nolag:21'] == nil, 'nolag: the only known property deleted is dropped')
+nolagProps[21] = savedNolag21
+-- Right after nolag_properties (re)starts, "everything missing" means "still loading".
+positions[1] = vec3(8005.0, 8000.0, 10.0)
+advance(11000)
+check(hook(1, 'nolag:21').ok, 'nolag: garage placed again')
+TriggerEvent('onResourceStart', 'nolag_properties')
+nolagProps[21] = nil
+advance(11000)
+reloadAll()
+advance(45000)
+reloadAll()
+check(house('nolag:21') ~= nil, 'nolag: not dropped while nolag_properties may still be loading')
+nolagProps[21] = savedNolag21
+advance(11000)
+reloadAll()
+
+-- (g) SetHouseAccess: sparse and 0-based lists use the values, maps the keys.
+Housing.register('custom_2', { name = 'Custom 2', coords = vector4(30.0, 20.0, 30.0, 0.0) })
+check(ownExports.SetHouseAccess('custom_2', { [2] = 'CIDX' }) == true, 'SetHouseAccess: sparse list accepted')
+check(Housing.hasAccess('CIDX', 'custom_2') and not Housing.hasAccess('2', 'custom_2'), 'SetHouseAccess: sparse list uses the value')
+ownExports.SetHouseAccess('custom_2', { [0] = 'CIDY', [1] = { citizenid = 'CIDZ' } })
+check(Housing.hasAccess('CIDY', 'custom_2') and Housing.hasAccess('CIDZ', 'custom_2') and not Housing.hasAccess('0', 'custom_2')
+  and not Housing.hasAccess('CIDX', 'custom_2'), 'SetHouseAccess: 0-based list, table entries, replaces the previous set')
+ownExports.SetHouseAccess('custom_2', '{"CIDM":true,"CIDN":false}')
+check(Housing.hasAccess('CIDM', 'custom_2') and not Housing.hasAccess('CIDN', 'custom_2'), 'SetHouseAccess: JSON map, false = no access')
+Housing.remove('custom_2')
 
 ---------------------------------------------------------------------------------------
 -- Config modes

@@ -6,7 +6,8 @@
   tk_housing has no garage coordinates, so the garage is registered (hidden) where it is used.
   Access from exports getProperties(): owner + the keys of property.permissions (only when a
   build has no permissions field, getPropertyKeyholders(id) of owned properties); unowned
-  properties are skipped and 'job:' style keys are not identifiers. Live access (authoritative):
+  properties are listed without access (no export call; their hook garage survives reloads)
+  and 'job:' style keys are not identifiers. Live access (authoritative):
   getPropertyData(id) owner / permissions[identifier]. The property door (property.coords)
   bounds where a hook garage may be placed. No change events known: periodic reload + the
   live check. Ids are integers ('tk:1.0' from a hook becomes 'tk:1').
@@ -37,7 +38,10 @@ Housing.addLoader({
       ctx.yield(n)
       local pid = type(p) == 'table' and ctx.int(p.id) or nil
       local owner = pid and pid > 0 and ownerOf(ctx, p) or nil
-      if owner then -- unowned: nobody has access, nothing to read
+      if pid and pid > 0 and not owner then
+        -- Unowned: listed without access (nobody gave keys, no export call).
+        out[pid] = { id = pid, name = ctx.text(p.name), access = {} }
+      elseif owner then
         local set = {}
         if not ctx.isJobKey(owner) then set[owner] = true end
         local list = {}

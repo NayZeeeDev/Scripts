@@ -48,7 +48,7 @@ export function ActivityRow({ row, detail, data, names, compact = false, open = 
           </span>
         ) : (
           <span>
-            {view.family} · {dateTime(row.at)}
+            {view.family} · {clock(row.at)}
           </span>
         )}
       </span>
@@ -113,6 +113,12 @@ export function ActivityRow({ row, detail, data, names, compact = false, open = 
   );
 }
 
+/** "22:11": the row sits under its day heading, so the date would only repeat it. */
+function clock(unix: number): string {
+  const d = new Date(unix * 1000);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 /** Day heading for a unix time: Today / Yesterday / date. */
 function dayLabel(unix: number): string {
   const d = new Date(unix * 1000);
@@ -136,6 +142,7 @@ export function ActivityTab({ detail, data, activity }: Props) {
   const rows = useMemo(() => collapseActivity(current?.rows ?? []), [current]);
   const names = useMemo(() => nameIndex([...(current?.rows ?? []), ...(activity.latest?.rows ?? [])], detail), [current, activity.latest, detail]);
   const pageCount = current ? Math.max(1, Math.ceil(current.total / current.pageSize)) : 1;
+  const merged = (current?.rows.length ?? 0) - rows.length;
 
   if (error && !current) {
     return (
@@ -234,7 +241,15 @@ export function ActivityTab({ detail, data, activity }: Props) {
         ) : (
           <span className="nz-dos-actlog__note">
             <Icon name="info" size={13} strokeWidth={1.7} />
-            {t('Newest first. Click an entry for its details.')}
+            <span className="nz-aveh-ellipsis">
+              {t('Newest first. Click an entry for its details.')}
+              {merged > 0 && (
+                <em title={t('A drive-out of a garage interior is logged twice (take-out and interior exit): this page shows it once.')}>
+                  {' · '}
+                  {merged === 1 ? t('1 duplicate drive-out entry merged') : t('{n} duplicate drive-out entries merged', { n: merged })}
+                </em>
+              )}
+            </span>
           </span>
         )}
         <Pagination page={current.page} pageCount={pageCount} total={current.total} pageSize={current.pageSize} onChange={activity.setPage} />

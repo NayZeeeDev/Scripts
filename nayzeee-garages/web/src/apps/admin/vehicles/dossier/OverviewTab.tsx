@@ -11,7 +11,7 @@ import type { Props as VProps } from '../props/catalog';
 import { ActivityRow } from './ActivityTab';
 import { collapseActivity, nameIndex } from './activity';
 import { DamageDiagram } from './DamageDiagram';
-import { ago, damageCaption, damageShort, groupLabel, hasVisibleDamage, inTime, nowS, shapeOf, swatchOf } from './data';
+import { ago, damageCaption, damageShort, groupLabel, hasVisibleDamage, inTime, nowS, shapeIcon, shapeLabel, shapeOf, swatchOf } from './data';
 import type { DamageSummary } from '@/lib/types';
 import { Callout, ColourChip, Fact, Heading, SegGauge } from './parts';
 import type { ActivityState } from './useActivity';
@@ -40,16 +40,23 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
   const threshold = data.settings.vehicles.needsServiceBelow;
   const shape = shapeOf(v);
 
+  const visibleDamage = hasVisibleDamage(damage, shape);
   const callouts = [];
   if (imp) {
     const wait = imp.releaseAt - nowS();
     const facts = [t('fee {fee}', { fee: money(imp.fee) }), imp.byName ? t('by {name}', { name: imp.byName }) : null, imp.reason || null].filter(Boolean);
+    const when = imp.retrievable
+      ? wait > 0
+        ? t('Retrievable {when} ({date})', { when: inTime(imp.releaseAt), date: dateTime(imp.releaseAt) })
+        : t('Retrievable now')
+      : t('Staff release only');
     callouts.push(
       <Callout
         key="imp"
         tone="red"
         icon="impound"
         title={t('Impounded at {impound}', { impound: imp.locationName })}
+        hint={[when, ...facts].join(' · ')}
         action={
           <>
             <Button size="sm" variant="ghost" icon="edit" onClick={onEditImpound}>
@@ -61,13 +68,9 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
           </>
         }
       >
-        {imp.retrievable ? (
-          <Tooltip content={t('Release {when}', { when: dateTime(imp.releaseAt) })}>
-            <span className="nz-dos-callout__em">{wait > 0 ? t('Retrievable {when}', { when: inTime(imp.releaseAt) }) : t('Retrievable now')}</span>
-          </Tooltip>
-        ) : (
-          <span className="nz-dos-callout__em">{t('Staff release only')}</span>
-        )}
+        <span className="nz-dos-callout__em">
+          {imp.retrievable ? (wait > 0 ? t('Retrievable {when}', { when: inTime(imp.releaseAt) }) : t('Retrievable now')) : t('Staff release only')}
+        </span>
         {facts.map((x) => ` · ${x}`).join('')}
       </Callout>,
     );
@@ -123,23 +126,34 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
     );
   }
   if (needsService) {
+    // One callout for both: the visible damage joins the service text instead of a fifth tile.
+    const text = t('Engine at {n}%, below the {limit}% service threshold.', { n: percent(v.engine), limit: threshold });
+    const dmg = visibleDamage ? damageShort(damage, shape) : null;
     callouts.push(
       <Callout
         key="svc"
         tone="amber"
         icon="wrench"
-        title={t('Needs service')}
+        title={visibleDamage ? t('Needs service · visible damage') : t('Needs service')}
+        hint={dmg ? `${text} ${damageCaption(damage, shape)}.` : text}
         action={
-          <Button size="sm" variant="ghost" icon="edit" onClick={onEditCondition}>
-            {t('Edit')}
-          </Button>
+          <>
+            <Button size="sm" variant="ghost" icon="edit" onClick={onEditCondition}>
+              {t('Edit')}
+            </Button>
+            {visibleDamage && (
+              <Button size="sm" variant="ghost" iconRight="arrowRight" onClick={() => onTab('condition')}>
+                {t('Condition')}
+              </Button>
+            )}
+          </>
         }
       >
-        {t('Engine at {n}%, below the {limit}% service threshold.', { n: percent(v.engine), limit: threshold })}
+        {dmg ? `${t('Engine at {n}%', { n: percent(v.engine) })} · ${dmg}` : text}
       </Callout>,
     );
   }
-  if (hasVisibleDamage(damage, shape) && !needsService) {
+  if (visibleDamage && !needsService) {
     callouts.push(
       <Callout
         key="dmg"
@@ -161,7 +175,7 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
   const since = detail.ownership[0]?.at ?? null;
   const latest = activity.latest ? collapseActivity(activity.latest.rows).slice(0, 5) : null;
   const names = nameIndex(activity.latest?.rows ?? [], detail);
-  const typeLabel = v.vehicleType === 'sea' ? t('Boat') : v.vehicleType === 'air' ? t('Aircraft') : t('Land vehicle');
+  const typeLabel = shapeLabel(shape);
 
   return (
     <div className="nz-dos-pane nz-dos-ov">
@@ -185,15 +199,47 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
           >
             {t('Facts')}
           </Heading>
-          <div className={cx('nz-dos-facts', imp && 'is-dense')}>
-            <Fact label={imp ? t('Impound') : t('Garage')} icon={imp ? 'impound' : 'garage'} tone={!v.garageName && !imp ? 'muted' : undefined}>
-              {imp ? imp.locationName : v.garageName ?? t('None')}
-            </Fact>
-            <Fact label={t('State')} icon="parking" tone={v.state === 'impounded' ? 'red' : v.state === 'garaged' ? 'teal' : undefined}>
-              <span className={cx('nz-dos-dot', `is-${v.state}`)} />
-              {stateLabel(v.state)}
-            </Fact>
-            <Fact label={t('Last driven')} icon="clock" tone={!detail.lastUsed ? 'muted' : undefined}>
+          <div className={cx('nz-dos-facts', imp && 'is-dense', callouts.length > 2 && 'is-crowded')}>
+            {imp ? (
+              <>
+                {/* the impound row carries the state: a separate "State: Impounded" would repeat it */}
+                <Fact label={t('Impound')} icon="impound" tone="red">
+                  <span className="nz-dos-dot is-impounded" />
+                  <span title={imp.locationName}>{imp.locationName}</span>
+                </Fact>
+                <Fact label={t('Returns to')} icon="garage" tone={v.garageName ? undefined : 'muted'}>
+                  <span title={v.garageName ?? undefined}>{v.garageName ?? t('No garage')}</span>
+                </Fact>
+                <Fact label={t('Impounded')} icon="shield">
+                  <Tooltip content={dateTime(imp.at)}>
+                    <span>{imp.byName ? t('{when} by {name}', { when: ago(imp.at), name: imp.byName }) : ago(imp.at)}</span>
+                  </Tooltip>
+                </Fact>
+                <Fact label={t('Release')} icon="unlock" tone={imp.retrievable ? undefined : 'amber'}>
+                  {imp.retrievable ? dateTime(imp.releaseAt) : t('Staff only')}
+                </Fact>
+                <Fact label={t('Fee')} icon="money">
+                  {money(imp.fee)}
+                </Fact>
+                {imp.reason && (
+                  <Fact label={t('Reason')} icon="info">
+                    <span title={imp.reason}>{imp.reason}</span>
+                  </Fact>
+                )}
+              </>
+            ) : (
+              <>
+                <Fact label={t('Garage')} icon="garage" tone={!v.garageName ? 'muted' : undefined}>
+                  {v.garageName ?? t('None')}
+                </Fact>
+                <Fact label={t('State')} icon="parking" tone={v.state === 'garaged' ? 'teal' : undefined}>
+                  <span className={cx('nz-dos-dot', `is-${v.state}`)} />
+                  {stateLabel(v.state)}
+                </Fact>
+              </>
+            )}
+            {/* last driven and mileage are in the hero too: the first rows to go on short screens */}
+            <Fact label={t('Last driven')} icon="clock" tone={!detail.lastUsed ? 'muted' : undefined} optional>
               {detail.lastUsed ? (
                 <Tooltip content={dateTime(detail.lastUsed)}>
                   <span>{ago(detail.lastUsed)}</span>
@@ -202,34 +248,19 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
                 t('Never')
               )}
             </Fact>
-            {imp && (
-              <>
-                <Fact label={t('Impounded by')} icon="shield" tone={imp.byName ? undefined : 'muted'}>
-                  {imp.byName || t('Unknown')}
-                </Fact>
-                <Fact label={t('Impounded')} icon="impound">
-                  <Tooltip content={ago(imp.at)}>
-                    <span>{dateTime(imp.at)}</span>
-                  </Tooltip>
-                </Fact>
-                <Fact label={t('Release')} icon="unlock" tone={imp.retrievable ? undefined : 'amber'}>
-                  {imp.retrievable ? dateTime(imp.releaseAt) : t('Staff only')}
-                </Fact>
-              </>
-            )}
-            <Fact label={t('Mileage')} icon="route">
+            <Fact label={t('Mileage')} icon="route" optional>
               {distance(v.mileage)}
             </Fact>
-            <Fact label={t('Vehicle type')} icon="car">
+            <Fact label={t('Vehicle type')} icon={shapeIcon(shape)}>
               {v.classLabel ? `${typeLabel} · ${v.classLabel}` : typeLabel}
             </Fact>
             <Fact label={t('Owner type')} icon="user">
               {ownerTypeLabel(v.ownerType)}
             </Fact>
-            <Fact label={t('Job / gang')} icon="briefcase" tone={group ? undefined : 'muted'}>
+            <Fact label={t('Job / gang')} icon="briefcase" tone={group ? undefined : 'muted'} optional={!group}>
               {group ?? t('None')}
             </Fact>
-            <Fact label={t('Nickname')} icon="tag" tone={v.nickname ? undefined : 'muted'}>
+            <Fact label={t('Nickname')} icon="tag" tone={v.nickname ? undefined : 'muted'} optional={!v.nickname}>
               {v.nickname ?? t('None')}
             </Fact>
             <Fact label={t('Owned since')} icon="calendar" tone={since ? undefined : 'muted'}>
@@ -255,7 +286,7 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
           </div>
           <button type="button" className="nz-dos-ov__glyph" onClick={() => onTab('condition')} aria-label={t('Open the condition tab')}>
             <DamageDiagram damage={damage} shape={shape} engine={v.engine} />
-            <span className={cx(hasVisibleDamage(damage, shape) && 'is-bad', !damage && 'is-muted')} title={damageCaption(damage, shape)}>
+            <span className={cx(visibleDamage && 'is-bad', !damage && 'is-muted')} title={damageCaption(damage, shape)}>
               {damageShort(damage, shape)}
             </span>
           </button>
@@ -308,6 +339,8 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
   );
 }
 
+const modsInstalled = (n: number) => (n === 1 ? t('1 modification installed') : t('{n} modifications installed', { n }));
+
 /** Bottom strip linking to the other tabs (taller screens only). */
 function Snapshot({ detail, props, onTab }: { detail: AdminVehicleDetail; props: VProps; onTab: (tab: DossierTab) => void }) {
   const hasProps = Object.keys(props).length > 0;
@@ -326,7 +359,7 @@ function Snapshot({ detail, props, onTab }: { detail: AdminVehicleDetail; props:
           {t('Upgrades')}
         </span>
         <b>{hasProps ? t('{n} of {total} upgraded', { n: perf, total: PERF_MODS.length }) : t('Not saved yet')}</b>
-        <span>{hasProps ? t('{n} modifications installed', { n: installedModCount(props) }) : t('Stored on the next garage visit')}</span>
+        <span>{hasProps ? modsInstalled(installedModCount(props)) : t('Stored on the next garage visit')}</span>
       </button>
       <button type="button" onClick={() => onTab('upgrades')}>
         <span className="nz-dos-ov__snap-label">

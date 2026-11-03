@@ -105,10 +105,24 @@ export function Heading({ children, count, actions, className }: { children: Rea
   );
 }
 
-/** One fact line: grey label left, value right. */
-export function Fact({ label, icon, children, mono, tone }: { label: string; icon?: IconName; children: ReactNode; mono?: boolean; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
+/** One fact line: grey label left, value right. `optional` lines may be hidden on short screens. */
+export function Fact({
+  label,
+  icon,
+  children,
+  mono,
+  tone,
+  optional,
+}: {
+  label: string;
+  icon?: IconName;
+  children: ReactNode;
+  mono?: boolean;
+  tone?: 'teal' | 'amber' | 'red' | 'muted';
+  optional?: boolean;
+}) {
   return (
-    <div className="nz-dos-fact">
+    <div className={cx('nz-dos-fact', optional && 'is-optional')}>
       <span className="nz-dos-fact__label">
         {icon && <Icon name={icon} size={13} strokeWidth={1.6} />}
         {label}
@@ -120,14 +134,31 @@ export function Fact({ label, icon, children, mono, tone }: { label: string; ico
 
 export type CalloutTone = 'teal' | 'amber' | 'red' | 'blue';
 
-/** Attention callout: tinted tile + title + text + optional action. */
-export function Callout({ tone, icon, title, children, action }: { tone: CalloutTone; icon: IconName; title: ReactNode; children?: ReactNode; action?: ReactNode }) {
+/**
+ * Attention callout: tinted tile + title + text + optional action. `hint` is the full plain
+ * sentence, shown as the tooltip of the (line-clamped) text.
+ */
+export function Callout({
+  tone,
+  icon,
+  title,
+  children,
+  action,
+  hint,
+}: {
+  tone: CalloutTone;
+  icon: IconName;
+  title: ReactNode;
+  children?: ReactNode;
+  action?: ReactNode;
+  hint?: string;
+}) {
   return (
     <div className={cx('nz-dos-callout', `is-${tone}`)} role="note">
       <span className="nz-dos-callout__icon">
         <Icon name={icon} size={15} strokeWidth={1.8} />
       </span>
-      <div className="nz-dos-callout__text">
+      <div className="nz-dos-callout__text" title={hint}>
         <b>{title}</b>
         {children && <span>{children}</span>}
       </div>

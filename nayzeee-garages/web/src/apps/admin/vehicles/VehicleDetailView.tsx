@@ -292,11 +292,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
           {t('Edit finance')}
         </Button>
       </>
-    ) : (
-      <Button size="sm" variant="teal" icon="plus" onClick={() => show('finance')}>
-        {t('Add finance')}
-      </Button>
-    ),
+    ) : null /* the empty state carries the Add finance button */,
     history: (
       <>
         <Button size="sm" variant="line" icon="transfer" onClick={() => show('owner')}>
@@ -362,7 +358,15 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
           />
         )}
         {tab === 'condition' && (
-          <ConditionTab detail={detail} damage={damage} needsService={needsService} serviceBelow={data.settings.vehicles.needsServiceBelow} />
+          <ConditionTab
+            detail={detail}
+            data={data}
+            damage={damage}
+            needsService={needsService}
+            serviceBelow={data.settings.vehicles.needsServiceBelow}
+            activity={activity}
+            onTab={setTab}
+          />
         )}
         {tab === 'upgrades' && <UpgradesTab detail={detail} props={props} onEdit={openProps} onViewAll={() => show('mods')} />}
         {tab === 'finance' && <FinanceTab detail={detail} activity={activity} onEdit={() => show('finance')} onActivity={() => setTab('activity')} />}

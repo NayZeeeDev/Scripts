@@ -123,6 +123,18 @@ local TABLES = {
     KEY `nz_logs_event` (`event`),
     KEY `nz_logs_created` (`created_at`)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+  -- Built-in car lock: persistent virtual keys an owner gave to other characters.
+  [[CREATE TABLE IF NOT EXISTS `nz_keys` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `plate` VARCHAR(16) NOT NULL,
+    `identifier` VARCHAR(64) NOT NULL,
+    `granted_by` VARCHAR(64) NOT NULL DEFAULT '',
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `nz_keys_plate_identifier` (`plate`, `identifier`),
+    KEY `nz_keys_identifier` (`identifier`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
 }
 
 -- Extension columns of the framework vehicle table (see install/nayzeee-garages.sql).
@@ -140,6 +152,7 @@ local EXT_COLUMNS = {
   { 'nz_blocked', 'TINYINT(1) NOT NULL DEFAULT 0' },
   { 'nz_last_out', 'INT NULL DEFAULT NULL' },
   { 'nz_finance_total', 'INT NULL DEFAULT NULL' }, -- total number of finance payments (progress display)
+  { 'nz_key_version', 'INT NOT NULL DEFAULT 0' },   -- car lock: physical keys of older versions stop working
 }
 
 -- Optional extension columns: the resource works without them (MySQL < 5.7 / MariaDB < 10.2

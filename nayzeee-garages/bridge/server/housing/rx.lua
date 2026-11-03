@@ -3,15 +3,17 @@
   House ids 'rx:<property id>'. Resource 'RxHousing' (also 'rxscripts_housing').
 
   Reads exports GetAllProperties() (array or id-keyed map): owner (identifier string, a table
-  shape is tolerated) + keyholders (field, else GetPropertyKeyholders(id) for owned properties;
-  unowned ones are skipped). Ids are integers ('rx:9.0' from a hook becomes 'rx:9'). The garage point is
-  coords.garage when the property has one (documented only as an input of
+  shape is tolerated), renter / tenant when present, keyholders (field, else
+  GetPropertyKeyholders(id) for owned properties). Unowned properties are listed too (access
+  from the renter / keyholders fields only, no export call), so a hook garage the live check
+  allowed for them is kept across reloads. Ids are integers ('rx:9.0' from a hook becomes
+  'rx:9'). The garage point is coords.garage when the property has one (documented only as an input of
   GiveApartmentToPlayer: unconfirmed, so a hook call may move it). RxHousing hands garages to
   RX's fmLib: install/housing/RxHousing adds a nayzeee garage adapter to fmLib that calls
   OpenHouseGarage / StoreHouseGarage (garage registered hidden where it is used when the property
   has no garage point, within range of its entrance). Refresh hints: rxhousing:on* server events, resource start.
-  Live access (authoritative): HasKey(id, identifier), then the owner of GetProperty(id);
-  unknown when HasKey fails.
+  Live access (authoritative): HasKey(id, identifier), then the owner / renter / keyholders of
+  GetProperty(id); unknown when HasKey fails.
   Confidence: medium (escrowed; exports and events from RX's documentation).
 ]]
 
@@ -45,11 +47,17 @@ Housing.addLoader({
       ctx.yield(n)
       p = ctx.decode(p)
       local pid = type(p) == 'table' and (p.id or p.propertyId or p.property_id or key) or nil
-      local owner = pid ~= nil and ownerOf(ctx, p.owner) or nil
-      if owner then -- unowned: nobody has access, nothing to read
-        local set = { [owner] = true }
+      if pid ~= nil then
+        local set = {}
+        local owner = ownerOf(ctx, p.owner)
+        if owner then set[owner] = true end
+        for _, who in ipairs({ p.renter, p.tenant }) do
+          local renter = ownerOf(ctx, who)
+          if renter then set[renter] = true end
+        end
         local holders = p.keyholders or p.keyHolders
-        if holders == nil then holders = ctx.export('GetPropertyKeyholders', idOf(ctx, pid)) end
+        -- Unowned properties: no export call (nobody gave keys), only what the entry carries.
+        if holders == nil and owner then holders = ctx.export('GetPropertyKeyholders', idOf(ctx, pid)) end
         ctx.addAny(set, holders)
         local coords = ctx.decode(p.coords)
         out[tostring(pid)] = {
@@ -69,7 +77,8 @@ Housing.addLoader({
     if has == true then return true end
     local p = ctx.decode(ctx.export('GetProperty', id))
     if type(p) ~= 'table' then return nil end
-    if ownerOf(ctx, p.owner) == identifier then return true end
+    if ownerOf(ctx, p.owner) == identifier or ownerOf(ctx, p.renter) == identifier
+      or ownerOf(ctx, p.tenant) == identifier then return true end
     local holders = {}
     ctx.addAny(holders, p.keyholders or p.keyHolders)
     if holders[identifier] then return true end

@@ -28,7 +28,7 @@ export function FinanceTab({ detail, activity, onEdit, onActivity }: Props) {
         <EmptyState
           icon="money"
           title={t('No finance')}
-          description={t('{vehicle} is fully paid off. Add a finance agreement to collect recurring payments from the owner.', { vehicle: detail.vehicle.label })}
+          description={t('{vehicle} has no finance agreement. Add one to collect recurring payments from the owner.', { vehicle: detail.vehicle.label })}
           action={
             <Button size="sm" variant="teal" icon="plus" onClick={onEdit}>
               {t('Add finance')}

@@ -5,6 +5,7 @@
 import { t } from '@/lib/i18n';
 import { date } from '@/lib/format';
 import type { AdminOpenData, AdminVehicleDetail, DamageSummary, VehicleType } from '@/lib/types';
+import type { IconName } from '@/components/ui';
 import { glyphShape } from '@/apps/garage/showroom/DamageGlyph';
 import type { GlyphShape } from '@/apps/garage/showroom/DamageGlyph';
 import { colourByIndex, isRgb, rgbToHex } from '../props/catalog';
@@ -47,6 +48,27 @@ export type DmgShape = GlyphShape;
 
 export function shapeOf(v: { vehicleType: VehicleType; classId?: number; model?: string | null }): DmgShape {
   return glyphShape(v.vehicleType, v.classId, v.model);
+}
+
+/** Type icon for a shape (the Sanchez gets a bike, the Frogger a helicopter). */
+export function shapeIcon(shape: DmgShape): IconName {
+  return shape === 'bike' ? 'bike' : shape === 'boat' ? 'boat' : shape === 'plane' ? 'plane' : shape === 'heli' ? 'heli' : 'car';
+}
+
+/** "Motorcycle" / "Boat" / "Aircraft" / "Helicopter" / "Land vehicle". */
+export function shapeLabel(shape: DmgShape): string {
+  switch (shape) {
+    case 'bike':
+      return t('Motorcycle');
+    case 'boat':
+      return t('Boat');
+    case 'plane':
+      return t('Aircraft');
+    case 'heli':
+      return t('Helicopter');
+    default:
+      return t('Land vehicle');
+  }
 }
 
 export type PartGroup = 'doors' | 'windows' | 'tyres';
@@ -246,12 +268,17 @@ export function speedLabel(kmh: number, unit: 'km' | 'mi'): string {
 
 /* ───────────────────────── names ───────────────────────── */
 
-/** Readable name for a garage key ('L12', 'G3', 'J…'), falling back to the key itself. */
+/**
+ * Readable name for a garage key ('L12', 'G3', 'H…' house garages, 'J…'), falling back to
+ * the key itself.
+ */
 export function garageName(key: unknown, detail: AdminVehicleDetail | null, data: AdminOpenData): string | null {
   if (typeof key !== 'string' && typeof key !== 'number') return null;
   const k = String(key);
   const fromDetail = detail?.garages.find((g) => g.key === k)?.name;
   if (fromDetail) return fromDetail;
+  // House garages ('H' + the housing script's id) are not admin locations.
+  if (/^H./.test(k)) return t('House garage');
   const m = /^[A-Za-z](\d+)$/.exec(k);
   if (m) {
     const id = Number(m[1]);

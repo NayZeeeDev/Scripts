@@ -6,9 +6,9 @@
   Owners from `loaf_properties` (owner, propertyid, id = instance id), key holders from
   loaf_keysystem's `loaf_keys` (key_id 'housing_key_<propertyid>_<instance id>'). Garage from
   exports GetHouses()[propertyid].garage (one call per reload; GetHouse(propertyid) per owned
-  property only when GetHouses fails) { entrance (walk-up point), exit (vector4: spawn and
-  store) }, else from loaf_realtor's `loaf_houses` (garage_entrance / garage_exit) when that
-  table exists. Set Garage = false in loaf_housing's config so loaf draws no garage marker of its
+  property only when GetHouses fails, a failing GetHouse aborts the read) { entrance (walk-up
+  point), exit (vector4: spawn, and store point when server/locations.lua honours `store`) },
+  else from loaf_realtor's `loaf_houses` (garage_entrance / garage_exit) when that table exists. Set Garage = false in loaf_housing's config so loaf draws no garage marker of its
   own (it only dispatches to loaf_garage / cd_garage / jg): we draw ours. Clients ask for a
   refresh on loaf_housing / loaf_keysystem events (bridge/client/housing.lua). Key holders get
   the garage like loaf's AllowGarageKey = true (default); 'set nayzeee_housing_loaf_keys 0' in
@@ -103,8 +103,14 @@ Housing.addLoader({
       n = n + 1
       ctx.yield(n)
       local label, entrance, exit
-      local house
-      if defs then house = defs[pid] else house = ctx.export('GetHouse', pid) end
+      local house, err
+      if defs then
+        house = defs[pid]
+      else
+        house, err = ctx.export('GetHouse', pid)
+        -- A failing call is not "no garage": abort, the houses read before are kept.
+        if house == nil and err ~= nil then return nil end
+      end
       if type(house) == 'table' then
         label = house.label
         local garage = ctx.decode(house.garage)

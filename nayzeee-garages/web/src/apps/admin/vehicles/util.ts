@@ -74,26 +74,13 @@ export function assignableGarages(data: AdminOpenData): GarageOption[] {
     }));
 }
 
-/** The table row embedded in a detail response. */
+/**
+ * The table row embedded in a detail response: every row field, including the VehicleLabel
+ * extras (classId, classLabel, stats) the player list shows under the name.
+ */
 export function rowFromDetail(detail: AdminVehicleDetail): AdminVehicleRow {
-  const v = detail.vehicle;
-  return {
-    plate: v.plate,
-    model: v.model,
-    hash: v.hash,
-    vehicleType: v.vehicleType,
-    label: v.label,
-    make: v.make,
-    image: v.image,
-    garageKey: v.garageKey,
-    garageName: v.garageName,
-    state: v.state,
-    financed: !!detail.finance,
-    fuel: v.fuel,
-    engine: v.engine,
-    body: v.body,
-    blocked: v.blocked,
-  };
+  const { owner, ownerName, ownerType, job, gang, nickname, mileage, props, ...row } = detail.vehicle;
+  return { ...row, financed: !!detail.finance };
 }
 
 /* ───────────────────────── installed mods ───────────────────────── */

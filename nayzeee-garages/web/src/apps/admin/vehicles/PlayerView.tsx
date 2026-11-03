@@ -10,8 +10,9 @@ import { t } from '@/lib/i18n';
 import type { AdminOpenData, AdminVehicleRow } from '@/lib/types';
 import { Highlight, MiniCondition, OnlineDot, moveFocus } from './common';
 import { AssignVehicleModal } from './AssignVehicleModal';
-import { matches, stateLabel, vehicleTypeIcon } from './util';
+import { matches, stateLabel } from './util';
 import { Plate } from './dossier/parts';
+import { shapeIcon, shapeLabel, shapeOf } from './dossier/data';
 
 export type StatusFilter = 'all' | 'garaged' | 'out' | 'impounded' | 'financed' | 'blocked';
 
@@ -65,6 +66,7 @@ function statusOf(row: AdminVehicleRow, s: StatusFilter): boolean {
 
 function VehicleRowItem({ v, query, onOpen }: { v: AdminVehicleRow; query: string; onOpen: () => void }) {
   const sub = v.classLabel ?? '';
+  const shape = shapeOf(v);
   const where = v.state === 'garaged' ? v.garageName ?? t('No garage') : stateLabel(v.state);
   return (
     <li>
@@ -76,8 +78,8 @@ function VehicleRowItem({ v, query, onOpen }: { v: AdminVehicleRow; query: strin
           <b className="nz-aveh-ellipsis">
             <Highlight text={v.label || v.model} query={query} />
           </b>
-          <span className="nz-aveh-ellipsis">
-            <Icon name={vehicleTypeIcon(v.vehicleType)} size={11} strokeWidth={1.8} />
+          <span className="nz-aveh-ellipsis" title={shapeLabel(shape)}>
+            <Icon name={shapeIcon(shape)} size={11} strokeWidth={1.8} />
             {sub ? `${sub} · ` : ''}
             <span className="nz-aveh-mono">
               <Highlight text={v.model} query={query} />

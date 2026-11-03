@@ -7,10 +7,14 @@
   players place in their property, whose onSelect calls OpenHouseGarage / StoreHouseGarage. The
   garage is registered (hidden) where the point is used. nolag has no export listing every
   property, so access is checked live (authoritative): GetPropertyData(id) owner / renter (user
-  owners) or the player's job (society owners), keyHolders, then HasKey(identifier, id); the
-  houses already known are re-read on every reload (GetPropertyData + GetKeyHolders) for the
-  cached sets; a property nolag no longer has (GetPropertyData answers nothing while others
-  answer) is dropped when a read at least a minute later agrees.
+  owners), keyHolders, then HasKey(identifier, id); a property GetPropertyData does not know is
+  a "no". Society properties: the key holders, and every member of the owning job only when
+  HasKey fails or the server opts in with  set nayzeee_housing_nolag_society 1  (nolag's own
+  garage point requires keys; unverified whether society members hold them). The houses already
+  known are re-read on every reload (GetPropertyData + GetKeyHolders) for the cached sets; a
+  property nolag no longer has (GetPropertyData answers nothing) is dropped when a read at least
+  a minute later agrees (not within 2 minutes of nolag_properties starting, when it answers
+  nothing for every property, while it may still be loading them).
   Police lockdown (metadata.lockdown) denies the garage on the server too, like nolag's
   Config.PoliceLockdown.DisableGarage (default on); servers that turned that off mirror it with
   set nayzeee_housing_nolag_lockdown 0  in server.cfg.
@@ -23,9 +27,18 @@
 local Housing = NZ.Housing
 
 local LOCKDOWN_CONVAR = 'nayzeee_housing_nolag_lockdown'
-local MEMO_MS = 1000 -- one hook call asks for the same property up to three times
+local SOCIETY_CONVAR = 'nayzeee_housing_nolag_society'
+local MEMO_MS = 1000         -- one hook call asks for the same property up to three times
+local START_GRACE_MS = 120000 -- after nolag_properties (or this resource) starts, "every known
+                              -- property is missing" means "still loading"
 
 local memo = {} -- [pid] = { at, p, failed }
+local lastPrune = 0
+local startedAt = GetGameTimer()
+
+AddEventHandler('onResourceStart', function(resource)
+  if resource == 'nolag_properties' then startedAt = GetGameTimer() end
+end)
 
 --- GetPropertyData(id): property, id, failed (true when the export call itself failed).
 local function propertyOf(ctx, rawId)
@@ -37,7 +50,9 @@ local function propertyOf(ctx, rawId)
   local p, err = ctx.export('GetPropertyData', pid)
   if type(p) ~= 'table' then p = nil end
   local failed = p == nil and err ~= nil
-  if next(memo) ~= nil then
+  -- Pruned at most once per MEMO_MS (a reload over N properties adds N entries).
+  if now - lastPrune >= MEMO_MS then
+    lastPrune = now
     for k, v in pairs(memo) do
       if now - v.at >= MEMO_MS then memo[k] = nil end
     end
@@ -46,11 +61,15 @@ local function propertyOf(ctx, rawId)
   return p, pid, failed
 end
 
-local function lockdownDenies()
-  local ok, value = pcall(GetConvar, LOCKDOWN_CONVAR, '1')
-  if not ok or type(value) ~= 'string' then return true end
+local function convarOn(name, default)
+  local ok, value = pcall(GetConvar, name, default)
+  if not ok or type(value) ~= 'string' or value == '' then value = default end
   value = value:lower()
   return value ~= '0' and value ~= 'false' and value ~= 'no'
+end
+
+local function lockdownDenies()
+  return convarOn(LOCKDOWN_CONVAR, '1')
 end
 
 local function same(a, b)
@@ -85,27 +104,32 @@ Housing.addLoader({
         out[pid] = { id = pid, name = ctx.text(p.label) or ctx.text(p.address), access = set }
       end
     end
-    -- Nothing answered: nolag is probably still loading its properties.
-    if found == 0 and #missing > 0 then return nil end
+    -- Nothing answered right after nolag (or this resource) started: probably still loading.
+    -- Later, "every known property is gone" is believed (after the usual confirming read).
+    if found == 0 and #missing > 0 and GetGameTimer() - startedAt < START_GRACE_MS then return nil end
     -- Properties nolag no longer has (deleted): dropped when a later read agrees.
     for i = 1, #missing do out[missing[i]] = { id = missing[i], gone = true } end
     return out, false -- only the known houses: the others are kept
   end,
 
   check = function(ctx, identifier, rawId, src)
-    local p, pid = propertyOf(ctx, rawId)
-    if not p then return nil end
-    if p.ownerType == 'society' then
-      local job = ctx.jobOf(src or ctx.sourceOf(identifier))
-      if job and same(p.owner, job) then return true end
-    elseif same(p.owner, identifier) or same(p.renter, identifier) then
-      return true
+    local p, pid, failed = propertyOf(ctx, rawId)
+    if not p then
+      if failed or not pid then return nil end -- the export failed: unknown
+      return false -- nolag answered: no such property
     end
+    local society = p.ownerType == 'society'
+    if not society and (same(p.owner, identifier) or same(p.renter, identifier)) then return true end
     local holders = {}
     ctx.addAny(holders, p.keyHolders)
     if holders[identifier] then return true end
     local has, err = ctx.export('HasKey', identifier, pid)
     if has == true then return true end
+    -- Society property: the owning job's members, when HasKey cannot tell or the server opted in.
+    if society and (err ~= nil or convarOn(SOCIETY_CONVAR, '0')) then
+      local job = ctx.jobOf(src or ctx.sourceOf(identifier))
+      if job and same(p.owner, job) then return true end
+    end
     if err ~= nil then return nil end -- unknown: the cached key holders decide
     return false
   end,

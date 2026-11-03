@@ -178,8 +178,9 @@ export function DamageDiagram({ damage, shape = 'car', engine = 100, labels = fa
         <ellipse cx={284} cy={182} rx={7} ry={3.2} className="nz-dmg__trim" />
         <ellipse cx={375} cy={70} rx={9} ry={3.6} transform="rotate(32 375 70)" className="nz-dmg__head" />
         <ellipse cx={375} cy={160} rx={9} ry={3.6} transform="rotate(-32 375 160)" className="nz-dmg__head" />
-        <ellipse cx={62} cy={74} rx={7} ry={3} transform="rotate(-58 62 74)" className="nz-dmg__tail" />
-        <ellipse cx={62} cy={156} rx={7} ry={3} transform="rotate(58 62 156)" className="nz-dmg__tail" />
+        {/* tail lights stay neutral (red means damage here) unless the boot is damaged */}
+        <ellipse cx={62} cy={74} rx={7} ry={3} transform="rotate(-58 62 74)" className={cx('nz-dmg__tail', states.door5 === 'bad' && 'is-bad')} />
+        <ellipse cx={62} cy={156} rx={7} ry={3} transform="rotate(58 62 156)" className={cx('nz-dmg__tail', states.door5 === 'bad' && 'is-bad')} />
         {CAR_PANELS.map((p) => (
           <path key={p.id} d={p.d} {...part(p.id, 'nz-dmg__panel')} />
         ))}

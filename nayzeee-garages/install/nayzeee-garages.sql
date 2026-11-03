@@ -91,6 +91,19 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
   KEY `nz_logs_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Built-in car lock (config/carlock.lua): persistent virtual keys an owner gave to other
+-- characters (virtual key mode). Temporary keys live in memory only.
+CREATE TABLE IF NOT EXISTS `nz_keys` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `plate` VARCHAR(16) NOT NULL,               -- normalized (trimmed, upper-case)
+  `identifier` VARCHAR(64) NOT NULL,          -- character that holds the key
+  `granted_by` VARCHAR(64) NOT NULL DEFAULT '', -- character that gave it
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nz_keys_plate_identifier` (`plate`, `identifier`),
+  KEY `nz_keys_identifier` (`identifier`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Extension columns added to the framework vehicle table
 -- (QBCore / Qbox: `player_vehicles`, ESX: `owned_vehicles`).
 -- The resource adds them only when missing (checked through INFORMATION_SCHEMA).
@@ -108,6 +121,7 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
 --   nz_blocked   TINYINT(1)   NOT NULL DEFAULT 0
 --   nz_last_out  INT          NULL       unix time the vehicle was last taken out
 --   nz_finance_total INT      NULL       total number of finance payments (progress display)
+--   nz_key_version INT        NOT NULL DEFAULT 0   car lock: key items of an older version stop working
 --   nz_plate_norm VARCHAR(64) VIRTUAL    LEFT(UPPER(TRIM(plate)), 64), optional (a failure
 --                                         to create it is only a warning)
 --
@@ -129,4 +143,5 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
 --   ADD COLUMN IF NOT EXISTS `nz_impound` LONGTEXT NULL,
 --   ADD COLUMN IF NOT EXISTS `nz_blocked` TINYINT(1) NOT NULL DEFAULT 0,
 --   ADD COLUMN IF NOT EXISTS `nz_last_out` INT NULL,
---   ADD COLUMN IF NOT EXISTS `nz_finance_total` INT NULL;
+--   ADD COLUMN IF NOT EXISTS `nz_finance_total` INT NULL,
+--   ADD COLUMN IF NOT EXISTS `nz_key_version` INT NOT NULL DEFAULT 0;

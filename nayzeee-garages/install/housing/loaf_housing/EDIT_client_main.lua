@@ -5,10 +5,11 @@
   if yours has a config folder) set
       Garage = false,
   loaf_housing then draws no garage marker / target of its own (it only dispatches to
-  loaf_garage / cd_garage / jg). nayzeee-garages reads the garages itself (GetHouse(id).garage
-  { entrance, exit }, or loaf_realtor's loaf_houses table), the owners (loaf_properties) and the
-  key holders (loaf_keysystem's loaf_keys) and draws its own points: walk-up at the entrance,
-  vehicles at the exit.
+  loaf_garage / cd_garage / jg). nayzeee-garages reads the garages itself
+  (GetHouses()[id].garage { entrance, exit }, GetHouse(id) only when GetHouses fails, or
+  loaf_realtor's loaf_houses table), the owners (loaf_properties) and the key holders
+  (loaf_keysystem's loaf_keys) and draws its own points: walk-up (browse) at the entrance;
+  vehicles appear at the exit and are stored there, like loaf's own garage.
   loaf's AllowGarageKey = false (key holders get no garage) is mirrored with
       set nayzeee_housing_loaf_keys 0
   in server.cfg.

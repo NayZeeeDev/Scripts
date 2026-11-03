@@ -24,8 +24,22 @@ Config.CarLock = {
   -- Temporary keys (hotwire, robbery, admin, other scripts, spawners) expire after this many hours.
   tempKeyHours = 24,
 
-  -- Listen to the events other scripts use to give keys with other key resources.
+  -- Listen to the events other scripts use to give keys with other key resources
+  -- (bridge/server/listeners.lua, bridge/client/listeners.lua). Only for key resources that
+  -- are NOT running. Client-side events can only ever give a temporary key to a vehicle the
+  -- player sits in or stands next to.
   compat = true,
+  -- Also answer exports['qb-vehiclekeys'] / qbx_vehiclekeys / wasabi_carlock / MrNewbVehicleKeys /
+  -- qs-vehiclekeys / Renewed-Vehiclekeys / vehicles_keys calls of other scripts while those
+  -- resources are not running (restart the calling scripts after restarting this one).
+  compatExports = true,
+  -- false = other scripts' CLIENT events may only give keys to script-spawned vehicles (job /
+  -- rental / mission cars), never to parked or driving NPC cars (stops a cheater from skipping
+  -- lockpicking with a fake event). Server-side calls are always trusted.
+  compatAmbient = false,
+
+  -- Virtual mode: how many players an owner can give a persistent key of one vehicle.
+  maxVirtualKeys = 10,
 
   items = {
     key = 'vehicle_key',
@@ -60,13 +74,14 @@ Config.CarLock = {
     key = 5.0,             -- metres: key in pocket
     fob = 30.0,            -- metres: electronic fob (high-end profile)
     give = 3.0,            -- metres: hand a key to another player
+    compat = 8.0,          -- metres: another script's client event gives keys to a vehicle this close
   },
 
   animation = {
     enabled = true,
     dict = 'anim@mp_player_intmenu@key_fob@',
     name = 'fob_click',
-    prop = 'p_car_keys_01', -- held while clicking ('' = none)
+    prop = 'lr_prop_carkey_fob', -- held while clicking ('' = none; prop_cuff_keys_01 when missing)
     duration = 900,
   },
 
@@ -86,6 +101,9 @@ Config.CarLock = {
     bypassJobVehicles = true,
     -- Engine stays on when you leave the driver seat (hold the exit key briefly to turn it off).
     keepEngineRunning = true,
+    -- true = a vehicle whose engine already runs can be driven without a key (a car left running).
+    -- false = the engine stops for drivers without a key (rob the driver or hotwire instead).
+    allowRunningEngine = false,
   },
 
   --[[
@@ -202,14 +220,31 @@ Config.CarLock = {
   },
 }
 
--- Impound: an NPC flatbed tow truck collects police-impounded vehicles.
+-- Impound: an NPC flatbed tow truck collects vehicles impounded with the impound form
+-- (/impound or the target option). The database impound happens at once; the tow is only
+-- visual. When anything goes wrong (no road nearby, stuck, nobody left to run it, timeout)
+-- the vehicle is deleted instead, as without the tow truck.
 Config.Tow = {
   enabled = true,
   truck = 'flatbed',
   driver = 's_m_m_trucker_01',
-  spawnDistance = { min = 80.0, max = 150.0 },
+  spawnDistance = { min = 80.0, max = 150.0 }, -- metres from the vehicle, on a road, out of sight when possible
   timeout = 150,                   -- seconds before falling back to deleting the vehicle
-  loadSeconds = 6,
+  loadSeconds = 6,                 -- the driver works the bed controls while the vehicle is pulled on
+  speed = 14.0,                    -- m/s on the way to the vehicle (about 50 km/h)
+  drivingStyle = 786603,           -- law-abiding (786469 = goes around traffic and ignores lights)
+  despawnDistance = 150.0,         -- after loading: removed once every player is farther than this ...
+  despawnSeconds = 60,             -- ... or after this many seconds
+  maxActive = 6,                   -- tow trucks at the same time (more impounds delete the vehicle at once)
+  -- Too big for the bed: deleted at once (no tow). Metres, from the model dimensions.
+  maxSize = { length = 6.9, width = 2.9, height = 3.4 },
+  -- Never towed (GTA classes): 10 industrial, 14 boats, 15 helicopters, 16 planes,
+  -- 19 military, 20 commercial, 21 trains.
+  skipClasses = { 10, 14, 15, 16, 19, 20, 21 },
+  -- Where the vehicle sits on the bed (metres, relative to the truck bone). The bed height is
+  -- measured on the truck when possible; `surface` is the fallback. Tune for add-on trucks.
+  bed = { bone = 'bodyshell', y = -2.35, surface = 0.55, rear = -6.0 },
+  animation = { dict = 'amb@prop_human_atm@male@idle_a', clip = 'idle_b' }, -- the driver at the bed controls
 }
 
 -- Car sale contracts.

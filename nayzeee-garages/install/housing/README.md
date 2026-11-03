@@ -47,8 +47,10 @@ not stall the server.
 
 Where the script has a live key check (HasKey and similar), it is asked first. For vms_housing,
 tk_housing, nolag_properties and RxHousing its "no" is final, so a revoked key stops working
-at once instead of at the next read. When a live check fails (renamed export, player offline),
-the owners and key holders read before decide.
+within about 10 seconds (live answers are cached that long) instead of at the next read. When a
+live check fails (renamed export, player offline), the owners and key holders read before
+decide. A house that disappears from a read is only removed when a read at least a minute later
+confirms it, so a partial read (script still loading) never deletes a garage.
 
 ### Hook
 
@@ -66,6 +68,9 @@ The server then:
   The position is kept in the resource KVP across restarts;
 - uses one garage per property: numeric ids are normalised (`tk:1.0`, `nolag:021` and
   `nolag:21` are the same garage), and scripts with integer ids refuse anything else;
+- keeps the player's access for up to 30 minutes when it only came from the live check (item
+  keys, a renter the script does not list), so the garage stays in their list; when the owners
+  and key holders read from the script already include the player, they alone decide;
 - draws no marker or target of its own, because the housing script already shows one;
 - opens the normal nayzeee-garages menu. When the player is driving, the vehicle is stored.
 
@@ -88,6 +93,10 @@ ensure nayzeee-garages          # before vms_housing, nolag_properties, tk_housi
 # nolag_properties with Config.PoliceLockdown.DisableGarage = false (the garage stays usable
 # during a police lockdown):
 # set nayzeee_housing_nolag_lockdown 0
+
+# nolag_properties society (job) properties: let every member of the owning job use the garage,
+# not only key holders (off by default; nolag's own garage point requires keys):
+# set nayzeee_housing_nolag_society 1
 ```
 
 The first time a script uses the hook without being listed in `nayzeee_housing_hooked`, the
@@ -133,8 +142,9 @@ own. nayzeee-garages reads:
 - owners from `loaf_properties`;
 - key holders from loaf_keysystem's `loaf_keys`;
 - the garage from `GetHouses()` (one call per read; `GetHouse(id)` per owned property only when
-  that fails), field `garage`: a walk-up point at the entrance, vehicles at the exit. If
-  loaf_realtor is installed, its `loaf_houses` table is the fallback.
+  that fails), field `garage`: the walk-up point (browse vehicles) at the entrance; vehicles
+  appear at the exit and are stored there, like loaf's own garage. If loaf_realtor is installed,
+  its `loaf_houses` table is the fallback.
 
 Every owner of the same property shares one garage, and each sees only their own vehicles.
 Purchases and key changes trigger a refresh.
@@ -164,8 +174,8 @@ nayzeee-garages. Add `set nayzeee_housing_hooked "bcs_housing"` with it. If the 
 cannot be read, the hook places it where the prompt is used, near the home's entrance.
 
 ### RxHousing — automatic access, fmLib adapter
-Reads `GetAllProperties()`: the owner, the key holders, and `coords.garage` when a property
-has one (unowned properties are skipped). RxHousing events (bought, rented, transferred, key
+Reads `GetAllProperties()`: the owner, the renter (when the entry has one), the key holders,
+and `coords.garage` when a property has one. RxHousing events (bought, rented, transferred, key
 holder added or removed) trigger a reload. Access is checked live with `HasKey` and the owner.
 Copy `RxHousing/fmLib/adapters/client/garage/nayzeee.lua` to
 `fmLib/adapters/client/garage/nayzeee.lua`. Note: it routes `FM.garage` for every RX script to
@@ -189,8 +199,8 @@ limited, see Automatic).
    `tk_housing/EDIT_client_main_editable.lua`.
 
 Access comes from `getProperties()`: the owner plus the keys of `permissions`
-(`getPropertyKeyholders(id)` only for builds without that field). Unowned properties are
-skipped, job keys (`job:...`) are ignored. It is checked live through `getPropertyData(id)`.
+(`getPropertyKeyholders(id)` only for builds without that field). Unowned properties give
+nobody access, job keys (`job:...`) are ignored. It is checked live through `getPropertyData(id)`.
 The garage must be within 200 m of the property door.
 
 ### nolag_properties — hook file (required)
@@ -198,10 +208,12 @@ The garage must be within 200 m of the property door.
 2. Set `Garage = "nayzeee-garages"` in nolag_properties' config.lua.
 3. Owners place the "Garage" interaction point of their property.
 
-Access is checked live: `GetPropertyData(id)` gives the owner / renter, or the job for society
-properties, and the key holders, then `HasKey`. Known houses are read again on every refresh
+Access is checked live: `GetPropertyData(id)` gives the owner / renter and the key holders,
+then `HasKey`. Society (job) properties: key holders only, like nolag's own garage point
+(`requireKeys`); `set nayzeee_housing_nolag_society 1` lets every member of the owning job in
+(also used when `HasKey` fails). Known houses are read again on every refresh
 (`GetKeyHolders`). A property nolag no longer has is dropped when a read at least a minute
-later agrees. A police lockdown (`metadata.lockdown`) closes the garage on the server too, like
+later agrees (not during the first 2 minutes after nolag_properties starts). A police lockdown (`metadata.lockdown`) closes the garage on the server too, like
 nolag's `Config.PoliceLockdown.DisableGarage`; if you turned that off, add
 `set nayzeee_housing_nolag_lockdown 0`. The property's position (its coords, its
 `GetAllProperties` entry or the entrance metadata) bounds where the garage can be.

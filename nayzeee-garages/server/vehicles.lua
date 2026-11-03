@@ -1489,6 +1489,13 @@ function Vehicles.markSpawned(src, plate, netId)
   if not entry.spawner then
     row = NZ.DB.getVehicle(plate)
     if not row or row.state ~= 'out' then return false, L('This vehicle is not out') end
+    -- the reported entity must be the stored model (fake plates / phone deliveries)
+    local want = rowHash(row)
+    if want and want ~= 0 and toSigned(GetEntityModel(entity)) ~= want then
+      log('security.model', src, { plate = plate, netId = netId, expected = want,
+        actual = toSigned(GetEntityModel(entity)), reason = 'spawned entity model mismatch' })
+      return false, L('This vehicle does not match its registration')
+    end
   end
 
   if entry.entity and entry.entity ~= entity and isVehicleEntity(entry.entity) then

@@ -190,12 +190,37 @@ export function describeActivity(row: VehicleActivity, ctx: Ctx): ActivityView {
     case 'impound.retrieve':
       return v('checkCircle', 'teal', t('Impound'), yes(d.staff) ? t('Released by staff at {impound}', { impound: impound() }) : t('Collected from {impound}', { impound: impound() }), feeText ? t('paid {fee}', { fee: feeText }) : null);
     case 'admin.vehicle.update': {
+      // Payload (server/admin.lua): { changed = {'plate', 'details', 'owner', …}, newPlate, owner, state, garage, blocked? }.
       const labels = changedLabels();
-      const changed = (Array.isArray(d.changed) ? d.changed : d.changed && typeof d.changed === 'object' ? Object.values(d.changed as object) : [])
-        .map((x) => (typeof x === 'string' ? labels[x] ?? x : null))
-        .filter((x): x is string => !!x);
+      const keys = (Array.isArray(d.changed) ? d.changed : d.changed && typeof d.changed === 'object' ? Object.values(d.changed as object) : []).filter(
+        (x): x is string => typeof x === 'string',
+      );
+      /** "also details, finance" for the changes the sentence does not name. */
+      const also = (...named: string[]) => {
+        const rest = keys.filter((k) => !named.includes(k)).map((k) => labels[k] ?? k);
+        return rest.length ? t('also {list}', { list: rest.join(', ') }) : null;
+      };
+      const has = (k: string) => keys.includes(k);
       const np = str(d.newPlate);
-      if (np) return v('crown', 'blue', t('Admin'), t('Plate changed to {plate}', { plate: np }), changed.length > 1 ? t('also {list}', { list: changed.filter((c) => c !== labels.plate).join(', ') }) : null);
+      if (np) return v('crown', 'blue', t('Admin'), t('Plate changed to {plate}', { plate: np }), also('plate'));
+      if (has('impound') && d.state === 'garaged') {
+        const to = knownGarage(d.garage, ctx);
+        const rest = also('impound');
+        return v('unlock', 'blue', t('Admin'), t('Released from the impound by an admin'), [to ? t('to {garage}', { garage: to }) : null, rest].filter(Boolean).join(' · ') || null);
+      }
+      // A new impound and an edit of the current one log the same payload.
+      if (has('impound') && d.state === 'impounded') return v('impound', 'red', t('Admin'), t('Impound set by an admin'), also('impound'));
+      const owner = str(d.owner);
+      if (has('owner') && owner) {
+        const name = ctx.names?.get(owner) ?? owner;
+        return v('transfer', 'blue', t('Admin'), t('Owner changed to {name}', { name }), also('owner'));
+      }
+      if (has('blocked') && typeof d.blocked === 'boolean') {
+        return d.blocked
+          ? v('ban', 'red', t('Admin'), t('Blocked by an admin'), also('blocked'))
+          : v('unlock', 'blue', t('Admin'), t('Unblocked by an admin'), also('blocked'));
+      }
+      const changed = keys.map((k) => labels[k] ?? k);
       return v('crown', 'blue', t('Admin'), changed.length ? t('Admin edited the {list}', { list: changed.join(', ') }) : t('Admin edit'));
     }
     case 'admin.vehicle.assign':
@@ -224,6 +249,14 @@ function humanKey(k: string): string {
 const GARAGE_KEYS = new Set(['garage', 'garageKey', 'previousGarage']);
 /** Keys whose value is a character identifier. */
 const PERSON_KEYS = new Set(['owner', 'target', 'seller', 'buyer', 'by']);
+
+/** A garage key in the details: its name, plus the key for house garages ("House garage · H12"). */
+function garageDetail(v: unknown, ctx: Ctx): string {
+  const name = garageName(v, ctx.detail, ctx.data);
+  if (!name) return humanValue(v);
+  const k = String(v);
+  return /^H./.test(k) && name !== k ? `${name} · ${k}` : name;
+}
 
 /** "Jordan Vale · NZV41207" when the identifier's name is known, else the identifier. */
 function person(v: unknown, ctx: Ctx): string {
@@ -256,11 +289,11 @@ function formatValue(key: string, v: unknown, row: VehicleActivity, d: Data, ctx
     case 'to': {
       // Garage keys for garage moves; identifiers for player transfers, nicknames for renames.
       const garageMove = row.event === 'vehicle.garage' || (row.event === 'vehicle.transfer' && d.type !== 'player');
-      if (garageMove) return garageName(v, ctx.detail, ctx.data) ?? humanValue(v);
+      if (garageMove) return garageDetail(v, ctx);
       return row.event === 'vehicle.transfer' ? person(v, ctx) : humanValue(v);
     }
     default:
-      if (GARAGE_KEYS.has(key)) return garageName(v, ctx.detail, ctx.data) ?? humanValue(v);
+      if (GARAGE_KEYS.has(key)) return garageDetail(v, ctx);
       if (PERSON_KEYS.has(key)) return person(v, ctx);
       return humanValue(v);
   }

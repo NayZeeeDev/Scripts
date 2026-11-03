@@ -609,6 +609,8 @@ function Locations.registerHouse(houseId, data)
   local coords = vec4(data.coords)
   if not coords then return nil, L('Invalid house coordinates') end
   local spawn = vec4(data.spawn) or coords
+  -- separate store point (e.g. a garage exit away from the walk-up point)
+  local store = data.store ~= nil and vec4(data.store) or nil
   local key = Utils.key.house(hid)
   local loc = {
     id = key,
@@ -618,8 +620,8 @@ function Locations.registerHouse(houseId, data)
     vehicleType = 'car',
     enabled = true,
     openPoints = { { coords = { x = coords.x, y = coords.y, z = coords.z }, radius = openRadius() } },
-    useOpenForStore = true,
-    storePoints = {},
+    useOpenForStore = store == nil,
+    storePoints = store and { { coords = { x = store.x, y = store.y, z = store.z }, radius = storeRadius() } } or {},
     spawnPoints = { spawn },
     returnToEntrance = false,
     blip = { enabled = false, sprite = BLIP_SPRITES.car, color = 3, scale = 0.6 },

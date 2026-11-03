@@ -4,7 +4,8 @@
 
   Reads exports GetProperties() (garage { enabled, pos, Heading }, Owner / Owned, Keys keyed by
   identifier); falls back to the `esx_properties` table (1.16.2+) and then properties.json
-  (1.16.0 and older). An empty list means "not loaded yet" and keeps the previous houses.
+  (1.16.0 and older). An empty list is only believed when the stored data is empty too (then
+  the core's empty-read confirmation applies), otherwise it means "not loaded yet".
   esx_property has no server events for other resources: it is re-read every 2 minutes, and
   clients ask for a refresh when esx_property syncs a garage change (bridge/client/housing.lua).
   esx_property always draws its own garage marker: install/housing/esx_property routes it to
@@ -15,10 +16,11 @@
 
 local Housing = NZ.Housing
 
+--- The `esx_properties` table: list, or nil + 'missing' (no such table) / 'failed' (query error).
 local function fromSql(ctx)
-  if not ctx.tableExists('esx_properties') then return nil end
+  if not ctx.tableExists('esx_properties') then return nil, 'missing' end
   local rows = ctx.query('SELECT `id`, `data` FROM `esx_properties`')
-  if not rows then return nil end
+  if not rows then return nil, 'failed' end
   local list = {}
   for _, row in ipairs(rows) do
     local id = ctx.int(row.id)
@@ -42,9 +44,28 @@ Housing.addLoader({
 
   load = function(ctx)
     local props = ctx.export('GetProperties')
-    if type(props) ~= 'table' or next(props) == nil then props = fromSql(ctx) end
-    if type(props) ~= 'table' or next(props) == nil then props = fromFile(ctx) end
-    if type(props) ~= 'table' or next(props) == nil then return nil end
+    -- An empty list is only "no properties" when the stored data agrees (the export may answer
+    -- {} before esx_property has loaded); the core still keeps houses loaded before until a
+    -- read a minute later confirms an empty one.
+    local exportEmpty = type(props) == 'table' and next(props) == nil
+    local storedEmpty = false
+    if type(props) ~= 'table' or next(props) == nil then
+      local rows, why = fromSql(ctx)
+      if type(rows) == 'table' and next(rows) ~= nil then
+        props = rows
+      else
+        local file = fromFile(ctx) -- 1.16.0 and older keep properties.json
+        props = file
+        local fileEmpty = type(file) == 'table' and next(file) == nil
+        -- Stored data read and empty: an empty table (and no file with properties), or no
+        -- table and an empty file.
+        storedEmpty = (type(rows) == 'table' and (file == nil or fileEmpty)) or (why == 'missing' and fileEmpty)
+      end
+    end
+    if type(props) ~= 'table' or next(props) == nil then
+      if exportEmpty and storedEmpty then return {} end
+      return nil
+    end
 
     local out, n = {}, 0
     for index, p in pairs(props) do

@@ -8,8 +8,8 @@ import { useSettings } from '@/lib/store';
 import { dateTime, distance } from '@/lib/format';
 import type { AdminOpenData, AdminVehicleDetail } from '@/lib/types';
 import { StatusBadges } from '../common';
-import { ownerTypeLabel, vehicleTypeIcon } from '../util';
-import { ago, groupLabel, speedLabel } from './data';
+import { ownerTypeLabel } from '../util';
+import { ago, groupLabel, shapeIcon, shapeLabel, shapeOf, speedLabel } from './data';
 import { Plate, Stage } from './parts';
 
 interface Props {
@@ -29,6 +29,7 @@ export function Hero({ detail, data, busy, onBack, onOwner, onBlock, onImpound, 
   const v = detail.vehicle;
   const impounded = v.state === 'impounded' || !!detail.impound;
   const group = groupLabel(detail, data);
+  const shape = shapeOf(v);
   const eyebrow = [v.make, v.classLabel].filter(Boolean).join(' · ');
   const name = v.make && v.label.startsWith(`${v.make} `) ? v.label.slice(v.make.length + 1) : v.label || v.model;
   const ownerKind =
@@ -44,9 +45,9 @@ export function Hero({ detail, data, busy, onBack, onOwner, onBlock, onImpound, 
         alt={v.label}
         stamp={impounded ? t('IMPOUNDED') : v.blocked ? t('BLOCKED') : null}
         topLeft={
-          <Tooltip content={v.vehicleType === 'sea' ? t('Boat') : v.vehicleType === 'air' ? t('Aircraft') : t('Land vehicle')}>
+          <Tooltip content={shapeLabel(shape)}>
             <span className="nz-dos-hero__type">
-              <Icon name={vehicleTypeIcon(v.vehicleType)} size={13} strokeWidth={1.7} />
+              <Icon name={shapeIcon(shape)} size={13} strokeWidth={1.7} />
             </span>
           </Tooltip>
         }

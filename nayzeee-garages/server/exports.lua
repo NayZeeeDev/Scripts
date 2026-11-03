@@ -468,14 +468,14 @@ export('SetHouseAccess', function(houseId, identifiers)
       list[#list + 1] = identifier
     end
   end
-  if identifiers[1] ~= nil or next(identifiers) == nil then
-    for _, value in ipairs(identifiers) do
+  -- Numeric keys (lists, also sparse or 0-based ones) carry the identifier in the value;
+  -- other keys are the identifier themselves ({ CID1 = true }, false = no access).
+  for key, value in pairs(identifiers) do
+    if type(key) == 'number' then
       if type(value) == 'table' then value = value.identifier or value.citizenid or value.cid end
       add(value)
-    end
-  else
-    for key, value in pairs(identifiers) do
-      if value ~= false and value ~= nil then add(key) end
+    elseif value ~= false and value ~= nil then
+      add(key)
     end
   end
   if type(NZ.Housing.setAccess) ~= 'function' then return false, L('House garages are not available') end

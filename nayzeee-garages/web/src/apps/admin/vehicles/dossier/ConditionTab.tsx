@@ -3,20 +3,28 @@
  * health gauges (engine / body / tank as /1000 and %), fuel, deformation and service state.
  */
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Icon, cx } from '@/components/ui';
+import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
-import { percent } from '@/lib/format';
-import type { AdminVehicleDetail, DamageSummary } from '@/lib/types';
+import { dateTime, distance, percent } from '@/lib/format';
+import type { AdminOpenData, AdminVehicleDetail, DamageSummary } from '@/lib/types';
+import { actorOf } from './activity';
 import { DamageDiagram } from './DamageDiagram';
-import { damageCaption, damageCounts, partStates, partsFor, shapeOf } from './data';
+import { ago, damageCaption, damageCounts, garageName, partStates, partsFor, shapeOf } from './data';
 import type { PartGroup, PartState } from './data';
 import { Fact, Heading, SegGauge } from './parts';
+import type { ActivityState } from './useActivity';
+import type { DossierTab } from './tabs';
 
 interface Props {
   detail: AdminVehicleDetail;
+  data: AdminOpenData;
   damage: DamageSummary | null;
   needsService: boolean;
   serviceBelow: number;
+  activity: ActivityState;
+  onTab: (tab: DossierTab) => void;
 }
 
 const stateText = (s: PartState, group?: PartGroup) =>
@@ -28,7 +36,7 @@ const GROUPS: { id: PartGroup; label: () => string }[] = [
   { id: 'tyres', label: () => t('Tyres') },
 ];
 
-export function ConditionTab({ detail, damage, needsService, serviceBelow }: Props) {
+export function ConditionTab({ detail, data, damage, needsService, serviceBelow, activity, onTab }: Props) {
   const v = detail.vehicle;
   const [hot, setHot] = useState<string | null>(null);
   const shape = shapeOf(v);
@@ -40,10 +48,15 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
   // Engine / body come from the vehicle row (it wins on spawn and admin edits update it);
   // the stored damage only adds the tank, the parts and the deformation.
   const groups = GROUPS.filter((g) => parts.some((p) => p.group === g.id));
+  // The stored damage is written on every garage store: the newest store entry dates it.
+  const stored = activity.latest?.rows.find((r) => r.event === 'vehicle.store') ?? null;
+  const storedAt = stored ? (typeof stored.data?.garageName === 'string' && stored.data.garageName) || garageName(stored.data?.garage, detail, data) : null;
+  const storedKm = stored && typeof stored.data?.mileage === 'number' ? stored.data.mileage : null;
+  const svc = [...detail.service].sort((a, b) => b.at - a.at)[0] ?? null;
 
   return (
     <div className="nz-dos-pane">
-      <div className="nz-dos-sheet nz-dos-cond">
+      <div className={cx('nz-dos-sheet nz-dos-cond', `is-${shape}`)}>
         <section className="nz-dos-col nz-dos-cond__diagram">
           <Heading
             actions={
@@ -130,8 +143,65 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
                 : t('Not needed')}
             </Fact>
           </div>
+
+          <div className="nz-dos-cond__records">
+            <Heading className="nz-dos-h--gap">{t('Records')}</Heading>
+            <div className="nz-dos-recs">
+              <Record
+                icon="parking"
+                title={
+                  stored
+                    ? storedAt
+                      ? t('Damage saved at {garage}', { garage: storedAt })
+                      : t('Damage saved on the last garage visit')
+                    : damage
+                      ? t('Damage saved on a garage visit')
+                      : t('No damage saved yet')
+                }
+                sub={
+                  stored
+                    ? [ago(stored.at), actorOf(stored), storedKm !== null ? distance(storedKm) : null].filter(Boolean).join(' · ')
+                    : !activity.latest
+                      ? t('Loading the activity…')
+                      : damage
+                        ? t('Not in the recent activity')
+                        : t('Saved the next time it is stored')
+                }
+                hint={stored ? dateTime(stored.at) : undefined}
+                action={t('Activity')}
+                onClick={() => onTab('activity')}
+              />
+              <Record
+                icon="wrench"
+                title={svc ? t('Last service: {item}', { item: svc.item }) : t('Never serviced')}
+                sub={svc ? `${svc.shop || t('Unknown shop')} · ${ago(svc.at)}` : t('No service records')}
+                hint={svc ? dateTime(svc.at) : undefined}
+                action={t('History')}
+                onClick={() => onTab('history')}
+              />
+            </div>
+          </div>
         </section>
       </div>
     </div>
+  );
+}
+
+/** A compact link card: icon, one-line title and detail, the tab it opens. */
+function Record({ icon, title, sub, hint, action, onClick }: { icon: IconName; title: ReactNode; sub: ReactNode; hint?: string; action: string; onClick: () => void }) {
+  return (
+    <button type="button" className="nz-dos-rec" onClick={onClick} title={hint}>
+      <span className="nz-dos-rec__icon">
+        <Icon name={icon} size={14} strokeWidth={1.7} />
+      </span>
+      <span className="nz-dos-rec__text">
+        <b className="nz-aveh-ellipsis">{title}</b>
+        <span className="nz-aveh-ellipsis">{sub}</span>
+      </span>
+      <span className="nz-dos-rec__go">
+        {action}
+        <Icon name="arrowRight" size={12} strokeWidth={1.8} />
+      </span>
+    </button>
   );
 }

@@ -411,8 +411,7 @@ function addVehicle(
       releaseAt: now + 6 * 3600,
       retrievable: true,
     };
-    rec.row.garageKey = null;
-    rec.row.garageName = null;
+    // The garage column keeps the last garage while impounded (the release target).
     rec.lastUsed = rec.impound.at - 3600;
   }
 
@@ -786,7 +785,7 @@ function generatedActivity(v: MockVehicle): Draft[] {
       }),
     );
   }
-  if (v.row.blocked) list.push(byPlayer('admin.vehicle.update', now - 2 * DAY, STAFF, { plate, changed: ['blocked'] }));
+  if (v.row.blocked) list.push(byPlayer('admin.vehicle.update', now - 2 * DAY, STAFF, { plate, changed: ['blocked'], blocked: true }));
   if (rand() < 0.15) list.push(byPlayer('security.dupe', end - 4 * DAY, who, { plate, reason: 'retrieve while an occupied copy exists' }));
   return list;
 }
@@ -806,7 +805,9 @@ function logActivity(plate: string, event: string, data: Record<string, unknown>
   const v = vehicles.get(plate);
   if (!v) return;
   const list = activityOf(v);
-  list.unshift({ id: ++activitySeq, event, at: nowS(), actor: 'NZV41207', actorName: 'Admin (you)', data: { plate, ...data, actorName: 'Admin (you)' } });
+  // Lua drops nil fields: keep only the keys that carry a value.
+  const clean = Object.fromEntries(Object.entries(data).filter(([, x]) => x !== undefined && x !== null));
+  list.unshift({ id: ++activitySeq, event, at: nowS(), actor: 'NZV41207', actorName: 'Admin (you)', data: { plate, ...clean, actorName: 'Admin (you)' } });
 }
 
 /* ───────────────────────── handlers: players & vehicles ───────────────────────── */
@@ -1031,12 +1032,18 @@ mockNui('admin:vehicle:update', async ({ plate, patch: raw }) => {
     activity.delete(plate);
     activity.set(next.row.plate, history);
   }
-  if (patch.impound === false || isClear(patch.impound)) {
-    if (v.impound) logActivity(next.row.plate, 'impound.release', { mode: 'garage', impound: v.impound.locationId, impoundName: v.impound.locationName, garage: next.row.garageKey, garageName: next.row.garageName });
-  } else if (patch.impound && next.impound && !v.impound) {
-    logActivity(next.row.plate, 'impound.add', { impound: next.impound.locationId, impoundName: next.impound.locationName, reason: next.impound.reason, fee: next.impound.fee, by: 'NZV41207', byName: 'Admin (you)' });
-  }
-  logActivity(next.row.plate, 'admin.vehicle.update', { newPlate: next.row.plate !== plate ? next.row.plate : undefined, changed });
+  // Same payload as server/admin.lua (applyPatch): the admin patch logs only admin.vehicle.update.
+  // `blocked` is not in the real payload yet (proposed): the UI words it when present.
+  const released = (patch.impound === false || isClear(patch.impound)) && v.row.state === 'impounded';
+  const state = patch.details?.state ?? (released ? 'garaged' : patch.impound ? 'impounded' : undefined);
+  logActivity(next.row.plate, 'admin.vehicle.update', {
+    newPlate: next.row.plate !== plate ? next.row.plate : undefined,
+    changed,
+    owner: next.owner !== v.owner ? next.owner ?? undefined : undefined,
+    state,
+    garage: patch.details?.garageKey || undefined,
+    blocked: patch.blocked,
+  });
   return detailOf(next);
 });
 

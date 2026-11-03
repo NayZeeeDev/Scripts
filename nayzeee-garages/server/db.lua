@@ -1180,6 +1180,7 @@ function DB.deleteVehicle(plate)
   queries[#queries + 1] = { query = 'DELETE FROM `nz_favourites` WHERE `plate` = ?', values = { p } }
   queries[#queries + 1] = { query = 'DELETE FROM `nz_shares` WHERE `plate` = ?', values = { p } }
   queries[#queries + 1] = { query = 'DELETE FROM `nz_vehicle_events` WHERE `plate` = ?', values = { p } }
+  queries[#queries + 1] = { query = 'DELETE FROM `nz_keys` WHERE `plate` = ?', values = { p } }
   return transaction(queries)
 end
 
@@ -1215,6 +1216,8 @@ function DB.changePlate(oldPlate, newPlate)
     add('DELETE FROM `nz_vehicle_events` WHERE `plate` = ?', { new })
     add('UPDATE `nz_vehicle_events` SET `plate` = ? WHERE `plate` = ?', { new, old })
     add('UPDATE `nz_logs` SET `plate` = ? WHERE `plate` = ?', { new, old })
+    add('DELETE FROM `nz_keys` WHERE `plate` = ?', { new })
+    add('UPDATE `nz_keys` SET `plate` = ? WHERE `plate` = ?', { new, old })
   end
   return transaction(queries)
 end
@@ -1608,6 +1611,118 @@ function DB.shares.clear(plate)
   if not plate then return false end
   local _, ok = run('update', 'DELETE FROM `nz_shares` WHERE `plate` = ?', { plate })
   return ok
+end
+
+---------------------------------------------------------------------------------------
+-- Car lock: persistent virtual keys (nz_keys) and key versions (nz_key_version)
+---------------------------------------------------------------------------------------
+
+DB.keys = {}
+
+--- Virtual key holders of a plate: { { identifier, grantedBy, createdAt } } (oldest first).
+---@param plate string
+---@return table[]
+function DB.keys.list(plate)
+  plate = Utils.plate(plate)
+  if not plate or #plate > 16 then return {} end
+  local rows = run('query', [[SELECT `identifier`, `granted_by`, UNIX_TIMESTAMP(`created_at`) AS `created`
+    FROM `nz_keys` WHERE `plate` = ? ORDER BY `id`]], { plate })
+  local out = {}
+  for _, r in ipairs(rows or {}) do
+    if type(r.identifier) == 'string' and r.identifier ~= '' then
+      out[#out + 1] = { identifier = r.identifier, grantedBy = r.granted_by or '', createdAt = int(r.created, nil) }
+    end
+  end
+  return out
+end
+
+--- Plates a character holds a virtual key for: { plate, ... }.
+---@param identifier string
+---@return string[]
+function DB.keys.forIdentifier(identifier)
+  identifier = str(identifier, 64)
+  if not identifier then return {} end
+  local rows = run('query', 'SELECT `plate` FROM `nz_keys` WHERE `identifier` = ?', { identifier })
+  local out = {}
+  for _, r in ipairs(rows or {}) do
+    local p = Utils.plate(r.plate)
+    if p then out[#out + 1] = p end
+  end
+  return out
+end
+
+--- Give a character a virtual key (idempotent).
+---@param plate string
+---@param identifier string
+---@param grantedBy string|nil
+---@return boolean
+function DB.keys.add(plate, identifier, grantedBy)
+  plate, identifier = Utils.plate(plate), str(identifier, 64)
+  if not plate or #plate > 16 or not identifier then return false end
+  grantedBy = str(grantedBy, 64) or ''
+  local _, ok = run('update', [[INSERT INTO `nz_keys` (`plate`, `identifier`, `granted_by`) VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE `granted_by` = ?]], { plate, identifier, grantedBy, grantedBy })
+  return ok
+end
+
+--- Remove one character's virtual key.
+---@param plate string
+---@param identifier string
+---@return boolean
+function DB.keys.remove(plate, identifier)
+  plate, identifier = Utils.plate(plate), str(identifier, 64)
+  if not plate or not identifier then return false end
+  local _, ok = run('update', 'DELETE FROM `nz_keys` WHERE `plate` = ? AND `identifier` = ?', { plate, identifier })
+  return ok
+end
+
+--- Remove every virtual key of a plate (change of locks, new owner).
+---@param plate string
+---@return boolean
+function DB.keys.clear(plate)
+  plate = Utils.plate(plate)
+  if not plate then return false end
+  local _, ok = run('update', 'DELETE FROM `nz_keys` WHERE `plate` = ?', { plate })
+  return ok
+end
+
+--- Number of virtual keys of a plate.
+---@param plate string
+---@return integer
+function DB.keys.count(plate)
+  plate = Utils.plate(plate)
+  if not plate then return 0 end
+  local n = run('scalar', 'SELECT COUNT(*) FROM `nz_keys` WHERE `plate` = ?', { plate })
+  return math.max(int(n, 0), 0)
+end
+
+--- Key version of an owned vehicle. nil when the plate is not in the vehicle table (NPC /
+--- spawned vehicles keep their version in memory) or the column is missing.
+---@param plate string
+---@return integer|nil
+function DB.keys.version(plate)
+  local p = Utils.plate(plate)
+  if not p or not ready() then return nil end
+  local raw = fetchRaw(p, { 'nz_key_version' })
+  if not raw then return nil end
+  if not has('nz_key_version') then return 0 end
+  return math.max(int(raw.nz_key_version, 0), 0)
+end
+
+--- Increment the key version of an owned vehicle. Returns the new version, or nil when the
+--- plate is not in the vehicle table (or the column is missing).
+---@param plate string
+---@return integer|nil
+function DB.keys.bumpVersion(plate)
+  local p = Utils.plate(plate)
+  if not p or not ready() or not has('nz_key_version') then return nil end
+  local raw = fetchRaw(p, { 'nz_key_version' })
+  if not raw then return nil end
+  local _, ok = run('update', ('UPDATE `%s` SET `nz_key_version` = `nz_key_version` + 1 WHERE `plate` = ?'):format(VT),
+    { raw.plate })
+  if not ok then return nil end
+  local after = fetchRaw(p, { 'nz_key_version' })
+  return math.max(int(after and after.nz_key_version, (int(raw.nz_key_version, 0) + 1)), 0)
 end
 
 ---------------------------------------------------------------------------------------

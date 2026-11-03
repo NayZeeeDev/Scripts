@@ -1031,10 +1031,15 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
   min-width: 0;
 }
 
-.nz-dos-hero__top { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.nz-dos-hero__top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; max-width: 100%; }
+.nz-dos-hero__top .nz-aveh-badges { flex-wrap: wrap; row-gap: 4px; }
 
 .nz-dos-hero__eyebrow {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: .16em;
@@ -1474,8 +1479,10 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 }
 
 .nz-dos-fact:last-child { border-bottom: 0; }
-/* impounded vehicles list three more facts: keep the column within the window */
+/* impounded vehicles list more facts: keep the column within the window */
 .nz-dos-facts.is-dense .nz-dos-fact { min-height: 27px; padding: 2px 0; }
+/* two rows of callouts: drop the facts the hero already shows and the empty ones */
+.nz-dos-facts.is-crowded .nz-dos-fact.is-optional { display: none; }
 
 .nz-dos-fact__label {
   display: flex;
@@ -1612,6 +1619,10 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
   gap: 8px;
   flex: none;
 }
+
+/* three or four callouts: 2 + 1 (the first, most urgent one spans) or 2 × 2, never a cramped third column */
+.nz-dos-ov__callouts.is-many { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nz-dos-ov__callouts.is-many > .nz-dos-callout:first-child:nth-last-child(3) { grid-column: 1 / -1; }
 
 .nz-dos-ov__clear {
   display: flex;
@@ -1773,7 +1784,8 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dmg__tyre { fill: var(--raise-2); stroke: rgba(255, 255, 255, .2); stroke-width: 1; }
 .nz-dmg__trim { fill: var(--raise-2); stroke: rgba(255, 255, 255, .16); stroke-width: .8; }
 .nz-dmg__head { fill: rgba(255, 255, 255, .24); }
-.nz-dmg__tail { fill: rgba(var(--red-rgb), .55); }
+.nz-dmg__tail { fill: var(--ink-3); opacity: .5; }
+.nz-dmg__tail.is-bad { fill: rgba(var(--red-rgb), .7); opacity: 1; }
 .nz-dmg__bay { pointer-events: none; }
 .nz-dmg__bar { fill: none; stroke: rgba(255, 255, 255, .28); stroke-width: 3; stroke-linecap: round; }
 .nz-dmg__rotor { fill: rgba(255, 255, 255, .012); stroke: rgba(255, 255, 255, .09); stroke-width: 1; stroke-dasharray: 3 5; }
@@ -1867,6 +1879,55 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 
 .nz-dos-cond__gauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin-bottom: 4px; }
 .nz-dos-cond__facts { margin-top: 2px; }
+
+/* records: when the stored damage was saved, the last service (links to Activity / History) */
+.nz-dos-cond__records { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 4px; }
+.nz-dos-recs { display: flex; flex-direction: column; gap: 6px; }
+
+.nz-dos-rec {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 8px 12px 8px 9px;
+  text-align: left;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .018), rgba(255, 255, 255, 0)), var(--base);
+  transition: background var(--fast), border-color var(--fast);
+}
+
+.nz-dos-rec:hover { background: var(--raise); border-color: var(--line); }
+.nz-dos-rec:hover .nz-dos-rec__go { color: var(--teal); }
+
+.nz-dos-rec__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  background: var(--raise);
+  border: 1px solid var(--line-soft);
+}
+
+.nz-dos-rec__icon { flex: none; }
+.nz-dos-rec__text { display: flex; flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.nz-dos-rec__text b { font-size: 12px; font-weight: 600; color: var(--white); }
+.nz-dos-rec__text > span { font-size: 11px; font-weight: 300; color: var(--ink-2); }
+
+.nz-dos-rec__go {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  transition: color var(--fast);
+}
 
 .nz-dos-legend { display: flex; align-items: center; gap: 11px; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
 
@@ -2273,6 +2334,7 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 
 .nz-dos-actlog__note { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; font-weight: 300; color: var(--ink-3); }
 .nz-dos-actlog__note.is-error { font-weight: 400; color: var(--red); }
+.nz-dos-actlog__note em { font-style: normal; font-weight: 400; color: var(--ink-2); }
 .nz-dos-actlog__note.is-error .nz-btn { margin-left: 2px; }
 
 .nz-dos-actday h5 {
@@ -2518,4 +2580,8 @@ button.nz-dos-act__head:hover,
   .nz-dos-parts__label { padding-top: 3px; }
   .nz-dos-part { height: 20px; padding: 0 7px; }
   .nz-dos-cond__facts .nz-dos-fact { min-height: 24px; padding: 2px 0; }
+  /* cars list every door, window and tyre: no room left for the records at this height */
+  .nz-dos-cond.is-car .nz-dos-cond__records { display: none; }
+  .nz-dos-rec { padding: 6px 10px 6px 8px; }
+  .nz-dos-facts.is-dense .nz-dos-fact.is-optional { display: none; }
 }

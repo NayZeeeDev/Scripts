@@ -10,8 +10,9 @@
       garage coordinates. Reloads every 5 minutes, on hints from the housing scripts (events,
       resource start, the RefreshHousing export) and when a client asks ('nz:housing:refresh',
       at most one reload per minute for those; client-triggered housing events at most one per
-      30 s and loader). A loader that fails keeps the houses it loaded before; an empty read is
-      only trusted when a read at least a minute later confirms it;
+      30 s and loader). A loader that fails keeps the houses it loaded before; an empty read, or
+      a house missing from a read, is only trusted when a read at least a minute later confirms
+      it;
     - answers hasAccess (live check through the script's key export when the loader has one,
       then the cached owner / key holder sets; a definitive "no" from a loader whose check is
       authoritative overrides the cached sets) and viewsFor;
@@ -77,8 +78,7 @@ local spots = {}          -- [houseId] = { x, y, z, w } hook positions (persiste
 local hookSeen = {}       -- [prefix] = true once its hook was used (console hint printed)
 local liveCache = {}      -- [identifier .. '\n' .. houseId] = { at, result }
 local emptySince = {}     -- [prefix] = GetGameTimer() of the first of consecutive empty reads
-local goneSince = {}      -- [houseId] = GetGameTimer() of the first "does not exist" answer (incomplete loaders)
-local lastLoaderLoad = {} -- [prefix] = GetGameTimer() of the last successful read
+local goneSince = {}      -- [houseId] = GetGameTimer() of the first read that missed it / said "does not exist"
 local lastReadAt = {}     -- [prefix] = GetGameTimer() of the last read attempt
 local netHintPending = {} -- [prefix] = true while a reload asked for by a client event is scheduled
 local netHintAt = {}      -- [prefix] = GetGameTimer() when the last such reload was asked for
@@ -386,18 +386,24 @@ local function grantLive(id, identifier)
   setAccessSource(liveAccess, id, set)
 end
 
+--- End the hook grant of `identifier` for this house (if any).
+local function revokeLive(id, identifier)
+  liveExpiry[id .. '\n' .. identifier] = nil
+  local current = liveAccess[id]
+  if not (current and current[identifier]) then return end
+  local set = {}
+  for k in pairs(current) do if k ~= identifier then set[k] = true end end
+  setAccessSource(liveAccess, id, set)
+end
+
 local function pruneLiveGrants(now)
+  local expired = {}
   for key, expiry in pairs(liveExpiry) do
-    if expiry <= now then
-      liveExpiry[key] = nil
-      local id, identifier = key:match('^(.-)\n(.*)$')
-      local current = id and liveAccess[id]
-      if current and current[identifier] then
-        local set = {}
-        for k in pairs(current) do if k ~= identifier then set[k] = true end end
-        setAccessSource(liveAccess, id, set)
-      end
-    end
+    if expiry <= now then expired[#expired + 1] = key end
+  end
+  for i = 1, #expired do
+    local id, identifier = expired[i]:match('^(.-)\n(.*)$')
+    if id then revokeLive(id, identifier) else liveExpiry[expired[i]] = nil end
   end
 end
 
@@ -726,10 +732,11 @@ end
 ---   resources = { 'vms_housing' },     -- resource names (the first started one is used)
 ---   load = function(ctx) return houses, complete end,
 ---          -- houses = { [rawId] = { id?, name?, coords?, spawn?, store?, access = set|list } },
----          -- nil on failure (the previous houses are kept); complete = false when the list
----          -- only covers some houses (nothing is removed then, except entries { id, gone = true }:
----          -- houses the script answered "does not exist" for, removed when a read at least a
----          -- minute later still says so).
+---          -- nil on failure (the previous houses are kept). complete (default): a house the
+---          -- list misses is removed when a read at least a minute later still misses it.
+---          -- complete = false when the list only covers some houses (nothing is removed then,
+---          -- except entries { id, gone = true }: houses the script answered "does not exist"
+---          -- for, removed when a read at least a minute later still says so).
 ---   check = function(ctx, identifier, rawId, src) return true|false|nil end,  -- optional live check
 ---          -- nil = unknown (export failed / player offline): the cached sets decide
 ---   authoritative = false,             -- true: a live `false` overrides the cached owners / key holders
@@ -961,6 +968,18 @@ local function apply(def, houses, complete)
     end
   end
 
+  -- Complete loaders: a house missing from a read (partial read while the script is still
+  -- loading, a house the loader leaves out for a while) is only dropped when a read at least
+  -- EMPTY_CONFIRM_MS after the first such read still misses it. Recorded before the empty-read
+  -- guard below, so a confirmed empty read drops at once.
+  if complete then
+    local listed = {}
+    for i = 1, #list do listed[list[i].id] = true end
+    for id in pairs(before) do
+      if not listed[id] then goneSince[id] = goneSince[id] or now end
+    end
+  end
+
   -- A read that suddenly finds nothing (script still loading its data after a restart, failed
   -- query) is only trusted when a read at least EMPTY_CONFIRM_MS later confirms it.
   if #list == 0 and next(before) ~= nil then
@@ -984,22 +1003,22 @@ local function apply(def, houses, complete)
   end
 
   if complete then
+    -- Houses this read misses: kept (with what was read before) until the miss is confirmed.
+    -- dropLoaderHouse unregisters a confirmed one and forgets its hook position. A hook
+    -- position whose id the loader never reported is only forgotten through Housing.remove.
     local dropped = {}
     for id in pairs(before) do
-      if not seen[id] then dropped[#dropped + 1] = id end
+      if not seen[id] then
+        if now - (goneSince[id] or now) >= EMPTY_CONFIRM_MS then
+          dropped[#dropped + 1] = id
+        else
+          seen[id] = true
+        end
+      end
     end
-    for i = 1, #dropped do dropLoaderHouse(dropped[i]) end
-    -- Hook positions of houses the script no longer has.
-    local stale = {}
-    for id, rec in pairs(registry) do
-      if rec.source == prefix and rec.origin == 'hook' and not seen[id] then stale[#stale + 1] = id end
-    end
-    for id in pairs(spots) do
-      if not seen[id] and splitId(id) == prefix then stale[#stale + 1] = id end
-    end
-    for i = 1, #stale do
-      unregister(stale[i])
-      forgetSpot(stale[i])
+    for i = 1, #dropped do
+      dropLoaderHouse(dropped[i])
+      Utils.debug(('housing: %s no longer has %s'):format(def.label, dropped[i]))
     end
     loaderIds[prefix] = seen
   else
@@ -1013,12 +1032,13 @@ local function apply(def, houses, complete)
     loaderIds[prefix] = before
   end
 
+  -- Hook positions of ids the loader does not report (a property it leaves out while the
+  -- script's live check still lets players in, a position restored from KVP at boot) are
+  -- placed too, so a restart never moves them to wherever the next user stands.
   local ids = {}
   for id in pairs(loaderIds[prefix]) do ids[#ids + 1] = id end
-  if not complete then
-    for id in pairs(spots) do
-      if splitId(id) == prefix and not loaderIds[prefix][id] then ids[#ids + 1] = id end
-    end
+  for id in pairs(spots) do
+    if splitId(id) == prefix and not loaderIds[prefix][id] then ids[#ids + 1] = id end
   end
   for i = 1, #ids do
     place(def, ids[i])
@@ -1049,7 +1069,6 @@ local function doReload(only)
         if ok and type(houses) == 'table' then
           local count = apply(def, houses, complete ~= false)
           if count then
-            lastLoaderLoad[def.prefix] = GetGameTimer()
             warned['load:' .. def.prefix] = nil
             Utils.debug(('housing: %s -> %d house garage(s)'):format(def.label, count))
             total = total + count
@@ -1218,7 +1237,9 @@ function Housing.boot()
           local def = loaders[i]
           local interval = tonumber(def.interval)
           if def.active and interval and interval >= MIN_RELOAD_MS then
-            local last = lastLoaderLoad[def.prefix]
+            -- Counted from the last read attempt: a loader whose reads fail is not re-read on
+            -- every tick.
+            local last = lastReadAt[def.prefix]
             if not last or now - last >= interval then requestReload(false, nil, def.prefix) end
           end
         end
@@ -1378,6 +1399,7 @@ function Housing.remove(houseId)
   if not unregister(id) then NZ.Locations.removeHouse(id) end
   setAccessSource(loaderAccess, id, nil)
   forgetSpot(id)
+  goneSince[id] = nil
   schedulePush()
   return true
 end
@@ -1619,7 +1641,15 @@ lib.callback.register('nz:housing:hook', Utils.safe(function(source, payload)
   end
   if def then noteHook(def) end
 
-  grantLive(id, identifier)
+  -- A hook grant keeps a house in the player's list while the housing script cannot list them
+  -- (live check only). When the cached owners / key holders already give access, they alone
+  -- decide: a revoked key then ends at the next read, not when a grant runs out.
+  local a, b = loaderAccess[id], exportAccess[id]
+  if (a ~= nil and a[identifier]) or (b ~= nil and b[identifier]) then
+    revokeLive(id, identifier)
+  else
+    grantLive(id, identifier)
+  end
   local views = Housing.viewsFor(identifier)
   lastSent[src] = viewsFingerprint(views)
   schedulePush()
