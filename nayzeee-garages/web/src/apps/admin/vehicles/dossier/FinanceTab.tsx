@@ -2,19 +2,25 @@
  * Finance tab: balance, payment, payments made (pips + bar), interval, next payment or
  * overdue state and the projected payoff, all derived from the Finance record.
  */
-import { Bar, Button, EmptyState, Icon, Pips, cx } from '@/components/ui';
+import { Bar, Button, EmptyState, Icon, Pips, Tooltip, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
-import { date, hoursLabel, money } from '@/lib/format';
+import { date, dateTime, hoursLabel, money } from '@/lib/format';
 import type { AdminVehicleDetail } from '@/lib/types';
-import { nowS } from './data';
+import { actorOf } from './activity';
+import { ago, inTime, nowS } from './data';
 import { Fact, Heading } from './parts';
+import type { ActivityState } from './useActivity';
 
 interface Props {
   detail: AdminVehicleDetail;
+  activity: ActivityState;
   onEdit: () => void;
+  onActivity: () => void;
 }
 
-export function FinanceTab({ detail, onEdit }: Props) {
+const SCHEDULE = 5;
+
+export function FinanceTab({ detail, activity, onEdit, onActivity }: Props) {
   const f = detail.finance;
   if (!f) {
     return (
@@ -43,6 +49,24 @@ export function FinanceTab({ detail, onEdit }: Props) {
     f.nextPaymentHours != null && f.intervalHours
       ? nowS() + Math.round((Math.max(0, f.nextPaymentHours) + Math.max(0, f.paymentsLeft - 1) * f.intervalHours) * 3600)
       : null;
+
+  // Upcoming payments, projected from the agreement (next payment, then one per interval).
+  const schedule =
+    f.nextPaymentHours != null && f.intervalHours && f.paymentsLeft > 0
+      ? Array.from({ length: Math.min(SCHEDULE, f.paymentsLeft) }, (_, i) => {
+          const at = nowS() + Math.round((Math.max(0, f.nextPaymentHours ?? 0) + i * (f.intervalHours ?? 0)) * 3600);
+          const amount = Math.min(f.payment, Math.max(0, f.balance - i * f.payment));
+          return {
+            n: (made ?? 0) + i + 1,
+            at,
+            amount,
+            after: Math.max(0, f.balance - (i + 1) * f.payment),
+            last: i === f.paymentsLeft - 1,
+          };
+        })
+      : [];
+  // Payments the log recorded (newest page only).
+  const recorded = (activity.latest?.rows ?? []).filter((r) => r.event === 'vehicle.finance').slice(0, 4);
 
   return (
     <div className="nz-dos-pane">
@@ -74,6 +98,27 @@ export function FinanceTab({ detail, onEdit }: Props) {
           ) : (
             <p className="nz-dos-note">{t('{n} payments left', { n: f.paymentsLeft })}</p>
           )}
+
+          {schedule.length > 0 && (
+            <>
+              <Heading className="nz-dos-h--gap" count={f.paymentsLeft > SCHEDULE ? t('next {n}', { n: SCHEDULE }) : undefined}>
+                {t('Upcoming')}
+              </Heading>
+              <ol className="nz-dos-sched">
+                {schedule.map((p, i) => (
+                  <li key={p.n} className={cx(i === 0 && 'is-next', i === 0 && f.overdue && 'is-overdue')}>
+                    <span className="nz-dos-sched__n">#{p.n}</span>
+                    <Tooltip content={dateTime(p.at)}>
+                      <span className="nz-dos-sched__when">{i === 0 && f.overdue ? t('Overdue') : inTime(p.at)}</span>
+                    </Tooltip>
+                    <span className="nz-dos-sched__date">{date(p.at)}</span>
+                    <b>{money(p.amount)}</b>
+                    <span className="nz-dos-sched__after">{p.last ? t('Paid off') : t('{amount} left', { amount: money(p.after) })}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </section>
 
         <section className="nz-dos-col nz-dos-fin__side">
@@ -102,6 +147,40 @@ export function FinanceTab({ detail, onEdit }: Props) {
               {payoffAt ? date(payoffAt) : t('Unknown')}
             </Fact>
           </div>
+
+          <Heading
+            className="nz-dos-h--gap"
+            actions={
+              <Button size="sm" variant="ghost" iconRight="arrowRight" onClick={onActivity}>
+                {t('Log')}
+              </Button>
+            }
+          >
+            {t('Recorded payments')}
+          </Heading>
+          {recorded.length === 0 ? (
+            <p className="nz-dos-note">
+              <Icon name="info" size={13} strokeWidth={1.7} />
+              {activity.latest ? t('No payments in the recent activity.') : t('Loading the activity…')}
+            </p>
+          ) : (
+            <ul className="nz-dos-paid">
+              {recorded.map((r) => {
+                const d = r.data ?? {};
+                const amount = typeof d.amount === 'number' ? d.amount : 0;
+                return (
+                  <li key={r.id}>
+                    <Icon name={d.paidOff ? 'checkCircle' : 'money'} size={13} strokeWidth={1.7} />
+                    <b>{money(amount)}</b>
+                    <span className="nz-aveh-ellipsis">{actorOf(r)}</span>
+                    <Tooltip content={dateTime(r.at)} side="left">
+                      <em>{ago(r.at)}</em>
+                    </Tooltip>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       </div>
     </div>

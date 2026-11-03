@@ -27,6 +27,7 @@ if NZ.IsServer then
   NZ.Interiors = {}
   NZ.Admin = {}
   NZ.Import = {}
+  NZ.Phone = {}
 else
   NZ.Bridge = {}
   NZ.Keys = {}

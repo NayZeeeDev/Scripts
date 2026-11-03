@@ -205,106 +205,296 @@ td.nz-aveh-mono {
 
 .nz-aveh-player__av .nz-aveh-online.is-on i { box-shadow: 0 0 6px var(--teal); }
 
-.nz-aveh-plates {
-  display: inline-flex;
+.nz-aveh-badges { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+
+/* ── player band (roster header) ─────────────────────────────────────── */
+.nz-aveh-band {
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 12px;
+  flex: none;
   min-width: 0;
+  padding: 10px 12px;
+  background:
+    radial-gradient(420px 120px at 18% 0%, rgba(var(--teal-rgb), .06), rgba(var(--teal-rgb), 0) 70%),
+    linear-gradient(180deg, var(--panel), var(--base));
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
 }
 
-.nz-aveh-plates__tag.is-hit .nz-plate {
-  border-color: var(--teal-edge);
-  box-shadow: 0 0 0 2px var(--teal-wash);
+.nz-aveh-band::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 300px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--teal), rgba(var(--teal-rgb), 0));
 }
 
-.nz-aveh-plates__more {
-  font-size: 10.5px;
-  font-weight: 500;
-  color: var(--ink-3);
-  cursor: default;
-}
-
-/* ── player header ───────────────────────────────────────────────────── */
 .nz-aveh-who {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 280px;
-  padding: 0 6px 0 2px;
+  max-width: 320px;
+  padding: 0 8px 0 2px;
 }
 
-.nz-aveh-who__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.nz-aveh-who__text b {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -.01em;
-  color: var(--white);
-}
-
+.nz-aveh-who .nz-avatar { border-radius: var(--r-sm); }
+.nz-aveh-who__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nz-aveh-who__text b { font-size: 15px; font-weight: 600; letter-spacing: -.015em; color: var(--white); }
+.nz-aveh-who__text > span { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .nz-aveh-who__text .nz-aveh-mono { font-size: 10.5px; color: var(--ink-3); }
 
-.nz-aveh-chips {
+/* status tiles (filters) */
+.nz-aveh-tiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  flex: none;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
+}
+
+.nz-aveh-tile {
+  --c: var(--teal);
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 14px 10px;
+  text-align: left;
+  transition: background var(--fast);
+}
+
+.nz-aveh-tile + .nz-aveh-tile { border-left: 1px solid var(--line-hair); }
+.nz-aveh-tile:hover:not(:disabled) { background: var(--raise); }
+.nz-aveh-tile:disabled { cursor: default; opacity: .45; }
+.nz-aveh-tile.is-amber { --c: var(--amber); }
+.nz-aveh-tile.is-red { --c: var(--red); }
+.nz-aveh-tile.is-blue { --c: var(--blue); }
+
+.nz-aveh-tile__label {
+  display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
-.nz-aveh-chips .nz-chip { height: 28px; font-size: 11.5px; }
+.nz-aveh-tile__label svg { flex: none; }
+.nz-aveh-tile > b { font-size: 20px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; color: var(--white); }
+.nz-aveh-tile.is-on { background: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0)); }
 
-/* ── vehicle rows ────────────────────────────────────────────────────── */
-.nz-aveh-vcell {
+.nz-aveh-tile.is-on::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--c);
+  box-shadow: 0 0 10px var(--c);
+}
+
+.nz-aveh-tile.is-on .nz-aveh-tile__label { color: var(--ink); }
+.nz-aveh-tile.is-on .nz-aveh-tile__label svg,
+.nz-aveh-tile.is-amber .nz-aveh-tile__label svg,
+.nz-aveh-tile.is-red .nz-aveh-tile__label svg,
+.nz-aveh-tile.is-blue .nz-aveh-tile__label svg { color: var(--c); }
+
+/* ── roster list ─────────────────────────────────────────────────────── */
+.nz-aveh-roster__list { flex: 0 1 auto; }
+.nz-aveh-roster__scroll { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.nz-aveh-roster__scroll > .nz-empty { margin: 18px; border-style: dashed; }
+
+.nz-aveh-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nz-aveh-card__foot > .nz-pager,
+.nz-aveh-card__foot > :only-child { margin-left: auto; }
+.nz-aveh-roster__hint { font-size: 11px; font-weight: 300; color: var(--ink-3); }
+
+.nz-aveh-vlist { display: flex; flex-direction: column; list-style: none; padding: 6px; }
+
+.nz-aveh-vrow {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1.5fr) 96px minmax(0, 1fr) 170px 124px 16px;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 60px;
+  padding: 6px 12px 6px 6px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background var(--fast), box-shadow var(--fast);
+}
+
+li + li > .nz-aveh-vrow,
+.nz-aveh-vrow.is-skel + .nz-aveh-vrow.is-skel { box-shadow: 0 -1px 0 var(--line-hair); }
+button.nz-aveh-vrow:hover { background: var(--raise); box-shadow: none; }
+button.nz-aveh-vrow:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; background: var(--raise); }
+.nz-aveh-vrow.is-blocked .nz-aveh-vrow__thumb { opacity: .55; }
+
+.nz-aveh-vrow__thumb {
+  position: relative;
+  display: block;
+  height: 47px;
+  overflow: hidden;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(var(--teal-rgb), 0) 62%, rgba(var(--teal-rgb), .18) 63%, rgba(var(--teal-rgb), 0) 64%),
+    radial-gradient(90% 90% at 50% 10%, var(--raise) 0%, var(--inset) 70%);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.nz-aveh-vrow__thumb .nz-vimg { position: absolute; left: 2px; right: 2px; top: 0; width: auto; }
+
+.nz-aveh-vrow__name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nz-aveh-vrow__name > b { font-size: 13px; font-weight: 600; color: var(--white); }
+
+.nz-aveh-vrow__name > span {
   display: flex;
   align-items: center;
-  gap: 11px;
-  min-width: 0;
-}
-
-.nz-aveh-vcell__img.nz-vimg {
-  width: 50px;
-  flex: none;
-  border-radius: 5px;
-  background: radial-gradient(60% 70% at 50% 60%, rgba(255, 255, 255, .06), transparent 75%);
-}
-
-.nz-aveh-badges {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
-  min-width: 0;
-}
-
-.nz-aveh-cond {
-  display: inline-flex;
-  align-items: center;
-  gap: 11px;
-}
-
-.nz-aveh-cond__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
   font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-aveh-vrow__name > span svg { flex: none; }
+.nz-aveh-vrow__name .nz-aveh-mono { font-size: 10.5px; color: var(--ink-3); }
+.nz-aveh-vrow .nz-dos-plate.is-hit { box-shadow: inset 0 0 0 1px var(--teal-edge), 0 0 0 2px var(--teal-wash); }
+
+.nz-aveh-vrow__where { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--ink); }
+.nz-aveh-vrow__where i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.nz-aveh-vrow__where.is-out { color: var(--ink-2); }
+.nz-aveh-vrow__where.is-out i { background: var(--amber); box-shadow: 0 0 0 3px var(--amber-wash); }
+.nz-aveh-vrow__where.is-impounded { color: var(--red); }
+.nz-aveh-vrow__where.is-impounded i { background: var(--red); box-shadow: 0 0 0 3px var(--red-wash); }
+
+.nz-aveh-vrow__tags { display: flex; align-items: center; justify-content: flex-end; gap: 5px; min-width: 0; }
+.nz-aveh-vrow__chev { color: var(--ink-3); transition: transform var(--fast), color var(--fast); }
+button.nz-aveh-vrow:hover .nz-aveh-vrow__chev { color: var(--white); transform: translateX(2px); }
+.nz-aveh-vrow.is-skel { display: grid; }
+
+/* mini condition bars */
+.nz-aveh-mini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; min-width: 0; }
+.nz-aveh-mini .nz-tip-anchor { display: block; min-width: 0; }
+.nz-aveh-mini__item { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--ink-3); }
+.nz-aveh-mini__item > i { position: relative; flex: 1 1 auto; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.nz-aveh-mini__item > i > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: var(--teal); }
+.nz-aveh-mini__item.is-amber { color: var(--amber); }
+.nz-aveh-mini__item.is-amber > i > i { background: var(--amber); }
+.nz-aveh-mini__item.is-red { color: var(--red); }
+.nz-aveh-mini__item.is-red > i > i { background: var(--red); }
+
+/* ── search results (player cards) ───────────────────────────────────── */
+.nz-aveh-results { flex: 0 1 auto; }
+
+.nz-aveh-results__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-hair);
+  font-size: 12px;
   color: var(--ink-2);
 }
 
-.nz-aveh-cond__item svg { color: var(--ink-3); }
-.nz-aveh-cond__item b { font-weight: 500; color: inherit; }
-.nz-aveh-cond__item.is-amber,
-.nz-aveh-cond__item.is-amber svg { color: var(--amber); }
-.nz-aveh-cond__item.is-red,
-.nz-aveh-cond__item.is-red svg { color: var(--red); }
-.nz-aveh-cond__item.is-amber b,
-.nz-aveh-cond__item.is-red b { font-weight: 600; }
+.nz-aveh-results__keys { font-size: 11px; font-weight: 300; color: var(--ink-3); }
+.nz-aveh-results__scroll { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 12px; transition: opacity var(--fast); }
+.nz-aveh-results__scroll.is-loading { opacity: .5; }
+.nz-aveh-results__scroll > .nz-empty { min-height: 220px; border-style: dashed; }
+
+.nz-aveh-pgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+
+.nz-aveh-pcard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: var(--r-md);
+  background: var(--inset);
+  border: 1px solid var(--line-soft);
+  box-shadow: inset 0 1px 0 var(--lift);
+  transition: border-color var(--fast), background var(--fast), transform var(--fast);
+}
+
+button.nz-aveh-pcard:hover { border-color: var(--line); background: var(--raise); }
+button.nz-aveh-pcard:focus-visible { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+
+.nz-aveh-pcard__top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.nz-aveh-pcard__top .nz-avatar { border-radius: var(--r-sm); }
+.nz-aveh-pcard__id { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.nz-aveh-pcard__id b { font-size: 13.5px; font-weight: 600; color: var(--white); }
+.nz-aveh-pcard__id .nz-aveh-mono { font-size: 10.5px; color: var(--ink-3); }
+
+.nz-aveh-pcard__state {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-soft);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.nz-aveh-pcard__state.is-on { color: var(--teal); border-color: var(--teal-edge); background: var(--teal-wash); }
+
+.nz-aveh-pcard__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 28px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.nz-aveh-pcard__label { flex: none; font-size: 11px; font-weight: 300; color: var(--ink-3); }
+.nz-aveh-pcard__plates { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; }
+.nz-aveh-pcard__plates em { font-size: 10.5px; font-style: normal; color: var(--ink-3); }
+
+.nz-aveh-pcard__open {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--ink-3);
+  transition: color var(--fast);
+}
+
+button.nz-aveh-pcard:hover .nz-aveh-pcard__open,
+button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
+
+@media (max-width: 1500px) {
+  .nz-aveh-pgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nz-aveh-vrow { grid-template-columns: 76px minmax(0, 1.4fr) 92px minmax(0, 1fr) 150px 92px 16px; gap: 12px; }
+  .nz-aveh-vrow__thumb { height: 43px; }
+  .nz-aveh-tile { padding: 8px 12px 9px; }
+  .nz-aveh-tile__label { font-size: 9.5px; letter-spacing: .08em; }
+}
 
 /* ── forms in modals ─────────────────────────────────────────────────── */
 .nz-aveh-form2 {
@@ -788,7 +978,6 @@ td.nz-aveh-mono {
 .nz-aveh-json.is-invalid .nz-aveh-json__status { color: var(--red); }
 .nz-aveh-json.is-invalid .nz-aveh-json__status svg { color: var(--red); }
 
-.nz-aveh-chips[hidden] { display: none; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Vehicle dossier (level 3): hero band, pill tabs, one sheet per tab.
@@ -1476,7 +1665,7 @@ td.nz-aveh-mono {
 
 .nz-dos-ov__glyph:hover { border-color: var(--line); background: var(--raise); }
 .nz-dos-ov__glyph .nz-dmg { max-width: 220px; }
-.nz-dos-ov__glyph > span { font-size: 11px; color: var(--ink-2); text-align: center; }
+.nz-dos-ov__glyph > span { max-width: 100%; font-size: 11px; color: var(--ink-2); text-align: center; }
 .nz-dos-ov__glyph > span.is-bad { color: var(--amber); }
 .nz-dos-ov__glyph > span.is-muted { color: var(--ink-3); }
 
@@ -1492,14 +1681,17 @@ td.nz-aveh-mono {
   min-width: 0;
   font-size: 12px;
   color: var(--ink-2);
+  white-space: nowrap;
 }
+
+.nz-dos-gauge__top > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .nz-dos-gauge__top svg { color: var(--ink-3); flex: none; }
 
 .nz-dos-gauge__top em {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 10px;
   font-style: normal;
   color: var(--ink-3);
 }
@@ -1513,7 +1705,7 @@ td.nz-aveh-mono {
   color: var(--white);
 }
 
-.nz-dos-gauge__top em + b { margin-left: 10px; }
+.nz-dos-gauge__top em + b { margin-left: 8px; }
 .nz-dos-gauge__top b small { margin-left: 1px; font-size: 10.5px; font-weight: 500; color: var(--ink-3); }
 .nz-dos-gauge.is-amber .nz-dos-gauge__top b { color: var(--amber); }
 .nz-dos-gauge.is-red .nz-dos-gauge__top b { color: var(--red); }
@@ -1628,7 +1820,7 @@ td.nz-aveh-mono {
 .nz-dos-cond__caption.is-rim span { color: var(--red); }
 .nz-dos-cond__caption.is-burst span { color: var(--amber); }
 
-.nz-dos-cond__gauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin-bottom: 4px; }
+.nz-dos-cond__gauges { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin-bottom: 4px; }
 .nz-dos-cond__facts { margin-top: 2px; }
 
 .nz-dos-legend { display: flex; align-items: center; gap: 11px; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
@@ -1804,9 +1996,9 @@ td.nz-aveh-mono {
 .nz-dos-light b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; color: var(--white); }
 .nz-dos-light.is-off b { font-weight: 400; color: var(--ink-3); }
 
-.nz-dos-neon { flex: none; width: 40px; height: 22px; }
+.nz-dos-neon { flex: none; width: 40px; height: 22px; overflow: visible; }
 .nz-dos-neon__body { fill: rgba(255, 255, 255, .04); stroke: rgba(255, 255, 255, .2); stroke-width: 1; }
-.nz-dos-neon__side { stroke: rgba(255, 255, 255, .12); stroke-width: 2.4; stroke-linecap: round; }
+.nz-dos-neon__side { stroke: rgba(255, 255, 255, .12); stroke-width: 3; stroke-linecap: round; }
 
 .nz-dos-glass {
   display: inline-block;
@@ -1885,6 +2077,49 @@ td.nz-aveh-mono {
 .nz-dos-fin__next.is-overdue .nz-dos-fin__next-icon { color: var(--red); background: var(--red-wash); border-color: var(--red-edge); }
 .nz-dos-fin__next.is-overdue b { color: var(--red); }
 
+/* finance: schedule + recorded payments */
+.nz-dos-sched { display: flex; flex-direction: column; list-style: none; }
+
+.nz-dos-sched li {
+  display: grid;
+  grid-template-columns: 38px 92px minmax(0, 1fr) auto 128px;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  border-bottom: 1px solid var(--line-hair);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.nz-dos-sched li:last-child { border-bottom: 0; }
+.nz-dos-sched__n { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.nz-dos-sched__when { font-weight: 500; color: var(--ink); }
+.nz-dos-sched__date { color: var(--ink-3); font-size: 11.5px; }
+.nz-dos-sched li > b { font-weight: 600; color: var(--white); text-align: right; }
+.nz-dos-sched__after { font-size: 11px; color: var(--ink-3); text-align: right; white-space: nowrap; }
+.nz-dos-sched li.is-next .nz-dos-sched__when { color: var(--teal); }
+.nz-dos-sched li.is-next .nz-dos-sched__n { color: var(--teal); }
+.nz-dos-sched li.is-overdue .nz-dos-sched__when,
+.nz-dos-sched li.is-overdue .nz-dos-sched__n { color: var(--red); }
+
+.nz-dos-paid { display: flex; flex-direction: column; list-style: none; }
+
+.nz-dos-paid li {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 29px;
+  border-bottom: 1px solid var(--line-hair);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.nz-dos-paid li:last-child { border-bottom: 0; }
+.nz-dos-paid li svg { color: var(--teal); }
+.nz-dos-paid li b { font-weight: 600; color: var(--white); }
+.nz-dos-paid li em { font-style: normal; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+
 /* ── history timeline ────────────────────────────────────────────────── */
 .nz-dos-hist { grid-auto-flow: row; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
 .nz-dos-hist__chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1907,7 +2142,7 @@ td.nz-aveh-mono {
 .nz-dos-tl__item {
   position: relative;
   display: grid;
-  grid-template-columns: 34px 24px minmax(0, 1fr) auto auto;
+  grid-template-columns: 34px 24px minmax(0, 1fr) auto 24px;
   align-items: center;
   gap: 10px;
   min-height: 44px;
@@ -1925,7 +2160,7 @@ td.nz-aveh-mono {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--line-soft);
+  background: var(--line);
 }
 
 .nz-dos-tl__date { display: flex; flex-direction: column; align-items: center; line-height: 1; }
@@ -2086,7 +2321,20 @@ button.nz-dos-act__head:hover,
 .nz-dos-act__text b.is-raw { font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
 .nz-dos-act__text b em { font-style: normal; font-weight: 400; color: var(--ink-2); }
 .nz-dos-act__text > span { font-size: 11px; font-weight: 300; color: var(--ink-3); }
-.nz-dos-act__time { flex: none; font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+.nz-dos-act__time { flex: none; width: 74px; text-align: right; font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+
+.nz-dos-act__actor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  width: 200px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+.nz-dos-act__actor .nz-avatar { flex: none; border-radius: 5px; font-size: 8.5px; }
 .nz-dos-act__chev { flex: none; color: var(--ink-3); }
 
 .nz-dos-act__more {
@@ -2150,6 +2398,19 @@ button.nz-dos-act__head:hover,
 }
 
 .nz-dos-json:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.nz-dos-json { counter-reset: nz-line; padding-left: 0; }
+.nz-dos-json > span { display: block; padding-left: 56px; position: relative; }
+.nz-dos-json > span::before {
+  counter-increment: nz-line;
+  content: counter(nz-line);
+  position: absolute;
+  left: 0;
+  width: 38px;
+  text-align: right;
+  color: var(--ink-3);
+  opacity: .55;
+}
+.nz-dos-json > span:hover { background: rgba(255, 255, 255, .02); }
 .nz-dos-json__key { color: var(--teal-hi); }
 .nz-dos-json__str { color: var(--ink); }
 .nz-dos-json__num { color: var(--blue); }
@@ -2159,6 +2420,17 @@ button.nz-dos-act__head:hover,
 @media (prefers-reduced-motion: reduce) {
   .nz-dos-body,
   .nz-dos-act__more { animation: none; }
+}
+
+/* ── narrower windows (1280 wide): give the paint column more room ──── */
+@media (max-width: 1500px) {
+  .nz-dos-up { grid-template-columns: minmax(0, .92fr) minmax(0, 1.2fr) minmax(0, .98fr); }
+  .nz-dos-paint { gap: 5px; }
+  .nz-dos-paint__item { gap: 7px; padding: 6px 7px; }
+  .nz-dos-paint__item .nz-dos-chip { width: 26px !important; height: 26px !important; }
+  .nz-dos-paint__text b { font-size: 11px; }
+  .nz-dos-act__actor { width: 160px; }
+  .nz-dos-sched li { grid-template-columns: 34px 84px minmax(0, 1fr) auto 112px; }
 }
 
 /* ── tall screens: give the sheets more air ──────────────────────────── */

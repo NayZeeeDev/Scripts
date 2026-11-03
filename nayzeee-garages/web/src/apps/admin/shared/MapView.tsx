@@ -559,7 +559,11 @@ export function MapView({
 
   const hovered = hoverId !== null ? placed.find((p) => p.pin.id === hoverId) ?? null : null;
   const hoverPos = hovered ? toScreen(hovered.ix, hovered.iy) : null;
-  const tipBelow = hoverPos ? hoverPos.y < 150 : false;
+  /** Cards sit beside the pin head (right, or left near the right edge), kept inside the map. */
+  const cardSpot = (sx: number, sy: number, lift: number) => ({
+    left: sx,
+    top: clamp(sy - lift, 76, Math.max(76, h - bottomInset - 70)),
+  });
   const hoveredCluster = clusterHover ? clusters.groups.find((g) => g.key === clusterHover) ?? null : null;
 
   const bar = k ? scaleBar(k * IMAGE_PX_PER_WORLD, distanceUnit) : null;
@@ -633,8 +637,15 @@ export function MapView({
               onClick={() => {
                 if (suppressClick.current) return;
                 setClusterHover(null);
+                // Zoom in just enough to split the bubble (never past "fit these members").
+                let d = Infinity;
+                g.members.forEach((a, i) => g.members.slice(i + 1).forEach((b) => (d = Math.min(d, Math.hypot(a.ix - b.ix, a.iy - b.iy)))));
+                const split = d > 0 && d < Infinity ? ((CLUSTER_PX + 18) / d) * 1.15 : MAX_K;
                 const fit = fitView(g.members, MAX_K);
-                flyTo({ ...fit, k: Math.max(fit.k, viewRef.current.k * 2.2) });
+                const k = Math.min(fit.k, Math.max(viewRef.current.k * 1.8, split));
+                const { h: vh0 } = sizeRef.current;
+                const vh = vh0 - insetRef.current;
+                flyTo({ k, cx: g.ix, cy: g.iy + (vh0 / 2 - vh / 2) / k });
               }}
             >
               <span className="nz-admin-map__cluster-ring" />
@@ -688,8 +699,8 @@ export function MapView({
       {/* hover card */}
       {hovered && hoverPos && onScreen(hoverPos, 0) && !dragging && (
         <div
-          className={cx('nz-admin-map__card', tipBelow && 'is-below')}
-          style={{ left: clamp(hoverPos.x, 130, Math.max(130, w - 130)), top: hoverPos.y }}
+          className={cx('nz-admin-map__card', hoverPos.x > w - 300 && 'is-left', hovered.pin.id === selectedId && 'is-big')}
+          style={cardSpot(hoverPos.x, hoverPos.y, hovered.pin.id === selectedId ? 31 : 26)}
           role="tooltip"
         >
           <b>{hovered.pin.label}</b>
@@ -705,8 +716,8 @@ export function MapView({
         const names = hoveredCluster.members.map((m) => m.pin.label).sort((a, b) => a.localeCompare(b));
         return (
           <div
-            className={cx('nz-admin-map__card', 'is-cluster', s.y < 170 && 'is-below')}
-            style={{ left: clamp(s.x, 130, Math.max(130, w - 130)), top: s.y }}
+            className={cx('nz-admin-map__card', 'is-cluster', s.x > w - 300 && 'is-left')}
+            style={cardSpot(s.x, s.y, 0)}
             role="tooltip"
           >
             <b>{t('{count} locations', { count: names.length })}</b>
@@ -761,6 +772,7 @@ export function MapView({
         </span>
       </div>
 
+      {pins.length > 0 && (
       <div className="nz-admin-map__ui nz-admin-map__legend" aria-label={t('Legend')}>
         {(['car', 'sea', 'air'] as VehicleType[]).map((vt) => (
           <span key={vt} className={cx('nz-admin-map__legend-item', !counts[vt] && 'is-zero')}>
@@ -775,6 +787,7 @@ export function MapView({
           <em>{counts.off}</em>
         </span>
       </div>
+      )}
 
       <div className="nz-admin-map__ui nz-admin-map__readout" aria-live="off">
         {bar && (

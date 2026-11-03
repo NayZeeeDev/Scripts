@@ -84,13 +84,26 @@ local function trim(s)
   return (s:gsub('^%s+', ''):gsub('%s+$', ''))
 end
 
---- Plain text: no control characters except line breaks, and no angle brackets, so
---- notification UIs that render HTML (qb-core, esx_notify, mythic, pNotify, ...) cannot be
---- injected through player-chosen names.
+local ZWSP = '\u{200B}' -- zero-width space
+
+--- Plain text: no control characters except line breaks, no angle brackets (so notification
+--- UIs that render HTML - qb-core, mythic, pNotify, okokNotify, ... - cannot be injected
+--- through player-chosen names) and no image syntax: `![` gets a zero-width space, which
+--- breaks markdown images (ox_lib / qbx_core descriptions) and t-notify's `![url]` image tag
+--- without any visible change, so a notification never makes the client load a remote URL.
 local function plain(value)
   local s = tostring(value)
   s = s:gsub('\r\n', '\n'):gsub('[\0-\9\11-\31\127]', ''):gsub('<', '‹'):gsub('>', '›')
+  s = s:gsub('!%[', '!' .. ZWSP .. '[')
   return trim(s)
+end
+
+--- Markdown-safe text for fields rendered as markdown (ox_lib's notification description,
+--- also used by qbx_core): every ASCII punctuation character is backslash-escaped, so names
+--- like "Mc_Gregor" or "#1 Dealer" show literally instead of turning into emphasis or
+--- headings, and line breaks stay line breaks.
+local function markdown(s)
+  return (s:gsub('%p', '\\%0'):gsub('\n', '  \n'))
 end
 
 --- Cap to `max` characters (UTF-8 aware), ending with an ellipsis when cut.
@@ -161,13 +174,15 @@ end
 
 local adapters = {}
 
--- ox_lib: lib.notify (types info / warning / success / error; description is markdown).
+-- ox_lib: lib.notify (types info / warning / success / error). The title is plain text, the
+-- description is rendered as markdown (ox_lib 3+). Without a position the player's own
+-- ox_lib notification position is used.
 adapters.ox_lib = {
   resource = 'ox_lib',
   show = function(n)
     lib.notify({
       title = n.title,
-      description = n.message,
+      description = markdown(n.message),
       type = n.kind,
       duration = n.duration,
       position = n.position,
@@ -195,25 +210,36 @@ adapters.qb = {
 
 -- Qbox: exports.qbx_core:Notify(text, type, duration, subTitle). qbx_core uses the title as
 -- the ox_lib notification id, so a shared title would make every garage notification
--- replace the previous one: only explicit titles are passed.
+-- replace the previous one: only explicit titles are passed. The message always lands in
+-- the ox_lib description (markdown): `text` without a subTitle, otherwise the subTitle.
 local QBX_TYPES = { success = 'success', error = 'error', info = 'inform', warning = 'warning' }
 adapters.qbx = {
   resource = 'qbx_core',
   show = function(n)
     if n.explicitTitle then
-      exports.qbx_core:Notify(n.title, QBX_TYPES[n.kind], n.duration, n.message)
+      exports.qbx_core:Notify(n.title, QBX_TYPES[n.kind], n.duration, markdown(n.message))
     else
-      exports.qbx_core:Notify(n.message, QBX_TYPES[n.kind], n.duration)
+      exports.qbx_core:Notify(markdown(n.message), QBX_TYPES[n.kind], n.duration)
     end
   end,
 }
 
--- ESX: ESX.ShowNotification(message, type, length, title) via the 'esx:showNotification'
--- event (ESX Legacy forwards it to esx_notify; older versions ignore the extra arguments).
+-- ESX: esx_notify, the notification resource of ESX Legacy (1.9+), called directly:
+-- exports.esx_notify:Notify(type, length, message, title?, position?), types success / error /
+-- info / warning. Title and position are read by recent versions (older ones ignore them;
+-- without a title esx_notify shows its own default heading). ESX.ShowNotification only
+-- forwards to this export (and does nothing when esx_notify is missing), and the
+-- 'esx:showNotification' event drops local triggers on 1.11 / 1.12 (secured net event), so
+-- neither is used: when esx_notify is not started the notification is shown with ox_lib.
+local ESX_POSITIONS = {
+  ['top'] = 'top-middle', ['top-right'] = 'top-right', ['top-left'] = 'top-left',
+  ['bottom'] = 'bottom-middle', ['bottom-right'] = 'bottom-right', ['bottom-left'] = 'bottom-left',
+  ['center-right'] = 'middle-right', ['center-left'] = 'middle-left',
+}
 adapters.esx = {
-  resource = 'es_extended',
+  resource = 'esx_notify',
   show = function(n)
-    TriggerEvent('esx:showNotification', n.message, n.kind, n.duration, n.title)
+    exports['esx_notify']:Notify(n.kind, n.duration, n.message, n.title, ESX_POSITIONS[n.position])
   end,
 }
 
@@ -238,7 +264,8 @@ adapters.mythic_notify = {
   end,
 }
 
--- pNotify: SendNotification({ text (HTML), type, timeout, layout }).
+-- pNotify: SendNotification({ text (HTML), type, timeout, layout }). Types success / error /
+-- info / warning (Noty).
 local PNOTIFY_LAYOUTS = {
   ['top'] = 'topCenter', ['top-right'] = 'topRight', ['top-left'] = 'topLeft',
   ['bottom'] = 'bottomCenter', ['bottom-right'] = 'bottomRight', ['bottom-left'] = 'bottomLeft',
@@ -253,7 +280,7 @@ adapters.pNotify = {
       text = text,
       type = n.kind,
       timeout = n.duration,
-      layout = PNOTIFY_LAYOUTS[n.position] or 'topRight',
+      layout = PNOTIFY_LAYOUTS[n.position], -- nil: pNotify's own default layout
     })
   end,
 }

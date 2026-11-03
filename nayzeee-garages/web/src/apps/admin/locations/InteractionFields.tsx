@@ -2,17 +2,20 @@
  * InteractionFields — the "Interaction" section of the location editor.
  *
  * API
- *   <InteractionFields draft globalMode onChange(interaction) />
+ *   <InteractionFields draft globalMode defaultModel? defaultScenario? onChange(interaction) />
  *   - draft: the location being edited (kind, vehicle type, access mode, points are read to
  *     preview what players get).
  *   - globalMode: settings.interface.interaction (what 'default' resolves to).
+ *   - defaultModel / defaultScenario: Config.Peds defaults from the server (fallback: the
+ *     shipped config values in defaults.ts). An empty model saves as defaultModel.
  *
  * Parts: the mode Segmented (Default / Press E / Target / Both) with an explainer of the
  * selected mode and, when third-eye applies, the target options players will see here
  * (derived from the location: open / hangar / marina, enter interior, for sale, impound,
  * store). Then the NPC: toggle, ped model (validated like the server: [A-Za-z0-9_], max 32,
- * empty = Config.Peds.defaultModel), quick picks, scenario, where it stands / faces, and a
- * warning with a one-click fix when the mode would never show it.
+ * empty = Config.Peds.defaultModel), quick picks, scenario, where it stands / faces, a note
+ * when drivers park around it, and a warning with a one-click fix when the mode would never
+ * show it.
  */
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
@@ -31,6 +34,10 @@ type Ped = NonNullable<LocationInteraction['ped']>;
 export interface InteractionFieldsProps {
   draft: Location;
   globalMode: Effective;
+  /** Config.Peds.defaultModel on this server (what an empty model spawns). */
+  defaultModel?: string;
+  /** Config.Peds.defaultScenario on this server (first scenario of a new NPC). */
+  defaultScenario?: string;
   onChange: (interaction: LocationInteraction) => void;
 }
 
@@ -48,6 +55,10 @@ interface TargetOption {
   who?: string;
 }
 
+/** Whether drivers park at the open interactions (and so around the NPC). The server stores at
+ *  the open interactions when no store interaction exists (server/locations.lua). */
+const storesAtOpen = (draft: Location) => draft.kind !== 'impound' && (draft.useOpenForStore || draft.storePoints.length === 0);
+
 /** The third-eye options client/points.lua builds for this location. */
 function targetOptions(draft: Location): TargetOption[] {
   if (draft.kind === 'impound') return [{ label: t('Open impound'), icon: 'impound' }];
@@ -61,7 +72,20 @@ function targetOptions(draft: Location): TargetOption[] {
   if (draft.kind === 'private' && draft.purchasable) list.push({ label: t('View garage for sale'), icon: 'cart', who: t('everyone else') });
   if (access !== 'interior') list.push({ label: open, icon: openIcon, who: owners });
   if (access !== 'quick') list.push({ label: t('Enter interior'), icon: 'door', who: owners });
-  list.push({ label: t('Store vehicle'), icon: 'parking', who: t('in or next to a vehicle') });
+  // on the point / NPC only when it is also where drivers park; else on the store zones
+  const atOpen = storesAtOpen(draft);
+  const isPrivate = draft.kind === 'private';
+  list.push({
+    label: t('Store vehicle'),
+    icon: 'parking',
+    who: atOpen
+      ? isPrivate
+        ? t('owners, in or next to their vehicle')
+        : t('in or next to their vehicle')
+      : isPrivate
+        ? t('owners, at the store interactions')
+        : t('at the store interactions'),
+  });
   return list;
 }
 
@@ -74,13 +98,19 @@ function headingTo(from: Vec3, to: Vec3): number | null {
   return ((h % 360) + 360) % 360;
 }
 
-export function InteractionFields({ draft, globalMode, onChange }: InteractionFieldsProps) {
-  const value = normalizeInteraction(draft.interaction);
+export function InteractionFields({
+  draft,
+  globalMode,
+  defaultModel = PED_DEFAULT_MODEL,
+  defaultScenario = PED_DEFAULT_SCENARIO,
+  onChange,
+}: InteractionFieldsProps) {
+  const value = normalizeInteraction(draft.interaction, defaultScenario);
   const { mode, ped } = value;
   const effective: Effective = mode === 'default' ? globalMode : mode;
   const target = usesTarget(effective);
   // Remember the NPC set-up while it is switched off, so toggling back restores it.
-  const lastPed = useRef<Ped>(ped ?? { model: '', scenario: PED_DEFAULT_SCENARIO });
+  const lastPed = useRef<Ped>(ped ?? { model: '', scenario: defaultScenario });
   if (ped) lastPed.current = ped;
 
   const setMode = (next: Mode) => onChange({ ...value, mode: next });
@@ -106,7 +136,10 @@ export function InteractionFields({ draft, globalMode, onChange }: InteractionFi
     },
     target: {
       title: t('Target'),
-      text: t('Players use third-eye (ox_target / qb-target) on the point or the NPC. Drivers still park with the key prompt.'),
+      text:
+        draft.kind === 'impound'
+          ? t('Players use third-eye (ox_target / qb-target) on the point or the NPC to open the impound.')
+          : t('Players use third-eye (ox_target / qb-target) on the point or the NPC. Drivers still park with the key prompt.'),
       badge: null,
     },
     both: {
@@ -123,6 +156,8 @@ export function InteractionFields({ draft, globalMode, onChange }: InteractionFi
   const options = targetOptions(draft);
   const scenarioOptions = PED_SCENARIOS.map((s) => ({ value: s.value, label: t(s.label) }));
   const pedWarning = !!ped && !target;
+  // the NPC stands in the middle of the parking zone of open interaction #1
+  const parksAroundPed = !!ped && !!openPoint && storesAtOpen(draft);
 
   return (
     <div className="nz-admin-interaction">
@@ -195,12 +230,12 @@ export function InteractionFields({ draft, globalMode, onChange }: InteractionFi
             <div className="nz-admin-form__grid">
               <Field
                 label={t('Ped model')}
-                hint={ped.model ? t('GTA ped model name') : t('Empty uses the default ({model})', { model: PED_DEFAULT_MODEL })}
+                hint={ped.model ? t('GTA ped model name') : t('Empty uses the default ({model})', { model: defaultModel })}
               >
                 <Input
                   value={ped.model}
                   onChange={(model) => setPed({ ...ped, model: cleanModel(model) })}
-                  placeholder={PED_DEFAULT_MODEL}
+                  placeholder={defaultModel}
                   maxLength={PED_MODEL_MAX}
                   icon="user"
                   mono
@@ -219,7 +254,7 @@ export function InteractionFields({ draft, globalMode, onChange }: InteractionFi
                 {PED_MODEL_PRESETS.map((p) => (
                   <Chip
                     key={p.value}
-                    active={(ped.model || PED_DEFAULT_MODEL) === p.value}
+                    active={(ped.model || defaultModel) === p.value}
                     onClick={() => setPed({ ...ped, model: p.value })}
                   >
                     {t(p.label)}
@@ -240,6 +275,12 @@ export function InteractionFields({ draft, globalMode, onChange }: InteractionFi
                 </small>
               </span>
             </div>
+            {parksAroundPed && (
+              <p className="nz-admin-interaction__note">
+                <Icon name="parking" size={13} strokeWidth={1.8} />
+                <span>{t('Drivers park around the NPC: add store interactions to keep cars clear of it.')}</span>
+              </p>
+            )}
           </div>
         )}
         {pedWarning ? (

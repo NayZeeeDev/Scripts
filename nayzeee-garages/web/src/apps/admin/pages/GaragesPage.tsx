@@ -93,8 +93,8 @@ export function GaragesPage(props: AdminPageProps) {
         icon: 'garage',
         label: t('Locations'),
         value: fmt(enabled),
-        unit: `/ ${fmt(all.length)}`,
-        sub: t('enabled'),
+        unit: all.length ? `/ ${fmt(all.length)}` : undefined,
+        sub: all.length ? t('enabled') : t('none yet'),
         ratio: all.length ? enabled / all.length : null,
       },
       {

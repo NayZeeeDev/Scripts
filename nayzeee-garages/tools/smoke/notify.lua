@@ -155,11 +155,22 @@ N = setup('qbx', { running = { 'qbx_core' } })
 N.show('info', 'Vehicle stored')
 expectCall('qbx', 'qbx_core:Notify', 'Vehicle stored', 'inform', 5000)
 N.show('success', 'Sultan was added.', 'Vehicle assigned')
-expectCall('qbx explicit', 'qbx_core:Notify', 'Vehicle assigned', 'success', 5000, 'Sultan was added.')
+expectCall('qbx explicit', 'qbx_core:Notify', 'Vehicle assigned', 'success', 5000, 'Sultan was added\\.')
+N.show('error', 'Not enough money!')
+expectCall('qbx markdown escaped', 'qbx_core:Notify', 'Not enough money\\!', 'error', 5000)
 
-N = setup('esx', { running = { 'es_extended' } })
+N = setup('esx', { running = { 'es_extended', 'esx_notify' } })
 N.show('warning', 'Garage almost full')
-expectCall('esx', 'event:esx:showNotification', 'Garage almost full', 'warning', 5000, 'Garage')
+expectCall('esx', 'esx_notify:Notify', 'warning', 5000, 'Garage almost full', 'Garage', 'top-right')
+N = setup('esx', { running = { 'es_extended', 'esx_notify' }, notify = { title = '', position = 'center-right' } })
+N.show('success', 'Vehicle stored')
+expectCall('esx position + no title', 'esx_notify:Notify', 'success', 5000, 'Vehicle stored', nil, 'middle-right')
+N = setup('esx', { running = { 'es_extended' } }) -- ESX without esx_notify
+N.show('warning', 'No esx_notify')
+N.show('info', 'Still none')
+check(#calls == 2 and calls[1].name == 'lib.notify' and calls[2].name == 'lib.notify' and #warnings == 1,
+  'esx without esx_notify -> ox_lib + one warning')
+check(#calls == 2 and calls[1].args[1].type == 'warning', 'esx fallback keeps the kind')
 
 N = setup('okokNotify', { running = { 'okokNotify' } })
 N.show('success', 'Vehicle stored')
@@ -176,6 +187,9 @@ check(last and last.args[1] == 'inform' and last.args[2] == 'Finance: Payment du
 N = setup('pNotify', { running = { 'pNotify' } })
 N.show('error', 'R&D <b>bold</b>')
 expectCall('pNotify', 'pNotify:SendNotification', { text = '<b>Garage</b><br>R&amp;D ‹b›bold‹/b›', type = 'error', timeout = 5000, layout = 'topRight' })
+N = setup('pNotify', { running = { 'pNotify' }, notify = { title = '' } })
+N.show('info', 'Own layout')
+expectCall('pNotify without position', 'pNotify:SendNotification', { text = 'Own layout', type = 'info', timeout = 5000 })
 
 N = setup('wasabi_notify', { running = { 'wasabi_notify' } })
 N.show('error', 'No money')
@@ -195,10 +209,12 @@ expectCall('t-notify custom', 't-notify:Custom', { style = 'warning', title = 'G
 N = setup('t-notify', { running = { 't-notify' }, notify = { title = '' } })
 N.show('info', 'Vehicle stored')
 expectCall('t-notify alert', 't-notify:Alert', { style = 'info', message = 'Vehicle stored', duration = 5000 })
+N.show('info', 'Hi ![logo](http://x/y.png)!')
+expectCall('t-notify image tag broken', 't-notify:Alert', { style = 'info', message = 'Hi !\u{200B}[logo](http://x/y.png)!', duration = 5000 })
 
 -- framework
-for fw, want in pairs({ qb = 'event:QBCore:Notify', qbx = 'qbx_core:Notify', esx = 'event:esx:showNotification', standalone = 'lib.notify' }) do
-  N = setup('framework', { framework = fw, running = { 'qb-core', 'qbx_core', 'es_extended' } })
+for fw, want in pairs({ qb = 'event:QBCore:Notify', qbx = 'qbx_core:Notify', esx = 'esx_notify:Notify', standalone = 'lib.notify' }) do
+  N = setup('framework', { framework = fw, running = { 'qb-core', 'qbx_core', 'es_extended', 'esx_notify' } })
   N.show('info', 'Hello ' .. fw)
   check(calls[#calls] and calls[#calls].name == want, 'framework ' .. fw .. ' -> ' .. want)
 end
@@ -257,7 +273,7 @@ for _, bad in ipairs({ { nil }, { '' }, { '   ' }, { {} } }) do
   local okCall = pcall(N.show, 'info', bad[1])
   check(okCall, 'bad message never throws')
 end
-check(#calls == 1 and calls[1].args[1].description:sub(1, 6) == 'table:', 'nil / blank messages are ignored (a table is stringified)')
+check(#calls == 1 and calls[1].args[1].description:sub(1, 7) == 'table\\:', 'nil / blank messages are ignored (a table is stringified)')
 
 ---------------------------------------------------------------------------------------
 -- Normalization
@@ -272,7 +288,17 @@ N.show('WARN', 'Upper alias')
 check(calls[#calls].args[1].type == 'warning', "'WARN' -> warning")
 
 N.show('info', '  Line one\r\nline\ttwo \0 ')
-check(calls[#calls].args[1].description == 'Line one\nlinetwo', 'control characters stripped: ' .. dump(calls[#calls].args[1].description))
+check(calls[#calls].args[1].description == 'Line one  \nlinetwo', 'control characters stripped, markdown hard break: ' .. dump(calls[#calls].args[1].description))
+
+-- Image syntax (remote URL fetch) and markdown in player-chosen text.
+local ZW = '\u{200B}'
+N.show('info', '![x](http://a/b.png)')
+local d = calls[#calls].args[1].description
+check(not d:find('![', 1, true) and not d:find('](', 1, true), 'ox_lib description has no image / link syntax: ' .. dump(d))
+check(d == '\\!' .. ZW .. '\\[x\\]\\(http\\:\\/\\/a\\/b\\.png\\)', 'ox_lib description fully escaped: ' .. dump(d))
+N.show('info', 'Mc_Gregor *VIP* # 1', '![t](http://a/t.png)')
+check(calls[#calls].args[1].description == 'Mc\\_Gregor \\*VIP\\* \\# 1', 'markdown punctuation escaped: ' .. dump(calls[#calls].args[1].description))
+check(calls[#calls].args[1].title == '!' .. ZW .. '[t](http://a/t.png)', 'plain ox_lib title: image syntax broken, nothing escaped: ' .. dump(calls[#calls].args[1].title))
 
 local long = string.rep('é', 320)
 N.show('info', long)

@@ -170,7 +170,7 @@ export function GarageRow({ v, compact, onFavourite }: { v: GarageVehicle; compa
   );
 }
 
-export function SpawnerPlate({ template, size = 'sm' }: { template: string; size?: 'sm' | 'md' }) {
+function SpawnerPlate({ template, size = 'sm' }: { template: string; size?: 'sm' | 'md' }) {
   const p = platePreview(template);
   if (!p) {
     return (

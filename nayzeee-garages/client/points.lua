@@ -270,6 +270,23 @@ local function isVehicleEntity(entity)
   return type(entity) == 'number' and entity ~= 0 and DoesEntityExist(entity) and GetEntityType(entity) == 2
 end
 
+--- Whether the player was the last driver of `vehicle`: their own car left in the zone, not a
+--- stranger's parked car or one they only rode in. When this client does not know the last
+--- driver, the player's last vehicle counts. The server still checks ownership.
+local function droveIt(vehicle, ped)
+  local lastDriver = GetLastPedInVehicleSeat(vehicle, -1)
+  if lastDriver == ped then return true end
+  return (lastDriver == 0 or lastDriver == nil) and GetVehiclePedIsIn(ped, true) == vehicle
+end
+
+--- The vehicle the player may park with a "Store vehicle" option: the one they drive, or (on
+--- foot) one they drove last.
+local function ownVehicle(vehicle, ped)
+  local current = GetVehiclePedIsIn(ped, false)
+  if current ~= 0 then return current == vehicle and GetPedInVehicleSeat(vehicle, -1) == ped end
+  return droveIt(vehicle, ped)
+end
+
 local function currentKey()
   if keybind and keybind.getCurrentKey then
     local ok, key = pcall(keybind.getCurrentKey, keybind)
@@ -308,8 +325,9 @@ local function parkableAt(rec, vehicle, ped)
 end
 
 --- The vehicle a "Store vehicle" option at `rec` would park: the one the player drives, else
---- (on foot, next to it) their last vehicle or the closest one. Cached briefly: target
---- resources ask many times per second while the option is on screen.
+--- (on foot, next to it) a vehicle they drove last: their last vehicle, or the closest one
+--- when they were its last driver. Never someone else's car. Cached briefly: target resources
+--- ask many times per second while the option is on screen.
 local function storeCandidate(rec)
   local now = GetGameTimer()
   local cached = rec.candidate
@@ -322,23 +340,25 @@ local function storeCandidate(rec)
   else
     local pos = GetEntityCoords(ped)
     local last = GetVehiclePedIsIn(ped, true)
-    if last ~= 0 and parkableAt(rec, last, ped) and #(GetEntityCoords(last) - pos) <= NEXT_TO_VEHICLE then
+    if last ~= 0 and droveIt(last, ped) and parkableAt(rec, last, ped) and #(GetEntityCoords(last) - pos) <= NEXT_TO_VEHICLE then
       vehicle = last
     else
       local closest = lib.getClosestVehicle(pos, NEXT_TO_VEHICLE, false)
-      if closest and parkableAt(rec, closest, ped) then vehicle = closest end
+      if closest and closest ~= last and droveIt(closest, ped) and parkableAt(rec, closest, ped) then vehicle = closest end
     end
   end
   rec.candidate = { at = now, vehicle = vehicle }
   return vehicle
 end
 
---- Nearest store record near the player (target mode) whose zone holds `vehicle`.
+--- Nearest store record near the player (target mode) whose zone holds `vehicle` (only the
+--- vehicle the player drives or drove last: other players' parked cars get no option).
 local function storeRecordFor(vehicle)
   if #nearStores == 0 or not isVehicleEntity(vehicle) then return nil end
   local ped = cache.ped
   local driver = GetPedInVehicleSeat(vehicle, -1)
   if driver ~= 0 and driver ~= ped then return nil end
+  if not ownVehicle(vehicle, ped) then return nil end
   local pos = GetEntityCoords(vehicle)
   local category = nil
   local best, bestDist = nil, nil
@@ -491,6 +511,11 @@ local function storeEntity(loc, vehicle)
     NZ.NUI.notify('error', L('You must be driving the vehicle'))
     return false
   end
+  -- never walk the player into someone else's car (the server would refuse it after)
+  if not droveIt(vehicle, ped) then
+    NZ.NUI.notify('error', L('You can only store a vehicle you drove here'))
+    return false
+  end
   local driver = GetPedInVehicleSeat(vehicle, -1)
   if driver ~= 0 and driver ~= ped then
     NZ.NUI.notify('error', L('Someone is in the driver seat'))
@@ -571,10 +596,25 @@ end
 -- Target options (sphere zones and location NPCs)
 ---------------------------------------------------------------------------------------
 
+-- Player-wide part of the target checks, cached for READY_TTL ms: ox_target asks every
+-- option's canInteract on each pass (~50-100 ms), and a 3-option NPC would repeat it 3 times.
+local READY_TTL = 150
+local readyCache = { at = -100000, value = false }
+
+local function baseReady(fresh)
+  local now = GetGameTimer()
+  if fresh or now - readyCache.at > READY_TTL then
+    readyCache.value = NZ.State.ready == true and not insideInterior() and not NZ.NUI.isOpen()
+      and not IsPauseMenuActive() and not Points.incapacitated()
+    readyCache.at = now
+  end
+  return readyCache.value
+end
+
 --- Shared target checks, the same rules the prompt follows (the server stays the authority).
-local function targetReady(loc)
-  return NZ.State.ready == true and not acting and not insideInterior() and not NZ.NUI.isOpen()
-    and not IsPauseMenuActive() and not Points.incapacitated() and Points.isVisible(loc)
+--- `fresh` skips the cache (onSelect).
+local function targetReady(loc, fresh)
+  return not acting and baseReady(fresh) and Points.isVisible(loc)
 end
 
 local function onFoot()
@@ -589,7 +629,7 @@ local function actionOption(loc, label, icon, action)
       return targetReady(loc) and onFoot()
     end,
     onSelect = function()
-      if targetReady(loc) and onFoot() then perform(action, loc) end
+      if targetReady(loc, true) and onFoot() then perform(action, loc) end
     end,
   }
 end
@@ -605,7 +645,7 @@ local function storeOption(rec)
       return storeCandidate(rec) ~= nil
     end,
     onSelect = function()
-      if not targetReady(loc) then return end
+      if not targetReady(loc, true) then return end
       rec.candidate = nil
       local vehicle = storeCandidate(rec)
       if vehicle then perform('storeEntity', loc, vehicle) end
@@ -880,8 +920,7 @@ local vehicleCheck = { entity = nil, at = -100000, rec = nil }
 ---@param vehicle number
 ---@return boolean
 function Points.canStoreVehicle(vehicle)
-  if #nearStores == 0 then return false end
-  if not NZ.State.ready or acting or insideInterior() or NZ.NUI.isOpen() or Points.incapacitated() then return false end
+  if #nearStores == 0 or acting or not baseReady() then return false end
   local now = GetGameTimer()
   if vehicleCheck.entity ~= vehicle or now - vehicleCheck.at >= CANDIDATE_TTL then
     vehicleCheck = { entity = vehicle, at = now, rec = storeRecordFor(vehicle) }

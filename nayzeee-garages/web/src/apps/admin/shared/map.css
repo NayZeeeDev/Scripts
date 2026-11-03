@@ -293,13 +293,15 @@
   background: var(--panel);
   box-shadow: var(--sh-2);
   pointer-events: none;
-  transform: translate(-50%, calc(-100% - 52px));
+  transform: translate(22px, -50%);
   animation: nz-admin-map-fade 130ms var(--ease) both;
 }
 
-.nz-admin-map__card.is-cluster { transform: translate(-50%, calc(-100% - 28px)); }
-.nz-admin-map__card.is-below { transform: translate(-50%, 18px); }
-.nz-admin-map__card.is-cluster.is-below { transform: translate(-50%, 28px); }
+.nz-admin-map__card.is-big { transform: translate(26px, -50%); }
+.nz-admin-map__card.is-cluster { transform: translate(28px, -50%); }
+.nz-admin-map__card.is-left { transform: translate(calc(-100% - 22px), -50%); }
+.nz-admin-map__card.is-big.is-left { transform: translate(calc(-100% - 26px), -50%); }
+.nz-admin-map__card.is-cluster.is-left { transform: translate(calc(-100% - 28px), -50%); }
 
 .nz-admin-map__card b {
   font-size: 12.5px;

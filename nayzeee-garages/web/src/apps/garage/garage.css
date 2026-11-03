@@ -931,7 +931,12 @@
   gap: 6px;
 }
 
-.nz-garage__blk-body { padding: 12px 14px 14px; }
+.nz-garage__blk-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 14px;
+}
 
 .nz-garage__blk-note {
   max-width: 220px;
@@ -944,16 +949,24 @@
 }
 
 .nz-garage__nodata {
+  flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 9px;
+  min-height: 64px;
+  padding: 8px 18px;
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--line-soft);
   font-size: 11.5px;
   font-weight: 300;
   line-height: 1.45;
+  text-align: center;
   color: var(--ink-3);
 }
 
-.nz-garage__nodata > svg { flex: none; }
+.nz-garage__nodata > svg { flex: none; opacity: .8; }
 
 /* condition: segmented gauges + damage glyph */
 .nz-garage__cond {
@@ -1063,6 +1076,8 @@
   filter: drop-shadow(0 0 3px rgba(var(--amber-rgb), .85));
 }
 
+.nz-garage__glyph-bar { fill: none; stroke: rgba(255, 255, 255, .3); stroke-width: 2.4; stroke-linecap: round; }
+.nz-garage__glyph-rotor { fill: rgba(255, 255, 255, .015); stroke: rgba(255, 255, 255, .14); stroke-width: 1; stroke-dasharray: 3 4; }
 .nz-garage__glyph-lamp { fill: none; stroke: var(--teal); stroke-width: 2.2; stroke-linecap: round; opacity: .85; }
 .nz-garage__glyph-tail { fill: none; stroke: var(--red); stroke-width: 2.2; stroke-linecap: round; opacity: .6; }
 .nz-garage__glyph.is-nodata { opacity: .4; }
@@ -1444,7 +1459,7 @@
 .nz-garage__callout.is-red { border-color: var(--red-edge); background: var(--red-wash); color: var(--ink); }
 .nz-garage__callout.is-red > svg { color: var(--red); }
 
-.nz-garage__trailer { margin-top: 12px; }
+.nz-garage__blk-callout { margin-top: 12px; }
 
 /* action dock */
 .nz-garage__dock {

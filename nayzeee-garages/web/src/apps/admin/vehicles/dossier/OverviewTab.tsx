@@ -220,7 +220,9 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
           </div>
           <button type="button" className="nz-dos-ov__glyph" onClick={() => onTab('condition')} aria-label={t('Open the condition tab')}>
             <DamageDiagram damage={damage} />
-            <span className={cx(hasVisibleDamage(damage) && 'is-bad', !damage && 'is-muted')}>{damageCaption(damage)}</span>
+            <span className={cx('nz-aveh-ellipsis', hasVisibleDamage(damage) && 'is-bad', !damage && 'is-muted')} title={damageCaption(damage)}>
+              {damageCaption(damage)}
+            </span>
           </button>
         </section>
 
@@ -317,7 +319,7 @@ function Snapshot({ detail, props, onTab }: { detail: AdminVehicleDetail; props:
           {t('Ownership')}
         </span>
         <b>{owners.length === 1 ? t('1 owner') : t('{n} owners', { n: owners.length })}</b>
-        <span>{lastPrice ? t('Last sold for {price}', { price: money(lastPrice) }) : owners[0] ? t('Since {date}', { date: date(owners[0].at) }) : t('No records')}</span>
+        <span>{lastPrice ? t('Last price {price}', { price: money(lastPrice) }) : owners[0] ? t('Since {date}', { date: date(owners[0].at) }) : t('No records')}</span>
       </button>
       <button type="button" onClick={() => onTab('history')}>
         <span className="nz-dos-ov__snap-label">

@@ -1,9 +1,9 @@
 /**
  * Small presentational pieces shared by the player-vehicles views:
- * Highlight, OnlineDot, StatusBadges, Condition, PlateList.
+ * Highlight, OnlineDot, StatusBadges, MiniCondition, moveFocus.
  */
-import type { ReactNode } from 'react';
-import { Badge, Icon, PlateTag, Tooltip, autoTone, cx } from '@/components/ui';
+import type { KeyboardEvent, ReactNode } from 'react';
+import { Badge, Icon, Tooltip, autoTone, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { percent } from '@/lib/format';
@@ -77,47 +77,55 @@ export function StatusBadges({ row }: { row: Pick<AdminVehicleRow, 'state' | 'fi
   );
 }
 
-function CondItem({ icon, value, label }: { icon: IconName; value: number; label: string }) {
-  const v = percent(value);
-  const tone = autoTone(v);
+/** Fuel / engine / body as three mini bars with % (roster rows). */
+export function MiniCondition({ fuel, engine, body }: { fuel: number; engine: number; body: number }) {
+  const items: { icon: IconName; label: string; value: number }[] = [
+    { icon: 'fuel', label: t('Fuel'), value: fuel },
+    { icon: 'engine', label: t('Engine'), value: engine },
+    { icon: 'shield', label: t('Body'), value: body },
+  ];
   return (
-    <Tooltip content={`${label} ${v}%`}>
-      <span className={cx('nz-aveh-cond__item', `is-${tone}`)}>
-        <Icon name={icon} size={12} strokeWidth={1.7} />
-        <b>{v}%</b>
-      </span>
-    </Tooltip>
-  );
-}
-
-/** Fuel / engine / body percentages (amber below 50, red below 25). */
-export function Condition({ fuel, engine, body }: { fuel: number; engine: number; body: number }) {
-  return (
-    <span className="nz-aveh-cond">
-      <CondItem icon="fuel" value={fuel} label={t('Fuel')} />
-      <CondItem icon="engine" value={engine} label={t('Engine')} />
-      <CondItem icon="shield" value={body} label={t('Body')} />
+    <span className="nz-aveh-mini">
+      {items.map((it) => {
+        const v = percent(it.value);
+        return (
+          <Tooltip key={it.label} content={`${it.label} ${v}%`}>
+            <span className={cx('nz-aveh-mini__item', `is-${autoTone(v)}`)}>
+              <Icon name={it.icon} size={11} strokeWidth={1.8} />
+              <i>
+                <i style={{ width: `${v}%` }} />
+              </i>
+            </span>
+          </Tooltip>
+        );
+      })}
     </span>
   );
 }
 
-/** Plate tags, collapsing after `max` into "+n". */
-export function PlateList({ plates, max = 3, query = '' }: { plates: string[]; max?: number; query?: string }) {
-  if (!plates.length) return <span className="nz-aveh-muted">—</span>;
-  const shown = plates.slice(0, max);
-  const rest = plates.length - shown.length;
-  return (
-    <span className="nz-aveh-plates">
-      {shown.map((p) => (
-        <span key={p} className={cx('nz-aveh-plates__tag', query && p.includes(query.trim().toUpperCase()) && 'is-hit')}>
-          <PlateTag plate={p} size="sm" />
-        </span>
-      ))}
-      {rest > 0 && (
-        <Tooltip content={plates.slice(max).join(', ')}>
-          <span className="nz-aveh-plates__more">+{rest}</span>
-        </Tooltip>
-      )}
-    </span>
-  );
+/**
+ * Arrow-key focus movement between `selector` items inside `root` (lists and grids).
+ * Returns true when it handled the key.
+ */
+export function moveFocus(e: KeyboardEvent<HTMLElement>, root: HTMLElement | null, selector: string): boolean {
+  if (!root || !['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return false;
+  const items = Array.from(root.querySelectorAll<HTMLElement>(selector));
+  if (!items.length) return false;
+  const i = items.indexOf(document.activeElement as HTMLElement);
+  // Columns of a CSS grid (1 for lists).
+  const parent = items[0].parentElement;
+  const cols = parent ? Math.max(1, getComputedStyle(parent).gridTemplateColumns.split(' ').filter(Boolean).length || 1) : 1;
+  let next = i;
+  if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = items.length - 1;
+  else if (i < 0) next = 0;
+  else if (e.key === 'ArrowDown') next = Math.min(items.length - 1, i + cols);
+  else if (e.key === 'ArrowUp') next = i - cols < 0 ? -1 : i - cols;
+  else if (e.key === 'ArrowRight') next = Math.min(items.length - 1, i + 1);
+  else if (e.key === 'ArrowLeft') next = Math.max(0, i - 1);
+  e.preventDefault();
+  if (next < 0) return false;
+  items[next].focus();
+  items[next].scrollIntoView({ block: 'nearest' });
+  return true;
 }

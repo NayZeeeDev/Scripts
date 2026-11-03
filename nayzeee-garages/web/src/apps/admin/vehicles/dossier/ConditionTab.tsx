@@ -19,8 +19,8 @@ interface Props {
   serviceBelow: number;
 }
 
-const stateText = (s: PartState) =>
-  s === 'bad' ? t('Damaged') : s === 'burst' ? t('Burst') : s === 'rim' ? t('On the rim') : t('Intact');
+const stateText = (s: PartState, group?: PartGroup) =>
+  s === 'bad' ? (group === 'windows' ? t('Smashed') : t('Damaged')) : s === 'burst' ? t('Burst') : s === 'rim' ? t('On the rim') : t('Intact');
 
 const GROUPS: { id: PartGroup; label: () => string }[] = [
   { id: 'doors', label: () => t('Doors and panels') },
@@ -34,7 +34,7 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
   const states = partStates(damage);
   const counts = damageCounts(damage);
   const hotPart = hot ? PARTS.find((p) => p.id === hot) : null;
-  const of1000 = (n: number) => t('{n} / 1000', { n: Math.round(n) });
+  const of1000 = (n: number) => t('{n}/1000', { n: Math.round(n) });
 
   return (
     <div className="nz-dos-pane">
@@ -65,7 +65,7 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
             {hotPart ? (
               <>
                 <b>{hotPart.label()}</b>
-                <span>{damage ? stateText(states[hotPart.id]) : t('Unknown')}</span>
+                <span>{damage ? stateText(states[hotPart.id], hotPart.group) : t('Unknown')}</span>
               </>
             ) : (
               <span>{damageCaption(damage)}</span>
@@ -98,7 +98,7 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
                           className={cx('nz-dos-part', s ? `is-${s}` : 'is-unknown', hot === p.id && 'is-hot')}
                           onMouseEnter={() => setHot(p.id)}
                           onMouseLeave={() => setHot(null)}
-                          title={`${p.label()}: ${s ? stateText(s) : t('Unknown')}`}
+                          title={`${p.label()}: ${s ? stateText(s, p.group) : t('Unknown')}`}
                         >
                           <i />
                           {p.short()}

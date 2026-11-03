@@ -151,17 +151,18 @@ export function ago(unix: number | null | undefined): string {
   return date(unix);
 }
 
-/** "in 9h 36m" / "in 3 days". */
+/** "in 9h 36m" / "in 1d 10h" / "in 5 days". */
 export function inTime(unix: number): string {
   const s = Math.max(0, unix - nowS());
-  const h = s / 3600;
-  if (h < 48) {
-    const total = Math.round(s / 60);
-    const hh = Math.floor(total / 60);
-    const mm = total % 60;
-    if (hh === 0) return t('in {m}m', { m: mm });
-    return mm ? t('in {h}h {m}m', { h: hh, m: mm }) : t('in {h}h', { h: hh });
+  const totalMin = Math.round(s / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h < 24) {
+    if (h === 0) return t('in {m}m', { m });
+    return m ? t('in {h}h {m}m', { h, m }) : t('in {h}h', { h });
   }
+  const d = Math.floor(h / 24);
+  if (d < 3) return h % 24 ? t('in {d}d {h}h', { d, h: h % 24 }) : t('in {d}d', { d });
   return t('in {n} days', { n: Math.round(h / 24) });
 }
 

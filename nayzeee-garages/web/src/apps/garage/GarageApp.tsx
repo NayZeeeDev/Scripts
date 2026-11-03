@@ -344,6 +344,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       if (ss) void spawn(ss);
       else if (sv?.canDrive) void drive(sv);
       else if (sv?.canRecover) void recover(sv);
+      else if (sv?.finance?.overdue && sv.isOwner && isHere(sv) && !sv.blocked) setPay({ plate: sv.plate, full: false });
     },
     favourite: spawnerMode ? undefined : () => sv && void toggleFavourite(sv),
     rename: spawnerMode ? undefined : () => sv?.isOwner && setModal({ kind: 'rename', plate: sv.plate }),
@@ -642,7 +643,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
               onFilter={setFilter}
               sort={spawnerMode ? undefined : sort}
               onSort={setSort}
-              groupBy={groupBy}
+              groupBy={spawnerMode && groupBy === 'status' ? 'class' : groupBy}
               onGroupBy={setGroupBy}
               groupOptions={
                 spawnerMode

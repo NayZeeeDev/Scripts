@@ -11,6 +11,7 @@ import { dateTime, distance, money } from '@/lib/format';
 import type { GarageOptions, GarageSummary, GarageVehicle, SpawnerVehicleView } from '@/lib/types';
 import { ago, isHere, modelName, normDamage, platePreview, vehicleIcon, vehicleStatus } from './model';
 import { ClassTag, Plate, Stage, StageTitle } from './showroom/Stage';
+import { glyphShape } from './showroom/DamageGlyph';
 import {
   Block,
   Callout,
@@ -130,9 +131,12 @@ function locationCell(v: GarageVehicle, garage: GarageSummary) {
   }
 }
 
-function sharingCell(v: GarageVehicle): { label: string; value: string; sub: string; icon: IconName } {
+function sharingCell(v: GarageVehicle, garage: GarageSummary): { label: string; value: string; sub: string; icon: IconName } {
   if (v.sharedBy) return { label: t('Sharing'), value: t('Shared by {name}', { name: v.sharedBy }), sub: t('You can drive it'), icon: 'users' };
-  if (!v.isOwner) return { label: t('Owner'), value: v.ownerName || t('Unknown'), sub: t('Garage member'), icon: 'user' };
+  if (!v.isOwner) {
+    const sub = garage.kind === 'job' ? t('Job vehicle') : garage.isPrivate ? t('Garage member') : t('You have a key');
+    return { label: t('Owner'), value: v.ownerName || t('Unknown'), sub, icon: garage.kind === 'job' ? 'briefcase' : 'user' };
+  }
   if (v.sharedWith > 0) {
     return {
       label: t('Sharing'),
@@ -155,7 +159,7 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
   const { v, garage } = props;
   const damage = normDamage(v.damage);
   const loc = locationCell(v, garage);
-  const share = sharingCell(v);
+  const share = sharingCell(v, garage);
   // A vehicle that can be driven from here is never drawn as a ghost (retrieveMode 'anywhere').
   const note = v.canDrive ? null : ghostNote(v);
   const name = modelName(v);
@@ -172,7 +176,14 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
           vehicleType={v.vehicleType}
           alt={v.label}
           ghost={!!note}
-          note={note ? <><Icon name={v.state === 'impounded' ? 'impound' : v.state === 'out' ? 'route' : 'pin'} size={12} strokeWidth={1.9} />{note}</> : undefined}
+          note={
+            note ? (
+              <>
+                <Icon name={v.state === 'impounded' ? 'impound' : v.state === 'out' ? 'route' : 'pin'} size={12} strokeWidth={1.9} />
+                {note}
+              </>
+            ) : undefined
+          }
           topLeft={
             <>
               <ClassTag icon={<Icon name={vehicleIcon(v)} size={13} strokeWidth={1.8} />} label={v.classLabel || t('Vehicle')} />
@@ -222,7 +233,7 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
         body={v.body}
         fuel={v.fuel}
         damage={damage}
-        vehicleType={v.vehicleType}
+        shape={glyphShape(v.vehicleType, v.classId, v.model)}
         needsService={v.needsService}
       />
       {v.stats && <PerformanceBlock stats={v.stats} />}
@@ -239,7 +250,7 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
           </Fact>
         </div>
         {v.trailer && (
-          <Callout tone="teal" icon="trailer" className="nz-garage__trailer">
+          <Callout tone="teal" icon="trailer" className="nz-garage__blk-callout">
             {t('Trailer stored with it:')} <b>{v.trailer.label}</b>
           </Callout>
         )}
@@ -456,7 +467,7 @@ export function SpawnerShowcase({
           <Fact label={t('Price')}>{s.price > 0 ? money(s.price) : t('Free')}</Fact>
           <Fact label={t('Seats')}>{s.stats && s.stats.seats > 0 ? String(s.stats.seats) : '—'}</Fact>
         </div>
-        <Callout tone="neutral" icon="info" className="nz-garage__trailer">
+        <Callout tone="neutral" icon="info" className="nz-garage__blk-callout">
           {garage.jobLabel
             ? t('Fleet vehicles are not yours to keep: store them here again when you are done.')
             : t('This vehicle is lent to you: store it here again when you are done.')}

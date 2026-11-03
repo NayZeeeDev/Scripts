@@ -39,6 +39,26 @@ function highlight(json: string): ReactNode[] {
   return out;
 }
 
+/** JSON.stringify with 2-space indent, but arrays / small objects of primitives on one line. */
+function pretty(v: unknown, indent = ''): string {
+  const next = `${indent}  `;
+  const prim = (x: unknown) => x === null || typeof x !== 'object';
+  if (Array.isArray(v)) {
+    if (v.length === 0) return '[]';
+    if (v.every(prim)) return `[${v.map((x) => JSON.stringify(x)).join(', ')}]`;
+    return `[\n${v.map((x) => next + pretty(x, next)).join(',\n')}\n${indent}]`;
+  }
+  if (v && typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>);
+    if (entries.length === 0) return '{}';
+    if (entries.length <= 6 && entries.every(([, x]) => prim(x))) {
+      return `{ ${entries.map(([k, x]) => `${JSON.stringify(k)}: ${JSON.stringify(x)}`).join(', ')} }`;
+    }
+    return `{\n${entries.map(([k, x]) => `${next}${JSON.stringify(k)}: ${pretty(x, next)}`).join(',\n')}\n${indent}}`;
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
 async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -78,14 +98,15 @@ export function DataTab({ props, onEdit }: Props) {
   }, [props, q]);
 
   const full = useMemo(() => JSON.stringify(props, null, 2), [props]);
-  const text = useMemo(() => JSON.stringify(filtered, null, 2), [filtered]);
-  const nodes = useMemo(() => highlight(text), [text]);
+  const text = useMemo(() => pretty(filtered), [filtered]);
+  // One span per line (JSON strings never contain raw newlines) for the line-number gutter.
+  const lines = useMemo(() => text.split('\n').map((line, i) => <span key={i}>{highlight(line)}</span>), [text]);
   const shownKeys = Object.keys(filtered).length;
   const size = new Blob([full]).size;
   const sizeText = size < 1024 ? t('{n} B', { n: size }) : t('{n} KB', { n: (size / 1024).toFixed(1) });
 
   const copy = async () => {
-    const ok = await copyText(q ? text : full);
+    const ok = await copyText(q ? JSON.stringify(filtered, null, 2) : full);
     setCopied(ok ? 'ok' : 'fail');
     window.setTimeout(() => setCopied(null), 1800);
   };
@@ -134,7 +155,7 @@ export function DataTab({ props, onEdit }: Props) {
         <EmptyState compact icon="filter" title={t('No keys match “{query}”', { query })} />
       ) : (
         <pre className="nz-dos-json" tabIndex={0} aria-label={t('Vehicle properties JSON')}>
-          {nodes}
+          {lines}
         </pre>
       )}
     </div>

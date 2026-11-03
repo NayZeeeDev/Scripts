@@ -7,8 +7,9 @@
   it: frozen, invincible, ignoring events, playing its scenario, carrying the target options
   of the first open point (NZ.Target.addLocalEntity). It is deleted again when the player
   leaves, when its location is removed / disabled / changed, when the points are cleared
-  (unload, placement tool) and when the resource stops. A model that cannot be loaded falls
-  back to a sphere zone with the same options so the garage stays usable.
+  (unload, placement tool) and when the resource stops. An unknown model, a model that does
+  not stream in time (this visit only) or a target resource that refuses the entity options
+  falls back to a sphere zone with the same options, so the garage stays usable.
 
   spec = { id, coords = vector3 (open point), heading, model, scenario ('' = none),
            radius (fallback zone radius), options = { neutral target options } }
@@ -51,17 +52,23 @@ local function groundZ(c)
   return c.z - 1.0
 end
 
---- Load a ped model, giving up after MODEL_TIMEOUT. The caller releases it.
+--- Load a ped model, giving up after MODEL_TIMEOUT. The caller releases it once loaded.
+---@return boolean loaded
+---@return boolean invalid true when the model does not exist / is no ped (never retried);
+---        false on a timeout (slow streaming: retried on the next visit)
 local function loadModel(hash)
-  if not IsModelInCdimage(hash) or not IsModelAPed(hash) then return false end
-  if HasModelLoaded(hash) then return true end
+  if not IsModelInCdimage(hash) or not IsModelAPed(hash) then return false, true end
+  if HasModelLoaded(hash) then return true, false end
   RequestModel(hash)
   local deadline = GetGameTimer() + MODEL_TIMEOUT
   while not HasModelLoaded(hash) do
-    if GetGameTimer() > deadline then return false end
+    if GetGameTimer() > deadline then
+      SetModelAsNoLongerNeeded(hash)
+      return false, false
+    end
     Wait(50)
   end
-  return true
+  return true, false
 end
 
 --- Still wanted: same entry, not removed, player in range, no newer spawn / despawn since.
@@ -90,7 +97,17 @@ end
 local function applyTargets(entry)
   if entry.ped and DoesEntityExist(entry.ped) then
     local ok, added = pcall(NZ.Target.addLocalEntity, entry.targetId, entry.ped, entry.spec.options)
-    if not ok or not added then NZ.Utils.debug(('peds: target options of NPC %s not added'):format(entry.id)) end
+    if ok and added then
+      -- an earlier fallback zone is no longer needed
+      if entry.zone then
+        pcall(NZ.Target.remove, entry.zoneId)
+        entry.zone = false
+      end
+    else
+      -- the open point hides its on-foot prompt for the NPC: keep it usable with a zone
+      NZ.Utils.debug(('peds: target options of NPC %s not added, using a zone'):format(entry.id))
+      addZone(entry)
+    end
   elseif entry.zone then
     addZone(entry)
   end
@@ -134,11 +151,18 @@ local function spawn(entry, gen)
   if not alive(entry, gen) then return end
 
   local hash = joaat(spec.model)
-  if not loadModel(hash) then
-    entry.badModel = true
-    if not warnedModels[spec.model] then
-      warnedModels[spec.model] = true
-      lib.print.warn(('[nayzeee-garages] garage NPC model "%s" could not be loaded: using a target zone instead'):format(spec.model))
+  local loaded, invalid = loadModel(hash)
+  if not loaded then
+    if invalid then
+      -- unknown model: zone until the location changes (a new spec / entry)
+      entry.badModel = true
+      if not warnedModels[spec.model] then
+        warnedModels[spec.model] = true
+        lib.print.warn(('[nayzeee-garages] garage NPC model "%s" does not exist: using a target zone instead'):format(spec.model))
+      end
+    else
+      -- slow streaming: zone for this visit only, the NPC is tried again on the next one
+      NZ.Utils.debug(('peds: model "%s" did not load in time, zone for now'):format(spec.model))
     end
     if alive(entry, gen) then addZone(entry) end
     return

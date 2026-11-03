@@ -43,7 +43,7 @@ import { Inspector } from './Inspector';
 import type { InspectorBusy, PointKind } from './Inspector';
 import type { CardTag, Fact, Kpi, LocationPageContext } from './commandTypes';
 import { usePrivateGroups, groupsCooldown } from './groups';
-import { requestPoints } from './away';
+import { isAdminHidden, requestPoints } from './away';
 import { kindNoun, locationAnchor, plural, statsOf, vehicleTotal, vehicleTypeIcon, vehicleTypeLabel } from './labels';
 import type { LocationPageKind, VehicleFilter } from './labels';
 import { LocationEditor } from '../locations/LocationEditor';
@@ -191,8 +191,9 @@ export function LocationListPage<L extends Location>({
   }, [selected !== null]);
 
   /* ── editor ── */
+  // Not cleared on unmount: React's StrictMode remount would cancel a dev-harness open, and a
+  // late setState after a real unmount is a no-op.
   const openTimer = useRef<number>();
-  useEffect(() => () => window.clearTimeout(openTimer.current), []);
   const openEditor = useCallback(
     (seed: L | null) => {
       const go = () => setEditor((e) => ({ open: true, seed, session: e.session + 1 }));
@@ -358,7 +359,7 @@ export function LocationListPage<L extends Location>({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== '/' || anyModal || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key !== '/' || anyModal || isAdminHidden() || e.ctrlKey || e.metaKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
       const input = toolbarRef.current?.querySelector<HTMLInputElement>('input');

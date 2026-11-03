@@ -575,8 +575,9 @@ else
   -- target / both locations, a location NPC (entity options), the fallback zone of an unknown
   -- NPC model, the global vehicle options and the NPC removal when its location changes.
   local function targetFlow(resource)
-    local target = { zones = {}, entities = {}, vehicles = {}, removedEntities = 0 }
-    local live = { [777] = true }
+    local target = { zones = {}, entities = {}, vehicles = {}, removedEntities = 0, refuseEntities = false }
+    -- 777: the car the player drove into the zone; 778: a stranger's car parked next to it
+    local live = { [777] = true, [778] = true }
     local saved = {
       GetResourceState = GetResourceState, DoesEntityExist = DoesEntityExist, newPoint = lib.points.new,
       closest = lib.getClosestVehicle,
@@ -596,8 +597,9 @@ else
     local nextPed = 500
     CreatePed = function() nextPed = nextPed + 1 live[nextPed] = true return nextPed end
     DeleteEntity = function(e) live[e] = nil end
-    GetEntityType = function(e) return e == 777 and 2 or 1 end
+    GetEntityType = function(e) return (e == 777 or e == 778) and 2 or 1 end
     GetPedInVehicleSeat = function() return 0 end
+    GetLastPedInVehicleSeat = function(veh) if veh == 777 then return 101 end if veh == 778 then return 202 end return 0 end
     lib.points.new = function(o)
       local p = saved.newPoint(o)
       points[#points + 1] = p
@@ -608,7 +610,7 @@ else
       exportTables[resource] = {
         addSphereZone = function(o) target.zones[o.name] = o.options return o.name end,
         removeZone = function(name) target.zones[name] = nil end,
-        addLocalEntity = function(e, options) target.entities[e] = options end,
+        addLocalEntity = function(e, options) if target.refuseEntities then error('refused') end target.entities[e] = options end,
         removeLocalEntity = function(e) target.entities[e] = nil target.removedEntities = target.removedEntities + 1 end,
         addGlobalVehicle = function(options) for _, o in ipairs(options) do target.vehicles[o.label] = o end end,
         removeGlobalVehicle = function(names) for _, n in ipairs(names) do for k, o in pairs(target.vehicles) do if o.name == n then target.vehicles[k] = nil end end end end,
@@ -617,7 +619,7 @@ else
       exportTables[resource] = {
         AddCircleZone = function(name, _, _, _, opts) target.zones[name] = opts.options end,
         RemoveZone = function(name) target.zones[name] = nil end,
-        AddTargetEntity = function(e, opts) target.entities[e] = opts.options end,
+        AddTargetEntity = function(e, opts) if target.refuseEntities then error('refused') end target.entities[e] = opts.options end,
         RemoveTargetEntity = function(e) target.entities[e] = nil target.removedEntities = target.removedEntities + 1 end,
         AddGlobalVehicle = function(opts) for _, o in ipairs(opts.options) do target.vehicles[o.label] = o end end,
         RemoveGlobalVehicle = function(label) target.vehicles[label] = nil end,
@@ -699,6 +701,9 @@ else
       end
       run('vehicle select', select, storeVehicle, 777)
       runThreads(150)
+      if run('stranger canInteract', storeVehicle.canInteract, 778, 1.0, vector3(0, 0, 0)) == true then
+        fail('"Store vehicle" shown on a stranger\'s car inside a target store zone')
+      end
     end
 
     -- the NPC goes away when its location drops the NPC, and with Points.clear()
@@ -709,6 +714,41 @@ else
     for e in pairs(live) do
       if e > 500 and e <= nextPed then fail(('NPC %d still exists after the location changed'):format(e)) end
     end
+    -- an NPC model that streams too slowly: a zone for that visit, the NPC on the next one;
+    -- a target resource refusing the entity options: the zone again (the prompt is hidden)
+    local slow = true
+    HasModelLoaded = function(hash) return not (slow and hash == joaat('slow_ped')) end
+    NZ.State.locations[6] = view(6, 'garage', { interaction = { mode = 'target', ped = { model = 'slow_ped', scenario = '' } } })
+    points = {}
+    run('rebuild slow NPC', NZ.Points.rebuild)
+    local pedPoint = nil
+    for _, p in ipairs(points) do if p.pedId == '6' then pedPoint = p end end
+    local zone6 = NZ.ResourceName .. ':nz_ped_zone_6'
+    if not pedPoint then
+      fail('no NPC point for a location with a slow model')
+    else
+      local before = nextPed
+      run('slow onEnter', pedPoint.onEnter, pedPoint)
+      runThreads(90)
+      if nextPed ~= before then fail('NPC created although its model never loaded') end
+      if not target.zones[zone6] then fail('no fallback zone after a model load timeout') end
+      run('slow onExit', pedPoint.onExit, pedPoint)
+      if target.zones[zone6] then fail('fallback zone left after leaving the NPC area') end
+      slow = false
+      target.refuseEntities = true
+      run('refused onEnter', pedPoint.onEnter, pedPoint)
+      runThreads(30)
+      if nextPed ~= before + 1 then fail('NPC not retried on the next visit after a model timeout') end
+      if not target.zones[zone6] then fail('no fallback zone when the entity options are refused') end
+      run('refused onExit', pedPoint.onExit, pedPoint)
+      target.refuseEntities = false
+      run('retry onEnter', pedPoint.onEnter, pedPoint)
+      runThreads(30)
+      if next(target.entities) == nil then fail('NPC options missing on the visit after a refusal') end
+      if target.zones[zone6] then fail('fallback zone kept although the NPC carries the options') end
+    end
+    NZ.State.locations[6] = nil
+
     run('clear', NZ.Points.clear)
     if next(target.zones) ~= nil then fail('target zones left after Points.clear()') end
 
@@ -716,6 +756,7 @@ else
       saved.GetResourceState, saved.DoesEntityExist, saved.newPoint, saved.closest
     IsModelInCdimage, IsModelAPed, HasModelLoaded, CreatePed, DeleteEntity, GetEntityType, GetPedInVehicleSeat =
       nil, nil, nil, nil, nil, nil, nil
+    GetLastPedInVehicleSeat = nil
     exportTables[resource] = nil
     NZ.State.ready = false
     runThreads(50)

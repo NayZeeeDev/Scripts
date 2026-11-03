@@ -67,8 +67,8 @@ export function ImpoundsPage(props: AdminPageProps) {
         icon: 'impound',
         label: t('Impounds'),
         value: fmt(enabled),
-        unit: `/ ${fmt(all.length)}`,
-        sub: t('enabled'),
+        unit: all.length ? `/ ${fmt(all.length)}` : undefined,
+        sub: all.length ? t('enabled') : t('none yet'),
         ratio: all.length ? enabled / all.length : null,
       },
       {
@@ -94,7 +94,15 @@ export function ImpoundsPage(props: AdminPageProps) {
         icon: 'money',
         label: t('Default fee range'),
         value: fees.length ? (lo === hi ? money(lo) : `${money(lo)} – ${money(hi)}`) : '—',
-        sub: !fees.length ? '' : hHi === 0 ? t('no wait') : hLo === hHi ? t('{time} wait', { time: hoursLabel(hLo) }) : t('wait {from} – {to}', { from: hoursLabel(hLo), to: hoursLabel(hHi) }),
+        sub: !fees.length
+          ? t('none yet')
+          : hHi === 0
+            ? t('no wait')
+            : hLo === hHi
+              ? t('{time} wait', { time: hoursLabel(hLo) })
+              : hLo === 0
+                ? t('up to {time} wait', { time: hoursLabel(hHi) })
+                : t('wait {from} – {to}', { from: hoursLabel(hLo), to: hoursLabel(hHi) }),
         tone: 'amber',
       },
     ];

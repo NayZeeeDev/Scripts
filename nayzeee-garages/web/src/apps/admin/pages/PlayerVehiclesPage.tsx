@@ -101,7 +101,12 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
     if (view.level === 'vehicle') setView({ level: 'player', identifier: view.identifier, name: view.name });
     else if (view.level === 'player') setView({ level: 'search' });
   };
-  useEscape(back, view.level !== 'search');
+  // Registered one render after mount: child effects run before AdminApp's, so a handler
+  // active at mount (deep link straight into a player / vehicle) would sit under the app's
+  // own close handler and Escape would close the whole panel instead of going back.
+  const [escReady, setEscReady] = useState(false);
+  useEffect(() => setEscReady(true), []);
+  useEscape(back, escReady && view.level !== 'search');
 
   /* ── keep the player list in sync with edits made on the detail ── */
   const onRowChange = useCallback((oldPlate: string, row: AdminVehicleRow | null) => {

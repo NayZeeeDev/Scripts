@@ -340,7 +340,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
           <ConditionTab detail={detail} damage={damage} needsService={needsService} serviceBelow={data.settings.vehicles.needsServiceBelow} />
         )}
         {tab === 'upgrades' && <UpgradesTab detail={detail} props={props} onEdit={openProps} onViewAll={() => show('mods')} />}
-        {tab === 'finance' && <FinanceTab detail={detail} onEdit={() => show('finance')} />}
+        {tab === 'finance' && <FinanceTab detail={detail} activity={activity} onEdit={() => show('finance')} onActivity={() => setTab('activity')} />}
         {tab === 'history' && <HistoryTab detail={detail} onOwner={() => show('owner')} onService={() => show('service')} />}
         {tab === 'activity' && <ActivityTab detail={detail} data={data} activity={activity} />}
         {tab === 'data' && <DataTab props={props} onEdit={() => openProps()} />}

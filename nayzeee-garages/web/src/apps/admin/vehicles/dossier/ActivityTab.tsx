@@ -4,7 +4,7 @@
  * and expandable details. ActivityRow is reused (compact) by the Overview.
  */
 import { useState } from 'react';
-import { Button, EmptyState, Icon, Pagination, Skeleton, Tooltip, cx } from '@/components/ui';
+import { Avatar, Button, EmptyState, Icon, Pagination, Skeleton, Tooltip, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { date, dateTime } from '@/lib/format';
 import type { AdminOpenData, AdminVehicleDetail, VehicleActivity } from '@/lib/types';
@@ -35,19 +35,26 @@ export function ActivityRow({ row, detail, data, compact = false, open = false, 
           {view.sentence}
           {view.extra && <em> · {view.extra}</em>}
         </b>
-        <span>
-          {actorOf(row)}
-          {compact && (
-            <>
-              {' · '}
-              <Tooltip content={dateTime(row.at)}>
-                <span>{ago(row.at)}</span>
-              </Tooltip>
-            </>
-          )}
-          {!compact && <span className="nz-dos-act__family"> · {view.family}</span>}
-        </span>
+        {compact ? (
+          <span>
+            {actorOf(row)}
+            {' · '}
+            <Tooltip content={dateTime(row.at)}>
+              <span>{ago(row.at)}</span>
+            </Tooltip>
+          </span>
+        ) : (
+          <span>
+            {view.family} · {dateTime(row.at)}
+          </span>
+        )}
       </span>
+      {!compact && (
+        <span className="nz-dos-act__actor">
+          <Avatar name={actorOf(row)} size={20} />
+          <span className="nz-aveh-ellipsis">{actorOf(row)}</span>
+        </span>
+      )}
       {!compact && (
         <Tooltip content={dateTime(row.at)} side="left">
           <span className="nz-dos-act__time">{ago(row.at)}</span>

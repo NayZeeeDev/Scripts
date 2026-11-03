@@ -103,7 +103,11 @@ export function HistoryTab({ detail, onOwner, onService }: Props) {
                   <Button size="sm" variant="teal" icon="plus" onClick={onService}>
                     {t('Add service record')}
                   </Button>
-                ) : undefined
+                ) : (
+                  <Button size="sm" variant="line" icon="transfer" onClick={onOwner}>
+                    {t('Change owner')}
+                  </Button>
+                )
               }
             />
           ) : (
@@ -128,13 +132,15 @@ export function HistoryTab({ detail, onOwner, onService }: Props) {
                           </b>
                           <span>{e.meta}</span>
                         </span>
-                        {e.aside && <span className={cx('nz-dos-tl__aside', e.kind === 'service' && 'is-mono')}>{e.aside}</span>}
-                        {e.kind === 'service' && (
+                        <span className={cx('nz-dos-tl__aside', e.kind === 'service' && 'is-mono')}>{e.aside ?? ''}</span>
+                        {e.kind === 'service' ? (
                           <Tooltip content={t('Edit service history')} side="left">
                             <button type="button" className="nz-dos-tl__edit" onClick={onService} aria-label={t('Edit service history')}>
                               <Icon name="edit" size={13} strokeWidth={1.7} />
                             </button>
                           </Tooltip>
+                        ) : (
+                          <span aria-hidden="true" />
                         )}
                       </li>
                     ))}
@@ -146,16 +152,7 @@ export function HistoryTab({ detail, onOwner, onService }: Props) {
         </section>
 
         <section className="nz-dos-col nz-dos-hist__side">
-          <Heading
-            count={owners.length}
-            actions={
-              <Button size="sm" variant="ghost" icon="transfer" onClick={onOwner}>
-                {t('Change')}
-              </Button>
-            }
-          >
-            {t('Ownership')}
-          </Heading>
+          <Heading count={owners.length}>{t('Ownership')}</Heading>
           <div className="nz-dos-facts">
             <Fact label={t('Current owner')} icon="user">
               {v.ownerName || t('No owner')}
@@ -171,15 +168,7 @@ export function HistoryTab({ detail, onOwner, onService }: Props) {
             </Fact>
           </div>
 
-          <Heading
-            className="nz-dos-h--gap"
-            count={services.length}
-            actions={
-              <Button size="sm" variant="ghost" icon="plus" onClick={onService}>
-                {t('Add')}
-              </Button>
-            }
-          >
+          <Heading className="nz-dos-h--gap" count={services.length}>
             {t('Service')}
           </Heading>
           <div className="nz-dos-facts">

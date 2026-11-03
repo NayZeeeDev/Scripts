@@ -33,7 +33,18 @@ export interface LocationCardProps {
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
-export function VehicleLine({ stats, kind, compact = false }: { stats: LocationStats; kind: LocationKind; compact?: boolean }) {
+export function VehicleLine({
+  stats,
+  kind,
+  spawner = false,
+  compact = false,
+}: {
+  stats: LocationStats;
+  kind: LocationKind;
+  /** Spawner location: its vehicles are taken out on demand and never stored. */
+  spawner?: boolean;
+  compact?: boolean;
+}) {
   if (kind === 'impound') {
     return (
       <span className={cx('nz-admin-cmd__vline', compact && 'is-compact')}>
@@ -45,6 +56,16 @@ export function VehicleLine({ stats, kind, compact = false }: { stats: LocationS
     );
   }
   const total = stats.parked + stats.out + stats.impounded;
+  if (!total && spawner) {
+    return (
+      <span className={cx('nz-admin-cmd__vline', 'is-empty', compact && 'is-compact')}>
+        <span className="nz-admin-cmd__vstat is-spawner">
+          <Icon name="key" size={11} strokeWidth={2} />
+          {t('Vehicles spawn on demand')}
+        </span>
+      </span>
+    );
+  }
   if (!total) {
     return (
       <span className={cx('nz-admin-cmd__vline', 'is-empty', compact && 'is-compact')}>
@@ -137,7 +158,7 @@ export const LocationCard = memo(function LocationCard({
             </span>
           ))}
         </span>
-        <VehicleLine stats={stats} kind={kind} />
+        <VehicleLine stats={stats} kind={kind} spawner={(loc.kind === 'garage' || loc.kind === 'job') && loc.source === 'spawner'} />
       </span>
 
       <span className="nz-admin-cmd__card-side" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>

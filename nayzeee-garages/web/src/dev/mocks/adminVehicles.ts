@@ -746,9 +746,13 @@ function generatedActivity(v: MockVehicle): Draft[] {
   list.push(byServer('vehicle.add', bought, { plate, owner: who.identifier, ownerName: who.name, model: v.row.model, garageKey: key, vehicleType: v.row.vehicleType }));
   const end = v.lastUsed ?? now - 3 * DAY;
   const n = 2 + Math.floor(rand() * 7);
-  list.push(...trips(plate, who, key, v.row.state === 'out' ? end - 2 * DAY : end + 2 * 3600, n, rand, v.mileage));
-  if (v.row.state === 'out' && v.lastUsed) {
+  // Older trips, then the last take-out at lastUsed (stored again unless out / impounded).
+  list.push(...trips(plate, who, key, end - 3 * 3600, n, rand, v.mileage - 30));
+  if (v.lastUsed) {
     list.push(byPlayer('vehicle.retrieve', v.lastUsed, who, { plate, garage: key, fee: 0, fromImpound: false, fromInterior: false, serverSpawn: true }));
+    if (v.row.state === 'garaged') {
+      list.push(byPlayer('vehicle.store', v.lastUsed + 40 * 60, who, { plate, garage: key, garageName: GARAGE_NAMES[key] ?? key, owner: who.identifier, mileage: Math.round(v.mileage), fuel: v.row.fuel }));
+    }
   }
   for (const sv of v.service) list.push(byServer('vehicle.service', sv.at, { plate, item: sv.item, shop: sv.shop, mileage: sv.mileage }));
   if (rand() < 0.35) list.push(byPlayer('vehicle.share', end - Math.round(rand() * 20) * DAY, who, { plate, action: 'add', target: 'SR38410', targetName: 'Sofia Romero' }));

@@ -76,6 +76,7 @@ server_scripts {
   'server/import.lua',
   'server/admin.lua',
   'server/exports.lua',
+  'server/phone.lua',
   'server/main.lua',
 }
 

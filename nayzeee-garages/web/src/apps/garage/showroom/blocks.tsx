@@ -10,9 +10,10 @@ import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { dateTime, hoursLabel, money } from '@/lib/format';
 import { useSettings } from '@/lib/store';
-import type { DamageSummary, Finance, ImpoundInfo, ModSummary, VehicleStats, VehicleType } from '@/lib/types';
+import type { DamageSummary, Finance, ImpoundInfo, ModSummary, VehicleStats } from '@/lib/types';
 import { countdown, damageCaption, speedIn, useNow } from '../model';
 import { DamageGlyph } from './DamageGlyph';
+import type { GlyphShape } from './DamageGlyph';
 
 type Tone = 'teal' | 'amber' | 'red';
 const autoTone = (v: number): Tone => (v >= 50 ? 'teal' : v >= 25 ? 'amber' : 'red');
@@ -78,7 +79,7 @@ export function StripCell({
 }
 
 /** Segmented 10-cell gauge (engine / body / fuel). */
-export function Gauge({ label, icon, value }: { label: string; icon: IconName; value: number }) {
+function Gauge({ label, icon, value }: { label: string; icon: IconName; value: number }) {
   const v = clampPct(value);
   const lit = v === 0 ? 0 : Math.max(1, Math.round(v / 10));
   return (
@@ -101,7 +102,7 @@ export function Gauge({ label, icon, value }: { label: string; icon: IconName; v
 }
 
 /** 0–100 rating bar with quarter ticks. */
-export function Rating({ label, value }: { label: string; value: number }) {
+function Rating({ label, value }: { label: string; value: number }) {
   const v = clampPct(value);
   return (
     <div className="nz-garage__rating">
@@ -115,7 +116,7 @@ export function Rating({ label, value }: { label: string; value: number }) {
 }
 
 /** Upgrade level: one pip per level, "Stock" at 0. */
-export function LevelRow({ label, icon, level, max }: { label: string; icon: IconName; level: number; max: number }) {
+function LevelRow({ label, icon, level, max }: { label: string; icon: IconName; level: number; max: number }) {
   const lv = Math.max(0, Math.floor(Number(level) || 0));
   const total = Math.max(max, lv);
   return (
@@ -173,14 +174,14 @@ export function ConditionBlock({
   body,
   fuel,
   damage,
-  vehicleType,
+  shape,
   needsService,
 }: {
   engine: number;
   body: number;
   fuel: number;
   damage: DamageSummary | null;
-  vehicleType: VehicleType;
+  shape: GlyphShape;
   needsService: boolean;
 }) {
   const caption = damageCaption(damage);
@@ -207,7 +208,7 @@ export function ConditionBlock({
             <span>{caption}</span>
           </p>
         </div>
-        <DamageGlyph damage={damage} vehicleType={vehicleType} body={body} />
+        <DamageGlyph damage={damage} shape={shape} body={body} />
       </div>
     </Block>
   );
@@ -379,32 +380,8 @@ export function useAvailability(info: ImpoundInfo | null) {
   return { state: 'now' as const, seconds: 0 };
 }
 
-export function AvailabilityBadge({ info, size = 'md' }: { info: ImpoundInfo; size?: 'sm' | 'md' }) {
-  const a = useAvailability(info);
-  if (!a) return null;
-  if (a.state === 'release') {
-    return (
-      <Badge tone="red" icon="lock" size={size}>
-        {t('Release required')}
-      </Badge>
-    );
-  }
-  if (a.state === 'waiting') {
-    return (
-      <Badge tone="amber" icon="clock" size={size} title={dateTime(info.releaseAt)}>
-        {t('In {time}', { time: countdown(a.seconds) })}
-      </Badge>
-    );
-  }
-  return (
-    <Badge tone="teal" icon="checkCircle" size={size}>
-      {t('Available now')}
-    </Badge>
-  );
-}
-
 /** Big release countdown used by the impound block. */
-export function ReleaseClock({ info }: { info: ImpoundInfo }) {
+function ReleaseClock({ info }: { info: ImpoundInfo }) {
   const a = useAvailability(info);
   if (!a) return null;
   if (a.state === 'release') {

@@ -35,6 +35,7 @@ import { RailList, RowBody, StatusDot } from '../garage/showroom/Rail';
 import { ClassTag, Plate, Stage, StageTitle } from '../garage/showroom/Stage';
 import { ConditionBlock, ImpoundBlock, PerformanceBlock, StripCell, useAvailability } from '../garage/showroom/blocks';
 import { useShowroomKeys } from '../garage/showroom/keys';
+import { glyphShape } from '../garage/showroom/DamageGlyph';
 import { RailToolbar } from '../garage/GarageRail';
 import { EmptyShowcase, PrimaryLabel, ShowcaseFrame, Tool } from '../garage/GarageShowcase';
 import '../garage/garage.css';
@@ -299,7 +300,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
             </span>
             <span className="nz-garage__spacer" />
             {vehicles.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
-            {vehicles.length > 0 && <KeyHint keys={['Enter']} label={t('Pay & drive')} />}
+            {vehicles.length > 0 && <KeyHint keys={['Enter']} label={staff ? t('Drive out') : t('Pay & drive')} />}
             <KeyHint keys={['/']} label={t('Search')} />
             <KeyHint keys={['Esc']} label={t('Close')} />
           </>
@@ -539,7 +540,7 @@ function ImpoundShowcase({
         body={v.body}
         fuel={v.fuel}
         damage={normDamage(v.damage)}
-        vehicleType={v.vehicleType}
+        shape={glyphShape(v.vehicleType, v.classId, v.model)}
         needsService={v.needsService}
       />
       {v.stats && <PerformanceBlock stats={v.stats} />}
