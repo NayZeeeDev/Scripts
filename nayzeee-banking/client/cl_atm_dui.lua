@@ -584,8 +584,10 @@ local function runAction(act)
       Bank.atmCashProp(DUI.entity, DUI.model, depositing and 'in' or 'out')
     end
 
+    -- no answer is not a refusal: the server may still have done it, and a
+    -- player told to try again would pay twice
     if not res then
-      return goDone(false, 'Declined', 'The bank did not answer. Try again in a moment.')
+      return goDone(false, 'No answer', 'The bank did not confirm it. Check your balance before trying again.')
     end
     return goDone(res.ok, res.ok and 'Approved' or 'Declined', res.msg or '')
   end
@@ -605,7 +607,7 @@ local function runAction(act)
     DUI.busy = false
 
     if not res then
-      return goDone(false, 'Declined', 'The bank did not answer. Try again in a moment.')
+      return goDone(false, 'No answer', 'The bank did not confirm it. Check your balance before trying again.')
     end
     return goDone(res.ok, res.ok and 'Sent' or 'Declined', res.msg or '')
   end
@@ -931,6 +933,10 @@ function Bank.useATMScreen(entity, model, card, data)
       Wait(0)
     end
 
+    -- still busy until the server has closed the session: a quick re-use
+    -- started now would have its new session wiped by this one's atmEnd
+    DUI.closing = true
+
     -- the card slides back out while the camera is still on the machine,
     -- then the view comes back as the hand takes it
     local stopped = false
@@ -948,13 +954,14 @@ function Bank.useATMScreen(entity, model, card, data)
 
     DUI.entity, DUI.model, DUI.card, DUI.payload, DUI.cfg = nil, nil, nil, nil, nil
     DUI.buttons, DUI.hover = {}, nil
-    ask('nz_bank:atmEnd')
+    if not Bank.stopping then pcall(ask, 'nz_bank:atmEnd') end
+    DUI.closing = false
   end)
 
   return true
 end
 
-function Bank.screenActive() return DUI.active end
+function Bank.screenActive() return DUI.active or DUI.closing == true end
 
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= GetCurrentResourceName() then return end

@@ -223,7 +223,7 @@ local function cantUse()
     if IsEntityDead(ped) or IsPedFatallyInjured(ped) then return L('atm_cant_now') end
     if IsPedInAnyVehicle(ped, false) then return L('atm_in_vehicle') end
     if IsPedRagdoll(ped) or IsPedCuffed(ped) then return L('atm_cant_now') end
-    if inSession or Bank.isOpen or (Bank.screenActive and Bank.screenActive()) then return 'busy' end
+    if inSession or Bank.isOpen or Bank.atmClosing or (Bank.screenActive and Bank.screenActive()) then return 'busy' end
 end
 
 --- The machine the player is stood at, if any (for using a card item there).
@@ -320,7 +320,10 @@ function Bank.leaveATM()
 
     if not Bank.atmCard then return end
     Bank.atmCard = nil
-    if not Bank.stopping then lib.callback.await('nz_bank:atmEnd', false) end
+    -- busy until the server has closed it, so a quick re-use is not wiped by this end
+    Bank.atmClosing = true
+    if not Bank.stopping then pcall(lib.callback.await, 'nz_bank:atmEnd', false) end
+    Bank.atmClosing = false
 end
 
 -- ═══════════════════════════════════════════════════════════
