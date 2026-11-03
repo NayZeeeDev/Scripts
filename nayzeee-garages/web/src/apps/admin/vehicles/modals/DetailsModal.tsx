@@ -23,7 +23,8 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 export function DetailsModal({ open, detail, onClose, onSave }: Props) {
   const unit = useSettings().distanceUnit;
   const v = detail.vehicle;
-  const [garage, setGarage] = useState<string | null>(v.garageKey);
+  // '' = no garage (sent as '' to clear it — JSON null never reaches Lua).
+  const [garage, setGarage] = useState<string>(v.garageKey ?? '');
   const [state, setState] = useState<VehicleState>(v.state);
   const [nickname, setNickname] = useState(v.nickname ?? '');
   const [mileage, setMileage] = useState(round1(distanceValue(v.mileage)));
@@ -35,7 +36,7 @@ export function DetailsModal({ open, detail, onClose, onSave }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setGarage(v.garageKey);
+    setGarage(v.garageKey ?? '');
     setState(v.state);
     setNickname(v.nickname ?? '');
     setMileage(round1(distanceValue(v.mileage)));
@@ -47,9 +48,9 @@ export function DetailsModal({ open, detail, onClose, onSave }: Props) {
   }, [open, detail]);
 
   const garageOptions = useMemo(() => {
-    const list = detail.garages.map((g) => ({ value: g.key, label: g.name }));
+    const list: { value: string; label: string; hint?: string }[] = detail.garages.map((g) => ({ value: g.key, label: g.name }));
     if (v.garageKey && !list.some((g) => g.value === v.garageKey)) list.push({ value: v.garageKey, label: v.garageName ?? v.garageKey });
-    return list;
+    return [{ value: '', label: t('No garage'), hint: t('Clears the garage') }, ...list];
   }, [detail.garages, v.garageKey, v.garageName]);
 
   const stateOptions = (['garaged', 'out', 'impounded'] as VehicleState[]).map((s) => ({
@@ -65,7 +66,7 @@ export function DetailsModal({ open, detail, onClose, onSave }: Props) {
 
   const patch = useMemo<AdminVehiclePatch>(() => {
     const d: NonNullable<AdminVehiclePatch['details']> = {};
-    if (garage !== v.garageKey && garage) d.garageKey = garage;
+    if (garage !== (v.garageKey ?? '')) d.garageKey = garage;
     if (state !== v.state) d.state = state;
     if (nickname.trim() !== (v.nickname ?? '')) d.nickname = nickname.trim(); // '' clears it (server)
     if (Math.abs(mileage - round1(distanceValue(v.mileage))) >= 0.05) d.mileage = Math.round(toKm(mileage) * 100) / 100;

@@ -5,7 +5,7 @@
  * - vehicleTypeOptions(withAll?)       Select options for car/sea/air (+ 'all').
  * - vehicleTypeLabel(vt) / vehicleTypeIcon(vt)
  * - KIND_PAGE, kindTitle(kind), kindNoun(kind)       page ↔ kind mapping and nouns.
- * - accessModeLabel(mode), accessModeOptions()
+ * - accessModeLabel(mode), accessModeShort(mode), accessModeOptions()
  * - restrictionTypeLabel(type)
  * - findGroupInfo(list, name)          JobInfo by name.
  * - ruleLabel(rule, list)              "LSPD 2+" / "Mechanic".
@@ -74,6 +74,11 @@ export function kindTitle(kind: LocationKind): string {
 
 export function accessModeLabel(mode: AccessConfig['mode']): string {
   return mode === 'interior' ? t('Interior') : mode === 'both' ? t('Interior & quick access') : t('Quick access');
+}
+
+/** Short form for table cells: "Quick menu", "Interior", "Interior + menu". */
+export function accessModeShort(mode: AccessConfig['mode']): string {
+  return mode === 'interior' ? t('Interior') : mode === 'both' ? t('Interior + menu') : t('Quick menu');
 }
 
 export function accessModeOptions(): { value: AccessConfig['mode']; label: string; hint: string; icon: IconName }[] {

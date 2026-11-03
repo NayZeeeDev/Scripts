@@ -13,19 +13,19 @@ export function PrivateGaragesPage(props: AdminPageProps) {
     {
       key: 'price',
       header: t('Price'),
-      width: '17%',
+      width: '16%',
       render: (l) => (l.purchasable ? <b className="nz-admin-locs__strong">{money(l.price)}</b> : <span>{t('Assigned')}</span>),
     },
     {
       key: 'copies',
       header: t('Copies'),
-      width: '14%',
+      width: '13%',
       render: (l) => (l.maxCopies > 0 ? String(l.maxCopies) : <span title={t('Unlimited')}>{t('Unlimited')}</span>),
     },
     {
       key: 'storage',
       header: t('Storage'),
-      width: '17%',
+      width: '13%',
       render: (l) => (l.storage === 'shared' ? t('Shared') : t('Personal')),
     },
   ];

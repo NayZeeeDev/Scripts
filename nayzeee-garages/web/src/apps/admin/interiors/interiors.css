@@ -1,0 +1,543 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Admin › Interiors (table + selected-interior summary, create modal).
+   Prefix: nz-aint-. Colours only through tokens (accent = --teal family).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.nz-aint {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 14px;
+}
+
+.nz-aint__left {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nz-aint__toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.nz-aint__search { flex: 1 1 auto; min-width: 0; }
+
+.nz-aint__table {
+  --nz-surface: var(--panel);
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
+}
+
+.nz-aint__table.is-empty { flex: 1 1 auto; display: flex; }
+
+.nz-aint .nz-aint__empty {
+  flex: 1 1 auto;
+  border: 0;
+  justify-content: center;
+}
+
+.nz-aint .nz-aint__empty .nz-empty__desc { max-width: 46ch; }
+
+.nz-aint__table .nz-table th:first-child,
+.nz-aint__table .nz-table td:first-child { padding-left: 14px; }
+
+.nz-aint__table .nz-table td { height: 43px; }
+.nz-aint__table .nz-table tbody tr { cursor: pointer; }
+
+.nz-aint-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.nz-aint-name__text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.nz-table td b.nz-aint-name__text.is-off { color: var(--ink-3); }
+
+.nz-aint-warn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  color: var(--amber);
+}
+
+.nz-aint-slots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-aint-slots svg { color: var(--ink-3); }
+.nz-aint-slots.is-zero { color: var(--amber); }
+.nz-aint-slots.is-zero svg { color: var(--amber); }
+.nz-aint-slots.is-off,
+.nz-aint-cell.is-off { color: var(--ink-3); }
+
+.nz-aint-cell {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.nz-aint-dash { color: var(--ink-3); }
+
+.nz-aint td.nz-aint-actions-col,
+.nz-aint th.nz-aint-actions-col {
+  padding-left: 0;
+  padding-right: 8px;
+}
+
+.nz-aint-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.nz-aint-del { color: var(--red); }
+.nz-aint-del:hover:not(:disabled) { background: var(--red-wash); color: var(--red); }
+
+.nz-aint-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ── selected interior ───────────────────────────────────────────────── */
+.nz-aint-side {
+  flex: 0 0 31%;
+  max-width: 380px;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
+  overflow: hidden;
+}
+
+.nz-aint-side__empty.nz-empty {
+  flex: 1 1 auto;
+  justify-content: center;
+  border: 0;
+}
+
+.nz-aint-side__head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line-hair);
+  background:
+    radial-gradient(260px 90px at 0% 0%, rgba(var(--teal-rgb), .08), transparent 70%),
+    linear-gradient(rgba(255, 255, 255, .015), rgba(255, 255, 255, 0));
+}
+
+.nz-aint-side__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nz-aint-side__id {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.nz-aint-side__titles h3 {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--white);
+}
+
+.nz-aint-side__head .nz-badge { flex: none; margin-top: 2px; }
+
+.nz-aint-side__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nz-aint-side__foot {
+  flex: none;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-hair);
+  background: var(--inset);
+}
+
+.nz-aint-checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nz-aint-checks .nz-tip-anchor { display: block; min-width: 0; }
+
+.nz-aint-check {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 10px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-hair);
+  background: var(--inset);
+}
+
+.nz-aint-check__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--ink-3);
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid var(--line-soft);
+}
+
+.nz-aint-check.is-ok .nz-aint-check__icon {
+  color: var(--teal);
+  background: var(--teal-wash);
+  border-color: var(--teal-edge);
+}
+
+.nz-aint-check__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.nz-aint-check__text span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-aint-check__text b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-aint-check.is-missing .nz-aint-check__text b { color: var(--ink-2); }
+
+.nz-aint-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nz-aint-sec h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-aint-sec__count {
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  font-size: 10px;
+  letter-spacing: 0;
+  line-height: 16px;
+  color: var(--ink-2);
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--line-soft);
+}
+
+.nz-aint-kv {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-hair);
+  overflow: hidden;
+}
+
+.nz-aint-kv > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  font-size: 11.5px;
+}
+
+.nz-aint-kv > div + div { border-top: 1px solid var(--line-hair); }
+.nz-aint-kv span { flex: none; font-weight: 300; color: var(--ink-3); }
+
+.nz-aint-kv b {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--white);
+}
+
+.nz-aint-note {
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.nz-aint-coord {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-hair);
+  background: var(--inset);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-aint-coord svg { color: var(--teal); flex: none; }
+.nz-aint-coord span { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.nz-aint-coord em { font-style: normal; color: var(--ink-3); }
+
+.nz-aint-users {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nz-aint-users button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 7px 8px 7px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-hair);
+  background: rgba(255, 255, 255, .015);
+  color: var(--ink-3);
+  text-align: left;
+  transition: border-color var(--fast), background var(--fast), color var(--fast);
+}
+
+.nz-aint-users button:hover {
+  border-color: var(--teal-edge);
+  background: var(--teal-wash);
+  color: var(--teal);
+}
+
+.nz-aint-users__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--white);
+}
+
+.nz-aint-users__mode {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-aint-users__chev { flex: none; transition: transform var(--fast); }
+.nz-aint-users button:hover .nz-aint-users__chev { transform: translateX(2px); }
+
+/* onboarding guide (no interiors yet) */
+.nz-aint-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 18px 20px;
+  background: radial-gradient(300px 140px at 0% 0%, rgba(var(--teal-rgb), .07), transparent 70%);
+}
+
+.nz-aint-guide h4 {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-aint-guide ol {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nz-aint-guide li {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.nz-aint-guide li > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--teal);
+  background: var(--teal-wash);
+  border: 1px solid var(--teal-edge);
+}
+
+.nz-aint-guide li div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.nz-aint-guide b { font-size: 12.5px; font-weight: 600; color: var(--white); }
+.nz-aint-guide p { font-size: 11px; font-weight: 300; line-height: 1.5; color: var(--ink-3); }
+
+/* ── create modal ────────────────────────────────────────────────────── */
+.nz-aint-coords {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-hair);
+  background: var(--inset);
+}
+
+.nz-aint-coords__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nz-aint-coords__grid input { font-family: var(--mono); font-size: 11.5px; }
+
+.nz-aint-coords__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nz-aint-coords__hint,
+.nz-aint-coords__error {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 1.35;
+  color: var(--ink-3);
+}
+
+.nz-aint-coords__error { color: var(--red); font-weight: 400; }
+
+.nz-aint-profile {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--teal-edge);
+  background: var(--teal-wash);
+}
+
+.nz-aint-profile__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--on-teal);
+  background: var(--teal);
+}
+
+.nz-aint-profile__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nz-aint-profile__text b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.nz-aint-profile__text span { font-size: 11px; font-weight: 300; color: var(--ink-2); }
+
+.nz-aint-profile__coords {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1500px) {
+  .nz-aint-side { flex-basis: 32%; }
+}

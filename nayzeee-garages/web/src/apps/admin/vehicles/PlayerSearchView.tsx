@@ -110,7 +110,7 @@ export function PlayerSearchView({ state, onQuery, onSearch, onOpen }: Props) {
           </div>
         </div>
       ) : (
-        <div className="nz-aveh-card">
+        <div className="nz-aveh-card nz-aveh-card--fill">
           <Table
             columns={columns}
             rows={result?.rows ?? []}

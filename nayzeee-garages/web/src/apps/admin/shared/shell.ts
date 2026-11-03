@@ -3,17 +3,19 @@
  *
  * API
  * - useAdminShell(): AdminShell
- *     hidden          true while an in-world tool runs (admin:points): the admin window AND
- *                     every admin modal must be invisible. Modals: `open={open && !hidden}`
- *                     (keep your component mounted so its state survives).
- *     runInWorld(fn)  hide the admin UI, await fn() (e.g. request('admin:points', …)), show it
- *                     again and return fn's result. Nested calls are counted.
+ *     hidden          true while an in-world tool runs (admin:points). The admin window and
+ *                     every overlay (modals included) are hidden by CSS automatically and stay
+ *                     mounted — nothing to do in a page. (Gating a modal with
+ *                     `open={open && !hidden}` still works but is no longer needed.)
+ *     runInWorld(fn)  = runAway (shared/away.ts): hide the admin UI, await fn(), show it again
+ *                     and return fn's result. For admin:points use requestPoints() directly.
  *     page            the current admin page.
  *     go(page)        switch page (same as clicking the sidebar).
  * - AdminShellContext  provider used by AdminApp only.
  */
 import { createContext, useContext } from 'react';
 import type { AdminPage } from '@/lib/types';
+import { runAway, useAdminHidden } from './away';
 
 export interface AdminShell {
   hidden: boolean;
@@ -22,15 +24,18 @@ export interface AdminShell {
   go: (page: AdminPage) => void;
 }
 
-const fallback: AdminShell = {
-  hidden: false,
-  runInWorld: (fn) => fn(),
+type ShellBase = Omit<AdminShell, 'hidden'>;
+
+const fallback: ShellBase = {
+  runInWorld: runAway,
   page: 'garages',
   go: () => undefined,
 };
 
-export const AdminShellContext = createContext<AdminShell>(fallback);
+export const AdminShellContext = createContext<ShellBase>(fallback);
 
 export function useAdminShell(): AdminShell {
-  return useContext(AdminShellContext);
+  const base = useContext(AdminShellContext);
+  const hidden = useAdminHidden();
+  return { ...base, hidden };
 }

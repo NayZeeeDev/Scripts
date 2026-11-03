@@ -9,8 +9,11 @@
  * Page contract (AdminPageProps): pages render inside `.nz-admin__page`, a flex column that
  * fills the remaining height (min-height 0, horizontal padding 22px, bottom 18px). Pages manage
  * their own scrolling. `refresh()` re-fetches AdminOpenData (admin:refresh) keeping the current
- * page; `setData(fn)` patches the store locally. Admin modals must respect
- * useAdminShell().hidden (see shared/shell.ts) so in-world tools can hide the whole UI.
+ * page; `setData(fn)` patches the store locally.
+ *
+ * In-world tools: call admin:points only through requestPoints() (shared/away.ts). While it is
+ * pending the whole admin UI (window + modals + popovers) is hidden by CSS but stays mounted,
+ * Escape is swallowed, and everything comes back exactly as it was when the request resolves.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -25,6 +28,7 @@ import { t } from '@/lib/i18n';
 import type { AdminOpenData, AdminPage, AdminPageProps } from '@/lib/types';
 import { AdminShellContext } from './shared/shell';
 import type { AdminShell } from './shared/shell';
+import { runAway, useAdminHidden } from './shared/away';
 import { GaragesPage } from './pages/GaragesPage';
 import { JobGaragesPage } from './pages/JobGaragesPage';
 import { PrivateGaragesPage } from './pages/PrivateGaragesPage';
@@ -114,6 +118,8 @@ const NAV_GROUPS: { label: () => string; items: NavItem[] }[] = [
 
 const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 const findItem = (page: AdminPage) => ALL_ITEMS.find((i) => i.page === page) ?? ALL_ITEMS[0];
+/** Unknown / missing page from Lua → the first page. */
+const validPage = (page: unknown): AdminPage => findItem(page as AdminPage).page;
 
 const FRAMEWORKS: Record<AdminOpenData['framework'], string> = {
   qb: 'QBCore',
@@ -148,19 +154,18 @@ export function AdminApp() {
 
 function AdminWindow({ data }: { data: AdminOpenData }) {
   const { close } = useApp('admin');
-  const [page, setPage] = useState<AdminPage>(data.page);
+  const [page, setPage] = useState<AdminPage>(() => validPage(data.page));
   const [rail, setRail] = useState(readRail);
-  const [away, setAway] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const pageRef = useRef(page);
   pageRef.current = page;
 
   // A new 'open' from Lua with another page switches to it.
   useEffect(() => {
-    setPage(data.page);
+    setPage(validPage(data.page));
   }, [data.page]);
 
-  const hidden = away > 0;
+  const hidden = useAdminHidden();
 
   // Align the sidebar edge with the brand block of the window bar (its width depends on
   // the font and the translated subtitle).
@@ -181,7 +186,12 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
     ro.observe(extra);
     return () => ro.disconnect();
   }, []);
-  useEscape(close, !hidden);
+  // Always registered (never toggled): re-registering would move it above the modals that are
+  // open, and Escape would then close the whole panel instead of the topmost dialog.
+  useEscape(close, true);
+  // While an in-world tool runs, Escape belongs to the game: swallow it (registered last, so it
+  // sits above every open modal) so nothing hidden closes behind the admin's back.
+  useEscape(() => undefined, hidden);
 
   const go = useCallback((next: AdminPage) => {
     setPage(next);
@@ -202,16 +212,7 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
     if (cur && st.apps.admin.open) st.openApp('admin', { ...fn(cur), page: pageRef.current });
   }, []);
 
-  const runInWorld = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
-    setAway((n) => n + 1);
-    try {
-      return await fn();
-    } finally {
-      setAway((n) => Math.max(0, n - 1));
-    }
-  }, []);
-
-  const shell = useMemo<AdminShell>(() => ({ hidden, runInWorld, page, go }), [hidden, runInWorld, page, go]);
+  const shell = useMemo<Omit<AdminShell, 'hidden'>>(() => ({ runInWorld: runAway, page, go }), [page, go]);
 
   const toggleRail = () => {
     setRail((r) => {
@@ -238,12 +239,12 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
   return (
     <AdminShellContext.Provider value={shell}>
       <Window
-        title="NAYZEEE GARAGES"
+        title={t('NAYZEEE GARAGES')}
         subtitle={t('Admin panel')}
         onClose={close}
         width="min(1240px, calc(100vw - 48px))"
         height="min(704px, calc(100vh - 24px))"
-        className={cx('nz-admin', hidden && 'nz-admin--away')}
+        className="nz-admin"
         style={{ maxHeight: 'calc(100vh - 24px)', ...(sideWidth ? { '--nz-admin-side': `${sideWidth}px` } : {}) } as CSSProperties}
         bodyClassName="nz-admin__body"
         headerExtra={
@@ -255,7 +256,7 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
               </span>
               <span className="nz-admin__status-sep" />
               <span className="nz-admin__status-text">
-                {t('{count} locations', { count: data.locations.length })}
+                {data.locations.length === 1 ? t('1 location') : t('{count} locations', { count: data.locations.length })}
               </span>
             </span>
             <Button size="sm" variant="ghost" icon="refresh" loading={refreshing} onClick={() => void refresh()}>

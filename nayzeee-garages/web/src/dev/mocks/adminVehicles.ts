@@ -11,11 +11,14 @@
  *
  * mockNui: admin:players:search, admin:players:vehicles, admin:vehicle:get|assign|update|delete,
  * admin:interior:create|edit|toggle|delete, admin:settings:save, admin:pickPosition.
+ * Like the real bridge, update/save handlers drop JSON nulls (nil in Lua), so a UI that relies
+ * on null to clear something shows up as "nothing changed" here too.
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui } from '../../lib/nui';
 import { adminMockDb } from './admin';
 import type { AdminBDevHint } from '../../apps/admin/vehicles/devHint';
+import { ALL_ROW_IDS } from '../../apps/admin/settings/schema';
 import type {
   AdminOpenData,
   AdminPage,
@@ -526,9 +529,8 @@ function detailOf(v: MockVehicle): AdminVehicleDetail {
   });
 }
 
-/** null, false and {} all mean "clear" (JSON null does not survive the NUI -> Lua bridge). */
-const isClear = (v: unknown) =>
-  v === null || v === false || (typeof v === 'object' && v !== null && Object.keys(v as object).length === 0);
+/** false and {} mean "clear" (server/admin.lua isClear); null never arrives (see stripNulls). */
+const isClear = (v: unknown) => v === false || (typeof v === 'object' && v !== null && Object.keys(v as object).length === 0);
 
 /* ───────────────────────── handlers: players & vehicles ───────────────────────── */
 
@@ -601,8 +603,20 @@ mockNui('admin:vehicle:assign', async ({ identifier, model, plate, garageKey }) 
   return clone(rec.row);
 });
 
-mockNui('admin:vehicle:update', async ({ plate, patch }) => {
+/** JSON null decodes to nil in Lua (= key absent): drop nulls like the real bridge does. */
+function stripNulls<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(stripNulls) as unknown as T;
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v)) if (x !== null) out[k] = stripNulls(x);
+    return out as T;
+  }
+  return v;
+}
+
+mockNui('admin:vehicle:update', async ({ plate, patch: raw }) => {
   await wait(460);
+  const patch = stripNulls(raw);
   const v = vehicles.get(plate);
   if (!v) return fail('Vehicle not found');
   const next = clone(v);
@@ -801,7 +815,8 @@ mockNui('admin:pickPosition', async () => {
 
 mockNui('admin:settings:save', async ({ settings }) => {
   await wait(560);
-  const s = clone(settings) as Settings;
+  const s = stripNulls(clone(settings)) as Settings;
+  if (s.garages.restartImpound === undefined) s.garages.restartImpound = null;
   if (!s.interface.currency.trim()) return fail('Enter a currency symbol');
   if (s.interface.showImages && !s.interface.imageUrl.includes('{model}')) return fail('The image URL must contain {model}');
   if (s.garages.outOnRestart === 'impound' && !s.garages.restartImpound) return fail('Choose the impound used at restart');
@@ -811,6 +826,19 @@ mockNui('admin:settings:save', async ({ settings }) => {
   emitNuiMessage({ action: 'settings', data: clone(s.interface) });
   return clone(s);
 });
+
+/* ───────────────────────── self-check ───────────────────────── */
+
+// Every Settings field must have a row on the Settings page.
+{
+  const ids = new Set(ALL_ROW_IDS);
+  const missing = Object.entries(adminMockDb.settings).flatMap(([section, values]) =>
+    Object.keys(values as object)
+      .map((k) => `${section}.${k}`)
+      .filter((id) => !ids.has(id)),
+  );
+  if (missing.length) console.warn('[mocks] Settings fields without a row on the Settings page:', missing.join(', '));
+}
 
 /* ───────────────────────── scenarios ───────────────────────── */
 
@@ -823,12 +851,19 @@ function open(page: AdminPage, extra: Partial<AdminOpenData> & { __adminB?: Admi
 
 const G = 'Admin · vehicles, interiors, settings';
 
-registerMock({ id: 'admin-interiors', group: G, label: 'Interiors table', messages: [open('interiors')] });
+/** IPL profiles + two without quick-teleport coordinates (hidden in the create modal). */
+const profilesWithHidden = () => [
+  ...clone(adminMockDb.profiles),
+  { key: 'arcade_basement', label: 'Arcade basement', coords: null, slots: 4, options: [] },
+  { key: 'facility_hangar', label: 'Facility hangar', coords: null, slots: 8, options: [] },
+];
+
+registerMock({ id: 'admin-interiors', group: G, label: 'Interiors table', messages: [open('interiors', { profiles: profilesWithHidden() })] });
 registerMock({
   id: 'admin-interiors-create',
   group: G,
   label: 'Interiors — create modal',
-  messages: [open('interiors', { __adminB: { create: true } })],
+  messages: [open('interiors', { profiles: profilesWithHidden(), __adminB: { create: true } })],
 });
 registerMock({
   id: 'admin-interiors-empty',

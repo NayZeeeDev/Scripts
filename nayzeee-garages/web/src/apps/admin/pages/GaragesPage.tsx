@@ -2,12 +2,11 @@
  * Admin › Garages: public garages (kind 'garage') — table + map, import, create/edit.
  * Columns: Name, Vehicle, Access restriction, Access mode.
  */
-import { Badge } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import type { AdminPageProps, GarageLocation } from '@/lib/types';
-import { LocationListPage } from '../shared/LocationListPage';
+import { LocationFlag, LocationListPage } from '../shared/LocationListPage';
 import type { LocationColumn } from '../shared/LocationListPage';
-import { accessModeLabel, restrictionTypeLabel, rulesSummary } from '../shared/labels';
+import { accessModeLabel, accessModeShort, restrictionTypeLabel, rulesSummary } from '../shared/labels';
 
 export function GaragesPage(props: AdminPageProps) {
   const { data } = props;
@@ -16,7 +15,7 @@ export function GaragesPage(props: AdminPageProps) {
     const r = l.restriction;
     if (r.type === 'everyone') return { main: restrictionTypeLabel('everyone'), detail: '' };
     if (r.type === 'identifier') {
-      return { main: restrictionTypeLabel('identifier'), detail: t('{count} players', { count: r.identifiers.length }) };
+      return { main: restrictionTypeLabel('identifier'), detail: r.identifiers.length === 1 ? t('1 player') : t('{count} players', { count: r.identifiers.length }) };
     }
     const list = r.type === 'gang' ? data.gangs : data.jobs;
     return { main: restrictionTypeLabel(r.type), detail: rulesSummary(r.rules, list) || t('none set') };
@@ -28,7 +27,7 @@ export function GaragesPage(props: AdminPageProps) {
     {
       key: 'restriction',
       header: t('Access restriction'),
-      width: '24%',
+      width: '23%',
       render: (l) => {
         const r = restriction(l);
         return (
@@ -42,12 +41,12 @@ export function GaragesPage(props: AdminPageProps) {
     {
       key: 'access',
       header: t('Access mode'),
-      width: '18%',
+      width: '19%',
       render: (l) => {
         const name = l.access.mode !== 'quick' ? interiorName(l.access.interiorId) : null;
         return (
           <span title={name ? `${accessModeLabel(l.access.mode)} · ${name}` : accessModeLabel(l.access.mode)}>
-            {accessModeLabel(l.access.mode)}
+            {accessModeShort(l.access.mode)}
           </span>
         );
       },
@@ -62,9 +61,7 @@ export function GaragesPage(props: AdminPageProps) {
       importable
       nameExtra={(l) =>
         l.source === 'spawner' ? (
-          <Badge tone="blue" size="sm">
-            {t('Spawner')}
-          </Badge>
+          <LocationFlag icon="key" tone="blue" label={t('Spawner: {count} vehicles to take out', { count: l.spawner.length })} />
         ) : null
       }
       searchText={(l) => `${restriction(l).main} ${restriction(l).detail} ${l.restriction.identifiers.join(' ')}`}

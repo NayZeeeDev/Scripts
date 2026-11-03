@@ -5,6 +5,7 @@
  *   <LocationListPage kind data refresh setData columns nameExtra? searchText? importable?
  *                     emptyTitle emptyDescription emptyIcon? />
  *   LocationColumn<L> { key, header, width?, align?, render(loc) }   columns between Vehicle and actions
+ *   <LocationFlag icon label tone? />   compact icon marker (tooltip = label) for `nameExtra`
  *
  * Layout: toolbar (search, vehicle filter, Import?, + Create) and a paginated table (10 per page)
  * on the left (~62%), MapView on the right. Name + Vehicle columns and the row actions (edit,
@@ -15,7 +16,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
-  Badge,
   Button,
   ConfirmDialog,
   EmptyState,
@@ -37,7 +37,6 @@ import { MapView } from './MapView';
 import type { MapPin } from './MapView';
 import { kindNoun, locationAnchor, vehicleTypeIcon, vehicleTypeLabel, vehicleTypeOptions } from './labels';
 import type { LocationPageKind, VehicleFilter } from './labels';
-import { useAdminShell } from './shell';
 import { LocationEditor } from '../locations/LocationEditor';
 import { ImportModal } from '../locations/ImportModal';
 
@@ -64,6 +63,17 @@ export interface LocationListPageProps<L extends Location> extends AdminPageProp
 
 const PAGE_SIZE = 10;
 
+/** Small icon marker after a location name (the tooltip carries the text). */
+export function LocationFlag({ icon, label, tone = 'neutral' }: { icon: IconName; label: string; tone?: 'neutral' | 'blue' | 'amber' | 'teal' }) {
+  return (
+    <Tooltip content={label}>
+      <span className={cx('nz-admin-locs__flag', `is-${tone}`)} aria-label={label} role="img">
+        <Icon name={icon} size={11} strokeWidth={2} />
+      </span>
+    </Tooltip>
+  );
+}
+
 type DevHint = { __devEdit?: number | 'new' };
 type Id = string | number;
 
@@ -86,7 +96,6 @@ export function LocationListPage<L extends Location>({
   emptyDescription,
   emptyIcon = 'garage',
 }: LocationListPageProps<L>) {
-  const shell = useAdminShell();
   const [query, setQuery] = useState('');
   const [vehicle, setVehicle] = useState<VehicleFilter>('all');
   const [page, setPage] = useState(1);
@@ -280,19 +289,9 @@ export function LocationListPage<L extends Location>({
             >
               {l.name}
             </button>
-            {!l.enabled && (
-              <Badge tone="neutral" size="sm" icon="ban">
-                {t('Disabled')}
-              </Badge>
-            )}
+            {!l.enabled && <LocationFlag icon="ban" label={t('Disabled: hidden from players')} />}
             {nameExtra?.(l)}
-            {!anchor && (
-              <Tooltip content={t('No interaction point yet — edit it to place one')}>
-                <span className="nz-admin-locs__warn">
-                  <Icon name="warning" size={13} strokeWidth={1.8} />
-                </span>
-              </Tooltip>
-            )}
+            {!anchor && <LocationFlag icon="warning" tone="amber" label={t('No interaction point yet: edit it to place one')} />}
           </span>
         );
       },
@@ -460,7 +459,7 @@ export function LocationListPage<L extends Location>({
 
       {importable && (
         <ImportModal
-          open={importOpen && !shell.hidden}
+          open={importOpen}
           sources={data.importSources}
           onClose={() => setImportOpen(false)}
           onImported={() => {
@@ -471,7 +470,7 @@ export function LocationListPage<L extends Location>({
       )}
 
       <ConfirmDialog
-        open={!!confirm && !shell.hidden}
+        open={!!confirm}
         tone="red"
         icon="trash"
         title={t('Delete {name}?', { name: confirm?.name ?? '' })}

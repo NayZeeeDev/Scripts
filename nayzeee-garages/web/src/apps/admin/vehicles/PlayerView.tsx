@@ -86,7 +86,7 @@ export function PlayerView({ data, identifier, fallbackName, player, loading, er
     {
       key: 'vehicle',
       header: t('Vehicle'),
-      width: '27%',
+      width: '25%',
       render: (v) => (
         <span className="nz-aveh-vcell">
           <VehicleImage image={v.image} vehicleType={v.vehicleType} className="nz-aveh-vcell__img" />
@@ -96,16 +96,16 @@ export function PlayerView({ data, identifier, fallbackName, player, loading, er
         </span>
       ),
     },
-    { key: 'model', header: t('Spawn code'), width: '12%', className: 'nz-aveh-mono', render: (v) => <Highlight text={v.model} query={ui.filter} /> },
+    { key: 'model', header: t('Spawn code'), width: '11%', className: 'nz-aveh-mono', render: (v) => <Highlight text={v.model} query={ui.filter} /> },
     { key: 'plate', header: t('Plate'), width: 104, render: (v) => <PlateTag plate={v.plate} /> },
     {
       key: 'garage',
       header: t('Garage'),
-      width: '17%',
+      width: '16%',
       render: (v) => (v.garageName ? <Highlight text={v.garageName} query={ui.filter} /> : <span className="nz-aveh-muted">—</span>),
     },
-    { key: 'status', header: t('Status'), width: '17%', render: (v) => <StatusBadges row={v} /> },
-    { key: 'cond', header: t('Condition'), width: 196, render: (v) => <Condition fuel={v.fuel} engine={v.engine} body={v.body} /> },
+    { key: 'status', header: t('Status'), width: '20%', render: (v) => <StatusBadges row={v} /> },
+    { key: 'cond', header: t('Condition'), width: 186, render: (v) => <Condition fuel={v.fuel} engine={v.engine} body={v.body} /> },
   ];
 
   const chips: { value: StatusFilter; label: string }[] = [
@@ -179,7 +179,7 @@ export function PlayerView({ data, identifier, fallbackName, player, loading, er
         </Button>
       </div>
 
-      <div className="nz-aveh-chips">
+      <div className="nz-aveh-chips" hidden={!!player && list.length === 0}>
         {loading && !player ? (
           <>
             <Skeleton width={64} height={28} radius={999} />
@@ -197,12 +197,13 @@ export function PlayerView({ data, identifier, fallbackName, player, loading, er
         )}
       </div>
 
-      <div className="nz-aveh-card">
+      <div className="nz-aveh-card nz-aveh-card--fill">
         <Table
           columns={columns}
           rows={error ? [] : rows}
           rowKey={(v) => v.plate}
           onRowClick={onOpen}
+          dense
           loading={loading && !player}
           skeletonRows={8}
           empty={empty}

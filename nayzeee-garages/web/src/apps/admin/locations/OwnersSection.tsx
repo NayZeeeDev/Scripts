@@ -2,12 +2,13 @@
  * OwnersSection — "Owners & copies" of a saved private location (admin:groups / admin:group:*).
  *
  * API
- *   <OwnersSection locationId maxCopies purchasable />
+ *   <OwnersSection locationId maxCopies purchasable onCount? />
+ *   - onCount(n | null): number of copies once loaded (null while loading / failed).
  * Lists every copy (group) with its owner, members and parked vehicles; assigns a new copy to a
  * player identifier; renames / deletes copies; changes member roles, removes or adds members.
  * Every action is sent to the server immediately (not on the location's Save).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Avatar,
   Badge,
@@ -28,16 +29,15 @@ import { toast } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import { date } from '@/lib/format';
 import type { GroupInfo, Role } from '@/lib/types';
-import { useAdminShell } from '../shared/shell';
 
 export interface OwnersSectionProps {
   locationId: number;
   maxCopies: number;
   purchasable: boolean;
+  onCount?: (count: number | null) => void;
 }
 
-export function OwnersSection({ locationId, maxCopies, purchasable }: OwnersSectionProps) {
-  const shell = useAdminShell();
+export function OwnersSection({ locationId, maxCopies, purchasable, onCount }: OwnersSectionProps) {
   const [groups, setGroups] = useState<GroupInfo[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [owner, setOwner] = useState('');
@@ -60,6 +60,12 @@ export function OwnersSection({ locationId, maxCopies, purchasable }: OwnersSect
   useEffect(() => {
     void load();
   }, [load]);
+
+  const countRef = useRef(onCount);
+  countRef.current = onCount;
+  useEffect(() => {
+    countRef.current?.(groups ? groups.length : null);
+  }, [groups]);
 
   const used = groups?.length ?? 0;
   const full = maxCopies > 0 && used >= maxCopies;
@@ -114,7 +120,9 @@ export function OwnersSection({ locationId, maxCopies, purchasable }: OwnersSect
             ? t('Loading copies…')
             : maxCopies > 0
               ? t('{used} of {max} copies in use', { used, max: maxCopies })
-              : t('{used} copies in use · unlimited', { used })}
+              : used === 1
+                ? t('1 copy in use · unlimited')
+                : t('{used} copies in use · unlimited', { used })}
         </span>
         <span className="nz-admin-owners__live">
           <Icon name="info" size={12} strokeWidth={1.8} />
@@ -257,13 +265,15 @@ export function OwnersSection({ locationId, maxCopies, purchasable }: OwnersSect
       )}
 
       <ConfirmDialog
-        open={!!confirm && !shell.hidden}
+        open={!!confirm}
         tone="red"
         icon="trash"
         title={t('Remove {label}?', { label: confirm?.label ?? '' })}
         message={
           confirm && confirm.vehicles > 0
-            ? t('{count} vehicles are still parked in this copy. The server will refuse until they are moved.', { count: confirm.vehicles })
+            ? confirm.vehicles === 1
+              ? t('1 vehicle is still parked in this copy. The server will refuse until it is moved.')
+              : t('{count} vehicles are still parked in this copy. The server will refuse until they are moved.', { count: confirm.vehicles })
             : t('The owner and members lose access to this copy. This cannot be undone.')
         }
         confirmLabel={t('Remove copy')}

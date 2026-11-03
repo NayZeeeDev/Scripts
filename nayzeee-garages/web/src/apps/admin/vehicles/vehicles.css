@@ -6,7 +6,8 @@
 .nz-aveh {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
   animation: nz-aveh-in 200ms var(--ease) both;
 }
@@ -27,6 +28,14 @@
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+}
+
+/* The vehicle dashboard fits the window; on very short screens it scrolls instead of clipping. */
+.nz-aveh-view--detail {
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-right: -8px;
+  padding-right: 8px;
 }
 
 /* ── shared bits ─────────────────────────────────────────────────────── */
@@ -86,6 +95,18 @@ td.nz-aveh-mono {
   border-radius: var(--r-md);
   box-shadow: 0 1px 0 var(--lift) inset, var(--sh-1);
   overflow: hidden;
+}
+
+.nz-aveh-card--fill {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.nz-aveh-card--fill > .nz-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nz-aveh-card .nz-table th:first-child,
@@ -304,10 +325,11 @@ td.nz-aveh-mono {
 /* ── vehicle dashboard header ────────────────────────────────────────── */
 .nz-aveh-dhead {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 14px;
   min-width: 0;
-  padding: 10px 14px 10px 10px;
+  padding: 8px 14px 8px 10px;
   background: linear-gradient(var(--panel), var(--base));
   border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
@@ -316,7 +338,7 @@ td.nz-aveh-mono {
 
 .nz-aveh-dhead__img {
   flex: none;
-  width: 124px;
+  width: 108px;
   border-radius: 8px;
   background: radial-gradient(70% 80% at 50% 64%, rgba(255, 255, 255, .07), transparent 72%);
 }
@@ -392,16 +414,15 @@ td.nz-aveh-mono {
 
 /* ── dashboard grid ──────────────────────────────────────────────────── */
 .nz-aveh-dgrid {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(206px, 1fr));
+  grid-template-rows: repeat(2, minmax(max-content, 1fr));
   gap: 12px;
-  min-height: 0;
 }
 
 .nz-aveh-dpanel { min-height: 0; }
-.nz-aveh-dpanel .nz-panel__head { padding: 11px 12px 10px 16px; min-height: 46px; }
+.nz-aveh-dpanel .nz-panel__head { padding: 8px 10px 8px 16px; min-height: 44px; }
 .nz-aveh-dpanel .nz-panel__actions { gap: 4px; }
 .nz-aveh-dpanel.is-alert { border-color: var(--red-edge); box-shadow: 0 1px 0 var(--lift) inset, 0 0 0 1px rgba(var(--red-rgb), .08), var(--sh-1); }
 .nz-aveh-dpanel.is-alert .nz-panel__title svg { color: var(--red); }
@@ -409,18 +430,21 @@ td.nz-aveh-mono {
 .nz-aveh-dpanel__body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   overflow: hidden;
 }
 
-.nz-aveh-dpanel__body.nz-panel__body--padded { padding: 14px 16px 12px; }
+.nz-aveh-dpanel__body.nz-panel__body--padded { padding: 12px 16px 10px; }
 
-.nz-aveh-dpanel__empty {
+.nz-aveh-dpanel__empty.nz-empty {
   flex: 1 1 auto;
   justify-content: center;
+  gap: 5px;
   border: 0;
-  padding: 6px 10px;
+  padding: 0 10px;
 }
+
+.nz-aveh-dpanel__empty .nz-empty__action { margin-top: 5px; }
 
 .nz-aveh-dpanel--skel {
   display: flex;
@@ -460,6 +484,8 @@ td.nz-aveh-mono {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 11px 16px;
 }
+
+.nz-aveh-kvgrid.is-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px 12px; }
 
 .nz-aveh-kv {
   display: flex;
@@ -501,7 +527,7 @@ td.nz-aveh-mono {
   color: var(--ink-3);
 }
 
-.nz-aveh-pfoot .nz-btn { margin-right: -8px; }
+.nz-aveh-pfoot .nz-btn { height: 24px; margin-right: -8px; }
 
 /* impound */
 .nz-aveh-imphead {
@@ -537,8 +563,8 @@ td.nz-aveh-mono {
 /* installed mods */
 .nz-aveh-mods {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px 12px;
 }
 
 .nz-aveh-mods__item {
@@ -551,7 +577,7 @@ td.nz-aveh-mono {
 .nz-aveh-mods__item > span { font-size: 10.5px; font-weight: 300; color: var(--ink-3); }
 .nz-aveh-mods__item > b { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
 .nz-aveh-mods__item.is-on > b { color: var(--white); }
-.nz-aveh-mods__item .nz-pips { width: 72px; margin-top: 3px; }
+.nz-aveh-mods__item .nz-pips { width: 100%; max-width: 72px; margin-top: 3px; }
 
 /* finance */
 .nz-aveh-fin__top {
@@ -594,7 +620,7 @@ td.nz-aveh-mono {
   align-items: flex-start;
   gap: 11px;
   min-width: 0;
-  padding-bottom: 11px;
+  padding-bottom: 9px;
 }
 
 .nz-aveh-tl__item:last-child { padding-bottom: 0; }
@@ -632,6 +658,7 @@ td.nz-aveh-mono {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  line-height: 1.3;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -1077,9 +1104,9 @@ td.nz-aveh-mono {
 
 .nz-aveh-prow.is-stacked .nz-aveh-prow__ctl { padding-left: 15px; }
 
-.nz-aveh-prow__select { width: 200px; }
-.nz-aveh-prow__raw { width: 92px; flex: none; }
-.nz-aveh-prow__raw.is-wide { width: 112px; }
+.nz-aveh-prow__select { width: 188px; }
+.nz-aveh-prow__raw { width: 112px; flex: none; }
+.nz-aveh-prow__raw.is-wide { width: 124px; }
 .nz-aveh-prow__hint { font-size: 11px; font-weight: 300; color: var(--ink-3); }
 .nz-aveh-prow__line { display: flex; align-items: center; gap: 8px; }
 .nz-aveh-prow__chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1169,11 +1196,10 @@ td.nz-aveh-mono {
 @media (max-width: 1500px) {
   .nz-aveh-dhead__img { width: 104px; }
   .nz-aveh-dhead__titles h2 { font-size: 16px; }
-  .nz-aveh-dgrid { gap: 10px; grid-template-rows: repeat(2, minmax(196px, 1fr)); }
+  .nz-aveh-dgrid { gap: 10px; }
   .nz-aveh-dpanel__body.nz-panel__body--padded { padding: 12px 14px 10px; }
   .nz-aveh-gauge { gap: 7px; }
-  .nz-aveh-gauge .nz-ring { width: 34px !important; height: 34px !important; }
-  .nz-aveh-gauge .nz-ring svg { width: 34px; height: 34px; }
   .nz-aveh-cond { gap: 8px; }
   .nz-aveh-ownerchip { max-width: 160px; }
 }
+.nz-aveh-chips[hidden] { display: none; }

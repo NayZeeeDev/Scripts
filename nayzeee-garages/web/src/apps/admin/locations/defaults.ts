@@ -3,6 +3,9 @@
  *
  * API
  * - newLocation(kind, data)         a complete, unsaved Location (id null) of that kind.
+ * - normalizeLocation(loc, data)    a deep copy of a Location from Lua with every field present:
+ *                                   Lua drops nil fields (interiorId…) and may encode empty
+ *                                   tables as {} or [] — the editor always works on full shapes.
  * - newSpawnerVehicle()             an empty SpawnerVehicle.
  * - defaultBlipSprite(kind, vt)     357 car / 356 sea / 359 air, 68 for impounds.
  * - DEFAULT_BLIP_COLOUR[kind]       3 garage, 38 job, 5 private, 1 impound.
@@ -118,6 +121,52 @@ export function newLocation(kind: LocationPageKind, data: AdminOpenData): Locati
       return loc;
     }
   }
+}
+
+const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+const obj = <T extends object>(v: unknown, fallback: T): T =>
+  v && typeof v === 'object' && !Array.isArray(v) ? ({ ...fallback, ...(v as Partial<T>) } as T) : fallback;
+
+function normalizeSpawner(list: unknown): SpawnerVehicle[] {
+  return arr<Partial<SpawnerVehicle>>(list).map((v) => {
+    const base = newSpawnerVehicle();
+    const extras = v.extras && typeof v.extras === 'object' && !Array.isArray(v.extras) ? { ...v.extras } : {};
+    return { ...base, ...v, grades: arr<number>(v.grades), extras };
+  });
+}
+
+/** Complete, deep-copied Location from whatever Lua sent (see the header). */
+export function normalizeLocation(raw: Location, data: AdminOpenData): Location {
+  const src = JSON.parse(JSON.stringify(raw)) as Location & Record<string, unknown>;
+  const kind = ((src.kind as string) === 'house' ? 'garage' : src.kind) as LocationPageKind;
+  const defaults = newLocation(kind, data) as Location & Record<string, unknown>;
+  const out = { ...defaults, ...src } as Location & Record<string, unknown>;
+  out.id = typeof src.id === 'number' ? src.id : null;
+  out.spawnPoints = arr(src.spawnPoints);
+  out.openPoints = arr(src.openPoints);
+  out.storePoints = arr(src.storePoints);
+  out.blip = obj(src.blip, defaults.blip);
+  if (out.kind === 'garage' || out.kind === 'job' || out.kind === 'private') {
+    const d = defaults as GarageLocation;
+    const capacity = obj(src.capacity, d.capacity);
+    const access = obj(src.access, d.access);
+    out.capacity = capacity;
+    out.access = { mode: access.mode ?? 'quick', interiorId: typeof access.interiorId === 'number' ? access.interiorId : null };
+  }
+  if (out.kind === 'garage') {
+    const r = obj(src.restriction, (defaults as GarageLocation).restriction);
+    out.restriction = { type: r.type ?? 'everyone', rules: arr(r.rules), identifiers: arr(r.identifiers) };
+    out.spawner = normalizeSpawner(src.spawner);
+  }
+  if (out.kind === 'job') {
+    out.jobs = arr(src.jobs);
+    out.spawner = normalizeSpawner(src.spawner);
+  }
+  if (out.kind === 'impound') {
+    out.jobs = arr(src.jobs);
+    out.society = typeof src.society === 'string' ? src.society : '';
+  }
+  return out as Location;
 }
 
 export function newSpawnerVehicle(): SpawnerVehicle {

@@ -9,7 +9,9 @@
  * - `adminMockGroups` private-garage groups (GroupInfo) by location id, mutable.
  *
  * Scenarios: admin-garages, admin-jobs, admin-private, admin-impounds, admin-edit-location,
- * admin-edit-job, admin-edit-private, admin-create-impound, admin-empty.
+ * admin-edit-job, admin-edit-private, admin-private-owners, admin-create-impound, admin-empty.
+ * admin:points answers after ~1.5 s (the admin UI is hidden meanwhile) and appends one point
+ * next to the last one; the in-world key hint is shown while it "runs".
  * mockNui: admin:refresh, admin:location:save|delete|toggle|teleport|import, admin:points,
  * admin:pickPosition, admin:groups, admin:group:save|delete|member.
  */
@@ -999,8 +1001,9 @@ mockNui('admin:group:member', async ({ groupId, identifier, role }) => {
 
 /* ───────────────────────── scenarios ───────────────────────── */
 
-/** Dev-only hint read by the location pages: open the editor for this id ('new' = create). */
-type DevHint = { __devEdit?: number | 'new' };
+/** Dev-only hints read by the location pages: open the editor for this id ('new' = create),
+ *  optionally on a tab ('owners' for saved private garages). */
+type DevHint = { __devEdit?: number | 'new'; __devTab?: 'settings' | 'owners' };
 
 function open(page: AdminPage, extra: Partial<AdminOpenData> & DevHint = {}) {
   return {
@@ -1030,6 +1033,12 @@ registerMock({
   group: 'Admin',
   label: 'Edit private garage (owners)',
   messages: [open('private', { __devEdit: 16 })],
+});
+registerMock({
+  id: 'admin-private-owners',
+  group: 'Admin',
+  label: 'Private garage owners & copies',
+  messages: [open('private', { __devEdit: 16, __devTab: 'owners' })],
 });
 registerMock({
   id: 'admin-create-impound',

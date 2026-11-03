@@ -41,7 +41,7 @@ export function AssignVehicleModal({ open, data, identifier, playerName, onClose
 
   const m = model.trim().toLowerCase();
   const p = plate.trim().toUpperCase();
-  const modelError = touched && !MODEL_RE.test(m) ? t('Use the spawn code: letters, digits and underscores') : null;
+  const modelError = !touched ? null : !m ? t('Enter the spawn code of the vehicle') : !MODEL_RE.test(m) ? t('Use the spawn code: letters, digits and underscores') : null;
   const plateError = p && !PLATE_RE.test(p) ? t('Plates have 1 to 8 letters, digits or spaces') : null;
   const valid = MODEL_RE.test(m) && !plateError && !!garage;
 
@@ -71,8 +71,8 @@ export function AssignVehicleModal({ open, data, identifier, playerName, onClose
           <Button variant="line" onClick={onClose} disabled={busy}>
             {t('Cancel')}
           </Button>
-          <Button variant="teal" icon="check" onClick={submit} loading={busy} disabled={!valid && touched}>
-            {t('Save')}
+          <Button variant="teal" icon="plus" onClick={submit} loading={busy} disabled={!valid && touched}>
+            {t('Assign')}
           </Button>
         </>
       }

@@ -1,7 +1,7 @@
 /**
  * Impound editor: put a vehicle in an impound (or change the impound record) and release it.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, ConfirmDialog, Field, Input, Modal, NumberInput, Select, Toggle } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { useSettings } from '@/lib/store';
@@ -25,33 +25,28 @@ export function ImpoundModal({ open, data, detail, onClose, onSave }: Props) {
     return loc && loc.kind === 'impound' ? { fee: loc.defaultFee, hours: loc.defaultHours } : { fee: data.settings.impound.defaultFee, hours: data.settings.impound.defaultHours };
   };
 
-  const [impound, setImpound] = useState<number | null>(null);
-  const [reason, setReason] = useState('');
-  const [fee, setFee] = useState(0);
-  const [hours, setHours] = useState(0);
-  const [retrievable, setRetrievable] = useState(true);
+  // Initial values (the parent remounts this modal on every open).
+  const [init] = useState(() => {
+    if (cur) {
+      return {
+        impound: cur.locationId as number | null,
+        reason: cur.reason,
+        fee: cur.fee,
+        hours: Math.max(0, Math.ceil((cur.releaseAt - nowS()) / 3600)),
+        retrievable: cur.retrievable,
+      };
+    }
+    const first = detail.impounds[0]?.id ?? null;
+    const d = defaults(first);
+    return { impound: first, reason: '', fee: d.fee, hours: d.hours, retrievable: true };
+  });
+  const [impound, setImpound] = useState<number | null>(init.impound);
+  const [reason, setReason] = useState(init.reason);
+  const [fee, setFee] = useState(init.fee);
+  const [hours, setHours] = useState(init.hours);
+  const [retrievable, setRetrievable] = useState(init.retrievable);
   const [busy, setBusy] = useState<'save' | 'release' | null>(null);
   const [confirmRelease, setConfirmRelease] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    if (cur) {
-      setImpound(cur.locationId);
-      setReason(cur.reason);
-      setFee(cur.fee);
-      setHours(Math.max(0, Math.ceil((cur.releaseAt - nowS()) / 3600)));
-      setRetrievable(cur.retrievable);
-    } else {
-      const first = detail.impounds[0]?.id ?? null;
-      const d = defaults(first);
-      setImpound(first);
-      setReason('');
-      setFee(d.fee);
-      setHours(d.hours);
-      setRetrievable(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, detail]);
 
   const options = useMemo(() => detail.impounds.map((i) => ({ value: i.id, label: i.name, icon: 'impound' as const })), [detail.impounds]);
 

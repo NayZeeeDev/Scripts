@@ -85,7 +85,7 @@ function ModField({ f, props, set }: { f: Extract<FieldDef, { kind: 'mod' }>; pr
 }
 
 function ColourIndex({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  const options = GTA_COLOURS.map((c) => ({ value: c.index, label: `${c.name}` }));
+  const options = GTA_COLOURS.map((c) => ({ value: c.index, label: t(c.name) }));
   return <IndexControl value={value} options={options} min={0} max={160} onChange={onChange} swatch={colourByIndex(value)?.hex ?? null} />;
 }
 

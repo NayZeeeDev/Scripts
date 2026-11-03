@@ -5,11 +5,12 @@
  *   <SpawnerEditor value onChange grades? invalid? />
  *   - grades: options for the "Grades" multi-select (job kind); omit for public garages, which
  *     hides the Grades column and field.
- * The table lists spawn code, display name, plate template, grades, livery, extras, max mods and
- * price; rows can be edited, reordered, duplicated and removed. The modal edits one
+ * The table lists spawn code, display name, plate template, grades, setup (livery, extras and
+ * max mods as compact markers) and price; rows can be edited, reordered, duplicated and removed. The modal edits one
  * SpawnerVehicle (plate template: '#' digit, '@' letter, '*' either, other characters literal).
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import {
   Button,
   EmptyState,
@@ -22,6 +23,8 @@ import {
   NumberInput,
   Table,
   Toggle,
+  Tooltip,
+  Icon,
   cx,
 } from '@/components/ui';
 import type { TableColumn } from '@/components/ui';
@@ -29,7 +32,6 @@ import { t } from '@/lib/i18n';
 import { money } from '@/lib/format';
 import { useSettings } from '@/lib/store';
 import type { SpawnerVehicle } from '@/lib/types';
-import { useAdminShell } from '../shared/shell';
 import { newSpawnerVehicle } from './defaults';
 
 export interface SpawnerEditorProps {
@@ -40,6 +42,8 @@ export interface SpawnerEditorProps {
 }
 
 const EXTRAS = Array.from({ length: 14 }, (_, i) => String(i + 1));
+/** Server limit per location (server/locations.lua LIMITS.spawner). */
+export const MAX_SPAWNER = 60;
 const MODEL_RE = /^[A-Za-z0-9_-]{1,32}$/;
 const PLATE_RE = /^[A-Z0-9#@* ]{0,8}$/;
 
@@ -66,8 +70,41 @@ export function platePreview(template: string): string {
 
 const extrasSet = (v: SpawnerVehicle) => Object.keys(v.extras ?? {}).length;
 
+/** Livery / extras / max mods as small markers; "Default" when nothing is customised. */
+function SetupCell({ v }: { v: SpawnerVehicle }) {
+  const extras = extrasSet(v);
+  if (v.livery < 0 && !extras && !v.maxMods) return <span className="nz-admin-spawner__auto">{t('Default')}</span>;
+  return (
+    <span className="nz-admin-spawner__setup">
+      {v.livery >= 0 && (
+        <Tooltip content={t('Livery {n}', { n: v.livery })}>
+          <span className="nz-admin-spawner__mark">
+            <Icon name="palette" size={11} strokeWidth={1.9} />
+            {v.livery}
+          </span>
+        </Tooltip>
+      )}
+      {extras > 0 && (
+        <Tooltip content={t('{count} extras set', { count: extras })}>
+          <span className="nz-admin-spawner__mark">
+            <Icon name="sliders" size={11} strokeWidth={1.9} />
+            {extras}
+          </span>
+        </Tooltip>
+      )}
+      {v.maxMods && (
+        <Tooltip content={t('Max performance mods')}>
+          <span className="nz-admin-spawner__mark is-teal">
+            <Icon name="gauge" size={11} strokeWidth={1.9} />
+            {t('Max')}
+          </span>
+        </Tooltip>
+      )}
+    </span>
+  );
+}
+
 export function SpawnerEditor({ value, onChange, grades, invalid = false }: SpawnerEditorProps) {
-  const shell = useAdminShell();
   const [editing, setEditing] = useState<{ index: number | null; draft: SpawnerVehicle; session: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const showGrades = !!grades;
@@ -119,16 +156,15 @@ export function SpawnerEditor({ value, onChange, grades, invalid = false }: Spaw
       width: 86,
       render: (v) => (v.plate ? <span className="nz-admin-spawner__mono">{v.plate}</span> : <span className="nz-admin-spawner__auto">{t('Random')}</span>),
     },
-    ...(showGrades ? [{ key: 'grades', header: t('Grades'), width: 68, render: (v: Row) => gradeText(v) }] : []),
-    { key: 'livery', header: t('Livery'), width: 70, render: (v) => (v.livery < 0 ? t('Default') : String(v.livery)) },
+    ...(showGrades ? [{ key: 'grades', header: t('Grades'), width: 70, render: (v: Row) => gradeText(v) }] : []),
+    { key: 'setup', header: t('Setup'), width: 128, render: (v) => <SetupCell v={v} /> },
     {
-      key: 'extras',
-      header: t('Extras'),
-      width: 70,
-      render: (v) => (extrasSet(v) ? t('{count} set', { count: extrasSet(v) }) : t('Default')),
+      key: 'price',
+      header: t('Price'),
+      width: 74,
+      align: 'right',
+      render: (v) => (v.price > 0 ? money(v.price) : <span className="nz-admin-spawner__auto">{t('Free')}</span>),
     },
-    { key: 'mods', header: t('Max mods'), width: 80, render: (v) => (v.maxMods ? <span className="nz-admin-spawner__yes">{t('Yes')}</span> : t('No')) },
-    { key: 'price', header: t('Price'), width: 66, align: 'right', render: (v) => (v.price > 0 ? money(v.price) : t('Free')) },
     {
       key: 'actions',
       header: '',
@@ -146,6 +182,7 @@ export function SpawnerEditor({ value, onChange, grades, invalid = false }: Spaw
               {
                 label: t('Duplicate'),
                 icon: 'copy',
+                disabled: value.length >= MAX_SPAWNER,
                 onSelect: () => {
                   const next = [...value];
                   next.splice(v.__i + 1, 0, JSON.parse(JSON.stringify(value[v.__i])));
@@ -174,16 +211,20 @@ export function SpawnerEditor({ value, onChange, grades, invalid = false }: Spaw
         />
       )}
       <div className="nz-admin-spawner__foot">
-        <Button size="sm" icon="plus" onClick={() => open(null)}>
+        <Button size="sm" icon="plus" onClick={() => open(null)} disabled={value.length >= MAX_SPAWNER}>
           {t('Add vehicle')}
         </Button>
-        {value.length > 0 && <span className="nz-admin-spawner__count">{t('{count} vehicles', { count: value.length })}</span>}
+        {value.length > 0 && <span className="nz-admin-spawner__count">{value.length === 1
+              ? t('1 vehicle')
+              : value.length >= MAX_SPAWNER
+                ? t('{count} vehicles (the maximum)', { count: value.length })
+                : t('{count} vehicles', { count: value.length })}</span>}
       </div>
 
       {editing && (
         <SpawnerVehicleModal
           key={editing.session}
-          open={modalOpen && !shell.hidden}
+          open={modalOpen}
           isNew={editing.index === null}
           initial={editing.draft}
           grades={grades}
@@ -228,6 +269,14 @@ function SpawnerVehicleModal({ open, isNew, initial, grades, taken, onClose, onS
     if (modelError || plateError) return;
     onSave(v);
   };
+  // Enter in a number field: it commits its value on Enter (state), so apply a tick later.
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.defaultPrevented || (e.target as HTMLElement).tagName !== 'INPUT') return;
+    e.preventDefault();
+    window.setTimeout(() => saveRef.current(), 0);
+  };
 
   const cycleExtra = (id: string) => {
     const cur = v.extras[id];
@@ -257,6 +306,7 @@ function SpawnerVehicleModal({ open, isNew, initial, grades, taken, onClose, onS
         </>
       }
     >
+      <div className="nz-admin-vehform" onKeyDown={onKeyDown}>
       <div className="nz-admin-form__grid">
         <Field
           label={t('Spawn code')}
@@ -338,6 +388,7 @@ function SpawnerVehicleModal({ open, isNew, initial, grades, taken, onClose, onS
           })}
         </div>
         <span className="nz-admin-form__hint">{t('Click an extra to cycle default → on → off. Extras the model does not have are ignored.')}</span>
+      </div>
       </div>
     </Modal>
   );

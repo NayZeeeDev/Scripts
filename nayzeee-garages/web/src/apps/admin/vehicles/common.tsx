@@ -64,7 +64,7 @@ export function StatusBadges({ row }: { row: Pick<AdminVehicleRow, 'state' | 'fi
         </Badge>
       )}
       {row.financed && (
-        <Badge tone="white" size="sm">
+        <Badge tone="blue" size="sm" icon="money">
           {t('Financed')}
         </Badge>
       )}

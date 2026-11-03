@@ -15,7 +15,7 @@ export function ImpoundsPage(props: AdminPageProps) {
     {
       key: 'jobs',
       header: t('Jobs'),
-      width: '30%',
+      width: '25%',
       render: (l) => {
         const s = rulesSummary(l.jobs, data.jobs);
         return s ? <span title={s}>{s}</span> : <span className="nz-admin-locs__missing">{t('No jobs set')}</span>;
@@ -24,7 +24,7 @@ export function ImpoundsPage(props: AdminPageProps) {
     {
       key: 'fee',
       header: t('Default fee'),
-      width: '17%',
+      width: '15%',
       align: 'right',
       render: (l) => <b className="nz-admin-locs__strong">{money(l.defaultFee)}</b>,
     },

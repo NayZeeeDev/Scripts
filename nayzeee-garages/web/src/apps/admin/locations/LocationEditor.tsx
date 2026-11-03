@@ -8,14 +8,17 @@
  *   animation plays.
  *
  * Sections: vehicle source (garage/job), general, locations (in-world point manager via
- * admin:points — the admin UI hides while it runs), spawner vehicles + vehicle rules, parking
+ * requestPoints → admin:points: the whole admin UI is hidden by CSS while it runs and this
+ * modal stays mounted, so the draft, scroll position and focus survive), spawner vehicles +
+ * vehicle rules, parking
  * capacity, garage access, access restriction (garage), sale & copies (private), impound
- * settings, map blip, owners & copies (saved private locations, live).
+ * settings, map blip. Saved private locations get two tabs: Settings and Owners & copies
+ * (live, see OwnersSection — those changes do not wait for Save).
  * Save → admin:location:save { location } → toast → onSaved (the page refreshes).
  * Validation is inline (name, ≥1 open point, ≥1 spawn point, …); Ctrl+S / Enter in the name
  * field saves; closing with unsaved changes asks first.
  */
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import {
   Button,
@@ -31,11 +34,12 @@ import {
   Segmented,
   Select,
   Slider,
+  Tabs,
   Toggle,
   cx,
 } from '@/components/ui';
 import type { IconName } from '@/components/ui';
-import { request } from '@/lib/nui';
+import { isBrowser, request } from '@/lib/nui';
 import { toast, useSettings } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import { money } from '@/lib/format';
@@ -54,12 +58,12 @@ import type {
   Vec4,
   VehicleType,
 } from '@/lib/types';
-import { useAdminShell } from '../shared/shell';
+import { requestPoints } from '../shared/away';
 import { RulesEditor } from '../shared/RulesEditor';
 import { TagInput } from '../shared/TagInput';
 import { accessModeOptions, coordsText, kindNoun, vehicleTypeOptions } from '../shared/labels';
 import type { LocationPageKind } from '../shared/labels';
-import { defaultBlipSprite, newLocation } from './defaults';
+import { defaultBlipSprite, newLocation, normalizeLocation } from './defaults';
 import { SpawnerEditor } from './SpawnerEditor';
 import { OwnersSection } from './OwnersSection';
 
@@ -77,7 +81,6 @@ type Errors = Partial<Record<'name' | 'spawn' | 'open' | 'store' | 'jobs' | 'spa
 
 const KIND_ICON: Record<LocationPageKind, IconName> = { garage: 'garage', job: 'briefcase', private: 'users', impound: 'impound' };
 
-const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /** Approximate GTA blip colours for the preview swatch (ids 0–85). */
 const BLIP_COLOURS: Record<number, string> = {
@@ -93,42 +96,39 @@ const BLIP_COLOURS: Record<number, string> = {
 
 const plural = (n: number, one: string, many: string) => t(n === 1 ? one : many, { count: n });
 
+type EditorTab = 'settings' | 'owners';
+/** Dev harness only (src/dev/mocks/admin.ts): open the editor of __devEdit on __devTab. */
+type DevTab = { __devEdit?: number | 'new'; __devTab?: EditorTab };
+
 export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: LocationEditorProps) {
-  const shell = useAdminShell();
   const settings = useSettings();
-  const [initial] = useState<Location>(() => (seed ? clone(seed) : newLocation(kind, data)));
+  const [initial] = useState<Location>(() => (seed ? normalizeLocation(seed, data) : newLocation(kind, data)));
   const [draft, setDraft] = useState<Location>(initial);
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pointsBusy, setPointsBusy] = useState<PointKind | null>(null);
+  const [updated, setUpdated] = useState<PointKind | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [tab, setTab] = useState<EditorTab>(() => {
+    const dev = data as AdminOpenData & DevTab;
+    return isBrowser && dev.__devTab && seed && dev.__devEdit === seed.id ? dev.__devTab : 'settings';
+  });
+  const [ownerCount, setOwnerCount] = useState<number | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
-  const scrollMemo = useRef(0);
 
   const isNew = initial.id === null;
-  const visible = open && !shell.hidden;
+  const hasOwners = initial.kind === 'private' && initial.id !== null;
   const noun = kindNoun(kind);
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(initial), [draft, initial]);
 
   const set = (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch }) as Location);
 
-  // Restore the scroll position after an in-world tool hid the modal.
-  useLayoutEffect(() => {
-    if (!visible || !scrollMemo.current) return;
-    const top = scrollMemo.current;
-    scrollMemo.current = 0;
-    let r2 = 0;
-    const r1 = requestAnimationFrame(() => {
-      r2 = requestAnimationFrame(() => {
-        const body = formRef.current?.parentElement;
-        if (body) body.scrollTop = top;
-      });
-    });
-    return () => {
-      cancelAnimationFrame(r1);
-      cancelAnimationFrame(r2);
-    };
-  }, [visible]);
+  // Briefly highlight the points row the in-world tool just changed.
+  useEffect(() => {
+    if (!updated) return;
+    const id = window.setTimeout(() => setUpdated(null), 1600);
+    return () => window.clearTimeout(id);
+  }, [updated]);
 
   /* ── validation ── */
   const errors: Errors = useMemo(() => {
@@ -170,6 +170,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
     if (saving) return;
     setTried(true);
     if (errorCount) {
+      if (tab !== 'settings') setTab('settings');
       requestAnimationFrame(() => {
         const el = formRef.current?.querySelector<HTMLElement>('[data-invalid="true"]');
         el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -192,21 +193,37 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
     if (pointsBusy) return;
     const key = which === 'spawn' ? 'spawnPoints' : which === 'open' ? 'openPoints' : 'storePoints';
     const points = draft[key] as Vec4[] | InteractionPoint[];
-    const model = which === 'spawn' && (draft.kind === 'garage' || draft.kind === 'job') ? draft.spawner[0]?.model || undefined : undefined;
-    scrollMemo.current = formRef.current?.parentElement?.scrollTop ?? 0;
+    const model =
+      which === 'spawn' && (draft.kind === 'garage' || draft.kind === 'job') && draft.source === 'spawner'
+        ? draft.spawner[0]?.model || undefined
+        : undefined;
     setPointsBusy(which);
-    const res = await shell.runInWorld(() =>
-      request('admin:points', { kind: which, vehicleType: draft.vehicleType, points, ...(model ? { model } : {}) }),
-    );
+    const res = await requestPoints({ kind: which, vehicleType: draft.vehicleType, points, ...(model ? { model } : {}) });
     setPointsBusy(null);
-    if (res.ok && res.data) set({ [key]: res.data });
+    // null = the admin cancelled the tool: keep the current points.
+    if (!res.ok || !Array.isArray(res.data)) return;
+    if (JSON.stringify(res.data) !== JSON.stringify(points)) {
+      set({ [key]: res.data });
+      setUpdated(which);
+    }
   };
 
+  // Keyboard: Ctrl+S anywhere, Enter in any field of the form (not in the live Owners tab and
+  // not in portalled popovers / the vehicle dialog, whose events also bubble here). Deferred a
+  // tick so a NumberInput that commits its value on Enter is saved with that value.
+  const saveRef = useRef(save);
+  saveRef.current = save;
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      void save();
+      window.setTimeout(() => void saveRef.current(), 0);
+      return;
     }
+    if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    const el = e.target as HTMLElement;
+    if (el.tagName !== 'INPUT' || !formRef.current?.contains(el) || el.closest('.nz-admin-owners')) return;
+    e.preventDefault();
+    window.setTimeout(() => void saveRef.current(), 0);
   };
 
   const setVehicleType = (vt: VehicleType) => {
@@ -243,7 +260,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
   return (
     <>
       <Modal
-        open={visible}
+        open={open}
         onClose={requestClose}
         locked={saving}
         icon={KIND_ICON[kind]}
@@ -279,6 +296,23 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
         }
       >
         <div ref={formRef} className="nz-admin-editor__form" onKeyDown={onKeyDown}>
+          {hasOwners && (
+            <Tabs<EditorTab>
+              className="nz-admin-editor__tabs"
+              variant="underline"
+              value={tab}
+              onChange={(next) => {
+                setTab(next);
+                const body = formRef.current?.parentElement;
+                if (body) body.scrollTop = 0;
+              }}
+              items={[
+                { value: 'settings', label: t('Settings'), icon: 'sliders' },
+                { value: 'owners', label: t('Owners & copies'), icon: 'users', count: ownerCount ?? undefined },
+              ]}
+            />
+          )}
+          <div className="nz-admin-editor__pane" hidden={tab !== 'settings'}>
           {/* ── source ── */}
           {draft.kind === 'garage' && (
             <SourcePicker
@@ -397,6 +431,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                 first={draft.spawnPoints[0]}
                 action={t('Manage spawn points')}
                 busy={pointsBusy === 'spawn'}
+                flash={updated === 'spawn'}
                 disabled={pointsBusy !== null}
                 error={shown.spawn}
                 onManage={() => void managePoints('spawn')}
@@ -410,6 +445,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                 radius={draft.openPoints[0]?.radius}
                 action={t('Manage locations')}
                 busy={pointsBusy === 'open'}
+                flash={updated === 'open'}
                 disabled={pointsBusy !== null}
                 error={shown.open}
                 onManage={() => void managePoints('open')}
@@ -432,6 +468,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                       radius={draft.storePoints[0]?.radius}
                       action={t('Manage locations')}
                       busy={pointsBusy === 'store'}
+                      flash={updated === 'store'}
                       disabled={pointsBusy !== null}
                       error={shown.store}
                       onManage={() => void managePoints('store')}
@@ -489,7 +526,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
           )}
 
           {/* ── private sale ── */}
-          {draft.kind === 'private' && <PrivateSale draft={draft} set={set} currency={settings.currency} />}
+          {draft.kind === 'private' && <PrivateSale draft={draft} set={set} currency={settings.currency} saved={hasOwners} />}
 
           {/* ── impound ── */}
           {draft.kind === 'impound' && <ImpoundFields draft={draft} set={set} data={data} currency={settings.currency} />}
@@ -573,17 +610,24 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
             </div>
           </Section>
 
-          {/* ── owners (live) ── */}
-          {draft.kind === 'private' && draft.id !== null && (
-            <Section title={t('Owners & copies')}>
-              <OwnersSection locationId={draft.id} maxCopies={(initial as PrivateLocation).maxCopies} purchasable={draft.purchasable} />
-            </Section>
+          </div>
+
+          {/* ── owners (live, saved private locations) ── */}
+          {hasOwners && initial.id !== null && (
+            <div className="nz-admin-editor__pane" hidden={tab !== 'owners'}>
+              <OwnersSection
+                locationId={initial.id}
+                maxCopies={(initial as PrivateLocation).maxCopies}
+                purchasable={draft.kind === 'private' ? draft.purchasable : true}
+                onCount={setOwnerCount}
+              />
+            </div>
           )}
         </div>
       </Modal>
 
       <ConfirmDialog
-        open={confirmDiscard && !shell.hidden}
+        open={confirmDiscard}
         tone="red"
         icon="warning"
         title={t('Discard your changes?')}
@@ -653,19 +697,21 @@ interface PointsRowProps {
   radius?: number;
   action: string;
   busy: boolean;
+  /** Just changed by the in-world tool. */
+  flash?: boolean;
   disabled: boolean;
   error?: string;
   onManage: () => void;
 }
 
-function PointsRow({ icon, label, info, count, first, radius, action, busy, disabled, error, onManage }: PointsRowProps) {
+function PointsRow({ icon, label, info, count, first, radius, action, busy, flash, disabled, error, onManage }: PointsRowProps) {
   return (
     <div className="nz-admin-points__item" data-invalid={!!error}>
       <div className="nz-admin-form__label-row">
         <span className="nz-admin-form__label">{label}</span>
         <InfoDot text={info} />
       </div>
-      <div className={cx('nz-admin-points__row', error && 'is-invalid', !first && 'is-empty')}>
+      <div className={cx('nz-admin-points__row', error && 'is-invalid', !first && 'is-empty', flash && 'is-updated')}>
         <span className="nz-admin-points__icon">
           <Icon name={icon} size={15} strokeWidth={1.7} />
         </span>
@@ -741,7 +787,7 @@ function AccessFields({ value, data, error, onChange }: { value: AccessConfig; d
     .map((i) => ({
       value: i.id as number,
       label: i.name,
-      hint: i.enabled ? t('{count} slots', { count: i.slots.length }) : t('Disabled'),
+      hint: i.enabled ? i.slots.length === 1 ? t('1 slot') : t('{count} slots', { count: i.slots.length }) : t('Disabled'),
       icon: 'building' as IconName,
     }));
   const quick = value.mode === 'quick';
@@ -825,7 +871,17 @@ function RestrictionFields({
   );
 }
 
-function PrivateSale({ draft, set, currency }: { draft: PrivateLocation; set: (p: Record<string, unknown>) => void; currency: string }) {
+function PrivateSale({
+  draft,
+  set,
+  currency,
+  saved,
+}: {
+  draft: PrivateLocation;
+  set: (p: Record<string, unknown>) => void;
+  currency: string;
+  saved: boolean;
+}) {
   const refund = Math.round((draft.price * draft.sellRefund) / 100);
   return (
     <Section title={t('Sale & copies')}>
@@ -836,7 +892,9 @@ function PrivateSale({ draft, set, currency }: { draft: PrivateLocation; set: (p
         description={
           draft.purchasable
             ? t('Players can buy a copy at the garage. Admins can still assign copies.')
-            : t('Only admins assign this garage (below, once saved).')
+            : saved
+              ? t('Only admins assign this garage, in the Owners & copies tab.')
+              : t('Only admins assign this garage, in the Owners & copies tab once it is saved.')
         }
       />
       <div className="nz-admin-form__grid">

@@ -69,8 +69,9 @@ const LAND: P[] = [
 ];
 
 const LAKE: P[] = [
-  [160, 4200], [400, 4040], [760, 3930], [1150, 3870], [1520, 3850], [1880, 3860], [2240, 3910], [2500, 4010],
-  [2610, 4170], [2500, 4330], [2220, 4430], [1860, 4470], [1480, 4480], [1100, 4450], [740, 4400], [400, 4330],
+  [150, 4250], [320, 4060], [620, 3900], [980, 3800], [1380, 3760], [1780, 3790], [2150, 3860], [2460, 3980],
+  [2640, 4150], [2560, 4330], [2300, 4470], [1940, 4560], [1560, 4600], [1180, 4580], [820, 4520], [480, 4420],
+  [260, 4340],
 ];
 
 const CITY: P[] = [
@@ -91,7 +92,7 @@ const ROADS: P[][] = [
 const LABELS: { text: () => string; x: number; y: number; water?: boolean }[] = [
   { text: () => t('Los Santos'), x: -350, y: -2550 },
   { text: () => t('Blaine County'), x: -650, y: 3150 },
-  { text: () => t('Alamo Sea'), x: 1050, y: 4160, water: true },
+  { text: () => t('Alamo Sea'), x: 1400, y: 4180, water: true },
   { text: () => t('Mount Chiliad'), x: 480, y: 5560 },
 ];
 
@@ -327,7 +328,11 @@ export function MapView({
 
   // Draw order: muted pins under active ones (hover / selection stack with z-index only, so
   // hovering never moves DOM nodes under the cursor).
-  const ordered = useMemo(() => [...pins].sort((a, b) => Number(!a.muted) - Number(!b.muted)), [pins]);
+  // Within a layer, southern pins are drawn last so overlapping pins stack like a paper map.
+  const ordered = useMemo(
+    () => [...pins].sort((a, b) => Number(!a.muted) - Number(!b.muted) || b.y - a.y),
+    [pins],
+  );
 
   return (
     <div

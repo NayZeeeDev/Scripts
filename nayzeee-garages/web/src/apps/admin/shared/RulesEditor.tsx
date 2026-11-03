@@ -15,6 +15,9 @@ import { t } from '@/lib/i18n';
 import type { JobInfo, JobRule } from '@/lib/types';
 import { findGroupInfo, gradeOptions } from './labels';
 
+/** Server limit per list (server/locations.lua LIMITS.rules). */
+const MAX_RULES = 20;
+
 export interface RulesEditorProps {
   value: JobRule[];
   onChange: (rules: JobRule[]) => void;
@@ -108,7 +111,7 @@ export function RulesEditor({
         </div>
       )}
       <div className="nz-admin-rules__foot">
-        <Button size="sm" icon="plus" onClick={add} disabled={disabled || unused.length === 0}>
+        <Button size="sm" icon="plus" onClick={add} disabled={disabled || unused.length === 0 || value.length >= MAX_RULES}>
           {addLabel ?? (noun === 'gang' ? t('Add gang') : t('Add job'))}
         </Button>
         {options.length === 0 && (

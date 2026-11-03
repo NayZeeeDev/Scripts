@@ -34,6 +34,8 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
   const [playerLoading, setPlayerLoading] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [ui, setUi] = useState<PlayerUi>(emptyPlayerUi);
+  // Dev deep link "open the props editor" applies to the first vehicle view only.
+  const [propsHint, setPropsHint] = useState(!!hint.props);
   const searchSeq = useRef(0);
   const playerSeq = useRef(0);
 
@@ -90,6 +92,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
   };
 
   const back = () => {
+    setPropsHint(false);
     if (view.level === 'vehicle') setView({ level: 'player', identifier: view.identifier, name: view.name });
     else if (view.level === 'player') setView({ level: 'search' });
   };
@@ -149,7 +152,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
           data={data}
           plate={view.plate}
           identifier={view.identifier}
-          initialModal={hint.props ? 'props' : null}
+          initialModal={propsHint ? 'props' : null}
           onBack={back}
           onRowChange={onRowChange}
           onPlateChange={onPlateChange}

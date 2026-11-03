@@ -47,7 +47,7 @@ export function DetailsPanel({ detail, onEdit, jobLabel }: { detail: AdminVehicl
         <Gauge icon="engine" label={t('Engine')} value={v.engine} />
         <Gauge icon="shield" label={t('Body')} value={v.body} />
       </div>
-      <div className="nz-aveh-kvgrid">
+      <div className="nz-aveh-kvgrid is-3">
         <KeyValue label={t('Garage')}>{v.garageName ?? <span className="nz-aveh-muted">{t('None')}</span>}</KeyValue>
         <KeyValue label={t('In garage')}>
           <span className={cx(v.state === 'impounded' && 'nz-aveh-red', v.state === 'garaged' && 'nz-aveh-teal')}>{inGarageLabel(v.state)}</span>
@@ -190,13 +190,16 @@ export function FinancePanel({ detail, onEdit, onDelete }: { detail: AdminVehicl
             <span>{total ? t('remaining of {total}', { total: money(total) }) : t('remaining')}</span>
           </div>
           <Bar value={total ? total - f.balance : 0} max={total ?? 1} height={6} tone="white" className="nz-aveh-fin__bar" />
-          <div className="nz-aveh-kvgrid">
+          <div className="nz-aveh-kvgrid is-3">
             <KeyValue label={t('Next payment')}>
-              {f.nextPaymentHours !== null ? t('in {time} · {amount}', { time: hoursLabel(f.nextPaymentHours), amount: money(f.payment) }) : money(f.payment)}
+              <span className={cx(f.overdue && 'nz-aveh-red')}>
+                {f.overdue ? t('Overdue') : f.nextPaymentHours != null ? t('in {time}', { time: hoursLabel(f.nextPaymentHours) }) : '—'}
+              </span>
             </KeyValue>
-            <KeyValue label={t('Payments made')}>{made !== null ? t('{made} of {total}', { made, total: f.paymentsTotal ?? 0 }) : t('{n} left', { n: f.paymentsLeft })}</KeyValue>
-            <KeyValue label={t('Interval')}>{f.intervalHours ? t('every {time}', { time: hoursLabel(f.intervalHours) }) : '—'}</KeyValue>
-            <KeyValue label={t('Payments left')}>{f.paymentsLeft}</KeyValue>
+            <KeyValue label={f.intervalHours ? t('Every {time}', { time: hoursLabel(f.intervalHours) }) : t('Payment')}>{money(f.payment)}</KeyValue>
+            <KeyValue label={t('Payments made')}>
+              {made !== null ? t('{made} of {total}', { made, total: f.paymentsTotal ?? 0 }) : t('{n} left', { n: f.paymentsLeft })}
+            </KeyValue>
           </div>
         </>
       )}

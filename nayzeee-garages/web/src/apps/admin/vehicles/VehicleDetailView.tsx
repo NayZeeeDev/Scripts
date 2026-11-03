@@ -53,6 +53,12 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalId>(initialModal);
+  // Bumped on every open so each modal mounts with fresh state from the current detail.
+  const [session, setSession] = useState(0);
+  const show = (id: Exclude<ModalId, null>) => {
+    setSession((n) => n + 1);
+    setModal(id);
+  };
   const [busy, setBusy] = useState<'block' | 'delete' | 'finance' | null>(null);
 
   const load = useCallback(async () => {
@@ -184,7 +190,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
         : v.job ?? v.gang;
 
   return (
-    <div className="nz-aveh-view">
+    <div className="nz-aveh-view nz-aveh-view--detail">
       <div className="nz-aveh-dhead">
         <IconButton icon="arrowLeft" label={t('Back to vehicles')} variant="line" onClick={onBack} />
         <div className="nz-aveh-dhead__img">
@@ -204,7 +210,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
         </div>
         <div className="nz-aveh-dhead__actions">
           <Tooltip content={t('Change owner')} side="bottom">
-            <button type="button" className="nz-aveh-ownerchip" onClick={() => setModal('owner')}>
+            <button type="button" className="nz-aveh-ownerchip" onClick={() => show('owner')}>
               <Avatar name={v.ownerName || '?'} size={22} />
               <span className="nz-aveh-ellipsis">{v.ownerName || t('No owner')}</span>
               {v.ownerType !== 'player' && (
@@ -223,7 +229,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
               {v.blocked ? t('Unblock') : t('Block vehicle')}
             </Button>
           </Tooltip>
-          <Button variant="red" icon="trash" onClick={() => setModal('delete')}>
+          <Button variant="red" icon="trash" onClick={() => show('delete')}>
             {t('Delete')}
           </Button>
         </div>
@@ -237,23 +243,23 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
       )}
 
       <div className="nz-aveh-dgrid">
-        <DetailsPanel detail={detail} onEdit={() => setModal('details')} jobLabel={groupLabel ?? null} />
-        <ImpoundPanel detail={detail} onEdit={() => setModal('impound')} />
-        <ModsPanel detail={detail} onEdit={() => setModal('props')} onViewAll={() => setModal('mods')} />
-        <FinancePanel detail={detail} onEdit={() => setModal('finance')} onDelete={() => setModal('financeDelete')} />
-        <OwnershipPanel detail={detail} onViewAll={() => setModal('ownership')} />
-        <ServicePanel detail={detail} onEdit={() => setModal('service')} onViewAll={() => setModal('serviceList')} />
+        <DetailsPanel detail={detail} onEdit={() => show('details')} jobLabel={groupLabel ?? null} />
+        <ImpoundPanel detail={detail} onEdit={() => show('impound')} />
+        <ModsPanel detail={detail} onEdit={() => show('props')} onViewAll={() => show('mods')} />
+        <FinancePanel detail={detail} onEdit={() => show('finance')} onDelete={() => show('financeDelete')} />
+        <OwnershipPanel detail={detail} onViewAll={() => show('ownership')} />
+        <ServicePanel detail={detail} onEdit={() => show('service')} onViewAll={() => show('serviceList')} />
       </div>
 
-      <DetailsModal open={isOpen('details')} detail={detail} onClose={close} onSave={patch} />
-      <ImpoundModal open={isOpen('impound')} data={data} detail={detail} onClose={close} onSave={patch} />
-      <FinanceModal open={isOpen('finance')} detail={detail} onClose={close} onSave={patch} />
-      <OwnerModal open={isOpen('owner')} data={data} detail={detail} onClose={close} onSave={patch} />
-      <ServiceModal open={isOpen('service')} detail={detail} onClose={close} onSave={patch} />
-      <PropsEditor open={isOpen('props')} props={props} vehicleLabel={`${v.label} · ${v.plate}`} onClose={close} onSave={patch} />
-      <OwnershipModal open={isOpen('ownership')} detail={detail} onClose={close} />
-      <ServiceListModal open={isOpen('serviceList')} detail={detail} onClose={close} onEdit={() => setModal('service')} />
-      <ModsModal open={isOpen('mods')} detail={detail} onClose={close} onEdit={() => setModal('props')} />
+      <DetailsModal key={`DetailsModal-${session}`} open={isOpen('details')} detail={detail} onClose={close} onSave={patch} />
+      <ImpoundModal key={`ImpoundModal-${session}`} open={isOpen('impound')} data={data} detail={detail} onClose={close} onSave={patch} />
+      <FinanceModal key={`FinanceModal-${session}`} open={isOpen('finance')} detail={detail} onClose={close} onSave={patch} />
+      <OwnerModal key={`OwnerModal-${session}`} open={isOpen('owner')} data={data} detail={detail} onClose={close} onSave={patch} />
+      <ServiceModal key={`ServiceModal-${session}`} open={isOpen('service')} detail={detail} onClose={close} onSave={patch} />
+      <PropsEditor key={`PropsEditor-${session}`} open={isOpen('props')} props={props} vehicleLabel={`${v.label} · ${v.plate}`} onClose={close} onSave={patch} />
+      <OwnershipModal key={`OwnershipModal-${session}`} open={isOpen('ownership')} detail={detail} onClose={close} />
+      <ServiceListModal key={`ServiceListModal-${session}`} open={isOpen('serviceList')} detail={detail} onClose={close} onEdit={() => show('service')} />
+      <ModsModal key={`ModsModal-${session}`} open={isOpen('mods')} detail={detail} onClose={close} onEdit={() => show('props')} />
 
       <ConfirmDialog
         open={isOpen('financeDelete')}

@@ -357,7 +357,8 @@ export function describe(f: FieldDef, props: Props): string {
     case 'paint': {
       if (isRgb(v)) return rgbToHex(v).toUpperCase();
       const n = num(v, 0);
-      return colourByIndex(n)?.name ?? t('Colour #{n}', { n });
+      const c = colourByIndex(n);
+      return c ? t(c.name) : t('Colour #{n}', { n });
     }
     case 'rgb':
       return isRgb(v) ? rgbToHex(v).toUpperCase() : rgbToHex(f.fallback).toUpperCase();

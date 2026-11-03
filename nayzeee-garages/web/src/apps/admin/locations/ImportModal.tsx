@@ -70,7 +70,11 @@ export function ImportModal({ open, sources, onClose, onImported }: ImportModalP
       message:
         skipped > 0
           ? t('{imported} imported, {skipped} skipped (already exist or invalid).', { imported, skipped })
-          : t('{imported} locations imported.', { imported }),
+          : imported === 1
+            ? t('1 location imported.')
+            : imported === 0
+              ? t('Nothing new to import: every location already exists.')
+              : t('{imported} locations imported.', { imported }),
     });
     if (isJson) setJson('');
     onImported(res.data);
