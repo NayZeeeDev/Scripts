@@ -48,6 +48,10 @@ Config.Interaction = {
   markerDistance = 15.0,
 }
 
+-- On the very first start, when no garage exists yet, import the locations of an installed
+-- qbx_garages / qb-garages config (the resource may be stopped). Runs once.
+Config.AutoImportOnFirstStart = true
+
 -- First routing bucket used for garage interiors. Each live interior instance gets its own.
 Config.BucketBase = 7400
 

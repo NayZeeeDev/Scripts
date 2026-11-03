@@ -32,7 +32,8 @@ admin panel. No config files to touch for day-to-day changes.
 3. Start the server. Tables and columns are created automatically
    (`install/nayzeee-garages.sql` is only a reference).
 4. In game, run `/garageadmin` and create your garages, impounds and interiors.
-   Coming from qb-garages / qbx_garages? Use **Garages → Import**.
+   Coming from qb-garages / qbx_garages? On the first start their locations are imported
+   automatically (even if that resource is stopped); you can also use **Garages → Import**.
 5. Stop your old garage resource. If a housing script relied on `qb-garages` events,
    nayzeee-garages already listens to them (see *Housing*).
 

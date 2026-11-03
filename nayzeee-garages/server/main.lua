@@ -106,12 +106,38 @@ local function boot()
     return
   end
 
+  --- First start with an empty location table: import an existing qbx_garages / qb-garages
+  --- config (works even when that resource is stopped). Runs once per server (resource KVP).
+  local function firstRunImport()
+    if Config.AutoImportOnFirstStart == false then return end
+    if GetResourceKvpString('nz_first_import') then return end
+    if #(NZ.Locations.all() or {}) > 0 then
+      SetResourceKvp('nz_first_import', tostring(os.time()))
+      return
+    end
+    for _, source in ipairs({ 'qbx_garages', 'qb-garages' }) do
+      local state = GetResourceState(source)
+      if state ~= 'missing' and state ~= 'unknown' then
+        local result, err = NZ.Import.run(source, nil, nil)
+        if type(result) == 'table' and (result.imported or 0) > 0 then
+          lib.print.info(('[nayzeee-garages] first start: imported %d location(s) from %s (%d skipped). Review them in /%s.')
+            :format(result.imported, source, result.skipped or 0, Config.Commands.admin or 'garageadmin'))
+          break
+        elseif err then
+          lib.print.warn(('[nayzeee-garages] first start import from %s failed: %s'):format(source, tostring(err)))
+        end
+      end
+    end
+    SetResourceKvp('nz_first_import', tostring(os.time()))
+  end
+
   local failed = 0
   local steps = {
     { 'settings', NZ.Settings.load },
     { 'locations', NZ.Locations.load },
     { 'settings references', NZ.Settings.checkReferences },
     { 'interiors', NZ.Interiors.load },
+    { 'first-start import', firstRunImport },
     { 'private garages', NZ.Private.load },
     { 'vehicles', NZ.Vehicles.boot },
     { 'housing', NZ.Housing.boot },
