@@ -434,7 +434,8 @@ local function addLog(event, src, data)
   end
 
   -- Database
-  if not (ServerConfig and ServerConfig.DatabaseLogs == false) and type(NZ.DB.logs) == 'table'
+  local skip = ServerConfig and type(ServerConfig.DatabaseLogSkip) == 'table' and ServerConfig.DatabaseLogSkip[event] == true
+  if not skip and not (ServerConfig and ServerConfig.DatabaseLogs == false) and type(NZ.DB.logs) == 'table'
     and type(NZ.DB.logs.add) == 'function' then
     local record = clean
     if record ~= nil and type(record) ~= 'table' then record = { value = record } end

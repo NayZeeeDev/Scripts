@@ -21,6 +21,8 @@ Interiors.instances = Interiors.instances or {}
 
 local cache = {}          -- [interiorId] = Interior
 local playerKey = {}      -- [src] = instanceKey
+local joinedAt = {}       -- [src] = os.time() the player was put in its instance
+local awayStrikes = {}    -- [src] = consecutive sweeps that found the player outside
 local bucketOwner = {}    -- [bucket] = instanceKey
 local invites = {}        -- [inviteId] = { from, to, key, expires, garageName }
 local nextInviteId = 0
@@ -193,6 +195,11 @@ local function inVehicle(src)
   local ped = GetPlayerPed(src)
   if not ped or ped == 0 then return false end
   return GetVehiclePedIsIn(ped, false) ~= 0
+end
+
+--- Dead, downed, cuffed or escorted players cannot slip into a private routing bucket.
+local function incapacitated(src)
+  return type(NZ.Vehicles.incapacitated) == 'function' and NZ.Vehicles.incapacitated(src) == true
 end
 
 local function setBucket(src, bucket)
@@ -461,6 +468,8 @@ local function attach(src, key, inst, role)
   inst.names[src] = nameOf(src)
   inst.identifiers[src] = identifierOf(src)
   playerKey[src] = key
+  joinedAt[src] = os.time()
+  awayStrikes[src] = nil
   setBucket(src, inst.bucket)
 end
 
@@ -471,6 +480,8 @@ local function detach(src)
   local key = playerKey[src]
   if not key then return nil, nil, nil end
   playerKey[src] = nil
+  joinedAt[src] = nil
+  awayStrikes[src] = nil
   local inst = Interiors.instances[key]
   local role = nil
   if inst then
@@ -1049,6 +1060,77 @@ function Interiors.onPlayerDropped(src)
   end
 end
 
+---------------------------------------------------------------------------------------
+-- Members who left without the exit (admin bring / teleport, respawn) while their client
+-- did not notice (client state lost): back to the public bucket where they are.
+---------------------------------------------------------------------------------------
+
+local SWEEP_MS = 5000
+local SWEEP_GRACE = 30           -- seconds after joining (fade, IPL loading, teleport in)
+local AWAY_XY = 100.0            -- metres outside the entry / exit / slots box. Loose on
+local AWAY_Z = 50.0              -- purpose: the server cannot tell which GTA interior the
+                                 -- player is in (large garages); the client reacts first
+
+local function outsideInterior(interior, pos)
+  local points = { interior.entry, interior.exit }
+  for _, slot in ipairs(type(interior.slots) == 'table' and interior.slots or {}) do points[#points + 1] = slot end
+  local minX, minY, minZ = math.huge, math.huge, math.huge
+  local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+  local any = false
+  for _, value in pairs(points) do
+    local p = Utils.v3(value)
+    if p then
+      any = true
+      minX, maxX = math.min(minX, p.x), math.max(maxX, p.x)
+      minY, maxY = math.min(minY, p.y), math.max(maxY, p.y)
+      minZ, maxZ = math.min(minZ, p.z), math.max(maxZ, p.z)
+    end
+  end
+  if not any then return false end
+  local dx = math.max(minX - pos.x, 0.0, pos.x - maxX)
+  local dy = math.max(minY - pos.y, 0.0, pos.y - maxY)
+  local dz = math.max(minZ - pos.z, 0.0, pos.z - maxZ)
+  return math.sqrt(dx * dx + dy * dy) > AWAY_XY or dz > AWAY_Z
+end
+
+local function sweepMembers()
+  local now = os.time()
+  local away = {}
+  for src, key in pairs(playerKey) do
+    local inst = Interiors.instances[key]
+    local interior = inst and cache[inst.interiorId] or nil
+    local pos = nil
+    if interior and (inst.pending or 0) == 0 and now - (joinedAt[src] or now) >= SWEEP_GRACE and online(src) then
+      local ped = GetPlayerPed(src)
+      if ped and ped ~= 0 then pos = Utils.v3(GetEntityCoords(ped)) end
+    end
+    if pos and outsideInterior(interior, pos) then
+      awayStrikes[src] = (awayStrikes[src] or 0) + 1
+      if awayStrikes[src] >= 2 then away[#away + 1] = { src = src, key = key } end
+    else
+      awayStrikes[src] = nil
+    end
+  end
+  for _, member in ipairs(away) do
+    if playerKey[member.src] == member.key then
+      Interiors.leave(member.src)
+      -- `stay`: forget the visit without moving the player back to the garage
+      TriggerClientEvent('nz:client:interior:kicked', member.src, { stay = true })
+      log('interior.away', member.src, { instance = member.key })
+    end
+  end
+end
+
+CreateThread(function()
+  while true do
+    Wait(SWEEP_MS)
+    if next(playerKey) ~= nil then
+      local success, err = pcall(sweepMembers)
+      if not success then lib.print.warn(('interiors: member sweep failed: %s'):format(tostring(err))) end
+    end
+  end
+end)
+
 -- Players still inside when the resource stops would stay in a private bucket.
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= NZ.ResourceName then return end
@@ -1135,6 +1217,7 @@ register('nz:garage:goInside', 'interior:goInside', 1500, function(src)
   local session, err = NZ.Access.requireSession(src)
   if not session then return fail(err or L('No garage is open')) end
   if inVehicle(src) then return fail(L('Leave your vehicle first')) end
+  if incapacitated(src) then return fail(L('You cannot do that right now')) end
   local data, enterErr = Interiors.enter(src, session)
   if not data then return fail(enterErr) end
   return ok(data)
@@ -1151,6 +1234,7 @@ register('nz:forSale:tour', 'forSale:tour', 3000, function(src, payload)
     return fail(L('You are too far from the garage'))
   end
   if inVehicle(src) then return fail(L('Leave your vehicle first')) end
+  if incapacitated(src) then return fail(L('You cannot do that right now')) end
   local data, err = Interiors.tour(src, location)
   if not data then return fail(err) end
   return ok(data)
@@ -1261,8 +1345,16 @@ register('nz:interior:invite', 'interior:invite', 2000, function(src, payload)
   nextInviteId = nextInviteId + 1
   local inviteId = nextInviteId
   local garageName = garageNameOf(inst, location)
-  invites[inviteId] = { from = src, to = target, key = key, expires = os.time() + INVITE_SECONDS, garageName = garageName }
-  SetTimeout(INVITE_SECONDS * 1000, function() invites[inviteId] = nil end)
+  local invite = { from = src, to = target, key = key, expires = os.time() + INVITE_SECONDS, garageName = garageName }
+  invites[inviteId] = invite
+  SetTimeout(INVITE_SECONDS * 1000, function()
+    if invites[inviteId] ~= invite then return end
+    invites[inviteId] = nil
+    -- never answered (the dialog could not be shown, or was ignored)
+    if online(invite.from) then
+      notify(invite.from, 'info', L('{name} did not answer your invitation', { name = nameOf(target) }))
+    end
+  end)
 
   TriggerClientEvent('nz:client:interior:invite', target, {
     inviteId = inviteId,
@@ -1294,6 +1386,7 @@ register('nz:interior:inviteRespond', 'interior:inviteRespond', 500, function(sr
   if playerKey[src] then return fail(L('You are already inside a garage')) end
   if currentBucket(src) ~= 0 then return fail(L('You cannot enter the garage right now')) end
   if inVehicle(src) then return fail(L('Leave your vehicle first')) end
+  if incapacitated(src) then return fail(L('You cannot do that right now')) end
   if memberCount(inst) >= MAX_MEMBERS then return fail(L('This garage is full of visitors')) end
   local location = inst.locationId and NZ.Locations.get(inst.locationId) or nil
   if type(location) ~= 'table' or location.enabled == false then return fail(L('This garage is no longer available')) end

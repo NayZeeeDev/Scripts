@@ -118,7 +118,9 @@ end
 local function uniquePlate()
   for _ = 1, PLATE_TRIES do
     local candidate = Utils.generatePlate()
-    if not NZ.DB.plateExists(candidate) then return candidate end
+    -- generated plates are trimmed upper-case: the indexed exact lookup is enough here
+    -- (DB.insertVehicle runs the full check before inserting)
+    if not NZ.DB.plateExists(candidate, true) then return candidate end
   end
   return nil
 end
@@ -245,22 +247,44 @@ export('SetVehicleGarage', function(plate, garageKey)
   if not p then return false, L('Invalid plate') end
   local key = garageKeyArg(garageKey)
   if not key then return false, L('Unknown garage') end
-  local row = NZ.DB.getVehicle(p)
-  if not row then return false, L('Vehicle not found') end
 
-  if type(NZ.Vehicles.isOut) == 'function' and NZ.Vehicles.isOut(row.plate or p) then
-    return false, L('This vehicle is out, store it first')
+  -- Same plate lock as retrieve / store / recover: no concurrent operation on the vehicle.
+  local function apply()
+    local row = NZ.DB.getVehicle(p)
+    if not row then return Utils.fail(L('Vehicle not found')) end
+    local rowPlate = row.plate or p
+
+    if type(NZ.Vehicles.isOut) == 'function' and NZ.Vehicles.isOut(rowPlate) then
+      return Utils.fail(L('This vehicle is out, store it first'))
+    end
+
+    local fields = { garageKey = key, garageName = NZ.Locations.keyName(key) or key, state = 'garaged' }
+    if row.impound ~= nil or row.state == 'impounded' then fields.impound = false end
+    if not NZ.DB.updateVehicle(rowPlate, fields) then return Utils.fail(L('Could not update the vehicle')) end
+
+    -- The entity no longer exists: forget the stale "out" entry.
+    if type(NZ.Vehicles.clearOut) == 'function' then
+      NZ.Vehicles.clearOut(rowPlate)
+    elseif type(NZ.Vehicles.out) == 'table' then
+      NZ.Vehicles.out[rowPlate] = nil
+    end
+    -- Its saved trailer comes back with it: never leave a second copy in the world.
+    if row.state ~= 'garaged' and type(NZ.Vehicles.removeTrailerOf) == 'function' then
+      pcall(NZ.Vehicles.removeTrailerOf, rowPlate, row)
+    end
+
+    log('vehicle.garage', { plate = rowPlate, from = row.garageKey, to = key, previousState = row.state })
+    return Utils.ok(nil)
   end
 
-  local fields = { garageKey = key, garageName = NZ.Locations.keyName(key) or key, state = 'garaged' }
-  if row.impound ~= nil or row.state == 'impounded' then fields.impound = false end
-  if not NZ.DB.updateVehicle(row.plate or p, fields) then return false, L('Could not update the vehicle') end
-
-  -- The entity no longer exists: forget the stale "out" entry.
-  if type(NZ.Vehicles.out) == 'table' then NZ.Vehicles.out[row.plate or p] = nil end
-
-  log('vehicle.garage', { plate = row.plate or p, from = row.garageKey, to = key, previousState = row.state })
-  return true
+  local result
+  if type(NZ.Vehicles.withLock) == 'function' then
+    result = NZ.Vehicles.withLock(p, apply)
+  else
+    result = apply()
+  end
+  if type(result) == 'table' and result.ok == true then return true end
+  return false, type(result) == 'table' and result.error or L('Something went wrong')
 end)
 
 --- ImpoundVehicle(plate, { locationId, reason, fee, hours, retrievable, netId }) -> ok, error

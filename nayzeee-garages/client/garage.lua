@@ -38,6 +38,30 @@ local function findByPlate(list, plate)
   return nil
 end
 
+--- Dead, downed, cuffed or escorted players cannot use garages (see NZ.Points.incapacitated).
+local function incapacitated()
+  return type(NZ.Points.incapacitated) == 'function' and NZ.Points.incapacitated() == true
+end
+
+--- lib.alertDialog that waits for a real answer. ox_lib shows one alert at a time (shared by
+--- every resource) and returns nil at once while another is open, or when one is closed
+--- without an answer: retry until it is answered or `seconds` have passed.
+--- Returns 'confirm' | 'cancel' | nil (never answered).
+---@param data table lib.alertDialog options
+---@param seconds number
+---@return string|nil
+function Garage.alert(data, seconds)
+  local deadline = GetGameTimer() + math.max(1, tonumber(seconds) or 30) * 1000
+  while true do
+    local left = deadline - GetGameTimer()
+    if left <= 0 then return nil end
+    local ok, choice = pcall(lib.alertDialog, data, left)
+    if ok and (choice == 'confirm' or choice == 'cancel') then return choice end
+    if GetGameTimer() >= deadline then return nil end
+    Wait(500)
+  end
+end
+
 local function vehicleLabel(hashOrModel)
   if hashOrModel ~= nil and NZ.Veh and NZ.Veh.label then
     local ok, label = pcall(NZ.Veh.label, hashOrModel)
@@ -179,6 +203,7 @@ end
 function Garage.retrieve(plate, opts)
   opts = type(opts) == 'table' and opts or {}
   if type(plate) ~= 'string' or plate == '' then return NZ.Utils.fail(L('Vehicle not found')) end
+  if incapacitated() then return NZ.Utils.fail(L('You cannot do that right now')) end
   local location = opts.location or (ctx and ctx.location)
   if not location then return NZ.Utils.fail(L('This garage is not available here')) end
   local hash = tonumber(opts.hash)
@@ -241,6 +266,7 @@ end
 --- Close the menu and enter the garage interior. Re-opens the menu on failure.
 ---@return table result
 local function goInside()
+  if incapacitated() then return NZ.Utils.fail(L('You cannot do that right now')) end
   NZ.NUI.close('garage')
   local result = NZ.NUI.await('nz:garage:goInside', {})
   if not result.ok then
@@ -259,9 +285,12 @@ local function goInside()
   return NZ.Utils.ok(nil)
 end
 
+local fadingTeleport = false   -- screen faded out by fadeTeleport (undone on resource stop)
+
 local function fadeTeleport(target)
   local c = NZ.Utils.v4(target)
   if not c then return end
+  fadingTeleport = true
   DoScreenFadeOut(400)
   local timeout = GetGameTimer() + 2000
   while not IsScreenFadedOut() and GetGameTimer() < timeout do Wait(10) end
@@ -272,7 +301,15 @@ local function fadeTeleport(target)
   timeout = GetGameTimer() + 2000
   while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < timeout do Wait(10) end
   DoScreenFadeIn(400)
+  fadingTeleport = false
 end
+
+-- Stopped / restarted in the middle of fadeTeleport: never leave the screen black.
+AddEventHandler('onResourceStop', function(resource)
+  if resource ~= NZ.ResourceName or not fadingTeleport then return end
+  fadingTeleport = false
+  DoScreenFadeIn(0)
+end)
 
 ---------------------------------------------------------------------------------------
 -- Open
@@ -323,6 +360,10 @@ end
 function Garage.open(locationId, extra)
   extra = type(extra) == 'table' and extra or {}
   if opening then return false end
+  if incapacitated() then
+    NZ.NUI.notify('error', L('You cannot do that right now'))
+    return false
+  end
   opening = true
   local ok, res = pcall(doOpen, locationId, extra)
   opening = false
@@ -494,7 +535,14 @@ RegisterNetEvent('nz:client:sellOffer', function(offer)
     label = offer.label
   end
   label = label or L('Vehicle')
-  local choice = lib.alertDialog({
+  -- Seconds until the offer expires (server unix time; 60 s when unknown). Clamped so a
+  -- skewed client clock cannot hide the dialog: the server rejects late answers anyway.
+  local seconds = 60
+  local now = tonumber(GetCloudTimeAsInt())
+  if tonumber(offer.expires) and now and now > 0 then
+    seconds = math.max(15, math.min(120, tonumber(offer.expires) - now))
+  end
+  local choice = Garage.alert({
     header = L('Vehicle offer'),
     content = L('{seller} offers you {vehicle} ({plate}) for {price}', {
       seller = type(offer.sellerName) == 'string' and offer.sellerName or L('Someone'),
@@ -505,8 +553,11 @@ RegisterNetEvent('nz:client:sellOffer', function(offer)
     centered = true,
     cancel = true,
     labels = { confirm = L('Buy'), cancel = L('Decline') },
-  })
+  }, seconds)
   NZ.NUI.syncFocus()
+  -- Never answered (another dialog stayed open): the server lets the offer expire and
+  -- tells the seller; only an explicit "Decline" declines it.
+  if choice == nil then return end
   local accept = choice == 'confirm'
   local result = NZ.NUI.await('nz:garage:sellRespond', { offerId = offer.offerId, accept = accept })
   if not result.ok then

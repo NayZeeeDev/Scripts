@@ -362,7 +362,7 @@ NZ.DB.updateVehicle(plate, fields) -> boolean
 NZ.DB.insertVehicle({ owner, model, hash, plate, props, garageKey, garageName, state,
                       vehicleType, ownerType, job, gang }) -> boolean
 NZ.DB.deleteVehicle(plate) -> boolean             -- also removes favourites/shares/events
-NZ.DB.plateExists(plate) -> boolean
+NZ.DB.plateExists(plate, exactOnly?) -> boolean   -- exactOnly skips the normalized-plate fallback (generators)
 NZ.DB.changePlate(oldPlate, newPlate) -> boolean  -- framework table + props.plate + nz tables
 NZ.DB.resetOutVehicles(mode 'garage'|'impound', impoundInfo|nil) -> number
 
@@ -384,10 +384,12 @@ NZ.DB.shares.forPlate(plate) -> { {identifier, name, sharedBy} }
 NZ.DB.shares.forIdentifier(identifier) -> { plate, ... }
 NZ.DB.shares.add(plate, identifier, name, sharedBy) ; NZ.DB.shares.remove(plate, identifier)
 NZ.DB.shares.clear(plate)
+NZ.DB.shares.counts(plates) -> { [plate] = n }   -- one grouped query for the garage menu
 NZ.DB.events.add(plate, kind 'owner'|'service', data) ; NZ.DB.events.list(plate, kind, limit) -> { {id, data, at} }
 NZ.DB.events.replace(plate, kind, list)
 NZ.DB.searchPlates(query, limit) -> { {plate, owner} }   -- LIKE match on plate (admin search)
-NZ.DB.logs.add(event, identifier|nil, plate|nil, data)   -- nz_logs insert (fire and forget)
+NZ.DB.logs.add(event, identifier|nil, plate|nil, data)   -- nz_logs insert (fire and forget; ServerConfig.DatabaseLogSkip)
+NZ.DB.logs.prune(days)   -- delete rows older than `days` in batches (ServerConfig.LogRetentionDays, daily)
 ```
 
 ### 5.3 Core — server-core agent
@@ -475,6 +477,7 @@ NZ.Jobs.release(plate) / NZ.Jobs.spawnFailed(src, plate)
 NZ.DB.financeIntervalHours() -> hours           -- ServerConfig.FinanceIntervalHours / vehicle shop config / 24
 NZ.Bridge.getSharedVehicleType(model, hash) -> 'car'|'sea'|'air'|nil   -- qb/qbx shared vehicles
 NZ.Impound.impound(plate, opts, src) -> ok, err, impoundUsed   -- may redirect by vehicle category
+NZ.Vehicles.incapacitated(src) -> boolean     -- dead / downed / cuffed / escorted: blocks retrieve, goInside, tours, invites
 ```
 Callbacks: `nz:garage:open`, `nz:garage:refresh`, `nz:garage:retrieve`, `nz:garage:spawned`,
 `nz:garage:store`, `nz:garage:track`, `nz:garage:recover`, `nz:garage:nearestWithSpace`.
@@ -549,6 +552,8 @@ NZ.NUI.hint(data|nil)               -- show/hide key hint bar
 NZ.NUI.hud(vehicle|nil)             -- interior stats HUD
 
 NZ.Points.rebuild()   -- (re)create lib.points / target zones / blips for NZ.State.locations
+NZ.Points.incapacitated() -> boolean   -- dead / downed / cuffed / escorted (client mirror of the server check)
+NZ.Garage.alert(data, seconds) -> boolean|nil   -- lib.alertDialog that waits for other dialogs; nil = no answer
 NZ.Garage.open(locationId, extra) ; NZ.Garage.store(location) ; NZ.Garage.retrieve(plate, opts)
 NZ.ImpoundClient.open(locationId) ; NZ.ImpoundClient.openForm(vehicle|nil)
 NZ.JobsClient.spawn(index) ; NZ.JobsClient.openSetup(vehicle)
@@ -573,6 +578,7 @@ NZ.Placement.point({ title, start }) -> {x,y,z,w}|nil
 NZ.Placement.manage({ kind='spawn'|'open'|'store', points, vehicleType, model }) -> points|nil
 NZ.Camera.playPath(points, transitionMs) ; NZ.Camera.stop()
 NZ.Interior.enter(data) ; NZ.Interior.leave(exitCoords) ; NZ.Interior.isInside() -> boolean
+NZ.Interior.creatorMarker(entry|nil, returnTo)   -- KVP marker: put the admin back outside after a crash/logout
 NZ.Creator.start(creatorData) ; NZ.Creator.stop()
 NZ.AdminClient.open(page|nil) ; NZ.AdminClient.setCache(data)
 NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
@@ -639,7 +645,10 @@ NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
   networked vehicles whose trimmed plate matches an `out` row (rebuild `out`).
 - Otherwise (server start) apply `garages.outOnRestart`: `garage` → all out vehicles
   back to their last garage; `impound` → impounded at `garages.restartImpound` with
-  `recoverFee`; `keep` → stay out (recoverable from the menu).
+  `recoverFee`; `keep` → stay out (recoverable from the menu). Rows without `nz_garage`
+  (framework-managed) are returned too; qb depot rows (`depotprice > 0`) count as impounded.
+- Players who log out or crash inside an interior keep a KVP marker (`nz_interior_return`)
+  and are moved back outside on their next load.
 
 ### 7.6 Placement tool (admin + creator)
 Ghost entity (alpha 180, no collision, `SetEntityDrawOutline` teal), placed on the ground
@@ -786,7 +795,8 @@ Server → client:
 - `nz:client:interior:invite ({ inviteId, fromName, garageName })` → alert → `nz:interior:inviteRespond { inviteId, accept }`.
 - `nz:client:interior:enter (InteriorEnterData)` — server-initiated enter (invite accepted, tour).
 - `nz:client:interior:sync ({ vehicles, page, pages, members })`
-- `nz:client:interior:kicked ({ returnTo })`
+- `nz:client:interior:kicked ({ returnTo } | { stay = true })` — `stay`: the server already saw the
+  player leave (teleported away); clear the state without teleporting.
 - `nz:client:openGarage ({ locationId })` / `nz:client:openAdmin ({ page })` (commands)
 - `nz:client:impoundForm ()` (command `/impound`)
 

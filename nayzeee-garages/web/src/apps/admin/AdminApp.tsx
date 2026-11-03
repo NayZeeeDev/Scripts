@@ -11,6 +11,10 @@
  * their own scrolling. `refresh()` re-fetches AdminOpenData (admin:refresh) keeping the current
  * page; `setData(fn)` patches the store locally.
  *
+ * Leaving with unsaved Settings: the sidebar / go(), the Close pill and Escape ask
+ * `settingsLeaveGuard` (pages/SettingsPage.tsx) first; pages are keyed by name, so switching
+ * page unmounts the current one and its local draft.
+ *
  * In-world tools: call admin:points only through requestPoints() (shared/away.ts). While it is
  * pending the whole admin UI (window + modals + popovers) is hidden by CSS but stays mounted,
  * Escape is swallowed, and everything comes back exactly as it was when the request resolves.
@@ -21,7 +25,7 @@ import type { ComponentType } from 'react';
 import { Button, Icon, Tooltip, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import { Window } from '@/components/ui';
-import { useApp, useUi } from '@/lib/store';
+import { closeApp, useApp, useUi } from '@/lib/store';
 import { useEscape } from '@/lib/escape';
 import { request } from '@/lib/nui';
 import { t } from '@/lib/i18n';
@@ -35,7 +39,7 @@ import { PrivateGaragesPage } from './pages/PrivateGaragesPage';
 import { ImpoundsPage } from './pages/ImpoundsPage';
 import { InteriorsPage } from './pages/InteriorsPage';
 import { PlayerVehiclesPage } from './pages/PlayerVehiclesPage';
-import { SettingsPage } from './pages/SettingsPage';
+import { SettingsPage, settingsLeaveGuard } from './pages/SettingsPage';
 import './admin.css';
 
 interface NavItem {
@@ -152,8 +156,17 @@ export function AdminApp() {
   return <AdminWindow data={data} />;
 }
 
+/** Run `proceed` now, or after the Settings "Discard unsaved changes?" confirmation. */
+function leaveThen(proceed: () => void, closing: boolean) {
+  const guard = settingsLeaveGuard.current;
+  if (guard) guard(proceed, closing);
+  else proceed();
+}
+
+const closeAdmin = () => closeApp('admin');
+const requestClose = () => leaveThen(closeAdmin, true);
+
 function AdminWindow({ data }: { data: AdminOpenData }) {
-  const { close } = useApp('admin');
   const [page, setPage] = useState<AdminPage>(() => validPage(data.page));
   const [rail, setRail] = useState(readRail);
   const [refreshing, setRefreshing] = useState(false);
@@ -188,14 +201,19 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
   }, []);
   // Always registered (never toggled): re-registering would move it above the modals that are
   // open, and Escape would then close the whole panel instead of the topmost dialog.
-  useEscape(close, true);
+  useEscape(requestClose, true);
   // While an in-world tool runs, Escape belongs to the game: swallow it (registered last, so it
   // sits above every open modal) so nothing hidden closes behind the admin's back.
   useEscape(() => undefined, hidden);
 
   const go = useCallback((next: AdminPage) => {
-    setPage(next);
-    useUi.getState().updateApp('admin', { page: next });
+    const proceed = () => {
+      setPage(next);
+      useUi.getState().updateApp('admin', { page: next });
+    };
+    // Staying on the same page keeps it mounted: nothing to lose.
+    if (next === pageRef.current) proceed();
+    else leaveThen(proceed, false);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -241,7 +259,7 @@ function AdminWindow({ data }: { data: AdminOpenData }) {
       <Window
         title={t('NAYZEEE GARAGES')}
         subtitle={t('Admin panel')}
-        onClose={close}
+        onClose={requestClose}
         width="min(1240px, calc(100vw - 48px))"
         height="min(704px, calc(100vh - 24px))"
         className="nz-admin"

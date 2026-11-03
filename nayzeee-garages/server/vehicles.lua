@@ -453,6 +453,50 @@ function Vehicles.isOut(plate)
 end
 
 ---------------------------------------------------------------------------------------
+-- Player condition
+---------------------------------------------------------------------------------------
+
+-- Player state bags set by common death / police resources (only `true` counts).
+local CONDITION_BAGS = {
+  'isDead', 'dead', 'inLaststand', 'laststand', 'isCuffed', 'isHandcuffed', 'handcuffed',
+  'cuffed', 'isEscorted', 'escorted',
+}
+
+--- Is the player unable to act right now: dead, downed, cuffed, or carried / escorted by
+--- another ped? Server mirror of NZ.Points.incapacitated (client) from what the server sees:
+--- ped health and attachment, player state bags and qb / qbx metadata.
+---@param src number
+---@return boolean
+function Vehicles.incapacitated(src)
+  src = tonumber(src)
+  if not src or src <= 0 then return false end
+  local okPed, down = pcall(function()
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 or not DoesEntityExist(ped) then return false end
+    local health = tonumber(GetEntityHealth(ped))
+    if health and health <= 0 then return true end
+    local parent = GetEntityAttachedTo(ped)
+    return parent ~= nil and parent ~= 0 and GetEntityType(parent) == 1
+  end)
+  if okPed and down then return true end
+  local okBag, bag = pcall(function() return Player(src).state end)
+  if okBag and bag then
+    for i = 1, #CONDITION_BAGS do
+      if bag[CONDITION_BAGS[i]] == true then return true end
+    end
+  end
+  if NZ.Framework == 'qb' or NZ.Framework == 'qbx' then
+    local okPlayer, player = pcall(NZ.Bridge.getPlayer, src)
+    local data = okPlayer and type(player) == 'table' and player.PlayerData or nil
+    local md = type(data) == 'table' and data.metadata or nil
+    if type(md) == 'table' and (md.isdead == true or md.inlaststand == true or md.ishandcuffed == true) then
+      return true
+    end
+  end
+  return false
+end
+
+---------------------------------------------------------------------------------------
 -- Ownership / access
 ---------------------------------------------------------------------------------------
 
@@ -883,7 +927,12 @@ function Vehicles.toGarageVehicle(row, ctx)
   local ownerName = ownerNameOf(row, ctx)
   local sharedWith = 0
   if isOwner and plate ~= '' then
-    sharedWith = #(NZ.DB.shares.forPlate(plate) or {})
+    if type(ctx.shareCounts) == 'table' then
+      -- loaded once for the whole menu by buildGarageData
+      sharedWith = tonumber(ctx.shareCounts[plate]) or 0
+    else
+      sharedWith = #(NZ.DB.shares.forPlate(plate) or {})
+    end
   end
 
   local trailer = nil
@@ -935,7 +984,8 @@ local function isPersonalRow(row)
 end
 
 --- Rows listed in the garage menu for this session (see §5.4 / task spec).
-local function collectRows(src, session, identifier, source)
+--- `ctx` (newContext of this request) provides the plates shared with the player.
+local function collectRows(src, session, identifier, source, ctx)
   local location = session.location
   local key = session.garageKey
   local vtype = location.vehicleType or 'car'
@@ -973,9 +1023,24 @@ local function collectRows(src, session, identifier, source)
 
   if location.kind ~= 'private' then
     local plates = {}
-    for plate in pairs(sharedPlateSet(identifier)) do plates[#plates + 1] = plate end
+    local shared = type(ctx) == 'table' and type(ctx.shared) == 'table' and ctx.shared or sharedPlateSet(identifier)
+    for plate in pairs(shared) do plates[#plates + 1] = plate end
     if #plates > 0 then
-      for _, row in ipairs(NZ.DB.getVehiclesByPlates(plates) or {}) do add(row, true) end
+      local found = {}
+      for _, row in ipairs(NZ.DB.getVehiclesByPlates(plates) or {}) do
+        if row.plate then found[row.plate] = true end
+        add(row, true)
+      end
+      -- Shares of a vehicle another resource deleted: drop them (confirmed missing only;
+      -- plateExists answers true on database errors) so every open does not look them up
+      -- again, and a vehicle created later with the same plate is not shared by accident.
+      for _, plate in ipairs(plates) do
+        if not found[plate] and NZ.DB.plateExists(plate) == false then
+          NZ.DB.shares.clear(plate)
+          if shared[plate] then shared[plate] = nil end
+          Utils.debug('removed the shares of missing vehicle', plate)
+        end
+      end
     end
   end
 
@@ -1041,8 +1106,17 @@ function Vehicles.buildGarageData(src, session)
   end
 
   local ctx = Vehicles.newContext(src, session, identifier)
+  local rows = collectRows(src, session, identifier, source, ctx)
+  -- Share counts of the viewer's own vehicles in one query (not one per vehicle).
+  local owned = {}
+  for _, row in ipairs(rows) do
+    if identifier and row.owner == identifier and row.plate then owned[#owned + 1] = row.plate end
+  end
+  if type(NZ.DB.shares.counts) == 'function' then
+    ctx.shareCounts = #owned > 0 and NZ.DB.shares.counts(owned) or {}
+  end
   local vehicles = {}
-  for _, row in ipairs(collectRows(src, session, identifier, source)) do
+  for _, row in ipairs(rows) do
     vehicles[#vehicles + 1] = Vehicles.toGarageVehicle(row, ctx)
   end
   table.sort(vehicles, function(a, b)
@@ -1325,6 +1399,8 @@ function Vehicles.retrieve(src, plate, session, opts)
     if not session then return fail(err or L('The garage is not open')) end
   end
   if type(session.location) ~= 'table' then return fail(L('The garage is not open')) end
+  -- The ped would be warped into the vehicle: not while dead, downed, cuffed or escorted.
+  if Vehicles.incapacitated(src) then return fail(L('You cannot do that right now')) end
 
   if not NZ.Access.rateLimit(src, 'vehicles:retrieve', 1500) then
     return fail(L('Please wait a moment before trying again'))

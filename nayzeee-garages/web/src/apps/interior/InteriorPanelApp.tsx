@@ -74,9 +74,11 @@ export function InteriorPanelApp() {
   const openRef = useRef(open);
   openRef.current = open;
 
-  // Fresh state every time the panel opens.
+  // Fresh state every time the panel opens. Reset when it CLOSES (F6 or Lua, possibly with the
+  // kick dialog still open): the panel renders nothing while closed, so the first render after
+  // reopening is already clean. Resetting after the reopen would mount the stale dialog for a frame.
   useEffect(() => {
-    if (!open) return;
+    if (open) return;
     setPaging(null);
     setInvite({ step: 'idle' });
     setKickTarget(null);

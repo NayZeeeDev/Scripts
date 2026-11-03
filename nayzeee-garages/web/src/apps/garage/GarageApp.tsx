@@ -107,7 +107,6 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   const [headerBusy, setHeaderBusy] = useState<HeaderBusy>(null);
   const driveTimer = useRef<number>();
 
-  useEscape(() => setExpanded(null), expanded !== null);
   useEffect(() => () => window.clearTimeout(driveTimer.current), []);
 
   const byPlate = (plate: string | null | undefined) => (plate ? vehicles.find((v) => v.plate === plate) ?? null : null);
@@ -148,6 +147,13 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     () => sortVehicles(searched.filter((v) => matchesFilter(v, activeFilter)), sort),
     [searched, activeFilter, sort],
   );
+  // The open panel only counts while its vehicle is listed: after a transfer, a refresh or a
+  // search / filter hides it, Escape must close the app again instead of "collapsing" nothing.
+  const openPlate = expanded !== null && shown.some((v) => v.plate === expanded) ? expanded : null;
+  useEscape(() => setExpanded(null), openPlate !== null);
+  useEffect(() => {
+    if (expanded !== null && openPlate === null) setExpanded(null);
+  }, [expanded, openPlate]);
   const shownSpawner = useMemo(
     () =>
       spawner
@@ -396,7 +402,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         items={shown}
         view={view}
         getKey={(v) => v.plate}
-        expandedKey={expanded}
+        expandedKey={openPlate}
         onToggle={(plate) => setExpanded((cur) => (cur === plate ? null : plate))}
         itemClass={(v) => (v.state === 'impounded' || v.blocked ? 'is-alert' : v.state === 'out' ? 'is-out' : undefined)}
         renderCard={(v) => <GarageCard v={v} onFavourite={() => void toggleFavourite(v)} />}
@@ -461,7 +467,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
             )}
             <span className="nz-garage__spacer" />
             {!spawnerMode && vehicles.length > 0 && <KeyHint keys={['Enter']} label={t('Details')} />}
-            <KeyHint keys={['Esc']} label={expanded ? t('Collapse') : t('Close')} />
+            <KeyHint keys={['Esc']} label={openPlate ? t('Collapse') : t('Close')} />
           </>
         }
       >

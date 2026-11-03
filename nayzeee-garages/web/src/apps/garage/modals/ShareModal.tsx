@@ -2,7 +2,7 @@
  * Share modal: let other players drive a vehicle without changing ownership.
  * Lists current shares (remove), add an online player, max counter.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Avatar, Badge, Button, EmptyState, IconButton, Modal, Select, SkeletonRows, Spinner } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { request } from '@/lib/nui';
@@ -28,7 +28,10 @@ export function ShareModal({
   const [dirty, setDirty] = useState(false);
 
   const plate = vehicle?.plate ?? null;
+  /** Plate the modal currently shows: replies for another plate (or after close) are not applied. */
+  const curPlate = useRef<string | null>(plate);
   useEffect(() => {
+    curPlate.current = plate;
     if (!plate) return;
     let alive = true;
     setData(null);
@@ -48,14 +51,21 @@ export function ShareModal({
   const count = data?.sharedWith.length ?? 0;
   const max = data?.max ?? 0;
   const full = count >= max; // server: max 0 = nobody can be added
+  const busy = adding || removing !== null;
 
   const add = async () => {
-    if (!vehicle || player === null || adding || full) return;
+    if (!vehicle || player === null || busy || full) return;
+    const forPlate = vehicle.plate;
     setAdding(true);
     const name = data?.players.find((p) => p.serverId === player)?.name ?? '';
-    const res = await request('garage:share', { plate: vehicle.plate, serverId: player });
+    const res = await request('garage:share', { plate: forPlate, serverId: player });
     setAdding(false);
     if (!res.ok) return;
+    if (curPlate.current !== forPlate) {
+      // Closed or switched vehicle meanwhile: the share still changed, refresh the garage.
+      onChanged();
+      return;
+    }
     setData(res.data);
     setPlayer(null);
     setDirty(true);
@@ -63,17 +73,23 @@ export function ShareModal({
   };
 
   const remove = async (identifier: string, name: string) => {
-    if (!vehicle || removing) return;
+    if (!vehicle || busy) return;
+    const forPlate = vehicle.plate;
     setRemoving(identifier);
-    const res = await request('garage:unshare', { plate: vehicle.plate, identifier });
+    const res = await request('garage:unshare', { plate: forPlate, identifier });
     setRemoving(null);
     if (!res.ok) return;
+    if (curPlate.current !== forPlate) {
+      onChanged();
+      return;
+    }
     setData(res.data);
     setDirty(true);
     toast({ type: 'info', message: t('{name} can no longer drive this vehicle.', { name }) });
   };
 
   const done = () => {
+    if (busy) return;
     onClose();
     if (dirty) onChanged();
   };
@@ -85,9 +101,10 @@ export function ShareModal({
       subtitle={t('Shared players can drive it. You stay the owner.')}
       icon="users"
       onClose={done}
+      locked={busy}
       width={460}
       footer={
-        <Button variant="white" onClick={done}>
+        <Button variant="white" onClick={done} disabled={busy}>
           {t('Done')}
         </Button>
       }
@@ -117,10 +134,10 @@ export function ShareModal({
                   options={data.players.map((p) => ({ value: p.serverId, label: p.name, icon: 'user', hint: t('ID {id}', { id: p.serverId }) }))}
                   placeholder={data.players.length ? t('Choose a player') : t('No players online')}
                   icon="userPlus"
-                  disabled={full || data.players.length === 0}
+                  disabled={full || busy || data.players.length === 0}
                   searchable
                 />
-                <Button variant="teal" icon="plus" disabled={player === null || full} loading={adding} onClick={() => void add()}>
+                <Button variant="teal" icon="plus" disabled={player === null || full || removing !== null} loading={adding} onClick={() => void add()}>
                   {t('Share')}
                 </Button>
               </div>
@@ -151,7 +168,7 @@ export function ShareModal({
                           label={t('Stop sharing with {name}', { name: s.name })}
                           size="sm"
                           variant="ghost"
-                          disabled={!!removing}
+                          disabled={busy}
                           onClick={() => void remove(s.identifier, s.name)}
                         />
                       )}

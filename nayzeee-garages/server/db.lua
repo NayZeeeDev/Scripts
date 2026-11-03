@@ -150,6 +150,16 @@ local function padded(p)
   return p .. string.rep(' ', PLATE_MAX - #p)
 end
 
+--- Normalized plate expression for the fallback lookups (plates stored with odd spacing /
+--- case): the indexed virtual column nz_plate_norm when migrations could create it, else
+--- UPPER(TRIM(plate)) (unindexed: a full scan).
+---@param alias string|nil table alias ('v')
+local function normPlate(alias)
+  local prefix = alias and (alias .. '.') or ''
+  if has('nz_plate_norm') then return prefix .. '`nz_plate_norm`' end
+  return ('UPPER(TRIM(%s`plate`))'):format(prefix)
+end
+
 local function decodeTable(v)
   if type(v) == 'table' then return v end
   if type(v) ~= 'string' or v == '' then return nil end
@@ -218,11 +228,14 @@ local function buildEffectiveStateSql()
     -- Managed rows: an impound written into the mirrored framework columns by another
     -- resource (qb-policejob: state 2 = seized, state 0 + depotprice = depot) wins.
     local drift = 'WHEN v.`state` = 2 AND COALESCE(v.`nz_state`, 1) <> 2 THEN 2 '
+    -- Unmanaged rows: a qb depot impound (state 0 + depotprice) is impounded as well.
+    local depot = ''
     if has('depotprice') then
       drift = drift .. 'WHEN v.`state` = 0 AND COALESCE(v.`nz_state`, 1) = 0 AND v.`depotprice` > 0 THEN 2 '
+      depot = 'WHEN v.`state` = 0 AND v.`depotprice` > 0 THEN 2 '
     end
-    return ('(CASE WHEN %s AND v.`state` IS NOT NULL THEN (CASE WHEN v.`state` = 0 THEN 0 '
-      .. 'WHEN v.`state` = 2 THEN 2 ELSE 1 END) %sELSE v.`nz_state` END)'):format(UNMANAGED_SQL, drift)
+    return ('(CASE WHEN %s AND v.`state` IS NOT NULL THEN (CASE %sWHEN v.`state` = 0 THEN 0 '
+      .. 'WHEN v.`state` = 2 THEN 2 ELSE 1 END) %sELSE v.`nz_state` END)'):format(UNMANAGED_SQL, depot, drift)
   end
   if not has('stored') then return 'v.`nz_state`' end
   local inner, drift
@@ -269,7 +282,8 @@ end
 --- Effective state code. nz_state is authoritative for rows this resource manages (they
 --- have an nz_garage). Rows without nz_garage were never stored by nayzeee-garages (e.g.
 --- inserted by a dealership after the migration, with the nz_state column default), so
---- their state comes from the framework columns, which we always mirror on writes.
+--- their state comes from the framework columns, which we always mirror on writes (a qb
+--- depot impound, `state = 0` with `depotprice > 0`, counts as impounded there too).
 --- Because every state write mirrors those columns, a managed row whose framework columns
 --- say "impounded" while nz_state does not was impounded by another resource (qb-policejob
 --- seizure `state = 2` / depot `state = 0, depotprice > 0`, esx_garage `pound`): that wins.
@@ -280,7 +294,11 @@ local function effectiveState(r)
     if not isEsx then
       if r.state ~= nil then
         local s = num(r.state)
-        if s == 0 then return 0 elseif s == 2 then return 2 end
+        if s == 0 then
+          return (has('depotprice') and (num(r.depotprice) or 0) > 0) and 2 or 0
+        elseif s == 2 then
+          return 2
+        end
         return 1
       end
     elseif has('stored') then
@@ -381,21 +399,31 @@ end
 --- pre-install / 3rd-party impounds (qb `state = 2` or depot, ESX `pound`). Points at an
 --- enabled impound of the vehicle's category (ESX pound name, then garages.restartImpound,
 --- then the lowest id) so owners and staff can find it. nil when no impound exists.
-local function legacyImpound(r, row)
-  local Locations = NZ.Locations
-  if type(Locations) ~= 'table' or type(Locations.all) ~= 'function' then return nil end
-  local okList, list = pcall(Locations.all, 'impound')
-  if not okList or type(list) ~= 'table' then return nil end
+--- `memo` (one table per query, see fetchRows) keeps the impound list for every row.
+local function legacyImpound(r, row, memo)
+  local list, preferred
+  if memo and memo.impounds ~= nil then
+    list, preferred = memo.impounds, memo.preferred
+  else
+    local Locations = NZ.Locations
+    if type(Locations) == 'table' and type(Locations.all) == 'function' then
+      local okList, value = pcall(Locations.all, 'impound')
+      list = okList and type(value) == 'table' and value or false
+    else
+      list = false
+    end
+    if type(NZ.Settings) == 'table' and type(NZ.Settings.get) == 'function' then
+      local okSetting, value = pcall(NZ.Settings.get, 'garages.restartImpound', nil)
+      preferred = okSetting and tonumber(value) or nil
+    end
+    if memo then memo.impounds, memo.preferred = list, preferred end
+  end
+  if not list then return nil end
 
   local vtype = row.vehicleType
   if type(NZ.Vehicles) == 'table' and type(NZ.Vehicles.vehicleTypeOf) == 'function' then
     local okType, value = pcall(NZ.Vehicles.vehicleTypeOf, row)
     if okType and Utils.vehicleTypes[value] then vtype = value end
-  end
-  local preferred = nil
-  if type(NZ.Settings) == 'table' and type(NZ.Settings.get) == 'function' then
-    local okSetting, value = pcall(NZ.Settings.get, 'garages.restartImpound', nil)
-    preferred = okSetting and tonumber(value) or nil
   end
   local pound = isEsx and nonEmpty(r.pound) and r.pound:lower() or nil
 
@@ -432,7 +460,8 @@ local function legacyImpound(r, row)
 end
 
 --- Raw DB row -> NZVehicleRow (docs §4.1). Returns nil for rows without a usable plate.
-local function mapRow(r)
+--- `memo`: per-query cache shared by the rows of one result (see legacyImpound).
+local function mapRow(r, memo)
   local plate = Utils.plate(r.plate)
   if not plate then return nil end
   local props = decodeTable(r[PROPS_COL]) or {}
@@ -492,7 +521,7 @@ local function mapRow(r)
     finance = (not isEsx) and financeOf(r) or nil,
     lastOut = int(r.nz_last_out, nil),
   }
-  if stateCodeNow == 2 and row.impound == nil then row.impound = legacyImpound(r, row) end
+  if stateCodeNow == 2 and row.impound == nil then row.impound = legacyImpound(r, row, memo) end
   return row
 end
 
@@ -502,15 +531,16 @@ local function fetchRows(where, params, suffix)
   local rows, ok = run('query', sql, params)
   local out = {}
   if not ok or type(rows) ~= 'table' then return out end
+  local memo = {}
   for i = 1, #rows do
-    local row = mapRow(rows[i])
+    local row = mapRow(rows[i], memo)
     if row then out[#out + 1] = row end
   end
   return out
 end
 
 --- Minimal raw row lookup by plate (exact stored `plate` + requested extra columns).
---- Matches the trimmed and the 8-char padded form, falling back to UPPER(TRIM(plate)).
+--- Matches the trimmed and the 8-char padded form, falling back to the normalized plate.
 local function fetchRaw(p, extra)
   local cols = { 'v.`plate` AS `plate`' }
   for _, name in ipairs(extra or {}) do
@@ -519,7 +549,7 @@ local function fetchRaw(p, extra)
   local base = ('SELECT %s FROM `%s` v WHERE '):format(table.concat(cols, ', '), VT)
   local row = run('single', base .. '(v.`plate` = ? OR v.`plate` = ?) LIMIT 1', { p, padded(p) })
   if not row then
-    row = run('single', base .. 'UPPER(TRIM(v.`plate`)) = ? LIMIT 1', { p })
+    row = run('single', base .. normPlate('v') .. ' = ? LIMIT 1', { p })
   end
   if type(row) ~= 'table' or type(row.plate) ~= 'string' then return nil end
   return row
@@ -610,7 +640,7 @@ function DB.getVehicle(plate)
   if not p or not ready() then return nil end
   local rows = fetchRows('(v.`plate` = ? OR v.`plate` = ?)', { p, padded(p) }, ' LIMIT 1')
   if not rows[1] then
-    rows = fetchRows('UPPER(TRIM(v.`plate`)) = ?', { p }, ' LIMIT 1')
+    rows = fetchRows(normPlate('v') .. ' = ?', { p }, ' LIMIT 1')
   end
   return rows[1]
 end
@@ -667,7 +697,7 @@ function DB.getVehiclesByPlates(plates)
   end
   for i = 1, #missing, CHUNK do
     local chunk = table.move(missing, i, math.min(i + CHUNK - 1, #missing), 1, {})
-    collect(fetchRows('UPPER(TRIM(v.`plate`)) IN (?)', { chunk }))
+    collect(fetchRows(normPlate('v') .. ' IN (?)', { chunk }))
   end
   return out
 end
@@ -706,8 +736,17 @@ function DB.getImpounded(locationId)
   if not ready() or not has('nz_state') then return {} end
   local id = locationId ~= nil and tonumber(locationId) or nil
   if locationId ~= nil and not id then return {} end
-  -- Effective state: also finds framework / 3rd-party impounds (see effectiveState).
-  local rows = fetchRows(statements().effectiveState .. ' = 2', {})
+  -- Effective state: also finds framework / 3rd-party impounds (see effectiveState). The
+  -- CASE expression cannot use an index, so it is ANDed with an index-friendly superset:
+  -- every way effectiveState can reach 2 (indexed nz_state / framework state columns).
+  local any = { 'v.`nz_state` = 2' }
+  if isEsx then
+    if has('stored') and has('pound') then any[#any + 1] = "(v.`pound` IS NOT NULL AND v.`pound` <> '')" end
+  elseif has('state') then
+    any[#any + 1] = 'v.`state` = 2'
+    if has('depotprice') then any[#any + 1] = '(v.`state` = 0 AND v.`depotprice` > 0)' end
+  end
+  local rows = fetchRows(('(%s) AND %s = 2'):format(table.concat(any, ' OR '), statements().effectiveState), {})
   local out = {}
   for _, row in ipairs(rows) do
     if row.state == 'impounded'
@@ -752,9 +791,12 @@ end
 
 --- Whether a plate exists in the vehicle table (either stored form).
 --- Returns true on database errors so callers never create duplicate plates.
+--- `exactOnly`: only the indexed trimmed / 8-char padded forms (plate generators: their
+--- candidates are trimmed upper-case; DB.insertVehicle still runs the full check).
 ---@param plate string
+---@param exactOnly boolean|nil
 ---@return boolean
-function DB.plateExists(plate)
+function DB.plateExists(plate, exactOnly)
   local p = Utils.plate(plate)
   if not p then return false end
   if not ready() then return true end
@@ -762,7 +804,8 @@ function DB.plateExists(plate)
     { p, padded(p) })
   if not ok then return true end
   if res ~= nil then return true end
-  res, ok = run('scalar', ('SELECT 1 FROM `%s` WHERE UPPER(TRIM(`plate`)) = ? LIMIT 1'):format(VT), { p })
+  if exactOnly == true then return false end
+  res, ok = run('scalar', ('SELECT 1 FROM `%s` WHERE %s = ? LIMIT 1'):format(VT, normPlate(nil)), { p })
   if not ok then return true end
   return res ~= nil
 end
@@ -1137,8 +1180,12 @@ function DB.changePlate(oldPlate, newPlate)
 end
 
 --- Server start handling of vehicles left out (settings garages.outOnRestart).
----  'garage'  -> back to their last garage (rows without nz_garage stay out)
+---  'garage'  -> back to their last garage. Rows never stored by this resource (no
+---               nz_garage: dealership purchases, pre-install rows) become garaged without
+---               a garage key, i.e. retrievable from any garage of their type.
 ---  'impound' -> impounded with `impoundInfo`
+--- Rows impounded through the framework columns (qb depot / seizure, ESX pound) are not
+--- "out" (see effectiveState) and are left alone.
 ---@param mode 'garage'|'impound'
 ---@param impoundInfo table|nil ImpoundInfo
 ---@return number affected rows
@@ -1156,7 +1203,11 @@ function DB.resetOutVehicles(mode, impoundInfo)
       sets.set('state', 1)
     end
     -- effective state: rows impounded by another resource (see effectiveState) stay impounded
-    where = statements().effectiveState .. " = 0 AND v.`nz_garage` IS NOT NULL AND v.`nz_garage` <> ''"
+    where = statements().effectiveState .. ' = 0'
+    if not isEsx and has('depotprice') then
+      -- belt and braces: never free a qb depot impound (effectiveState already says 2)
+      where = where .. " AND ((v.`nz_garage` IS NOT NULL AND v.`nz_garage` <> '') OR COALESCE(v.`depotprice`, 0) = 0)"
+    end
   elseif mode == 'impound' then
     local info = type(impoundInfo) == 'table' and impoundInfo or nil
     sets.set('nz_state', 2)
@@ -1456,6 +1507,32 @@ function DB.shares.forPlate(plate)
   return out
 end
 
+--- Number of shares of several plates in one query per 250 plates: { [plate] = n }
+--- (plates without shares are absent).
+---@param plates string[]
+---@return table<string, number>
+function DB.shares.counts(plates)
+  local list, seen = {}, {}
+  for _, v in pairs(type(plates) == 'table' and plates or {}) do
+    local p = Utils.plate(v)
+    if p and #p <= 16 and not seen[p] then
+      seen[p] = true
+      list[#list + 1] = p
+    end
+  end
+  local out = {}
+  for i = 1, #list, CHUNK do
+    local chunk = table.move(list, i, math.min(i + CHUNK - 1, #list), 1, {})
+    local rows = run('query', 'SELECT `plate`, COUNT(*) AS `n` FROM `nz_shares` WHERE `plate` IN (?) GROUP BY `plate`',
+      { chunk })
+    for _, r in ipairs(rows or {}) do
+      local p = Utils.plate(r.plate)
+      if p and seen[p] then out[p] = math.max(int(r.n, 0), 0) end
+    end
+  end
+  return out
+end
+
 --- Plates shared with an identifier: { plate, ... }
 function DB.shares.forIdentifier(identifier)
   identifier = str(identifier, 64)
@@ -1608,4 +1685,26 @@ function DB.logs.add(event, identifier, plate, data)
   local sql = ('INSERT INTO `nz_logs` (%s) VALUES (%s)'):format(table.concat(cols, ', '), table.concat(marks, ', '))
   local ok, err = pcall(MySQL.insert, sql, params, logInserted)
   if not ok then lib.print.error(('[db] log insert failed: %s'):format(tostring(err))) end
+end
+
+local PRUNE_BATCH = 5000
+
+--- Delete nz_logs rows older than `days` days, in batches of 5000 rows with a pause between
+--- them (indexed on created_at). Awaits: call from a thread.
+---@param days number
+---@return number deleted
+function DB.logs.prune(days)
+  days = int(days, 0)
+  if days <= 0 then return 0 end
+  local total = 0
+  for _ = 1, 2000 do -- at most 10M rows per run, the rest on the next one
+    local affected, ok = run('update',
+      'DELETE FROM `nz_logs` WHERE `created_at` < (NOW() - INTERVAL ? DAY) LIMIT ' .. PRUNE_BATCH, { days })
+    if not ok then break end
+    affected = tonumber(affected) or 0
+    total = total + affected
+    if affected < PRUNE_BATCH then break end
+    Wait(1000)
+  end
+  return total
 end

@@ -153,6 +153,12 @@ local function startLabelLoop(s)
   end)
 end
 
+--- Crash / logout marker of the editor: `entry` = where the admin is working now.
+local function setMarker(s, entry)
+  if active ~= s or type(NZ.Interior.creatorMarker) ~= 'function' then return end
+  NZ.Interior.creatorMarker(Utils.v3(entry), s.startPos)
+end
+
 ---------------------------------------------------------------------------------------
 -- Keybind (walk mode)
 ---------------------------------------------------------------------------------------
@@ -221,6 +227,9 @@ function Creator.start(creatorData, opts)
   active = s
 
   if interior.profile then NZ.Interior.loadProfile(interior.profile, interior.options, interior.entry) end
+  -- A crash / logout while editing (often inside a sealed interior): next login takes the
+  -- admin back to s.startPos (see NZ.Interior.creatorMarker).
+  setMarker(s, interior.entry)
   if opts.teleport then NZ.Interior.teleport(interior.entry) end
   if active ~= s then return false end
 
@@ -234,12 +243,14 @@ end
 
 --- Close the editor: delete the slot ghosts, clear the hint, close the app and (unless
 --- opts.teleport == false) teleport back to where the editor was started. Blocking.
+--- opts.keepMarker keeps the crash / logout marker (character unload).
 ---@param opts table|nil
 function Creator.stop(opts)
   local s = active
   if not s then return end
   opts = type(opts) == 'table' and opts or {}
   active = nil
+  if not opts.keepMarker and type(NZ.Interior.creatorMarker) == 'function' then NZ.Interior.creatorMarker(nil) end
   NZ.NUI.hint(nil)
   clearGhosts(s)
   if NZ.Camera.isPlaying() then NZ.Camera.stop() end
@@ -298,6 +309,7 @@ handler('creator:applyProfile', function(s, data)
   if not changed or not coords then return { entry = nil } end
 
   s.busy = true
+  setMarker(s, coords)
   NZ.Interior.teleport(coords)
   -- Entity sets refresh once the interior is streamed in around the player.
   NZ.Interior.loadProfile(key, options, coords)
@@ -396,6 +408,7 @@ end)
 handler('creator:teleport', function(s, data)
   if not Utils.v3(data.coords) then return Utils.fail(L('Invalid coordinates')) end
   s.busy = true
+  setMarker(s, data.coords)
   NZ.Interior.teleport(data.coords)
   s.busy = false
   return nil
@@ -451,7 +464,17 @@ NZ.NUI.onClose('creator', function(_, reason)
 end)
 
 AddEventHandler('nz:client:playerUnloaded', function()
-  if active then Creator.stop({ teleport = false }) end
+  local s = active
+  if not s then return end
+  Creator.stop({ teleport = false, keepMarker = true })
+  -- Best effort: back to where the editor was opened before the framework saves the
+  -- position (the marker stays for the next login in case the save came first).
+  local p = s.startPos
+  if p then
+    local ped = PlayerPedId()
+    SetEntityCoords(ped, p.x + 0.0, p.y + 0.0, p.z + 0.0, false, false, false, false)
+    SetEntityHeading(ped, (tonumber(p.w) or 0.0) + 0.0)
+  end
 end)
 
 AddEventHandler('onResourceStop', function(resource)
@@ -466,5 +489,6 @@ AddEventHandler('onResourceStop', function(resource)
   if p then
     SetEntityCoords(ped, p.x + 0.0, p.y + 0.0, p.z + 0.0, false, false, false, false)
     SetEntityHeading(ped, p.w + 0.0)
+    if type(NZ.Interior.creatorMarker) == 'function' then NZ.Interior.creatorMarker(nil) end
   end
 end)

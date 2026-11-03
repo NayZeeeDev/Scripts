@@ -1,7 +1,7 @@
 /**
  * Rename (nickname) modal. Empty input resets to the default vehicle name.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Field, Input, Modal } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import type { GarageVehicle } from '@/lib/types';
@@ -20,15 +20,28 @@ export function RenameModal({
   onSave: (v: GarageVehicle, name: string | null) => void;
 }) {
   const [value, setValue] = useState('');
+  // One save per opening: the closing modal still renders its last footer for a moment, and a
+  // second save would race the first (and roll the optimistic nickname back on refusal).
+  const submitted = useRef(false);
   useEffect(() => {
     if (vehicle) setValue(vehicle.nickname ?? '');
   }, [vehicle]);
+  useEffect(() => {
+    if (vehicle) submitted.current = false;
+    // Reset only when a vehicle (re)opens, not when it closes (vehicle -> null).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicle?.plate]);
 
   const trimmed = value.trim();
   const unchanged = vehicle ? trimmed === (vehicle.nickname ?? '').trim() : true;
+  const save = (name: string | null) => {
+    if (!vehicle || submitted.current) return;
+    submitted.current = true;
+    onSave(vehicle, name);
+  };
   const submit = () => {
-    if (!vehicle || unchanged) return;
-    onSave(vehicle, trimmed ? trimmed : null);
+    if (unchanged) return;
+    save(trimmed ? trimmed : null);
   };
 
   return (
@@ -41,7 +54,7 @@ export function RenameModal({
       footer={
         <>
           {vehicle?.nickname && (
-            <Button variant="ghost" icon="refresh" className="nz-garage__foot-left" onClick={() => vehicle && onSave(vehicle, null)}>
+            <Button variant="ghost" icon="refresh" className="nz-garage__foot-left" onClick={() => save(null)}>
               {t('Reset name')}
             </Button>
           )}

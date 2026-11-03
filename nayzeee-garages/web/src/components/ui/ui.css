@@ -2127,6 +2127,10 @@
 
 .nz-modal:focus-visible { outline: none; }
 .nz-modal-overlay.is-closing .nz-modal { animation: nz-modal-out 170ms var(--ease) both; }
+/* A closing modal still shows its last content: make it inert (the overlay keeps swallowing
+   clicks so they do not fall through to the window underneath). */
+.nz-modal-overlay.is-closing .nz-modal,
+.nz-modal-overlay.is-closing .nz-modal * { pointer-events: none; }
 
 .nz-modal__head {
   flex: none;

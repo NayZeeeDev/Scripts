@@ -428,6 +428,75 @@ local function impoundedHere(row, location)
     and tonumber(row.impound.locationId) == location.id
 end
 
+local NAME_CHUNK = 200
+local esxNameColumns = nil       -- users.firstname / lastname exist (checked once)
+
+local function joinName(first, last)
+  first = type(first) == 'string' and first or ''
+  last = type(last) == 'string' and last or ''
+  local name = Utils.trim(first .. ' ' .. last)
+  return name ~= '' and name or nil
+end
+
+--- Character names of offline owners in one query per 200 owners (the staff list can hold
+--- thousands of vehicles), written into `names` (the toGarageVehicle name cache). Owners that
+--- are online, or that the query could not answer, are left to NZ.Bridge.getCharacterName.
+---@param owners table<string, true>
+---@param names table<string, string>
+local function prefetchNames(owners, names)
+  local framework = NZ.Framework
+  if framework ~= 'qb' and framework ~= 'qbx' and framework ~= 'esx' then return end
+  local list = {}
+  for owner in pairs(owners) do
+    local online = type(NZ.Bridge.getSourceByIdentifier) == 'function' and NZ.Bridge.getSourceByIdentifier(owner)
+    if names[owner] == nil and not online then list[#list + 1] = owner end
+  end
+  if #list < 2 then return end
+  if framework == 'esx' then
+    if esxNameColumns == nil then
+      local success, count = pcall(MySQL.scalar.await, [[SELECT COUNT(*) FROM `INFORMATION_SCHEMA`.`COLUMNS`
+        WHERE `TABLE_SCHEMA` = DATABASE() AND `TABLE_NAME` = 'users' AND `COLUMN_NAME` IN ('firstname', 'lastname')]], {})
+      if not success then return end
+      esxNameColumns = tonumber(count) == 2
+    end
+    if not esxNameColumns then return end
+  end
+  for i = 1, #list, NAME_CHUNK do
+    local chunk = table.move(list, i, math.min(i + NAME_CHUNK - 1, #list), 1, {})
+    local success, rows
+    if framework == 'esx' then
+      success, rows = pcall(MySQL.query.await,
+        'SELECT `identifier` AS `id`, `firstname`, `lastname` FROM `users` WHERE `identifier` IN (?)', { chunk })
+    else
+      success, rows = pcall(MySQL.query.await,
+        'SELECT `citizenid` AS `id`, `charinfo` FROM `players` WHERE `citizenid` IN (?)', { chunk })
+    end
+    if not success or type(rows) ~= 'table' then return end
+    local found = {}
+    for _, r in ipairs(rows) do
+      local name
+      if framework == 'esx' then
+        name = joinName(r.firstname, r.lastname)
+      else
+        local info = r.charinfo
+        if type(info) == 'string' then
+          local decoded, value = pcall(json.decode, info)
+          info = decoded and value or nil
+        end
+        if type(info) == 'table' then name = joinName(info.firstname, info.lastname) end
+      end
+      if type(r.id) == 'string' and name then
+        names[r.id] = name
+        found[r.id] = true
+      end
+    end
+    -- characters that no longer exist: same answer as the bridge, without one query each
+    for _, owner in ipairs(chunk) do
+      if not found[owner] then names[owner] = L('Unknown') end
+    end
+  end
+end
+
 --- ImpoundOpenData for the viewer at an impound location.
 ---@param src number
 ---@param location table impound location
@@ -448,7 +517,15 @@ local function buildImpoundData(src, location, session)
     end
   end
 
-  local ctx = { src = src, session = session, identifier = identifier }
+  local ctx = { src = src, session = session, identifier = identifier, names = {} }
+  if staff then
+    local owners = {}
+    for _, row in ipairs(rows) do
+      if type(row.owner) == 'string' and row.owner ~= '' then owners[row.owner] = true end
+    end
+    local success, err = pcall(prefetchNames, owners, ctx.names)
+    if not success then lib.print.warn(('impound: owner name prefetch failed: %s'):format(tostring(err))) end
+  end
   local now = os.time()
   local vehicles = {}
   for _, row in ipairs(rows) do

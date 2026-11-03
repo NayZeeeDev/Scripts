@@ -29,6 +29,10 @@ end
 ---@return boolean
 function Private.openForSale(locationId)
   if opening then return false end
+  if NZ.Points.incapacitated() then
+    NZ.NUI.notify('error', L('You cannot do that right now'))
+    return false
+  end
   opening = true
   local ok, res = pcall(doOpen, locationId)
   opening = false

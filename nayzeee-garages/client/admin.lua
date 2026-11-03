@@ -107,6 +107,16 @@ local function reopen(page)
   NZ.NUI.open('admin', cache)
 end
 
+--- An in-world tool (point manager / placement) is running. Opening the admin app now would
+--- take NUI focus while the panel is still hidden for the tool (admin:points pending): the
+--- cursor appears, nothing is visible, Escape is swallowed and Enter / Esc never reach the
+--- tool, so the player is stuck. The tool ends first.
+local function toolRunning()
+  if not NZ.Placement.isActive() then return false end
+  NZ.NUI.notify('warning', L('Finish the current action first'))
+  return true
+end
+
 ---------------------------------------------------------------------------------------
 -- Public API
 ---------------------------------------------------------------------------------------
@@ -121,6 +131,7 @@ function AdminClient.open(page)
     NZ.NUI.notify('warning', L('Save or cancel the interior editor first'))
     return false
   end
+  if toolRunning() then return false end
   opening = true
   local res = await('nz:admin:refresh', {})
   opening = false
@@ -132,6 +143,8 @@ function AdminClient.open(page)
     NZ.NUI.notify('error', L('Something went wrong'))
     return false
   end
+  -- A tool may have started while the data was on its way (the panel was already open).
+  if toolRunning() then return false end
   local data = enrich(res.data)
   data.page = validPage(page) or 'garages'
   cache = data

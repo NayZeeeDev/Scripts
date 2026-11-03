@@ -213,6 +213,7 @@ function Jobs.spawn(index)
   local ctx = NZ.Garage.current()
   if not index or not ctx or not ctx.location then return NZ.Utils.fail(L('Vehicle not found')) end
   if spawning then return NZ.Utils.fail(L('Please wait')) end
+  if NZ.Points.incapacitated() then return NZ.Utils.fail(L('You cannot do that right now')) end
   local entry = findSpawnerEntry(ctx.data and ctx.data.spawner, index)
   if not entry then return NZ.Utils.fail(L('Vehicle not found')) end
   local hash = tonumber(entry.hash) or (type(entry.model) == 'string' and joaat(entry.model)) or nil

@@ -59,7 +59,6 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
   const [confirmGarage, setConfirmGarage] = useState<string | null>(null);
   const timer = useRef<number>();
 
-  useEscape(() => setExpanded(null), expanded !== null);
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
   // Re-sort when a countdown finishes (once a minute is plenty for ordering).
@@ -76,6 +75,14 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       );
     // `minute` re-runs the sort as vehicles become available.
   }, [vehicles, query, staff, minute]);
+
+  // The open panel only counts while its vehicle is listed (a release / return or a search
+  // can remove it): otherwise Escape would "collapse" nothing instead of closing the app.
+  const openPlate = expanded !== null && shown.some((v) => v.plate === expanded) ? expanded : null;
+  useEscape(() => setExpanded(null), openPlate !== null);
+  useEffect(() => {
+    if (expanded !== null && openPlate === null) setExpanded(null);
+  }, [expanded, openPlate]);
 
   const retrieve = async (v: ImpoundedVehicle) => {
     if (retrieving) return;
@@ -146,7 +153,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
         items={shown}
         view={view}
         getKey={(v) => v.plate}
-        expandedKey={expanded}
+        expandedKey={openPlate}
         onToggle={(plate) => setExpanded((cur) => (cur === plate ? null : plate))}
         renderCard={(v) => <ImpoundCard v={v} staff={staff} />}
         renderRow={(v, open) => <ImpoundRow v={v} staff={staff} open={open} />}
@@ -196,7 +203,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
             </span>
             <span className="nz-garage__spacer" />
             {vehicles.length > 0 && <KeyHint keys={['Enter']} label={t('Details')} />}
-            <KeyHint keys={['Esc']} label={expanded ? t('Collapse') : t('Close')} />
+            <KeyHint keys={['Esc']} label={openPlate ? t('Collapse') : t('Close')} />
           </>
         }
       >

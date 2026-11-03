@@ -115,10 +115,10 @@ export function countdown(seconds: number): string {
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (d > 0) return `${d}d ${h}h`;
-  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
-  if (m > 0) return `${m}m ${String(sec).padStart(2, '0')}s`;
-  return `${sec}s`;
+  if (d > 0) return t('{d}d {h}h', { d, h });
+  if (h > 0) return t('{h}h {m}m', { h, m: String(m).padStart(2, '0') });
+  if (m > 0) return t('{m}m {s}s', { m, s: String(sec).padStart(2, '0') });
+  return t('{s}s', { s: sec });
 }
 
 /** "2 days ago" style label for last use. */

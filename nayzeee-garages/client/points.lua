@@ -28,6 +28,94 @@ local function insideInterior()
   return NZ.Interior ~= nil and type(NZ.Interior.isInside) == 'function' and NZ.Interior.isInside() == true
 end
 
+---------------------------------------------------------------------------------------
+-- Player condition (dead / downed / cuffed / escorted)
+---------------------------------------------------------------------------------------
+
+-- State bags set by common death / police resources (only `true` counts).
+local CONDITION_BAGS = {
+  'isDead', 'dead', 'inLaststand', 'laststand', 'isCuffed', 'isHandcuffed', 'handcuffed',
+  'cuffed', 'isEscorted', 'escorted',
+}
+local frameworkDown = false     -- qb / qbx metadata isdead, inlaststand, ishandcuffed
+local esxDead = false           -- esx:onPlayerDeath until esx:onPlayerSpawn
+
+-- Player apps closed when the player goes down (the admin tools stay open).
+local PLAYER_APPS = { 'garage', 'impound', 'impoundForm', 'forSale', 'setup', 'interior' }
+
+local function closeAppsWhenDown()
+  if not NZ.NUI.isOpen() or not Points.incapacitated() then return end
+  -- frees the mouse / keyboard (respawn prompt, interrogation...) and stops the action
+  for i = 1, #PLAYER_APPS do
+    if NZ.NUI.isOpen(PLAYER_APPS[i]) then pcall(NZ.NUI.close, PLAYER_APPS[i]) end
+  end
+end
+
+local function readMetadata(data)
+  local md = type(data) == 'table' and type(data.metadata) == 'table' and data.metadata or nil
+  if not md then return end
+  local down = md.isdead == true or md.inlaststand == true or md.ishandcuffed == true
+  local changed = down ~= frameworkDown
+  frameworkDown = down
+  if changed and down then closeAppsWhenDown() end
+end
+
+if NZ.Framework == 'qb' or NZ.Framework == 'qbx' then
+  RegisterNetEvent('QBCore:Player:SetPlayerData', readMetadata)
+  local function fetchMetadata()
+    local ok, data = pcall(function()
+      if NZ.Framework == 'qbx' then return exports.qbx_core:GetPlayerData() end
+      return exports['qb-core']:GetCoreObject().Functions.GetPlayerData()
+    end)
+    if ok then readMetadata(data) end
+  end
+  AddEventHandler('nz:client:playerLoaded', fetchMetadata)
+  CreateThread(fetchMetadata) -- resource restart while the character is loaded
+elseif NZ.Framework == 'esx' then
+  RegisterNetEvent('esx:onPlayerDeath', function()
+    esxDead = true
+    closeAppsWhenDown()
+  end)
+  RegisterNetEvent('esx:onPlayerSpawn', function() esxDead = false end)
+  AddEventHandler('playerSpawned', function() esxDead = false end)
+end
+AddEventHandler('nz:client:playerUnloaded', function()
+  frameworkDown, esxDead = false, false
+end)
+
+-- Killed while a menu has focus: release it at once.
+AddEventHandler('gameEventTriggered', function(name, args)
+  if name ~= 'CEventNetworkEntityDamage' or type(args) ~= 'table' then return end
+  if args[1] ~= PlayerPedId() then return end
+  closeAppsWhenDown()
+end)
+
+-- Cuffed / escorted / downed by a resource that fires none of the events above.
+CreateThread(function()
+  while true do
+    Wait(1000)
+    if NZ.State.ready and NZ.NUI.isOpen() then closeAppsWhenDown() end
+  end
+end)
+
+--- Whether the player cannot use garages right now: dead or dying, downed (last stand),
+--- cuffed, or carried / escorted by someone (attached to another ped).
+---@return boolean
+function Points.incapacitated()
+  if frameworkDown or esxDead then return true end
+  local ped = PlayerPedId()
+  if IsEntityDead(ped) or IsPedFatallyInjured(ped) or IsPedCuffed(ped) or IsEntityAttachedToAnyPed(ped) then
+    return true
+  end
+  local bag = LocalPlayer and LocalPlayer.state
+  if bag then
+    for i = 1, #CONDITION_BAGS do
+      if bag[CONDITION_BAGS[i]] == true then return true end
+    end
+  end
+  return false
+end
+
 local function interfaceSettings()
   local s = NZ.State.settings
   if type(s) == 'table' and type(s.interface) == 'table' then return s.interface end
@@ -161,6 +249,7 @@ end
 --- Work out which action the player can take right now and which markers to draw.
 local function evaluate()
   local blocked = acting or not NZ.State.ready or insideInterior() or NZ.NUI.isOpen() or IsPauseMenuActive()
+    or Points.incapacitated()
   local ped = cache.ped
   local pos = GetEntityCoords(ped)
   local vehicle = GetVehiclePedIsIn(ped, false)
@@ -279,7 +368,7 @@ local function perform(action, loc)
 end
 
 local function dispatch()
-  if acting or nearCount == 0 or not NZ.State.ready then return end
+  if acting or nearCount == 0 or not NZ.State.ready or Points.incapacitated() then return end
   local a = evaluate()
   if not a then return end
   perform(a.action, a.rec.location)
@@ -299,7 +388,7 @@ end
 
 local function targetCanInteract()
   return NZ.State.ready and not acting and not insideInterior() and not NZ.NUI.isOpen()
-    and GetVehiclePedIsIn(cache.ped, false) == 0
+    and GetVehiclePedIsIn(cache.ped, false) == 0 and not Points.incapacitated()
 end
 
 ---------------------------------------------------------------------------------------

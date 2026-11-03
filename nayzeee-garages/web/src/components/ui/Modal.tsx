@@ -107,7 +107,8 @@ export function Modal({
           downOnOverlay.current = e.target === e.currentTarget;
         }}
         onMouseUp={(e: MouseEvent) => {
-          if (downOnOverlay.current && e.target === e.currentTarget) requestClose();
+          // While closing, the panel is inert (CSS) and the overlay only swallows clicks.
+          if (!closing && downOnOverlay.current && e.target === e.currentTarget) requestClose();
           downOnOverlay.current = false;
         }}
       >

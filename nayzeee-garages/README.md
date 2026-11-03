@@ -15,6 +15,7 @@ admin panel. No config files to touch for day-to-day changes.
 |----------|-------|
 | [ox_lib](https://github.com/overextended/ox_lib) | required |
 | [oxmysql](https://github.com/overextended/oxmysql) | required |
+| OneSync | required (`set onesync on`): server-side entity checks, routing buckets, state bags |
 | qb-core / qbx_core / es_extended | one of them, started **before** this resource |
 | ox_target or qb-target | optional (target interaction mode + "Impound vehicle" option) |
 
@@ -34,6 +35,10 @@ admin panel. No config files to touch for day-to-day changes.
 4. In game, run `/garageadmin` and create your garages, impounds and interiors.
    Coming from qb-garages / qbx_garages? On the first start their locations are imported
    automatically (even if that resource is stopped); you can also use **Garages → Import**.
+   Their job and gang garages are imported as job / gang restricted *personal* garages
+   (members keep storing their own vehicles there, as before). Job / gang fleet garages
+   (job-owned vehicles) and spawner garages have to be built in `/garageadmin`. The
+   qbx_garages `shared` option (every member sees every car parked there) is not carried over.
 5. Stop your old garage resource. If a housing script relied on `qb-garages` events,
    nayzeee-garages already listens to them (see *Housing*).
 
@@ -70,7 +75,7 @@ The interface is pre-built in `web/dist`. To change it: `cd web && npm install &
 
 - `config/config.lua`: framework override, language, integrations, commands, keys,
   interaction ranges and the **default settings** written on first start.
-- `config/server.lua`: admin groups, Discord webhooks, database logging.
+- `config/server.lua`: admin groups, Discord webhooks, database logging (retention days, events to skip).
 - `config/interiors.lua`: IPL interior profiles available in the creator.
 - Everything else lives in **Admin panel → Settings** (vehicles, garages, transfers,
   impound, economy, interface: accent colour, image URL, units, currency...).

@@ -25,11 +25,14 @@ export const emptySearch: SearchState = { query: '', submitted: null, result: nu
 interface Props {
   state: SearchState;
   onQuery: (q: string) => void;
+  /** Run a new search with what is typed (Enter / Search button). */
   onSearch: (page: number) => void;
+  /** Another page of the current results: must reuse the submitted query, not what is typed. */
+  onPage: (page: number) => void;
   onOpen: (row: PlayerSearchRow) => void;
 }
 
-export function PlayerSearchView({ state, onQuery, onSearch, onOpen }: Props) {
+export function PlayerSearchView({ state, onQuery, onSearch, onPage, onOpen }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { result, submitted, loading } = state;
   const q = submitted ?? '';
@@ -138,7 +141,7 @@ export function PlayerSearchView({ state, onQuery, onSearch, onOpen }: Props) {
                 pageCount={pageCount}
                 total={result.total}
                 pageSize={result.pageSize}
-                onChange={(p) => onSearch(p)}
+                onChange={(p) => onPage(p)}
               />
             </div>
           )}

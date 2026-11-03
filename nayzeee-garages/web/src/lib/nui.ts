@@ -16,6 +16,13 @@ type MockHandler<K extends NuiCallbackName> = (
 
 const mocks = new Map<string, MockHandler<NuiCallbackName>>();
 
+/**
+ * Locale table from the `init` message, kept here so transport errors can be translated
+ * without importing i18n (i18n -> store -> nui would be an import cycle).
+ */
+let locale: Record<string, string> = {};
+const tr = (text: string): string => locale[text] ?? text;
+
 /** Register a browser-only mock answer for a NUI callback (dev harness only). */
 export function mockNui<K extends NuiCallbackName>(name: K, handler: MockHandler<K>) {
   mocks.set(name, handler as unknown as MockHandler<NuiCallbackName>);
@@ -49,7 +56,7 @@ export async function fetchNui<K extends NuiCallbackName>(name: K, data?: Req<K>
     if (isResult(json)) return json as ApiResult<Res<K>>;
     return { ok: true, data: (json ?? null) as Res<K> };
   } catch {
-    return { ok: false, error: 'Request failed' };
+    return { ok: false, error: tr('Request failed') };
   }
 }
 
@@ -81,6 +88,10 @@ const listeners = new Set<Listener>();
 window.addEventListener('message', (event: MessageEvent) => {
   const msg = event.data as NuiMessage | undefined;
   if (!msg || typeof msg !== 'object' || typeof (msg as { action?: unknown }).action !== 'string') return;
+  if (msg.action === 'init') {
+    const table: unknown = msg.data?.locale;
+    locale = table && typeof table === 'object' && !Array.isArray(table) ? (table as Record<string, string>) : {};
+  }
   listeners.forEach((fn) => fn(msg));
 });
 

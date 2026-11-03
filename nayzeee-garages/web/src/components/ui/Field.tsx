@@ -199,10 +199,16 @@ export function NumberInput({
   const [text, setText] = useState(() => (Number.isFinite(value) ? String(value) : ''));
   const focused = useRef(false);
   const dp = decimals(step);
+  // Enter runs the parent's handler only after the committed (clamped / rounded) value has
+  // re-rendered the parent, so the handler reads that value instead of a stale closure.
+  const onEnterRef = useRef(onEnter);
+  onEnterRef.current = onEnter;
+  const enterTimer = useRef<number>();
 
   useEffect(() => {
     if (!focused.current) setText(Number.isFinite(value) ? String(value) : '');
   }, [value]);
+  useEffect(() => () => window.clearTimeout(enterTimer.current), []);
 
   const clampN = (n: number) => {
     let v = n;
@@ -238,7 +244,10 @@ export function NumberInput({
       bump(-1, e.shiftKey ? 10 : 1);
     } else if (e.key === 'Enter') {
       commit(text);
-      onEnter?.();
+      if (onEnter) {
+        window.clearTimeout(enterTimer.current);
+        enterTimer.current = window.setTimeout(() => onEnterRef.current?.(), 0);
+      }
     }
   };
 

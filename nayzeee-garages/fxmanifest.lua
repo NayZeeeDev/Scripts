@@ -78,6 +78,7 @@ server_scripts {
 }
 
 dependencies {
+  '/onesync', -- server-side entity checks, routing buckets and state bags need OneSync
   'ox_lib',
   'oxmysql',
 }

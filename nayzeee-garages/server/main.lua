@@ -91,6 +91,24 @@ local function banner(failedSteps)
   lib.print.info(line)
 end
 
+--- nz_logs retention (ServerConfig.LogRetentionDays): prune shortly after start, then daily.
+local function startLogRetention()
+  local days = math.floor(tonumber(type(ServerConfig) == 'table' and ServerConfig.LogRetentionDays or nil) or 0)
+  if days <= 0 or type(NZ.DB.logs) ~= 'table' or type(NZ.DB.logs.prune) ~= 'function' then return end
+  CreateThread(function()
+    Wait(30000) -- let the server finish starting first
+    while true do
+      local ok, deleted = pcall(NZ.DB.logs.prune, days)
+      if not ok then
+        lib.print.warn(('nz_logs clean-up failed: %s'):format(tostring(deleted)))
+      elseif (tonumber(deleted) or 0) > 0 then
+        lib.print.info(('nz_logs clean-up: removed %s row(s) older than %d day(s)'):format(tostring(deleted), days))
+      end
+      Wait(24 * 60 * 60 * 1000)
+    end
+  end)
+end
+
 ---------------------------------------------------------------------------------------
 -- Boot
 ---------------------------------------------------------------------------------------
@@ -147,6 +165,7 @@ local function boot()
   end
 
   NZ.Ready = true
+  startLogRetention()
 
   -- Players already online (resource restart): push everything they need.
   TriggerClientEvent('nz:client:settings', -1, NZ.Settings.all())

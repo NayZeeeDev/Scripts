@@ -34,6 +34,7 @@ export function percent(n: number | null | undefined): number {
   return Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
 }
 
+// English month names are translation keys (t('September'), t('Sep')).
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3));
 
@@ -41,7 +42,7 @@ const MONTHS_SHORT = MONTHS.map((m) => m.slice(0, 3));
 export function date(unix: number | null | undefined): string {
   if (!unix) return '-';
   const d = new Date(unix * 1000);
-  return `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return t('{month} {day}, {year}', { month: t(MONTHS_SHORT[d.getMonth()]), day: d.getDate(), year: d.getFullYear() });
 }
 
 /** "September 25 at 12:30" */
@@ -50,7 +51,7 @@ export function dateTime(unix: number | null | undefined): string {
   const d = new Date(unix * 1000);
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
-  return t('{month} {day} at {time}', { month: MONTHS[d.getMonth()], day: d.getDate(), time: `${hh}:${mm}` });
+  return t('{month} {day} at {time}', { month: t(MONTHS[d.getMonth()]), day: d.getDate(), time: `${hh}:${mm}` });
 }
 
 /** "in 118h 40m" style duration from hours. */
@@ -59,8 +60,8 @@ export function hoursLabel(hours: number | null | undefined): string {
   const total = Math.max(0, Math.round(hours * 60));
   const h = Math.floor(total / 60);
   const m = total % 60;
-  if (h === 0) return `${m}m`;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  if (h === 0) return t('{m}m', { m });
+  return m ? t('{h}h {m}m', { h, m }) : t('{h}h', { h });
 }
 
 /** Seconds until a unix time (negative when in the past). */

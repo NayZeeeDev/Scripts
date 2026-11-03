@@ -10,6 +10,8 @@
   value. Nothing in the sandbox can reach natives, exports, events or the file system.
   Every location goes through NZ.Locations.save (normalized, logged, synced). Locations that
   already exist with the same name and kind are skipped.
+  Job and gang garages of those scripts hold each member's own vehicles, so they are imported
+  as job / gang restricted personal garages (kind 'garage'), not as job-owned fleets.
 ]]
 
 local Import = NZ.Import
@@ -232,7 +234,7 @@ local function blipOf(raw, kind)
 end
 
 --- Build a Location-like table from one garage entry of qb-garages / qbx_garages.
----@return table|nil location, string|nil reasonSkipped
+---@return table|nil location, string|nil reasonSkipped, string|nil note
 local function mapGarage(key, raw, forcedType)
   if not isTable(raw) then return nil, 'not a table' end
   local gtype = (str(forcedType) or str(raw.type) or 'public'):lower()
@@ -314,12 +316,18 @@ local function mapGarage(key, raw, forcedType)
     end
     if #rules == 0 then return nil, 'job garage without a job' end
     if owner == 'gang' and not NZ.Bridge.hasGangs then return nil, 'gangs are not supported' end
-    location.kind = 'job'
-    location.source = 'owned'
-    location.owner = owner
-    location.jobs = rules
+    -- qb-garages / qbx_garages job and gang garages hold the members' own vehicles
+    -- (player_vehicles rows owned by each player), not a job-owned fleet. Import them as
+    -- job / gang restricted personal garages; fleet garages are built in the admin panel.
+    location.kind = 'garage'
+    location.source = 'personal'
+    location.restriction = { type = owner, rules = rules }
     location.blip = blipOf(raw, 'job')
-    return location
+    local note = ('%s garage imported as a %s-restricted personal garage'):format(owner, owner)
+    if raw.shared == true then
+      note = note .. ' (shared visibility of every parked vehicle is not carried over)'
+    end
+    return location, nil, note
   end
 
   location.kind = 'garage'
@@ -461,8 +469,8 @@ function Import.run(source, text, src)
     local entries, err = readResource(source, files)
     if not entries then return nil, err end
     for _, entry in ipairs(entries) do
-      local location, reason = mapGarage(entry.key, entry.raw, entry.forcedType)
-      candidates[#candidates + 1] = { location = location, reason = reason, key = entry.key }
+      local location, reason, note = mapGarage(entry.key, entry.raw, entry.forcedType)
+      candidates[#candidates + 1] = { location = location, reason = reason, key = entry.key, note = note }
     end
   end
 
@@ -472,7 +480,7 @@ function Import.run(source, text, src)
     seen[dedupeKey(location.name, location.kind)] = true
   end
 
-  local imported, skipped, reasons = 0, 0, {}
+  local imported, skipped, reasons, notes = 0, 0, {}, {}
   for i, candidate in ipairs(candidates) do
     local location = candidate.location
     if i > MAX_ITEMS then
@@ -494,6 +502,9 @@ function Import.run(source, text, src)
         if saved then
           seen[dkey] = true
           imported = imported + 1
+          if candidate.note then
+            notes[#notes + 1] = ('%s: %s'):format(tostring(location.name), candidate.note)
+          end
         else
           skipped = skipped + 1
           reasons[#reasons + 1] = ('%s: %s'):format(tostring(location.name), tostring(saveErr))
@@ -505,6 +516,10 @@ function Import.run(source, text, src)
   if #reasons > 0 then
     lib.print.info(('import from %s skipped %d entr%s: %s'):format(source, #reasons, #reasons == 1 and 'y' or 'ies',
       table.concat(reasons, '; ', 1, math.min(#reasons, 20))))
+  end
+  if #notes > 0 then
+    lib.print.info(('import from %s: %s. Job / gang fleet garages are created in the admin panel.'):format(source,
+      table.concat(notes, '; ', 1, math.min(#notes, 20))))
   end
   return { imported = imported, skipped = skipped }, nil
 end

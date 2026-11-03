@@ -5,13 +5,15 @@
  * tab while searching), Discard and a teal Save (disabled until something changed; a dot marks
  * unsaved changes). Save → admin:settings:save { settings } → toast + setData with the saved
  * settings (Lua also pushes the interface part to every NUI, re-theming the accent).
- * Escape with unsaved changes asks before closing the panel; Enter in a field saves.
+ * With unsaved changes, leaving asks first ("Discard unsaved changes?"): Escape, the window's
+ * Close pill, the sidebar and shell.go all go through `settingsLeaveGuard` (AdminApp), because
+ * the admin shell keys pages by name and leaving Settings unmounts it (the draft is lost).
+ * Enter in a field saves.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, ConfirmDialog, EmptyState, Icon, Kbd, OptionRow, SearchInput, Tabs, cx } from '@/components/ui';
 import { request } from '@/lib/nui';
-import { toast, useApp, useSettings } from '@/lib/store';
-import { useEscape } from '@/lib/escape';
+import { toast, useSettings } from '@/lib/store';
 import { t } from '@/lib/i18n';
 import type { AdminPageProps, Settings } from '@/lib/types';
 import { useAdminShell } from '../shared/shell';
@@ -24,6 +26,14 @@ import { devHint } from '../vehicles/devHint';
 import '../settings/settings.css';
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/**
+ * Leave guard read by the admin shell (AdminApp). Set while Settings has unsaved changes. The
+ * shell calls it instead of switching page / closing the panel; it opens the "Discard unsaved
+ * changes?" dialog and runs `proceed` only when the admin confirms. Null: leave right away.
+ */
+export const settingsLeaveGuard: { current: ((proceed: () => void, closing: boolean) => void) | null } = { current: null };
+
 const TAB_KEY = 'nz-admin-settings-tab';
 
 function readTab(): TabId | null {
@@ -63,7 +73,6 @@ interface Match {
 
 export function SettingsPage({ data, setData }: AdminPageProps) {
   const shell = useAdminShell();
-  const app = useApp('admin');
   const iface = useSettings();
   const [hint] = useState(() => devHint(data));
   const [tab, setTab] = useState<TabId>(() => (TABS.some((x) => x.id === hint.tab) ? (hint.tab as TabId) : readTab() ?? 'vehicles'));
@@ -71,7 +80,11 @@ export function SettingsPage({ data, setData }: AdminPageProps) {
   const [base, setBase] = useState<Settings>(() => clone(data.settings));
   const [draft, setDraft] = useState<Settings>(() => clone(data.settings));
   const [saving, setSaving] = useState(false);
-  const [leave, setLeave] = useState(false);
+  /** Pending "leave" (another page or closing the panel) waiting for the discard confirmation. */
+  const [leave, setLeave] = useState<{ proceed: () => void; closing: boolean } | null>(null);
+  // The dialog text stays put while it fades out after Cancel.
+  const leaveClosing = useRef(true);
+  if (leave) leaveClosing.current = leave.closing;
 
   // Settings changed elsewhere (refresh, another admin) while nothing is being edited.
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(base), [draft, base]);
@@ -127,7 +140,19 @@ export function SettingsPage({ data, setData }: AdminPageProps) {
 
   const discard = () => setDraft(clone(base));
 
-  useEscape(() => setLeave(true), dirty && !shell.hidden && !leave);
+  // While something is unsaved the shell asks before leaving (sidebar, shell.go, Close pill,
+  // Escape). Nothing unsaved any more (saved with Ctrl+S, discarded): drop a pending question.
+  useEffect(() => {
+    if (!dirty) {
+      setLeave(null);
+      return;
+    }
+    const guard = (proceed: () => void, closing: boolean) => setLeave({ proceed, closing });
+    settingsLeaveGuard.current = guard;
+    return () => {
+      if (settingsLeaveGuard.current === guard) settingsLeaveGuard.current = null;
+    };
+  }, [dirty]);
 
   // Ctrl/Cmd + S saves from anywhere on the page.
   useEffect(() => {
@@ -319,18 +344,23 @@ export function SettingsPage({ data, setData }: AdminPageProps) {
       )}
 
       <ConfirmDialog
-        open={leave && !shell.hidden}
+        open={!!leave && !shell.hidden}
         tone="red"
         icon="warning"
         title={t('Discard unsaved changes?')}
-        message={t('You changed {n} setting(s). Close the admin panel without saving them?', { n: changed.size })}
-        confirmLabel={t('Close without saving')}
+        message={
+          !leaveClosing.current
+            ? t('You changed {n} setting(s). Leave Settings without saving them?', { n: changed.size })
+            : t('You changed {n} setting(s). Close the admin panel without saving them?', { n: changed.size })
+        }
+        confirmLabel={leaveClosing.current ? t('Close without saving') : t('Leave without saving')}
         cancelLabel={t('Keep editing')}
         onConfirm={() => {
-          setLeave(false);
-          app.close();
+          const proceed = leave?.proceed;
+          setLeave(null);
+          proceed?.();
         }}
-        onCancel={() => setLeave(false)}
+        onCancel={() => setLeave(null)}
       />
     </div>
   );

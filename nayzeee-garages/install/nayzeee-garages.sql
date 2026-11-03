@@ -87,7 +87,8 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `nz_logs_plate` (`plate`),
-  KEY `nz_logs_event` (`event`)
+  KEY `nz_logs_event` (`event`),
+  KEY `nz_logs_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Extension columns added to the framework vehicle table
@@ -107,6 +108,12 @@ CREATE TABLE IF NOT EXISTS `nz_logs` (
 --   nz_blocked   TINYINT(1)   NOT NULL DEFAULT 0
 --   nz_last_out  INT          NULL       unix time the vehicle was last taken out
 --   nz_finance_total INT      NULL       total number of finance payments (progress display)
+--   nz_plate_norm VARCHAR(64) VIRTUAL    LEFT(UPPER(TRIM(plate)), 64), optional (a failure
+--                                         to create it is only a warning)
+--
+-- Indexes added when missing:
+--   nz_idx_plate_norm (nz_plate_norm)    fast lookups of plates with odd spacing / case
+--   nz_idx_fw_state   (state | pound)    impound staff list (qb `state` / ESX `pound`)
 --
 -- Example for QBCore / Qbox (MariaDB syntax):
 -- ALTER TABLE `player_vehicles`

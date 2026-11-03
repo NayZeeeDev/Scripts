@@ -120,7 +120,8 @@ local TABLES = {
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `nz_logs_plate` (`plate`),
-    KEY `nz_logs_event` (`event`)
+    KEY `nz_logs_event` (`event`),
+    KEY `nz_logs_created` (`created_at`)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
 }
 
@@ -141,8 +142,18 @@ local EXT_COLUMNS = {
   { 'nz_finance_total', 'INT NULL DEFAULT NULL' }, -- total number of finance payments (progress display)
 }
 
+-- Optional extension columns: the resource works without them (MySQL < 5.7 / MariaDB < 10.2
+-- cannot create them), so a failure is only a warning.
+--   nz_plate_norm  normalized plate (UPPER(TRIM(plate))), indexed below, so lookups of a
+--                  plate stored with odd spacing / case (and lookups of plates that do not
+--                  exist at all) do not scan the whole table. Virtual: never written by anyone.
+local OPTIONAL_COLUMNS = {
+  { 'nz_plate_norm', 'VARCHAR(64) GENERATED ALWAYS AS (LEFT(UPPER(TRIM(`plate`)), 64)) VIRTUAL' },
+}
+
 -- Indexes on the vehicle table. Created only when no index already starts with the column.
 -- plate / owner normally exist already (framework schema); they are checked for safety.
+-- The framework state columns back the impound queries (see NZ.DB.getImpounded).
 local INDEXES = {
   { name = 'nz_idx_plate', column = 'plate' },
   { name = 'nz_idx_owner', column = isEsx and 'owner' or 'citizenid' },
@@ -150,6 +161,13 @@ local INDEXES = {
   { name = 'nz_idx_state', column = 'nz_state' },
   { name = 'nz_idx_job', column = 'nz_job' },
   { name = 'nz_idx_gang', column = 'nz_gang' },
+  { name = 'nz_idx_plate_norm', column = 'nz_plate_norm' },
+  { name = 'nz_idx_fw_state', column = isEsx and 'pound' or 'state' },
+}
+
+-- Indexes on nz_* tables created before they existed in the CREATE TABLE statements above.
+local TABLE_INDEXES = {
+  { table = 'nz_logs', name = 'nz_logs_created', column = 'created_at' },
 }
 
 ---------------------------------------------------------------------------------------
@@ -271,6 +289,50 @@ local function addColumns(cols)
   return added
 end
 
+--- OPTIONAL_COLUMNS: failures are reported as a warning only (the resource works without).
+local function addOptionalColumns(cols)
+  local added = 0
+  for _, def in ipairs(OPTIONAL_COLUMNS) do
+    local name, definition = def[1], def[2]
+    if not cols[name] and cols.plate then
+      local sql = ('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(DB.vehicleTable, name, definition)
+      local ok, err = pcall(MySQL.query.await, sql, {})
+      if ok then
+        cols[name] = true
+        added = added + 1
+      else
+        lib.print.warn(('[db] optional column %s.%s could not be added (continuing without it): %s')
+          :format(DB.vehicleTable, name, tostring(err)))
+      end
+    end
+  end
+  return added
+end
+
+--- TABLE_INDEXES: indexes added to nz_* tables of existing installs.
+local function addTableIndexes()
+  local added, byTable = 0, {}
+  for _, idx in ipairs(TABLE_INDEXES) do
+    local info = byTable[idx.table]
+    if info == nil then
+      local leading, names = readIndexes(idx.table)
+      info = leading and { leading = leading, names = names } or false
+      byTable[idx.table] = info
+    end
+    if info and not info.leading[idx.column] and not info.names[idx.name] then
+      local sql = ('ALTER TABLE `%s` ADD INDEX `%s` (`%s`)'):format(idx.table, idx.name, idx.column)
+      local _, ok = run('query', sql)
+      if ok then
+        added = added + 1
+      else
+        lib.print.warn(('[db] could not add index %s on %s.%s (continuing without it)')
+          :format(idx.name, idx.table, idx.column))
+      end
+    end
+  end
+  return added
+end
+
 local function addIndexes(cols)
   local leading, names = readIndexes(DB.vehicleTable)
   if not leading then return 0 end
@@ -377,7 +439,8 @@ function DB.migrate()
       :format(DB.vehicleTable, table.concat(missing, ', ')))
   end
 
-  local indexes = addIndexes(cols)
+  added = added + addOptionalColumns(cols)
+  local indexes = addIndexes(cols) + addTableIndexes()
   backfill(cols)
 
   local usable = DB.loadSchema(true)

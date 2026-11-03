@@ -233,9 +233,9 @@ export function CreatorApp() {
             const i = tabs.findIndex((x) => x.value === tab);
             const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
             setTab(next.value);
-            requestAnimationFrame(() =>
-              (e.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus(),
-            );
+            // React clears e.currentTarget after dispatch: capture the list before the rAF.
+            const list = e.currentTarget;
+            requestAnimationFrame(() => list.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
           }}
         >
           {tabs.map((x) => {

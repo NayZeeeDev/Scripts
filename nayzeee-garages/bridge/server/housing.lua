@@ -5,7 +5,8 @@
   'H' .. houseId). This module
     - loads them from qb-houses (houselocations + player_houses) and ps-housing
       (properties) when those resources run and Config.Integrations.housing allows it,
-      refreshing every 5 minutes and when a client asks ('nz:housing:refresh');
+      refreshing every 5 minutes and when a client asks ('nz:housing:refresh', at most
+      one database reload per minute for those; changes are pushed afterwards);
     - backs the RegisterHouseGarage / RemoveHouseGarage / SetHouseAccess exports;
     - keeps who may use each house garage (owners + key holders) and answers
       hasAccess / viewsFor;
@@ -18,7 +19,8 @@ local Housing = NZ.Housing
 local Utils = NZ.Utils
 
 local REFRESH_MS = 5 * 60 * 1000   -- periodic reload of the housing tables
-local MIN_RELOAD_MS = 10000        -- reloads requested by clients are throttled globally
+local MIN_RELOAD_MS = 10000        -- minimum gap between two reloads (any trigger)
+local CLIENT_RELOAD_MS = 60000     -- minimum gap before a client request reloads the tables
 local PUSH_DELAY_MS = 500          -- coalesce change pushes
 local LOAD_WAIT_MS = 10000         -- max wait for a reload already running
 local CLIENT_RATE_MS = 2000        -- per player rate limit of the refresh callback
@@ -444,7 +446,9 @@ end
 
 --- Reload now when allowed, otherwise schedule one trailing reload.
 ---@param wait boolean wait for the reload (or one already running) to finish
-local function requestReload(wait)
+---@param minGap number|nil minimum ms since the last reload (default MIN_RELOAD_MS)
+local function requestReload(wait, minGap)
+  minGap = math.max(MIN_RELOAD_MS, tonumber(minGap) or MIN_RELOAD_MS)
   if loading then
     if wait then
       local deadline = GetGameTimer() + LOAD_WAIT_MS
@@ -454,7 +458,7 @@ local function requestReload(wait)
   end
   local now = GetGameTimer()
   local since = lastLoadAt and (now - lastLoadAt) or math.huge
-  if since >= MIN_RELOAD_MS then
+  if since >= minGap then
     if wait then
       reload()
     else
@@ -464,7 +468,7 @@ local function requestReload(wait)
   end
   if trailingReload then return end
   trailingReload = true
-  SetTimeout(MIN_RELOAD_MS - since, function()
+  SetTimeout(minGap - since, function()
     trailingReload = false
     reload()
   end)
@@ -612,10 +616,13 @@ lib.callback.register('nz:housing:refresh', Utils.safe(function(source)
   if not src or src <= 0 then return Utils.fail(L('Invalid request')) end
   if not booted or NZ.Ready == false then return Utils.fail(L('Garages are still loading')) end
 
+  -- Client requests reload the housing tables at most once per CLIENT_RELOAD_MS (a keyed house
+  -- without a garage keeps asking). Otherwise answer from memory; the trailing reload pushes
+  -- any change ('nz:client:houses').
   if NZ.Access.rateLimit(src, 'housing:refresh', CLIENT_RATE_MS) then
-    requestReload(true)
+    requestReload(true, CLIENT_RELOAD_MS)
   else
-    requestReload(false)
+    requestReload(false, CLIENT_RELOAD_MS)
   end
 
   local identifier = identifierOf(src)

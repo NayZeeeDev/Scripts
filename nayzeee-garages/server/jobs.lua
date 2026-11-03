@@ -539,7 +539,7 @@ local function uniquePlate(template)
     if use and attempt > 1 and not hasWildcard(use) then use = nil end
     local candidate = Utils.plate(Utils.generatePlate(use))
     if candidate and #candidate <= MAX_PLATE_LENGTH and not Jobs.active[candidate]
-      and not outEntry(candidate) and not NZ.DB.plateExists(candidate) then
+      and not outEntry(candidate) and not NZ.DB.plateExists(candidate, true) then
       return candidate
     end
   end
@@ -587,6 +587,10 @@ register('nz:garage:spawner', function(src, payload)
   end
   local session, err = NZ.Access.requireSession(src, maxDistance())
   if not session then return fail(err or L('The garage is not open')) end
+  -- The ped would be warped into the vehicle: not while dead, downed, cuffed or escorted.
+  if type(NZ.Vehicles.incapacitated) == 'function' and NZ.Vehicles.incapacitated(src) then
+    return fail(L('You cannot do that right now'))
+  end
   local location = session.location
   if not isSpawnerLocation(location) or type(location.spawner) ~= 'table' then
     return fail(L('This garage has no vehicles to take out'))

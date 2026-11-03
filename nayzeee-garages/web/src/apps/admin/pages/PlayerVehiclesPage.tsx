@@ -50,7 +50,9 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
       setSearch((s) => ({
         ...s,
         loading: false,
-        submitted: q,
+        // A failed search keeps the previous results, so they keep their query (pagination
+        // and highlighting use it).
+        submitted: res.ok ? q : s.submitted,
         result: res.ok ? res.data : s.result,
         error: res.ok ? null : res.error,
       }));
@@ -128,6 +130,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
           state={search}
           onQuery={(query) => setSearch((s) => ({ ...s, query }))}
           onSearch={(page) => void runSearch(page)}
+          onPage={(page) => void runSearch(page, search.submitted ?? '')}
           onOpen={openPlayer}
         />
       )}

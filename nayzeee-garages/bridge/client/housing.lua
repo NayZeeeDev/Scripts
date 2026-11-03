@@ -17,6 +17,10 @@ local MIN_INTERVAL_MS = 4000  -- at most one refresh request per interval
 
 local pending = false
 local lastRequestAt = -MIN_INTERVAL_MS
+-- 'house:hasKey' pairs already refreshed for. A keyed house without a garage never becomes
+-- known, so without this every setHouseGarage event for it would ask for a reload again.
+-- Cleared whenever the house list or the housing garages change.
+local checked = {}
 
 ---------------------------------------------------------------------------------------
 -- State
@@ -64,6 +68,7 @@ local function applyViews(views)
   end
   local changed = fingerprint(map) ~= fingerprint(NZ.State.houses)
   NZ.State.houses = map
+  if changed then checked = {} end
   if not changed or not NZ.State.ready then return end
   if type(NZ.Points.rebuild) ~= 'function' then return end
   local ok, err = pcall(NZ.Points.rebuild)
@@ -127,17 +132,33 @@ RegisterNetEvent('qb-garages:client:setHouseGarage', function(house, hasKey)
   local known = knownHouse(house)
   if hasKey == true and known then return end
   if hasKey == false and not known then return end
+  -- Ask once per house and key state until something changes (see `checked`).
+  local key = tostring(house) .. ':' .. tostring(hasKey)
+  if checked[key] then return end
+  checked[key] = true
   scheduleRefresh()
 end)
 
 RegisterNetEvent('qb-garages:client:houseGarageConfig', function()
+  checked = {}
   scheduleRefresh()
 end)
 
 RegisterNetEvent('qb-garages:client:addHouseGarage', function()
+  checked = {}
   scheduleRefresh()
 end)
 
 RegisterNetEvent('qb-garages:client:removeHouseGarage', function()
+  checked = {}
   scheduleRefresh()
+end)
+
+-- Another character may hold other keys.
+AddEventHandler('nz:client:playerLoaded', function()
+  checked = {}
+end)
+
+AddEventHandler('nz:client:playerUnloaded', function()
+  checked = {}
 end)

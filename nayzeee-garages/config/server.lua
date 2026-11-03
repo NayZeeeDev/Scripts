@@ -20,6 +20,13 @@ ServerConfig.Webhooks = {
 -- Also write logs into the `nz_logs` table (searchable history).
 ServerConfig.DatabaseLogs = true
 
+-- Delete `nz_logs` rows older than this many days (at start, then once a day). 0 = keep forever.
+ServerConfig.LogRetentionDays = 90
+
+-- Events never written to `nz_logs` (console / Discord are unchanged), e.g. the high-volume
+-- { ['vehicle.retrieve'] = true, ['vehicle.store'] = true, ['security.rateLimit'] = true }.
+ServerConfig.DatabaseLogSkip = {}
+
 -- Finance payment interval in hours used when a player pays an instalment from the garage
 -- menu. nil = read PaymentInterval from a running qbx_vehicleshop / qb-vehicleshop, else 24.
 ServerConfig.FinanceIntervalHours = nil

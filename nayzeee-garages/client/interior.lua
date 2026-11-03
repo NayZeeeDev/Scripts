@@ -15,8 +15,15 @@ local LOOP_IDLE = 250
 local EXIT_DISTANCE = 12.0      -- exit marker visible from here
 local EXIT_RADIUS = 1.5         -- "Leave garage" prompt radius
 local EXIT_ARM_MS = 2000        -- the exit (often == entry) arms shortly after arriving
-local FAR_DISTANCE = 250.0      -- teleported away (admin, respawn): leave the instance
+local AWAY_MARGIN_XY = 30.0     -- teleported away (admin, respawn): this far (horizontally) or
+local AWAY_MARGIN_Z = 15.0      -- this far (vertically) outside the entry / exit / slots area
+local AWAY_CONFIRM_MS = 2000    -- ... for this long: leave the instance where they are
 local DRIVE_LOCK_MS = 3000      -- after a refused drive out
+local RETURN_KVP = 'nz_interior_return' -- { entry, returnTo, identifier, at } while inside
+local CREATOR_KVP = 'nz_creator_return'  -- same, while the interior creator is open
+local RESCUE_RADIUS = 60.0      -- spawned this close to a saved interior entry: take them out
+local RESCUE_WINDOW_MS = 60000  -- how long after the character loads (spawn selection, etc.)
+local RESCUE_MAX_AGE = 30 * 24 * 3600
 local ACCELERATE = 71
 local UNARMED = joaat('WEAPON_UNARMED')
 local MELEE_FLAG = 122          -- CPED_CONFIG_FLAG_DisableMelee
@@ -25,6 +32,7 @@ local ROLE_ORDER = { owner = 1, member = 2, guest = 3 }
 
 local state = nil               -- the interior the player is in (see newState)
 local entering = false
+local transition = { frozen = nil, faded = false } -- undone when the resource stops mid-way
 local panelKeybind = nil
 local exitKeybind = nil
 
@@ -65,6 +73,7 @@ local function hasHeading(coords)
 end
 
 local function fadeOut(ms)
+  transition.faded = true
   if IsScreenFadedOut() then return end
   DoScreenFadeOut(ms or FADE_MS)
   local deadline = GetGameTimer() + (ms or FADE_MS) + 1500
@@ -72,7 +81,77 @@ local function fadeOut(ms)
 end
 
 local function fadeIn(ms)
+  transition.faded = false
   if IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(ms or FADE_MS) end
+end
+
+local function incapacitated()
+  return type(NZ.Points.incapacitated) == 'function' and NZ.Points.incapacitated() == true
+end
+
+--- Horizontal / vertical distance of `pos` outside the box around the interior's entry,
+--- exit and vehicle slots (0 inside). Built once per visit.
+local function outsideBounds(s, pos)
+  local b = s.bounds
+  if not b then
+    b = { minX = math.huge, minY = math.huge, minZ = math.huge, maxX = -math.huge, maxY = -math.huge, maxZ = -math.huge }
+    local function grow(p)
+      if not p then return end
+      b.minX, b.maxX = math.min(b.minX, p.x), math.max(b.maxX, p.x)
+      b.minY, b.maxY = math.min(b.minY, p.y), math.max(b.maxY, p.y)
+      b.minZ, b.maxZ = math.min(b.minZ, p.z), math.max(b.maxZ, p.z)
+    end
+    grow(s.entry)
+    grow(Utils.v3(s.interior.exit))
+    for i = 1, #s.slotList do grow(s.slotList[i]) end
+    s.bounds = b
+  end
+  local dx = math.max(b.minX - pos.x, 0.0, pos.x - b.maxX)
+  local dy = math.max(b.minY - pos.y, 0.0, pos.y - b.maxY)
+  local below = b.minZ - pos.z
+  local above = pos.z - b.maxZ
+  return math.sqrt(dx * dx + dy * dy), math.max(below, above, 0.0), below > 0
+end
+
+---------------------------------------------------------------------------------------
+-- "Inside" marker: a crash / logout inside saves the interior position as the character's
+-- position; the next login takes the character back out (see rescue below).
+---------------------------------------------------------------------------------------
+
+local function saveMarker(key, entry, returnTo)
+  entry, returnTo = Utils.v3(entry), Utils.v4(returnTo)
+  if not entry or not returnTo then
+    DeleteResourceKvp(key)
+    return
+  end
+  local identifier = NZ.Bridge.getIdentifier()
+  local ok, encoded = pcall(json.encode, {
+    entry = { x = entry.x, y = entry.y, z = entry.z },
+    returnTo = { x = returnTo.x, y = returnTo.y, z = returnTo.z, w = returnTo.w },
+    identifier = type(identifier) == 'string' and identifier or nil,
+    at = tonumber(GetCloudTimeAsInt()) or 0,
+  })
+  if ok and type(encoded) == 'string' then SetResourceKvp(key, encoded) end
+end
+
+local function rememberInside(s)
+  saveMarker(RETURN_KVP, s.entry, s.returnTo)
+end
+
+local function forgetInside()
+  DeleteResourceKvp(RETURN_KVP)
+end
+
+--- Interior creator: keep (entry = where the admin is working, returnTo = where the editor
+--- was opened) or clear (nil) its marker, rescued on the next login like a garage visit.
+---@param entry table|nil
+---@param returnTo table|nil
+function Interior.creatorMarker(entry, returnTo)
+  if entry == nil then
+    DeleteResourceKvp(CREATOR_KVP)
+  else
+    saveMarker(CREATOR_KVP, entry, returnTo)
+  end
 end
 
 local function keyLabel(keybind, fallback)
@@ -158,6 +237,7 @@ function Interior.teleport(coords, opts)
   end
   if withHeading then SetEntityHeading(target, c.w + 0.0) end
 
+  transition.frozen = target
   FreezeEntityPosition(target, true)
   local deadline = GetGameTimer() + COLLISION_TIMEOUT
   while not HasCollisionLoadedAroundEntity(target) and GetGameTimer() < deadline do
@@ -165,9 +245,10 @@ function Interior.teleport(coords, opts)
     Wait(50)
   end
   FreezeEntityPosition(target, false)
+  if transition.frozen == target then transition.frozen = nil end
   if target == vehicle then SetVehicleOnGroundProperly(vehicle) end
 
-  if fade then DoScreenFadeIn(FADE_MS) end
+  if fade then fadeIn(FADE_MS) end
   return true
 end
 
@@ -661,6 +742,7 @@ function Interior.leave(exitCoords, opts)
   if teleport then fadeOut(FADE_MS) end
   clearLocal(s)
   if teleport then Interior.teleport(target, { fade = false }) end
+  forgetInside()
   fadeIn(FADE_MS)
   return true
 end
@@ -669,7 +751,7 @@ end
 -- Drive out
 ---------------------------------------------------------------------------------------
 
-local function spawnReal(data, info, hash)
+local function spawnReal(data, info, hash, progress)
   local src = type(data.vehicle) == 'table' and data.vehicle or {}
   local opts = {}
   for k, v in pairs(src) do opts[k] = v end
@@ -690,6 +772,7 @@ local function spawnReal(data, info, hash)
 
   -- Stream the area in first (a server-created vehicle must reach this client).
   Interior.teleport(opts.coords, { fade = false })
+  progress.teleported = true
   local ok, vehicle = pcall(NZ.Veh.spawn, opts)
   if not ok then
     lib.print.error(('[nayzeee-garages] drive out spawn failed: %s'):format(vehicle))
@@ -726,8 +809,15 @@ local function driveOut(s, rec)
   s.leaving = true
   fadeOut(FADE_MS)
   clearLocal(s)
-  local ok, err = pcall(spawnReal, type(res.data) == 'table' and res.data or {}, info, hash)
+  local progress = { teleported = false }
+  local ok, err = pcall(spawnReal, type(res.data) == 'table' and res.data or {}, info, hash, progress)
   if not ok then lib.print.error(('[nayzeee-garages] drive out failed: %s'):format(err)) end
+  -- The server already took the player out of the instance: never leave them in the
+  -- (public) copy of the interior when the spawn could not move them.
+  if not progress.teleported and s.returnTo then
+    pcall(Interior.teleport, s.returnTo, { fade = false })
+  end
+  forgetInside()
   fadeIn(FADE_MS)
 end
 
@@ -741,7 +831,7 @@ local function driverLoop(s, vehicle, rec)
     and GetPedInVehicleSeat(vehicle, -1) == ped do
     DisablePlayerFiring(PlayerId(), true)
     if IsDisabledControlPressed(0, ACCELERATE) then
-      if not s.needRelease and GetGameTimer() >= s.lockUntil and not NZ.NUI.isOpen() then
+      if not s.needRelease and GetGameTimer() >= s.lockUntil and not NZ.NUI.isOpen() and not incapacitated() then
         setPrompt(s, 'drivePrompt', nil)
         driveOut(s, rec)
         return
@@ -773,10 +863,30 @@ local function startLoop(s)
       enforceUnarmed(ped)
 
       if s.inside and not s.busy and not s.leaving and GetGameTimer() >= s.farRetryAt then
-        if Utils.dist(GetEntityCoords(ped), s.entry) > FAR_DISTANCE then
-          -- Teleported away (admin command, respawn): leave the instance where they are.
-          s.farRetryAt = GetGameTimer() + 10000
-          CreateThread(function() Interior.leave(nil, { teleport = false }) end)
+        local pos = Utils.v3(GetEntityCoords(ped))
+        local xy, z, below = 0.0, 0.0, false
+        -- Still in the GTA interior of the entry (any room / floor of a large garage): inside.
+        local here = s.gtaInterior ~= nil and s.gtaInterior ~= 0
+          and (math.tointeger(tonumber(GetInteriorFromEntity(ped))) or 0) == s.gtaInterior
+        if pos and not here then xy, z, below = outsideBounds(s, pos) end
+        if xy > AWAY_MARGIN_XY or z > AWAY_MARGIN_Z then
+          local now = GetGameTimer()
+          s.awaySince = s.awaySince or now
+          if now - s.awaySince >= AWAY_CONFIRM_MS then
+            s.awaySince = nil
+            s.farRetryAt = now + 10000
+            if below and xy <= AWAY_MARGIN_XY then
+              -- Fell through the floor (collision streamed in late): back to the entry.
+              CreateThread(function()
+                if alive(s) and not s.busy and not s.leaving then Interior.teleport(s.entry) end
+              end)
+            else
+              -- Teleported away (admin bring / tp, respawn): leave the instance where they are.
+              CreateThread(function() Interior.leave(nil, { teleport = false }) end)
+            end
+          end
+        else
+          s.awaySince = nil
         end
       end
 
@@ -893,6 +1003,7 @@ local function playCutscene(s)
   if not cut or cut.enabled ~= true or type(cut.points) ~= 'table' or #cut.points == 0 then return end
   local ped = PlayerPedId()
   s.busy = true
+  transition.frozen = ped
   FreezeEntityPosition(ped, true)
   NZ.Camera.playPath(cut.points, tonumber(cut.transition) or 3000, {
     returnTime = tonumber(cut.returnTime) or 1000,
@@ -900,6 +1011,7 @@ local function playCutscene(s)
     onStart = function() DoScreenFadeIn(FADE_MS) end,
   })
   FreezeEntityPosition(ped, false)
+  if transition.frozen == ped then transition.frozen = nil end
   s.busy = false
 end
 
@@ -924,6 +1036,13 @@ local function doEnter(data, entry)
   end
   Interior.teleport(entry, { fade = false })
   if not alive(s) then return false end
+  rememberInside(s)
+  -- GTA interior of the entry (0 = none, e.g. an outdoor spot): see startLoop's away check.
+  local gtaInterior = math.tointeger(tonumber(GetInteriorFromEntity(PlayerPedId()))) or 0
+  if gtaInterior == 0 then
+    gtaInterior = math.tointeger(tonumber(GetInteriorAtCoords(entry.x + 0.0, entry.y + 0.0, entry.z + 0.0))) or 0
+  end
+  s.gtaInterior = gtaInterior
 
   lockWeapons(PlayerPedId())
   reconcile(s)
@@ -971,6 +1090,16 @@ function Interior.enter(data)
   if s and alive(s) and s.inside and data.instanceKey ~= nil and s.instanceKey == data.instanceKey then
     applySync(s, data)
     return true
+  end
+  if incapacitated() then
+    -- The server already moved the player to the instance's routing bucket: undo that.
+    NZ.NUI.notify('error', L('You cannot do that right now'))
+    if s and alive(s) then
+      CreateThread(function() Interior.leave() end)
+    else
+      await('nz:interior:leave', {})
+    end
+    return false
   end
 
   entering = true
@@ -1022,15 +1151,29 @@ RegisterNetEvent('nz:client:interior:invite', function(payload)
   CreateThread(function()
     local from = cleanName(payload.fromName, L('Someone'))
     local garage = cleanName(payload.garageName, L('their garage'))
-    local answer = lib.alertDialog({
+    local dialog = {
       header = L('Garage invitation'),
       content = L('{name} invited you to {garage}.', { name = from, garage = garage }),
       centered = true,
       cancel = true,
       labels = { confirm = L('Accept'), cancel = L('Decline') },
-    })
+    }
+    -- Waits while another alert dialog is open (ox_lib shows one at a time); invitations
+    -- are valid for 60 s on the server.
+    local answer
+    if type(NZ.Garage.alert) == 'function' then
+      answer = NZ.Garage.alert(dialog, 55)
+    else
+      answer = lib.alertDialog(dialog)
+    end
     if type(NZ.NUI.syncFocus) == 'function' then NZ.NUI.syncFocus() end
+    -- Never answered: let it expire (the server tells the inviter); only "Decline" declines.
+    if answer ~= 'confirm' and answer ~= 'cancel' then return end
     local accept = answer == 'confirm'
+    if accept and incapacitated() then
+      NZ.NUI.notify('error', L('You cannot do that right now'))
+      return
+    end
     local res = await('nz:interior:inviteRespond', { inviteId = payload.inviteId, accept = accept })
     if not res.ok then
       NZ.NUI.notify('error', res.error)
@@ -1050,17 +1193,87 @@ RegisterNetEvent('nz:client:interior:kicked', function(payload)
   CreateThread(function()
     s.busy = true
     s.leaving = true
-    fadeOut(FADE_MS)
-    local target = (type(payload) == 'table' and Utils.v4(payload.returnTo)) or s.returnTo
+    -- `stay`: the server saw the player far away from the interior (teleported): only
+    -- forget the visit, do not move them back to the garage.
+    local stay = type(payload) == 'table' and payload.stay == true
+    local target = nil
+    if not stay then target = (type(payload) == 'table' and Utils.v4(payload.returnTo)) or s.returnTo end
+    if target then fadeOut(FADE_MS) end
     clearLocal(s)
     if target then Interior.teleport(target, { fade = false }) end
+    forgetInside()
     fadeIn(FADE_MS)
-    NZ.NUI.notify('info', L('You were removed from the garage'))
+    if not stay then NZ.NUI.notify('info', L('You were removed from the garage')) end
   end)
 end)
 
 AddEventHandler('nz:client:playerUnloaded', function()
-  if state then clearLocal(state) end
+  local s = state
+  if not s then return end
+  local target = (s.inside or entering) and s.returnTo or nil
+  clearLocal(s)
+  -- Best effort: put the character outside before the framework saves its position. The
+  -- marker stays, so the next login still takes it out when the save came first.
+  if target then
+    local ped = PlayerPedId()
+    if GetVehiclePedIsIn(ped, false) ~= 0 then ClearPedTasksImmediately(ped) end
+    SetEntityCoords(ped, target.x + 0.0, target.y + 0.0, target.z + 0.0, false, false, false, false)
+    SetEntityHeading(ped, (tonumber(target.w) or 0.0) + 0.0)
+  end
+end)
+
+--- After a crash / logout inside a garage interior (or the creator) the framework spawns
+--- the character at the saved position, which is inside the (now public, sealed) interior.
+--- Take it back outside. `busy()` = a new visit / editor session owns the marker now.
+local function rescue(key, busy)
+  local raw = GetResourceKvpString(key)
+  if type(raw) ~= 'string' or raw == '' then return end
+  local decoded, saved = pcall(json.decode, raw)
+  saved = decoded and type(saved) == 'table' and saved or nil
+  local entry = saved and Utils.v3(saved.entry) or nil
+  local target = saved and Utils.v4(saved.returnTo) or nil
+  if not entry or not target then
+    DeleteResourceKvp(key)
+    return
+  end
+  local now = tonumber(GetCloudTimeAsInt()) or 0
+  local at = tonumber(saved.at) or 0
+  local tooOld = now > 0 and at > 0 and now - at > RESCUE_MAX_AGE
+  -- The marker belongs to another character of this player: keep it for that one.
+  local me = NZ.Bridge.getIdentifier()
+  if not tooOld and type(saved.identifier) == 'string' and type(me) == 'string' and saved.identifier ~= me then
+    return
+  end
+  if tooOld then
+    DeleteResourceKvp(key)
+    return
+  end
+
+  local deadline = GetGameTimer() + RESCUE_WINDOW_MS
+  while GetGameTimer() < deadline and not busy() do
+    local pos = Utils.v3(GetEntityCoords(PlayerPedId()))
+    if pos then
+      local dx, dy = pos.x - entry.x, pos.y - entry.y
+      -- within the radius, and not well above it (fell through the map = any depth below)
+      if math.sqrt(dx * dx + dy * dy) <= RESCUE_RADIUS and pos.z - entry.z <= 40.0 then
+        Interior.teleport(target)
+        NZ.NUI.notify('info', L('You were taken out of the garage interior'))
+        break
+      end
+    end
+    Wait(1000)
+  end
+  -- Busy again (a new visit / editor session wrote its own marker) or rescued / elsewhere.
+  if not busy() then DeleteResourceKvp(key) end
+end
+
+AddEventHandler('nz:client:playerLoaded', function()
+  CreateThread(function() rescue(RETURN_KVP, Interior.isInside) end)
+  CreateThread(function()
+    rescue(CREATOR_KVP, function()
+      return type(NZ.Creator.isActive) == 'function' and NZ.Creator.isActive() == true
+    end)
+  end)
 end)
 
 exports('IsInsideInterior', function()
@@ -1073,6 +1286,15 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= NZ.ResourceName then return end
+  -- Stopped in the middle of a fade / teleport (leave, drive out, kick): the thread that
+  -- would undo them is gone.
+  local frozen = transition.frozen
+  transition.frozen = nil
+  if frozen and DoesEntityExist(frozen) then FreezeEntityPosition(frozen, false) end
+  if transition.faded then
+    transition.faded = false
+    DoScreenFadeIn(0)
+  end
   local s = state
   if not s then return end
   state = nil
@@ -1093,6 +1315,7 @@ AddEventHandler('onResourceStop', function(resource)
   if target and s.inside then
     SetEntityCoords(ped, target.x + 0.0, target.y + 0.0, target.z + 0.0, false, false, false, false)
     SetEntityHeading(ped, target.w + 0.0)
+    forgetInside()
   end
   DoScreenFadeIn(0)
 end)

@@ -509,7 +509,7 @@ end
 local function uniquePlate()
   for _ = 1, PLATE_TRIES do
     local candidate = Utils.generatePlate()
-    if not NZ.DB.plateExists(candidate) then return candidate end
+    if not NZ.DB.plateExists(candidate, true) then return candidate end
   end
   return nil
 end
