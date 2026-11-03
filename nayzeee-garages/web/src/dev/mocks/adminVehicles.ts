@@ -673,7 +673,8 @@ mockNui('admin:vehicle:update', async ({ plate, patch }) => {
   }
 
   if (patch.impound !== undefined) {
-    if (isClear(patch.impound)) {
+    const imp = patch.impound;
+    if (imp === false || isClear(imp)) {
       next.impound = null;
       if (next.row.state === 'impounded') {
         next.row.state = 'garaged';
@@ -684,7 +685,6 @@ mockNui('admin:vehicle:update', async ({ plate, patch }) => {
         }
       }
     } else {
-      const imp = patch.impound!;
       const loc = adminMockDb.locations.find((l) => l.id === imp.locationId && l.kind === 'impound');
       if (!loc) return fail('Select an impound');
       const now = nowS();
@@ -704,7 +704,7 @@ mockNui('admin:vehicle:update', async ({ plate, patch }) => {
   }
 
   if (patch.finance !== undefined) {
-    if (isClear(patch.finance) || !patch.finance || patch.finance.balance <= 0) next.finance = null;
+    if (patch.finance === false || isClear(patch.finance) || patch.finance.balance <= 0) next.finance = null;
     else next.finance = clone(patch.finance);
   }
   next.row.financed = !!next.finance;

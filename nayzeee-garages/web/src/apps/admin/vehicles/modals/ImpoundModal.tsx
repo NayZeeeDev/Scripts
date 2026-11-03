@@ -6,7 +6,6 @@ import { Button, ConfirmDialog, Field, Input, Modal, NumberInput, Select, Toggle
 import { t } from '@/lib/i18n';
 import { useSettings } from '@/lib/store';
 import type { AdminOpenData, AdminVehicleDetail, AdminVehiclePatch } from '@/lib/types';
-import { CLEAR } from '../util';
 
 interface Props {
   open: boolean;
@@ -69,7 +68,7 @@ export function ImpoundModal({ open, data, detail, onClose, onSave }: Props) {
 
   const release = async () => {
     setBusy('release');
-    const ok = await onSave({ impound: CLEAR }, t('Vehicle released from the impound'));
+    const ok = await onSave({ impound: false }, t('Vehicle released from the impound'));
     setBusy(null);
     setConfirmRelease(false);
     if (ok) onClose();

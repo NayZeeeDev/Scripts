@@ -24,8 +24,8 @@ function storageLabel(storage: ForSaleData['storage']) {
   return storage === 'shared' ? t('Shared vehicles') : t('Personal vehicles');
 }
 
-function spacesLabel(spaces: number | null) {
-  if (spaces === null || spaces <= 0) return t('Unlimited spaces');
+function spacesLabel(spaces: number | null | undefined) {
+  if (spaces == null || spaces <= 0) return t('Unlimited spaces');
   return spaces === 1 ? t('1 space in total') : t('{n} spaces in total', { n: spaces });
 }
 

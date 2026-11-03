@@ -511,21 +511,29 @@ export interface AdminVehicleDetail {
   impounds: { id: number; name: string }[];
 }
 
+/**
+ * NOTE: JSON null never reaches Lua (it decodes to nil = "field absent").
+ * To CLEAR a value send `false` (impound, finance) or '' (nickname, garageKey).
+ */
 export interface AdminVehiclePatch {
   plate?: string;
   owner?: { type: 'player' | 'job' | 'gang'; identifier?: string; job?: string; gang?: string };
   details?: {
-    garageKey?: string | null;
+    /** '' clears the garage */
+    garageKey?: string;
     state?: VehicleState;
-    nickname?: string | null;
+    /** '' clears the nickname */
+    nickname?: string;
     mileage?: number;
     fuel?: number;
     engine?: number;
     body?: number;
   };
   props?: Record<string, unknown>;
-  impound?: (Partial<ImpoundInfo> & { locationId: number }) | null;
-  finance?: Finance | null;
+  /** false = release from impound */
+  impound?: (Partial<ImpoundInfo> & { locationId: number }) | false;
+  /** false = remove finance */
+  finance?: Finance | false;
   blocked?: boolean;
   service?: ServiceEntry[];
 }

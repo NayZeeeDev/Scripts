@@ -67,7 +67,7 @@ export function TransferModal({
     label: g.name,
     icon: 'garage',
     hint: `${
-      g.spacesLeft === null
+      g.spacesLeft == null
         ? t('Unlimited')
         : g.spacesLeft === 0
           ? t('Full')

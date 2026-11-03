@@ -95,10 +95,10 @@ export function FinanceBlock({
               {finance.intervalHours ? (
                 <>
                   {t('Every')} <b>{hoursLabel(finance.intervalHours)}</b>
-                  {finance.nextPaymentHours !== null && ' · '}
+                  {finance.nextPaymentHours != null && ' · '}
                 </>
               ) : null}
-              {finance.nextPaymentHours !== null && (
+              {finance.nextPaymentHours != null && (
                 <>
                   {t('Next payment in')} <b>{hoursLabel(finance.nextPaymentHours)}</b>
                 </>

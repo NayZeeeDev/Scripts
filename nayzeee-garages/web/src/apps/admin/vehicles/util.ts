@@ -1,16 +1,13 @@
 /**
- * Player-vehicles admin helpers (no React): labels, garage options, row/detail conversion,
- * installed-mod summary and the "clear" sentinel for vehicle patches.
+ * Player-vehicles admin helpers (no React): labels, garage options, row/detail conversion
+ * and the installed-mod summary.
+ *
+ * Clearing values in AdminVehiclePatch: JSON null never reaches Lua (it decodes to nil =
+ * "unchanged"), so clears are sent as `false` (impound, finance) or '' (nickname, garageKey).
  */
 import { t } from '@/lib/i18n';
 import type { IconName } from '@/components/ui';
 import type { AdminOpenData, AdminVehicleDetail, AdminVehicleRow, VehicleState, VehicleType } from '@/lib/types';
-
-/**
- * JSON null does not survive the NUI -> Lua bridge (it arrives as nil = "unchanged"), so the
- * server treats an empty object as "clear" for `impound` and `finance` (server/admin.lua).
- */
-export const CLEAR = {} as unknown as null;
 
 export function vehicleTypeIcon(vt: VehicleType): IconName {
   return vt === 'sea' ? 'boat' : vt === 'air' ? 'plane' : 'car';

@@ -19,7 +19,7 @@ import { OwnerModal } from './modals/OwnerModal';
 import { ServiceModal } from './modals/ServiceModal';
 import { ModsModal, OwnershipModal, ServiceListModal } from './modals/ListModals';
 import { PropsEditor } from './props/PropsEditor';
-import { CLEAR, ownerTypeLabel, rowFromDetail, vehicleTypeIcon } from './util';
+import { ownerTypeLabel, rowFromDetail, vehicleTypeIcon } from './util';
 
 type ModalId =
   | 'details'
@@ -117,7 +117,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
 
   const deleteFinance = async () => {
     setBusy('finance');
-    const ok = await patch({ finance: CLEAR }, t('Finance removed'));
+    const ok = await patch({ finance: false }, t('Finance removed'));
     setBusy(null);
     if (ok) setModal(null);
   };
