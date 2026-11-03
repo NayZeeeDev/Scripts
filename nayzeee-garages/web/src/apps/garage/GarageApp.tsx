@@ -5,7 +5,8 @@
  * Vehicles in a grid or list with an inline detail panel; spawner garages list spawnable
  * vehicles instead. Modals: rename, transfer, share, sell, members, confirmations.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   Button,
   Chip,
@@ -131,14 +132,14 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     }),
     [vehicles],
   );
-  const chips: { value: GarageFilter; label: string; icon?: 'starFilled' | 'parking' | 'users' | 'impound' | 'route' }[] = [
+  const chips: { value: GarageFilter; label: string }[] = [
     { value: 'all', label: t('All') },
-    { value: 'favourites', label: t('Favourites'), icon: 'starFilled' },
-    { value: 'here', label: t('Parked here'), icon: 'parking' },
+    { value: 'favourites', label: t('Favourites') },
+    { value: 'here', label: t('Parked here') },
   ];
-  if (anyOf.shared) chips.push({ value: 'shared', label: t('Shared'), icon: 'users' });
-  if (anyOf.impounded) chips.push({ value: 'impounded', label: t('Impounded'), icon: 'impound' });
-  if (anyOf.out) chips.push({ value: 'out', label: t('Out'), icon: 'route' });
+  if (anyOf.shared) chips.push({ value: 'shared', label: t('Shared') });
+  if (anyOf.impounded) chips.push({ value: 'impounded', label: t('Impounded') });
+  if (anyOf.out) chips.push({ value: 'out', label: t('Out') });
   const activeFilter: GarageFilter = chips.some((c) => c.value === filter) ? filter : 'all';
 
   const shown = useMemo(
@@ -277,7 +278,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       onSelect: () => setMembers(true),
     });
   }
-  if (limited && !spawnerMode) {
+  if (isFull && !spawnerMode) {
     menuItems.push({ label: t('Find a garage with space'), icon: 'route', onSelect: () => void directions() });
   }
   if (garage.canSellGarage) {
@@ -324,7 +325,18 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   );
 
   /* ── toolbar ── */
-  const groupOptions: SelectOption<number>[] = garage.groups.map((g) => ({ value: g.id, label: g.label, icon: 'key' }));
+  // Group labels usually repeat the garage name ("La Mesa Motor Club #2"): show the distinct part.
+  const groupLabel = (label: string) => {
+    const rest = label.startsWith(garage.name) ? label.slice(garage.name.length).trim() : '';
+    if (!rest) return label;
+    return rest.startsWith('#') ? t('Copy {n}', { n: rest }) : rest;
+  };
+  const groupOptions: SelectOption<number>[] = garage.groups.map((g) => ({
+    value: g.id,
+    label: groupLabel(g.label),
+    hint: groupLabel(g.label) !== g.label ? g.label : undefined,
+    icon: 'key',
+  }));
   const viewOptions: { value: ViewMode; label: string; icon: 'grid' | 'list' }[] = [
     { value: 'grid', label: t('Grid view'), icon: 'grid' },
     { value: 'list', label: t('List view'), icon: 'list' },
@@ -418,7 +430,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       <Window
         className="nz-garage"
         bodyClassName="nz-garage__body"
-        width={720}
+        width={736}
         style={{ maxHeight: '86vh' }}
         title={garage.name}
         icon={vehicleTypeIcon(garage.vehicleType)}
@@ -426,7 +438,6 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         badge={badges}
         headerExtra={headerExtra}
         onClose={close}
-        watermark
         footer={
           <>
             <span>
@@ -466,7 +477,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder={spawnerMode ? t('Search by name or model') : t('Search name, nickname, model or plate')}
+            placeholder={spawnerMode ? t('Search by name or model') : t('Search name or plate')}
             className="nz-garage__search"
           />
           <Segmented<ViewMode> value={view} onChange={setView} options={viewOptions} iconOnly />
@@ -484,13 +495,13 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
 
         {!spawnerMode && vehicles.length > 0 && (
           <div className="nz-garage__filters">
-            <div className="nz-garage__chips" role="toolbar" aria-label={t('Filter vehicles')}>
+            <ChipStrip label={t('Filter vehicles')}>
               {chips.map((c) => (
-                <Chip key={c.value} active={activeFilter === c.value} onClick={() => setFilter(c.value)} count={counts[c.value]} icon={c.icon}>
+                <Chip key={c.value} active={activeFilter === c.value} onClick={() => setFilter(c.value)} count={counts[c.value]}>
                   {c.label}
                 </Chip>
               ))}
-            </div>
+            </ChipStrip>
             <Select<GarageSort> value={sort} onChange={setSort} options={sortOptions} icon="sort" size="sm" className="nz-garage__sort" />
           </div>
         )}
@@ -572,6 +583,37 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         onCancel={() => setSellGarage(false)}
       />
     </>
+  );
+}
+
+/* ── chip strip: scrolls sideways (fade at the edge) only when it overflows ── */
+
+function ChipStrip({ label, children }: { label: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflow(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    Array.from(el.children).forEach((c) => ro.observe(c));
+    return () => ro.disconnect();
+  });
+  return (
+    <div
+      ref={ref}
+      className={cx('nz-garage__chips', overflow && 'is-overflow')}
+      role="toolbar"
+      aria-label={label}
+      onWheel={(e) => {
+        if (overflow && ref.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) ref.current.scrollLeft += e.deltaY;
+      }}
+    >
+      {children}
+    </div>
   );
 }
 

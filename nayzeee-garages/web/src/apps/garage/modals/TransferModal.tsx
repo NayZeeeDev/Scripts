@@ -66,14 +66,15 @@ export function TransferModal({
     value: g.key,
     label: g.name,
     icon: 'garage',
-    hint:
+    hint: `${
       g.spacesLeft === null
         ? t('Unlimited')
         : g.spacesLeft === 0
           ? t('Full')
           : g.spacesLeft === 1
             ? t('1 space left')
-            : t('{n} spaces left', { n: g.spacesLeft }),
+            : t('{n} spaces left', { n: g.spacesLeft })
+    } · ${g.fee > 0 ? money(g.fee) : t('Free')}`,
     disabled: g.spacesLeft === 0,
   }));
   const playerOptions: SelectOption<number>[] = (data?.players ?? []).map((p) => ({

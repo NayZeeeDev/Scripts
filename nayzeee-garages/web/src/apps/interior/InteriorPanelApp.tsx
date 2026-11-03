@@ -192,7 +192,7 @@ export function InteriorPanelApp() {
         title={data.garageName || t('Garage')}
         subtitle={roleLine(data.role)}
         onClose={close}
-        width={384}
+        width={392}
         footer={footer}
         className="nz-ipanel"
         bodyClassName="nz-ipanel__body"

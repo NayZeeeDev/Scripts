@@ -69,6 +69,8 @@ export function CreatorApp() {
   const [walking, setWalking] = useState(false);
   const [gtaName, setGtaName] = useState<string | null>(null);
   const initial = useRef('');
+  /** Interior object the current draft was made from (avoids a frame of a previous session). */
+  const source = useRef<Interior | null>(null);
   const pendingRef = useRef<PendingKey | null>(null);
   const openRef = useRef(open);
   openRef.current = open;
@@ -77,6 +79,7 @@ export function CreatorApp() {
   useEffect(() => {
     if (!open || !data?.interior) return;
     const d = normalize(data.interior);
+    source.current = data.interior;
     initial.current = JSON.stringify(d);
     setDraft(d);
     setTab('details');
@@ -136,7 +139,7 @@ export function CreatorApp() {
     if (!pendingRef.current) void walk();
   }, open && !!draft && !confirmCancel);
 
-  if (!open || !data || !draft) return null;
+  if (!open || !data || !draft || source.current !== data.interior) return null;
 
   const dirty = JSON.stringify(draft) !== initial.current;
   const away = (pending !== null && AWAY.includes(pending)) || walking;
@@ -150,6 +153,9 @@ export function CreatorApp() {
     const first = (Object.keys(e) as (keyof CreatorErrors)[])[0];
     if (first) {
       setTab(ERROR_TAB[first]);
+      if (first === 'name') {
+        requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.nz-creator__scroll input')?.focus());
+      }
       return;
     }
     const res = await run('save', 'creator:save', { interior: { ...draft, name: draft.name.trim() } });
@@ -212,7 +218,6 @@ export function CreatorApp() {
         title={data.mode === 'edit' ? t('Edit interior') : t('Create interior')}
         subtitle={draft.name.trim() || t('Untitled interior')}
         onClose={cancel}
-        closeLabel={t('Cancel')}
         width={356}
         footer={footer}
         className={cx('nz-creator', away && 'is-away')}
@@ -265,7 +270,12 @@ export function CreatorApp() {
 
         <div className="nz-creator__scroll" key={tab}>
           {tab === 'details' && (
-            <DetailsTab {...props} onSubmit={() => void save()} autoFocusName={data.mode === 'create' && !draft.name} />
+            <DetailsTab
+              {...props}
+              onSubmit={() => void save()}
+              autoFocusName={data.mode === 'create' && !draft.name}
+              goTo={setTab}
+            />
           )}
           {tab === 'cutscene' && <CutsceneTab {...props} />}
           {tab === 'vehicles' && <VehiclesTab {...props} />}

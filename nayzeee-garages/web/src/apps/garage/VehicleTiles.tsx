@@ -3,7 +3,7 @@
  * status badge, favourite star, meta icons (service / finance / trailer / shared).
  */
 import type { MouseEvent, ReactNode } from 'react';
-import { Badge, Icon, PlateTag, Tooltip, VehicleImage, cx } from '@/components/ui';
+import { Badge, Icon, PlateTag, Ring, Tooltip, VehicleImage, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { distance } from '@/lib/format';
 import type { GarageVehicle } from '@/lib/types';
@@ -113,6 +113,26 @@ export function MetaIcons({ v }: { v: GarageVehicle }) {
   );
 }
 
+/** Fuel / engine / body as three small rings (list rows). */
+export function ConditionRings({ v }: { v: { fuel: number; engine: number; body: number } }) {
+  const items = [
+    { key: 'fuel', icon: 'fuel' as const, value: v.fuel, label: t('Fuel') },
+    { key: 'engine', icon: 'engine' as const, value: v.engine, label: t('Engine') },
+    { key: 'body', icon: 'shield' as const, value: v.body, label: t('Body') },
+  ];
+  return (
+    <span className="nz-garage__rings">
+      {items.map((it) => (
+        <Tooltip key={it.key} content={`${it.label} ${Math.round(it.value)}%`}>
+          <Ring value={it.value} size={26} stroke={2.5} tone="auto">
+            <Icon name={it.icon} size={11} strokeWidth={1.9} />
+          </Ring>
+        </Tooltip>
+      ))}
+    </span>
+  );
+}
+
 function Mileage({ km }: { km: number }) {
   return (
     <span className="nz-garage__mileage">
@@ -184,6 +204,7 @@ export function GarageRow({ v, open, onFavourite }: { v: GarageVehicle; open: bo
       <div className="nz-garage__rowside">
         <SharedByBadge v={v} />
         <StatusBadge v={v} />
+        <ConditionRings v={v} />
         <FavouriteToggle on={v.favourite} onToggle={onFavourite} />
         <Icon name="chevronDown" size={15} strokeWidth={1.8} className={cx('nz-garage__chev', open && 'is-open')} />
       </div>

@@ -29,7 +29,14 @@ export function ExitTab({ draft, patch, run, pending }: TabProps) {
         <CoordCard value={exit} placeholder={t('Using the entry point')} />
 
         <div className="nz-creator__point-actions">
-          <Button size="sm" icon="pin" full loading={pending === 'pickExit'} disabled={busy} onClick={() => void pickExit()}>
+          <Button
+            size="sm"
+            icon="pin"
+            loading={pending === 'pickExit'}
+            disabled={busy}
+            onClick={() => void pickExit()}
+            className="nz-creator__grow"
+          >
             {t('Use current position')}
           </Button>
           <IconButton

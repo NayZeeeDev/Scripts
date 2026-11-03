@@ -1,0 +1,123 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Impound apps: the impound list reuses the garage layout (garage.css); this file
+   only adds impound-specific bits and the "Impound vehicle" form.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.nz-impound__toolbar { padding-bottom: 14px; border-bottom: 1px solid var(--line-hair); }
+
+.nz-impound__owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-2);
+}
+
+.nz-impound__owner svg { flex: none; color: var(--ink-3); }
+
+.nz-impound__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.nz-impound__note svg { flex: none; }
+
+/* ── impound form ── */
+.nz-impound-form .nz-impound-form__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+
+.nz-impound-form__vehicle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 12px 10px 10px;
+  background: var(--inset);
+  border: 1px solid var(--line-hair);
+  border-radius: var(--r-md);
+}
+
+.nz-impound-form__tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-sm);
+  color: var(--red);
+  background: var(--red-wash);
+  border: 1px solid var(--red-edge);
+}
+
+.nz-impound-form__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-impound-form__text b {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--white);
+}
+
+.nz-impound-form__text span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nz-impound-form__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--red-wash);
+  border: 1px solid var(--red-edge);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.nz-impound-form__notice svg { flex: none; margin-top: 1px; color: var(--red); }
+.nz-impound-form__notice small { display: block; font-size: 11px; font-weight: 300; color: var(--ink-2); }
+
+.nz-impound-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.nz-impound-form__toggle {
+  padding: 2px 12px;
+  background: var(--inset);
+  border: 1px solid var(--line-hair);
+  border-radius: var(--r-sm);
+}
+
+.nz-impound-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-hair);
+}

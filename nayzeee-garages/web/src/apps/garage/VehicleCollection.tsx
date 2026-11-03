@@ -53,14 +53,25 @@ export function VehicleCollection<T>({
   const openIndex = expandedKey ? items.findIndex((it) => getKey(it) === expandedKey) : -1;
   const openItem = openIndex >= 0 ? items[openIndex] : null;
 
-  // Bring a freshly opened panel into view (smoothly, only as far as needed).
+  // Bring a freshly opened panel into view — only as far as needed, and never so far that
+  // the card / row it belongs to scrolls out of sight above it.
   useEffect(() => {
     if (!expandedKey) return;
     const raf = requestAnimationFrame(() => {
-      detailRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const el = detailRef.current;
+      const scroller = el?.closest<HTMLElement>('.nz-garage__scroll');
+      if (!el || !scroller) return;
+      const er = el.getBoundingClientRect();
+      const sr = scroller.getBoundingClientRect();
+      const keepAbove = view === 'grid' ? 96 : 70;
+      let shift = 0;
+      if (er.bottom > sr.bottom) shift = Math.min(er.bottom - sr.bottom + 14, er.top - sr.top - keepAbove);
+      else if (er.top - keepAbove < sr.top) shift = er.top - keepAbove - sr.top;
+      if (Math.abs(shift) > 1) scroller.scrollBy({ top: shift, behavior: 'smooth' });
     });
     return () => cancelAnimationFrame(raf);
-  }, [expandedKey, view]);
+    // openIndex: follow the open vehicle when a rename / favourite re-sorts the list.
+  }, [expandedKey, view, openIndex]);
 
   const interactive = (key: string) =>
     expandable

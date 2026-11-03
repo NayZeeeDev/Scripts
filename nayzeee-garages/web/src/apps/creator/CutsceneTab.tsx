@@ -126,13 +126,12 @@ export function CutsceneTab({ draft, patchCutscene, run, pending }: TabProps) {
           </ol>
         )}
 
-        <div className="nz-creator__grid2 nz-creator__grid2--tight">
+        <div className="nz-creator__grid2 nz-creator__grid2--actions">
           <Button icon="camera" full loading={pending === 'addCameraPoint'} disabled={busy} onClick={() => void addPoint()}>
             {t('Add camera point')}
           </Button>
           <Button
             icon="eye"
-            variant="white"
             full
             loading={pending === 'preview'}
             disabled={busy || points.length === 0}

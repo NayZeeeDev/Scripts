@@ -39,8 +39,9 @@
 }
 
 .nz-garage__group {
-  flex: none;
-  width: 170px;
+  flex: 0 1 auto;
+  width: 168px;
+  min-width: 120px;
 }
 
 .nz-garage__filters {
@@ -58,18 +59,21 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-right: 18px;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
-  mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+}
+
+.nz-garage__chips.is-overflow {
+  padding-right: 22px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
 }
 
 .nz-garage__chips::-webkit-scrollbar { display: none; }
 
 .nz-garage__sort {
   flex: none;
-  width: 138px;
+  width: 124px;
 }
 
 .nz-garage__hintbar {
@@ -291,6 +295,7 @@
   align-items: center;
   gap: 9px;
   min-width: 0;
+  height: 20px;
   margin-top: auto;
   padding-top: 8px;
 }
@@ -312,6 +317,7 @@
   display: inline-flex;
   align-items: center;
   gap: 1px;
+  height: 20px;
   margin-left: auto;
 }
 
@@ -447,6 +453,15 @@
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
+}
+
+.nz-garage__rings {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px 0 4px;
+  color: var(--ink-2);
 }
 
 .nz-garage__chev {
@@ -1025,6 +1040,15 @@
 }
 
 .nz-garage__foot-left { margin-right: auto; }
+
+/* small screens (720p): flatter cards so more fit */
+@media (max-height: 820px) {
+  .nz-garage__media { padding-top: 10px; }
+  .nz-garage__media .nz-garage__img { aspect-ratio: 2.35 / 1; }
+  .nz-garage__cardbody { padding-top: 8px; padding-bottom: 9px; }
+  .nz-garage__row { min-height: 56px; }
+  .nz-garage__thumb { width: 86px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .nz-garage__detail { animation: none; }

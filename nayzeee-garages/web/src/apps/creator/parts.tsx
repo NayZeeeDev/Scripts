@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react';
 import { t } from '@/lib/i18n';
 import type { ApiResult, Cutscene, Interior, IplProfile, NuiCallbackName, NuiCallbacks, Vec3, Vec4 } from '@/lib/types';
-import { cx } from '@/components/ui';
+import { Icon, cx } from '@/components/ui';
 
 export type CreatorTab = 'details' | 'cutscene' | 'vehicles' | 'exit';
 
@@ -69,24 +69,32 @@ export function headingLabel(w: number | null | undefined) {
   return `${h}°`;
 }
 
-/** X / Y / Z / heading mono readout. */
+/** X / Y / Z / heading mono readout (or a one-line placeholder when not set). */
 export function CoordCard({ value, invalid, placeholder }: { value: Vec4 | null; invalid?: boolean; placeholder?: ReactNode }) {
-  const set = isSet(value);
+  if (!isSet(value)) {
+    return (
+      <div className={cx('nz-creator__coords', 'is-empty', invalid && 'is-invalid')}>
+        <div className="nz-creator__coords-note">
+          <Icon name="pin" size={13} strokeWidth={1.8} />
+          <span>{placeholder ?? t('Not set')}</span>
+        </div>
+      </div>
+    );
+  }
   const cells: { k: string; v: string }[] = [
-    { k: t('X'), v: set ? fixed(value!.x) : '—' },
-    { k: t('Y'), v: set ? fixed(value!.y) : '—' },
-    { k: t('Z'), v: set ? fixed(value!.z) : '—' },
-    { k: t('Heading'), v: set ? headingLabel(value!.w) : '—' },
+    { k: t('X'), v: fixed(value.x) },
+    { k: t('Y'), v: fixed(value.y) },
+    { k: t('Z'), v: fixed(value.z) },
+    { k: t('Heading'), v: headingLabel((value as Vec4).w) },
   ];
   return (
-    <div className={cx('nz-creator__coords', !set && 'is-empty', invalid && 'is-invalid')}>
+    <div className={cx('nz-creator__coords', invalid && 'is-invalid')}>
       {cells.map((c) => (
         <div key={c.k} className="nz-creator__coord">
           <span>{c.k}</span>
           <b>{c.v}</b>
         </div>
       ))}
-      {!set && placeholder && <div className="nz-creator__coords-note">{placeholder}</div>}
     </div>
   );
 }

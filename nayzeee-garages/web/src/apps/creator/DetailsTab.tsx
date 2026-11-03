@@ -3,16 +3,30 @@
  * interior), IPL profile and its options (each change reloads the profile in game).
  */
 import { t } from '@/lib/i18n';
-import { Button, Field, Icon, IconButton, InfoDot, Input, Select, Spinner } from '@/components/ui';
+import { Button, Field, Icon, IconButton, InfoDot, Input, Select, Spinner, cx } from '@/components/ui';
 import type { SelectOption } from '@/components/ui';
-import { CoordCard, isSet } from './parts';
-import type { TabProps } from './parts';
+import { CoordCard, SectionHead, isSet } from './parts';
+import type { CreatorTab, TabProps } from './parts';
+import type { IconName } from '@/components/ui';
 
 const MANUAL = '';
 
-export function DetailsTab({ draft, patch, run, pending, errors, profiles, gtaName, setGtaName, onSubmit, autoFocusName }: TabProps & {
+export function DetailsTab({
+  draft,
+  patch,
+  run,
+  pending,
+  errors,
+  profiles,
+  gtaName,
+  setGtaName,
+  onSubmit,
+  autoFocusName,
+  goTo,
+}: TabProps & {
   onSubmit: () => void;
   autoFocusName: boolean;
+  goTo: (tab: CreatorTab) => void;
 }) {
   const busy = pending !== null;
   const profile = profiles.find((p) => p.key === draft.profile) ?? null;
@@ -68,6 +82,43 @@ export function DetailsTab({ draft, patch, run, pending, errors, profiles, gtaNa
 
   const detectedLabel = gtaName || profile?.label || t('GTA interior');
 
+  type Check = { key: string; tab: CreatorTab; icon: IconName; label: string; value: string; state: 'done' | 'missing' | 'optional' };
+  const pts = draft.cutscene.points.length;
+  const checklist: Check[] = [
+    {
+      key: 'entry',
+      tab: 'details',
+      icon: 'pin',
+      label: t('Entry point'),
+      value: entrySet ? t('Set') : t('Required'),
+      state: entrySet ? 'done' : 'missing',
+    },
+    {
+      key: 'slots',
+      tab: 'vehicles',
+      icon: 'car',
+      label: t('Vehicle positions'),
+      value: draft.slots.length ? t('{count} placed', { count: draft.slots.length }) : t('Required'),
+      state: draft.slots.length ? 'done' : 'missing',
+    },
+    {
+      key: 'cutscene',
+      tab: 'cutscene',
+      icon: 'camera',
+      label: t('Entry cutscene'),
+      value: draft.cutscene.enabled ? t('{count} camera points', { count: pts }) : t('Off'),
+      state: draft.cutscene.enabled && pts > 0 ? 'done' : 'optional',
+    },
+    {
+      key: 'exit',
+      tab: 'exit',
+      icon: 'door',
+      label: t('Exit point'),
+      value: isSet(draft.exit) ? t('Set') : t('Uses the entry'),
+      state: isSet(draft.exit) ? 'done' : 'optional',
+    },
+  ];
+
   return (
     <div className="nz-creator__stack">
       <Field label={t('Name')} required error={errors.name}>
@@ -91,7 +142,14 @@ export function DetailsTab({ draft, patch, run, pending, errors, profiles, gtaNa
         <div className="nz-creator__point">
           <CoordCard value={draft.entry} invalid={!!errors.entry} placeholder={t('No entry point yet')} />
           <div className="nz-creator__point-actions">
-            <Button size="sm" icon="pin" full loading={pending === 'pickEntry'} disabled={busy} onClick={() => void pickEntry()}>
+            <Button
+              size="sm"
+              icon="pin"
+              loading={pending === 'pickEntry'}
+              disabled={busy}
+              onClick={() => void pickEntry()}
+              className="nz-creator__grow"
+            >
               {t('Use current position')}
             </Button>
             <IconButton
@@ -170,6 +228,25 @@ export function DetailsTab({ draft, patch, run, pending, errors, profiles, gtaNa
           <span>{t('Loading the interior…')}</span>
         </div>
       )}
+
+      <div className="nz-creator__block">
+        <SectionHead title={t('Overview')} />
+        <ul className="nz-creator__checklist">
+          {checklist.map((c) => (
+            <li key={c.key}>
+              <button type="button" className={cx('nz-creator__check', `is-${c.state}`)} onClick={() => goTo(c.tab)}>
+                <span className="nz-creator__check-dot">
+                  {c.state === 'done' ? <Icon name="check" size={10} strokeWidth={3} /> : null}
+                </span>
+                <Icon name={c.icon} size={14} strokeWidth={1.7} className="nz-creator__check-icon" />
+                <span className="nz-creator__check-label">{c.label}</span>
+                <span className="nz-creator__check-value">{c.value}</span>
+                <Icon name="chevronRight" size={13} strokeWidth={1.8} className="nz-creator__check-go" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

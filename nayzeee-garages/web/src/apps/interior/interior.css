@@ -270,7 +270,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px 16px;
+  padding: 14px 16px 0;
 }
 
 .nz-ipanel__floor {
@@ -511,9 +511,15 @@
   color: var(--ink-3);
 }
 
+/* Leave stays reachable when many people are inside and the body scrolls. */
 .nz-ipanel__leave {
-  padding-top: 12px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  padding: 12px 0 16px;
   border-top: 1px solid var(--line-hair);
+  background: var(--base);
 }
 
 @keyframes nz-ipanel-in {

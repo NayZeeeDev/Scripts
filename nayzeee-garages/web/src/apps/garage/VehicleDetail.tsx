@@ -221,14 +221,19 @@ export function VehicleDetail({
   const name = displayName(v);
   const isDriving = driving === v.plate;
   const busy = driving !== null || recovering;
-  const canTransfer = v.isOwner && (options.garageTransfer || options.playerTransfer);
-  const canSell = v.isOwner && options.sell;
+  // Moving or selling only makes sense for a parked vehicle (not out / impounded).
+  const parked = v.state === 'garaged';
+  const canTransfer = v.isOwner && parked && (options.garageTransfer || options.playerTransfer);
+  const canSell = v.isOwner && parked && options.sell;
   const canShare = v.isOwner && options.share;
 
   const menu: MenuItem[] = [];
   if (v.isOwner) menu.push({ label: t('Rename'), icon: 'edit', onSelect: onRename });
   menu.push({ label: t('Track vehicle'), icon: 'map', onSelect: onTrack });
 
+  // The impound / overdue-finance blocks already explain why it is locked.
+  const financeLock = !!v.finance?.overdue && v.here && v.state === 'garaged' && !v.blocked;
+  const showReason = !v.canDrive && !!v.reason && v.state !== 'impounded' && !financeLock;
   const reasonTone = v.state === 'impounded' || v.blocked || v.finance?.overdue ? 'red' : v.state === 'out' ? 'amber' : 'neutral';
 
   return (
@@ -312,7 +317,7 @@ export function VehicleDetail({
         </div>
       )}
 
-      {!v.canDrive && v.reason && (
+      {showReason && (
         <div className={cx('nz-garage__reason', `is-${reasonTone}`)}>
           <Icon name={reasonTone === 'neutral' ? 'info' : 'warning'} size={14} strokeWidth={1.8} />
           <span>{v.reason}</span>
