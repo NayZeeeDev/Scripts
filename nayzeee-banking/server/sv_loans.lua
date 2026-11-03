@@ -292,8 +292,11 @@ local function requestLoan(xPlayer, tierId)
 
     -- the fee comes off what actually lands, so churning costs money
     local fee = Bank.round(tier.amount * (Config.Loans.originationFee or 0))
+    -- one row for what actually landed, the fee named on it (a separate fee row
+    -- for money that never arrived threw statements out)
     local paid, newBal = Bank.credit(acc.id, tier.amount - fee, {
-        category = 'loan', label = ('%s loan'):format(tier.label),
+        category = 'loan',
+        label = fee > 0 and ('%s loan (after %s%s fee)'):format(tier.label, Config.Currency, fee) or ('%s loan'):format(tier.label),
         actor = identifier, actorName = Bank.fullName(xPlayer)
     })
     if not paid then
@@ -302,9 +305,6 @@ local function requestLoan(xPlayer, tierId)
         return { ok = false, msg = newBal == 'frozen'
             and 'Your account is frozen.'
             or 'The bank could not pay the loan out. Try again.' }
-    end
-    if fee > 0 then
-        Bank.logTx(acc.id, 'out', fee, newBal, { category = 'fee', label = 'Loan arrangement fee' })
     end
 
     Bank.log('loans', 'Loan approved',
@@ -563,7 +563,7 @@ local function collectDue(loanId)
     end
     local settings = MySQL.single.await(
         'SELECT auto_pay_loans FROM nz_bank_settings WHERE identifier = ?', { loan.identifier })
-    local autoPay = Config.Loans.autoPay and (not settings or settings.auto_pay_loans == 1)
+    local autoPay = Config.Loans.autoPay and (not settings or Bank.flag(settings.auto_pay_loans))
 
     local paid = false
     if autoPay then

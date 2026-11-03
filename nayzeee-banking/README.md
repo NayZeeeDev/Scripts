@@ -56,6 +56,7 @@ Existing money is not migrated. If you're moving off another banking script, run
 | `Config.Loans.tiers` | table | Amount, interest, term and credit gate per tier |
 | `Config.Credit.bands` | table | Score → label shown in the UI |
 | `Config.Bills.latePenalty` | `0.15` | Added once a bill goes overdue |
+| `Config.Bills.autoPayMax` | `25000` | Bills above this always wait for the player, even with auto-pay on |
 | `Config.Scheduled.intervals` | table | Hourly / daily / weekly standing orders |
 | `Config.DirectDeposit.enabled` | `true` | Players choose bank or cash for wages |
 | `Config.Locale` | `'en'` | Which file in `locales/` the client prompts and notifications come from |
@@ -211,7 +212,6 @@ When the billing resource is **not** installed, its events are caught and the bi
 |---|---|
 | esx_billing | `esx_billing:sendBill` |
 | okokBilling | `okokBilling:createInvoiceSociety`, `okokBilling:createInvoicePlayer` |
-| QBCore invoices | `qb-phone:server:sendNewMail` |
 | lb-phone | `lb-phone:invoice:create` |
 | Anything else | `nz_bank:bridgeBill` |
 
@@ -234,7 +234,7 @@ New invoices from these scripts are noticed while the player is in the city (`Co
 
 - an open bank or phone updates by itself, and so does one when an invoice is paid inside the billing script
 - the player gets a **New bill** alert, unless they turned notifications off in Settings
-- players who switched on **auto-pay** in Settings have it paid straight away when their personal account covers it (needs `Config.Bills.autoPay`)
+- players who switched on **auto-pay** in Settings have it paid straight away when their personal account covers it (needs `Config.Bills.autoPay`). Only a **company's** invoice is ever auto-paid, never one another player sent, and never above `watch.autoPayMax` (default 10 000)
 
 If your billing script already sends its own alert, set `watch.notify = false` so players are not told twice. Late fees and due dates stay the billing script's own; this bank adds none of its own on top.
 

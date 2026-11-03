@@ -23,8 +23,8 @@ local function resolveTarget(arg)
         if xPlayer then return xPlayer.identifier, Bank.fullName(xPlayer) end
     end
     local acc = MySQL.single.await(
-        'SELECT owner, label FROM nz_bank_accounts WHERE account_number = ?', { arg })
-    if acc then return acc.owner, acc.label end
+        'SELECT id, owner, label FROM nz_bank_accounts WHERE account_number = ?', { arg })
+    if acc then return acc.owner, acc.label, acc.id end
     return nil
 end
 
@@ -39,13 +39,15 @@ RegisterCommand(Config.Admin.command, function(src, args)
     -- /bankadmin give <playerId|accountNumber> <amount>
     -- /bankadmin take <playerId|accountNumber> <amount>
     if action == 'give' or action == 'take' then
-        local identifier, name = resolveTarget(args[2])
+        local identifier, name, accountId = resolveTarget(args[2])
         local amount = Bank.round(tonumber(args[3]) or 0)
         if not identifier or amount <= 0 then
             return Bank.notify(src, 'Banking', ('Usage: /%s %s <id|account> <amount>'):format(Config.Admin.command, action), 'error')
         end
 
-        local acc = Bank.getPersonal(identifier)
+        -- an account number names that exact account (shared, savings, society);
+        -- a player id means their personal account
+        local acc = accountId and Bank.getAccountById(accountId) or Bank.getPersonal(identifier)
         if not acc then return Bank.notify(src, 'Banking', 'No account found.', 'error') end
 
         local actor = src > 0 and Bank.fullName(Bank.getPlayer(src)) or 'Console'
@@ -88,7 +90,7 @@ RegisterCommand(Config.Admin.command, function(src, args)
         local lines = { ('^5%s^7 · credit %s (%s)'):format(name or identifier, credit.score, Bank.creditBand(credit.score)) }
         for _, a in ipairs(rows) do
             lines[#lines + 1] = ('  %s  %s  %s%s%s'):format(
-                a.account_number, a.type, Config.Currency, a.balance, a.frozen == 1 and '  [FROZEN]' or '')
+                a.account_number, a.type, Config.Currency, a.balance, Bank.flag(a.frozen) and '  [FROZEN]' or '')
         end
         local text = table.concat(lines, '\n')
 
@@ -149,7 +151,7 @@ RegisterCommand('paysociety', function(src, args)
     })
     if not ok then return Bank.notify(src, 'Banking', 'Not enough in the society account.', 'error') end
 
-    Bank.credit(personal.id, amount, {
+    Bank.creditOwed(personal.id, amount, {
         category = 'payroll', label = ('Payout · %s'):format(soc.label)
     })
     Bank.notify(src, 'Banking', ('Moved %s%s to your account.'):format(Config.Currency, amount), 'success')

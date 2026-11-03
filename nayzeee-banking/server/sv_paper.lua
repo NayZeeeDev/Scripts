@@ -126,8 +126,10 @@ Bank.callback('nz_bank:printPaper', function(src, kind, a, b)
     if not doc then return { ok = false, msg = label } end
 
     local price = cfg().price or 0
+    local charged
     if price > 0 then
         local acc = Bank.getPersonal(xPlayer.identifier)
+        charged = acc and acc.id
         if not acc or not Bank.debit(acc.id, price, { category = 'fee', label = 'Printing', actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer) }) then
             return { ok = false, msg = ('Printing costs %s%s.'):format(Config.Currency, price) }
         end
@@ -138,6 +140,7 @@ Bank.callback('nz_bank:printPaper', function(src, kind, a, b)
     local meta = { paper = doc, label = label, description = description }
 
     if not Bank.giveItem(src, itemFor(kind), meta) then
+        if charged then Bank.creditOwed(charged, price, { category = 'fee', label = 'Printing refunded' }) end
         return { ok = false, msg = 'You have no room for it.' }
     end
     return { ok = true, msg = ('Printed: %s.'):format(label) }

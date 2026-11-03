@@ -356,6 +356,29 @@ function Bank.getAccessible(identifier, jobs, grade)
     return list
 end
 
+--- A TINYINT(1) yes/no column, however the database driver hands it back:
+--- oxmysql can give 1/0 or true/false depending on its type casting, and a
+--- plain `== 1` reads every true as false. `default` covers a missing row.
+function Bank.flag(v, default)
+    if v == nil then return default == true end
+    return v == true or v == 1 or v == '1'
+end
+
+--- Cut a string to at most `n` bytes without splitting a character: MySQL
+--- refuses a broken one, and the whole insert goes with it.
+function Bank.cut(s, n)
+    s = tostring(s or '')
+    if #s <= n then return s end
+    local keep = n
+    -- step back while the next byte would be the middle of a character
+    while keep > 0 do
+        local b = s:byte(keep + 1)
+        if not b or b < 0x80 or b >= 0xC0 then break end
+        keep = keep - 1
+    end
+    return s:sub(1, keep)
+end
+
 --- `isboss`: QBCore / Qbox flag a boss grade, and 'boss' in a rule means any of them.
 function Bank.canUseSociety(job, grade, isboss)
     local rule = Config.Accounts.societyAccess[job]
@@ -412,9 +435,9 @@ function Bank.access(src, accountId)
 
     return acc, {
         role     = m.role,
-        deposit  = m.can_deposit == 1,
-        withdraw = m.can_withdraw == 1,
-        transfer = m.can_transfer == 1
+        deposit  = Bank.flag(m.can_deposit),
+        withdraw = Bank.flag(m.can_withdraw),
+        transfer = Bank.flag(m.can_transfer)
     }, nil
 end
 
@@ -461,9 +484,9 @@ function Bank.accessByIdentifier(identifier, accountId)
 
     return acc, {
         role     = m.role,
-        deposit  = m.can_deposit == 1,
-        withdraw = m.can_withdraw == 1,
-        transfer = m.can_transfer == 1
+        deposit  = Bank.flag(m.can_deposit),
+        withdraw = Bank.flag(m.can_withdraw),
+        transfer = Bank.flag(m.can_transfer)
     }, nil
 end
 
@@ -478,9 +501,12 @@ function Bank.credit(accountId, amount, opts)
     if amount <= 0 then return false, 'bad_amount' end
     if not Bank.lock(accountId) then return false, 'busy' end
 
-    local acc = Bank.getAccountById(accountId)
+    -- a database error here must not leave the account locked for good
+    local read, acc = pcall(Bank.getAccountById, accountId)
+    if not read then Bank.unlock(accountId) return false, 'db_error' end
     if not acc then Bank.unlock(accountId) return false, 'no_account' end
-    if acc.frozen == 1 then Bank.unlock(accountId) return false, 'frozen' end
+    -- force: money being handed back (a refund) lands even on a frozen account
+    if Bank.flag(acc.frozen) and not (opts and opts.force) then Bank.unlock(accountId) return false, 'frozen' end
 
     local newBal = acc.balance + amount
     local wrote = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
@@ -496,6 +522,28 @@ function Bank.credit(accountId, amount, opts)
     end
 
     return true, newBal
+end
+
+--- Money this player is owed because it already left somewhere else (a
+--- reversal, a refund, a sale, a closed account's balance). Forced through a
+--- frozen account and retried while the account is busy, so it can never just
+--- vanish; if it still cannot land the console and the log say so loudly.
+function Bank.creditOwed(accountId, amount, opts)
+    opts = opts or {}
+    opts.force = true
+    local ok, why
+    for _ = 1, 5 do
+        ok, why = Bank.credit(accountId, amount, opts)
+        if ok or why ~= 'busy' then break end
+        Wait(200)
+    end
+    if not ok then
+        print(('^1[nayzeee-banking]^7 could not return %s%s to account %s (%s): %s')
+            :format(Config.Currency, tostring(amount), tostring(accountId), tostring(why), tostring(opts.label)))
+        Bank.log('admin', 'Money owed did not land', ('%s%s to account `%s` · %s · %s')
+            :format(Config.Currency, tostring(amount), tostring(accountId), tostring(opts.label), tostring(why)))
+    end
+    return ok, why
 end
 
 --- @param opts table { category, label, actor, actorName, noOverdraft, force }
@@ -519,16 +567,18 @@ function Bank.debit(accountId, amount, opts)
     local allowance = 0
     if not Config.Accounts.allowNegative and not opts.noOverdraft and not opts.force and Bank.overdraftCover then
         local peek = Bank.getAccountById(accountId)
-        if peek and peek.frozen ~= 1 and peek.balance < amount then
+        if peek and not Bank.flag(peek.frozen) and peek.balance < amount then
             allowance = Bank.overdraftCover(peek, amount) or 0
         end
     end
 
     if not Bank.lock(accountId) then return false, 'busy' end
 
-    local acc = Bank.getAccountById(accountId)
+    -- a database error here must not leave the account locked for good
+    local read, acc = pcall(Bank.getAccountById, accountId)
+    if not read then Bank.unlock(accountId) return false, 'db_error' end
     if not acc then Bank.unlock(accountId) return false, 'no_account' end
-    if acc.frozen == 1 and not opts.force then Bank.unlock(accountId) return false, 'frozen' end
+    if Bank.flag(acc.frozen) and not opts.force then Bank.unlock(accountId) return false, 'frozen' end
 
     -- The authoritative check, inside the lock. Cover above may have
     -- topped the account up from savings, so this is re-made against
@@ -723,10 +773,16 @@ AddEventHandler('playerDropped', function()
     Bank.session[source] = nil
 end)
 
--- Society accounts for every configured job
+-- Society accounts for every configured job, and for every job that can send
+-- a bill (and the bridge's fallback issuer), so a paid bill always has an
+-- account to land in even when nobody in that job manages one here.
 CreateThread(function()
     Wait(2500)
-    for job in pairs(Config.Accounts.societyAccess) do
+    local jobs = {}
+    for job in pairs(Config.Accounts.societyAccess) do jobs[job] = true end
+    for _, job in ipairs((Config.Bills and Config.Bills.issuers) or {}) do jobs[job] = true end
+    if Config.Bridge and Config.Bridge.fallbackJob then jobs[Config.Bridge.fallbackJob] = true end
+    for job in pairs(jobs) do
         if not Bank.getSociety(job) then
             local number = Bank.newAccountNumber('SOC')
             MySQL.insert.await(

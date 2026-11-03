@@ -869,7 +869,8 @@ async function loadActivity() {
       <div class="ava ${b.status === 'overdue' ? 'bad' : ''}">${I.bill}</div>
       <div class="txt"><b>${esc(b.issuer_label)}</b>
         <span>${esc(b.reason)} · ${b.status === 'overdue' ? 'Overdue' : b.ext ? esc(b.ext) : countdown(b.dueIn) + ' left'}</span></div>
-      <button class="go" data-bill="${esc(b.id)}">Pay</button>
+      ${b.payable === false ? `<span class="go" style="opacity:.55">${esc(b.ext || 'Elsewhere')}</span>`
+        : `<button class="go" data-bill="${esc(b.id)}">Pay</button>`}
     </div>`);
   });
 
@@ -1081,7 +1082,8 @@ function renderBills() {
       <div class="txt"><b>${esc(x.reason)}</b>
         <span>${esc(x.issuer_label)} · ${x.status === 'overdue'
           ? 'Overdue' : x.ext ? esc(x.ext) : countdown(x.dueIn) + ' left'}</span></div>
-      <button class="go" data-bill="${esc(x.id)}">${money(x.amount)}</button>
+      ${x.payable === false ? `<span class="go" style="opacity:.55">${money(x.amount)}</span>`
+        : `<button class="go" data-bill="${esc(x.id)}">${money(x.amount)}</button>`}
     </div>`).join('');
 }
 
@@ -1411,7 +1413,9 @@ async function boot() {
 /** Fetch again and redraw whatever is on screen. */
 function pull() {
   refresh().then(() => {
-    if (P.page && RENDER[P.page] && P.page !== 'who') RENDER[P.page]();
+    // a statement is only pulled when asked for: pulling one can cost a fee, and a
+    // refresh after that fee was taken would pull (and charge) it again
+    if (P.page && RENDER[P.page] && P.page !== 'who' && P.page !== 'statement') RENDER[P.page]();
     if (P.tab === 'activity') loadActivity();
   });
 }

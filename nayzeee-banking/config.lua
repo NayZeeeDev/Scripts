@@ -671,6 +671,7 @@ Config.Bills = {
     latePenalty    = 0.15,    -- Added once it does
     maxAmount      = 500000,
     autoPay        = true,    -- Pay new bills straight away for players who switched auto-pay on in Settings
+    autoPayMax     = 25000,   -- Bills above this always wait for the player to pay them, 0 = no cap
 
     -- Jobs allowed to bill someone from their society account
     issuers = { 'police', 'ambulance', 'mechanic', 'lawyer', 'realestate' },
@@ -787,7 +788,6 @@ Config.Bridge = {
         'esx_billing:sendBill',
         'okokBilling:createInvoiceSociety',
         'okokBilling:createInvoicePlayer',
-        'qb-phone:server:sendNewMail',
         'lb-phone:invoice:create',
     },
     fallbackJob = 'government',  -- Issuer used when a server script does not name one
@@ -829,7 +829,9 @@ Config.Bridge = {
         enabled = true,
         seconds = 30,      -- How often online players are checked (10 minimum)
         notify  = true,    -- 'New bill' alert from the bank
-        autoPay = true,    -- Auto-pay new ones for players who switched it on
+        autoPay = true,    -- Auto-pay new ones for players who switched it on: a company's
+                           -- invoices only, never one sent by another player
+        autoPayMax = 10000,-- Invoices above this always wait for the player, 0 = no cap
     },
 
     external = {

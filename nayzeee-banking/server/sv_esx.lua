@@ -20,7 +20,7 @@ if BankLocked then return end
 
 local SYNC_SECONDS = 15   -- how often the mirror reconciles
 
-local lastBank    = {}   -- [identifier] = balance we last wrote into ESX
+local lastBank    = {}   -- [identifier] = balance we last wrote into ESX (also kept in KVP, see below)
 local named       = {}   -- [identifier] = { amount, label, at }: a payment we know is coming
 
 --- Another resource is about to take `amount` from this player's bank figure
@@ -51,6 +51,30 @@ local function foldDebit(accountId, amount, opts, who)
     end
     return ok, why
 end
+
+-- The mirror's last reading, kept per character in resource KVP so a restart of
+-- this resource does not start every player from a blank and write over the
+-- framework's figure.
+-- lastBank itself stays empty and every read and write goes through here, so
+-- each new figure reaches the KVP (a plain table would only see the first).
+local mirrorStore = {}
+setmetatable(lastBank, {
+    __index = function(_, identifier)
+        local v = mirrorStore[identifier]
+        if v == nil then
+            v = tonumber(GetResourceKvpString('nz_mirror:' .. tostring(identifier)))
+            mirrorStore[identifier] = v
+        end
+        return v
+    end,
+    __newindex = function(_, identifier, v)
+        if mirrorStore[identifier] ~= v then
+            if v == nil then DeleteResourceKvp('nz_mirror:' .. tostring(identifier))
+            else SetResourceKvpNoSync('nz_mirror:' .. tostring(identifier), tostring(v)) end
+        end
+        mirrorStore[identifier] = v
+    end,
+})
 
 local function syncPlayerNow(xPlayer)
     local identifier = xPlayer.identifier
@@ -111,6 +135,13 @@ end
 --- never fold the same gap twice.
 local function syncPlayer(xPlayer)
     return Bank.serial('esx:' .. tostring(xPlayer.identifier), syncPlayerNow, xPlayer)
+end
+
+--- Has the mirror taken its first reading for this player? Until it has, a
+--- change made behind its back (a billing script's pay export) cannot be told
+--- apart from our own figure and would be written over.
+function Bank.mirrorReady(identifier)
+    return lastBank[identifier] ~= nil
 end
 
 --- Reconcile one player now rather than on the next pass.
@@ -338,10 +369,11 @@ CreateThread(function()
     end
 end)
 
-AddEventHandler('playerDropped', function()
-    local xPlayer = Bank.getPlayer(source)
-    if xPlayer then lastBank[xPlayer.identifier] = nil end
-end)
+-- lastBank is NOT cleared when a player leaves. The framework saves their bank
+-- figure as it was; anything another script took after our last look (a car,
+-- a fine) shows as a gap on their next join and is folded in. Forgetting it
+-- would push our older, larger balance over the top and hand the money back.
+-- It is kept across a restart of this resource too (resource KVP).
 
 -- ═══════════════════════════════════════════════════════════
 --  WAGES PAID HERE  (Config.Payroll.mode = 'bank')

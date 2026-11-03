@@ -164,6 +164,15 @@ local function fromClient(src, target, issuerJob, amount, reason)
     return raise(xTarget.source, job, amount, reason, Bank.fullName(xSender))
 end
 
+--- The checks a player-raised bill goes through, for the bank's own Issue a bill:
+--- not too fast, the job at the grade, and stood with the person billed.
+function Bank.billGuard(src, xSender, job, targetSrc)
+    if rateLimited(src) then return false, 'You are sending bills too quickly.' end
+    if not canBill(xSender, job) then return false, 'Your grade cannot send bills for this job.' end
+    if not nearEnough(src, targetSrc) then return false, 'You need to be with them to bill them.' end
+    return true
+end
+
 --- Server scripts are trusted as they were; a client goes through the checks.
 local function handle(src, target, job, amount, reason, sender)
     local from = clientSource(src)
@@ -206,7 +215,8 @@ local function parse(src, a, b, c, d)
     end
 
     -- positional payload, amount sits in different slots per resource
-    local amount = tonumber(d) or tonumber(c)
+    -- the number in its own slot first, so an all-digit reason is never read as the amount
+    local amount = (type(d) == 'number' and d) or (type(c) == 'number' and c) or tonumber(d) or tonumber(c)
     local reason = type(c) == 'string' and c or (type(d) == 'string' and d or 'Invoice')
     return a, jobName(b), amount, reason, senderName(src)
 end
@@ -238,7 +248,7 @@ exports('getAccountByNumber', function(number)
     local acc = Bank.getAccountByNumber(number)
     if not acc then return nil end
     return { id = acc.id, number = acc.account_number, type = acc.type,
-             label = acc.label, balance = acc.balance, frozen = acc.frozen == 1 }
+             label = acc.label, balance = acc.balance, frozen = Bank.flag(acc.frozen) }
 end)
 
 --- Move money between any two accounts by number. Useful for shops,

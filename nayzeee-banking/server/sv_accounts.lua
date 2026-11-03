@@ -11,13 +11,13 @@ local function serialiseAccount(acc)
         type     = acc.type,
         label    = acc.label,
         balance  = acc.balance,
-        frozen   = acc.frozen == 1,
+        frozen   = Bank.flag(acc.frozen),
         owner    = acc.owner,
         role     = acc.role or 'owner',
         can      = {
-            deposit  = (acc.can_deposit  or 1) == 1,
-            withdraw = (acc.can_withdraw or 1) == 1,
-            transfer = (acc.can_transfer or 1) == 1
+            deposit  = Bank.flag(acc.can_deposit, true),
+            withdraw = Bank.flag(acc.can_withdraw, true),
+            transfer = Bank.flag(acc.can_transfer, true)
         },
         meta     = acc.meta and json.decode(acc.meta) or {}
     }
@@ -135,10 +135,10 @@ function Bank.buildPayload(src, context)
         market    = optional('the market', Bank.getMarketState, identifier),
         payroll   = societies[1] and optional('payroll', Bank.getPayroll, societies[1]) or nil,
         settings  = {
-            directDeposit = (settings.direct_deposit or 1) == 1,
-            autoPayBills  = (settings.auto_pay_bills or 0) == 1,
-            autoPayLoans  = (settings.auto_pay_loans or 1) == 1,
-            notifications = (settings.notifications or 1) == 1
+            directDeposit = Bank.flag(settings.direct_deposit, true),
+            autoPayBills  = Bank.flag(settings.auto_pay_bills, false),
+            autoPayLoans  = Bank.flag(settings.auto_pay_loans, true),
+            notifications = Bank.flag(settings.notifications, true)
         },
         config    = {
             serverName      = Config.ServerName,
@@ -157,6 +157,8 @@ function Bank.buildPayload(src, context)
             currency        = Config.Currency,
             currencyRight   = Config.CurrencyRight or false,
             paper           = (Config.Paper and Config.Paper.enabled and Bank.inventory() ~= 'esx') or false,
+            statementFee    = (Config.Statements and Config.Statements.fee) or 0,
+            expressThreshold= (Config.Cards.express and Config.Cards.express.threshold) or 0,
             numberChangeCost= Config.Accounts.numberChangeCost or 0,
             payrollMode     = Config.Payroll.mode,
             hours           = Config.WorkingHours.enabled and {
@@ -204,7 +206,8 @@ local function atmView(src, payload)
     -- someone else's card reaches nothing of yours
     if atm.foreign then
         payload.cards, payload.payees = {}, {}
-        payload.savings, payload.savingsId = nil, nil
+        -- an empty savings record rather than none, so the screen has something to read
+        payload.savings, payload.savingsId = { open = false, balance = 0, rate = 0, goal = 0 }, nil
         payload.summary.savings = 0
     elseif payload.savingsId and payload.savingsId ~= acc.id then
         local sav = Bank.getAccountById(payload.savingsId)
@@ -257,7 +260,7 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount, fromMachine)
     local acc, perms, err = moneyAccess(src, accountId, point)
     if not acc then return { ok = false, msg = err } end
     if not perms.deposit then return { ok = false, msg = 'You do not have deposit rights here.' } end
-    if acc.frozen == 1 then return { ok = false, msg = 'This account is frozen.' } end
+    if Bank.flag(acc.frozen) then return { ok = false, msg = 'This account is frozen.' } end
 
     if acc.type == 'savings' and (acc.balance + amount) > Config.Savings.maxBalance then
         return { ok = false, msg = 'That exceeds the savings limit.' }
@@ -305,7 +308,7 @@ function Bank.withdrawAt(src, xPlayer, accountId, amount, point, dry)
     local acc, perms, err, atm = moneyAccess(src, accountId, point)
     if not acc then return { ok = false, msg = err } end
     if not perms.withdraw then return { ok = false, msg = 'You do not have withdrawal rights here.' } end
-    if acc.frozen == 1 then return { ok = false, msg = 'This account is frozen.' } end
+    if Bank.flag(acc.frozen) then return { ok = false, msg = 'This account is frozen.' } end
 
     local cap = Config.Accounts.withdrawLimits[acc.type] or 0
     if cap > 0 and amount > cap then
@@ -324,9 +327,11 @@ function Bank.withdrawAt(src, xPlayer, accountId, amount, point, dry)
     end
 
     if dry then
-        -- overdraft cover is worked out by the debit itself, so only a plain shortfall is refused here
-        local cover = Config.Overdraft and Config.Overdraft.enabled
-        if not cover and acc.balance < amount + fee then return { ok = false, msg = 'Not enough in the account.' } end
+        -- savings and the overdraft line count only where they would really cover it
+        local room = Bank.overdraftHeadroom and Bank.overdraftHeadroom(acc) or 0
+        if not Config.Accounts.allowNegative and acc.balance + room < amount + fee then
+            return { ok = false, msg = 'Not enough in the account.' }
+        end
         return { ok = true }
     end
 
@@ -339,25 +344,29 @@ function Bank.withdrawAt(src, xPlayer, accountId, amount, point, dry)
         end
     end
 
+    -- one row for what left the account; the fee is named on it rather than
+    -- logged again on its own, which made statements count it twice
+    local wlabel = fromATM and 'ATM withdrawal' or 'Account withdrawal'
+    if fee > 0 then wlabel = ('%s (incl. %s%s fee)'):format(wlabel, Config.Currency, fee) end
     local ok, res = Bank.debit(accountId, amount + fee, {
         category = 'withdraw',
-        label    = fromATM and 'ATM withdrawal' or 'Account withdrawal',
+        label    = wlabel,
         actor    = xPlayer.identifier,
         actorName= Bank.fullName(xPlayer)
     })
+    local spent = atm and atm.foreign and atm.cardId
     if not ok then
+        if spent then Bank.unspendOnCard(atm.cardId, amount) end
         return { ok = false, msg = res == 'insufficient' and 'Not enough in the account.' or 'Withdrawal failed.' }
     end
 
     -- no room for the cash (a full inventory): the money goes back in the account
     if not Bank.addCash(xPlayer, amount) then
-        Bank.credit(accountId, amount + fee, { category = 'withdraw', label = 'Withdrawal reversed' })
+        if spent then Bank.unspendOnCard(atm.cardId, amount) end
+        Bank.creditOwed(accountId, amount + fee, { category = 'withdraw', label = 'Withdrawal reversed' })
         return { ok = false, msg = 'You have no room for the cash. Nothing was taken.' }
     end
 
-    if fee > 0 then
-        Bank.logTx(accountId, 'out', fee, res, { category = 'fee', label = 'Withdrawal fee' })
-    end
 
     Bank.log('withdraw', 'Withdrawal',
         ('**%s** withdrew **%s%s** from %s%s'):format(
@@ -398,7 +407,7 @@ function Bank.doTransfer(fromId, toNumber, amount, actorId, actorName, label)
     local target = Bank.getAccountByNumber(toNumber)
     if not target then return false, 'No account with that number.' end
     if target.id == Bank.id(fromId) then return false, 'That is the same account.' end
-    if target.frozen == 1 then return false, 'The receiving account is frozen.' end
+    if Bank.flag(target.frozen) then return false, 'The receiving account is frozen.' end
 
     -- savings has a ceiling however the money arrives, not just as cash
     if target.type == 'savings' and (target.balance + amount) > Config.Savings.maxBalance then
@@ -409,9 +418,11 @@ function Bank.doTransfer(fromId, toNumber, amount, actorId, actorName, label)
 
     -- the number and name go on the row too, so "pay them again"
     -- has something to work from later
+    local tlabel = label or ('Transfer to %s'):format(target.label)
+    if fee > 0 then tlabel = ('%s (incl. %s%s fee)'):format(tlabel, Config.Currency, fee):sub(1, 90) end
     local ok, res = Bank.debit(fromId, amount + fee, {
         category = 'transfer',
-        label    = label or ('Transfer to %s'):format(target.label),
+        label    = tlabel,
         actor    = actorId,
         actorName= actorName,
         counterparty     = target.account_number,
@@ -429,13 +440,10 @@ function Bank.doTransfer(fromId, toNumber, amount, actorId, actorName, label)
     })
     if not credited then
         -- roll the money back to the sender
-        Bank.credit(fromId, amount + fee, { category = 'transfer', label = 'Transfer reversed' })
+        Bank.creditOwed(fromId, amount + fee, { category = 'transfer', label = 'Transfer reversed' })
         return false, 'The receiving account rejected the transfer.'
     end
 
-    if fee > 0 then
-        Bank.logTx(fromId, 'out', fee, res, { category = 'fee', label = 'Transfer fee' })
-    end
 
     -- ping the receiver if they are online
     if target.type == 'personal' or target.type == 'savings' then
@@ -462,9 +470,14 @@ Bank.callback('nz_bank:transfer', function(src, accountId, toNumber, amount, not
     if not acc then return { ok = false, msg = 'You cannot use this account.' } end
     if not perms.transfer then return { ok = false, msg = 'You do not have transfer rights here.' } end
 
+    -- checked before the card's limit is touched, so a bad amount cannot move it
+    amount = Bank.round(amount)
+    if amount < Config.Accounts.minTransfer then return { ok = false, msg = 'Amount is too small.' } end
+    if amount > Config.Accounts.maxTransfer then return { ok = false, msg = 'Amount is too large.' } end
+
     -- someone else's card sends inside that card's daily limit, like a withdrawal
     if viaCard and viaCard.cardId then
-        local within, why = Bank.serial(Bank.cardKey(viaCard.cardId), Bank.spendOnCard, viaCard.cardId, Bank.round(amount))
+        local within, why = Bank.serial(Bank.cardKey(viaCard.cardId), Bank.spendOnCard, viaCard.cardId, amount)
         if not within then
             return { ok = false, msg = why == 'limit' and 'That would break the daily limit on this card.'
                 or 'This card was declined.' }
@@ -473,6 +486,7 @@ Bank.callback('nz_bank:transfer', function(src, accountId, toNumber, amount, not
 
     local label = note and note ~= '' and ('Transfer · %s'):format(tostring(note):sub(1, 48)) or nil
     local ok, msg = Bank.doTransfer(acc.id, toNumber, amount, xPlayer.identifier, Bank.fullName(xPlayer), label)
+    if not ok and viaCard and viaCard.cardId then Bank.unspendOnCard(viaCard.cardId, amount) end
     if ok then Bank.touchPayee(xPlayer.identifier, tostring(toNumber or ''):upper()) end
     return { ok = ok, msg = msg }
 end)
@@ -616,14 +630,14 @@ local function closeShared(src, accountId)
     local acc, perms = Bank.access(src, accountId)
     if not acc or acc.type ~= 'shared' then return { ok = false, msg = 'Not a shared account.' } end
     if perms.role ~= 'owner' then return { ok = false, msg = 'Only the owner can close it.' } end
-    if acc.frozen == 1 then return { ok = false, msg = 'This account is frozen.' } end
+    if Bank.flag(acc.frozen) then return { ok = false, msg = 'This account is frozen.' } end
     if acc.balance < 0 then return { ok = false, msg = 'Clear the negative balance first.' } end
 
     if acc.balance > 0 then
         local personal = Bank.getPersonal(xPlayer.identifier)
         local moved = Bank.debit(acc.id, acc.balance, { category = 'transfer', label = 'Account closed' })
         if not moved then return { ok = false, msg = 'The balance changed. Try again.' } end
-        Bank.credit(personal.id, acc.balance, { category = 'transfer', label = ('Closed %s'):format(acc.label) })
+        Bank.creditOwed(personal.id, acc.balance, { category = 'transfer', label = ('Closed %s'):format(acc.label) })
     end
 
     -- money that landed while closing keeps the account open
@@ -757,7 +771,7 @@ AddEventHandler('nz_bank:paycheck', function(src, amount, jobLabel)
     if Config.DirectDeposit.enabled then
         local s = MySQL.single.await('SELECT direct_deposit FROM nz_bank_settings WHERE identifier = ?',
             { xPlayer.identifier })
-        if s then toBank = s.direct_deposit == 1 else toBank = Config.DirectDeposit.defaultToBank end
+        if s then toBank = Bank.flag(s.direct_deposit) else toBank = Config.DirectDeposit.defaultToBank end
     end
 
     if toBank then

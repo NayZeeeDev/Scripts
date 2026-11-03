@@ -36,7 +36,7 @@ local function eligible(acc)
 
     local s = MySQL.single.await(
         'SELECT overdraft FROM nz_bank_settings WHERE identifier = ?', { acc.owner })
-    return s and s.overdraft == 1
+    return s and Bank.flag(s.overdraft)
 end
 
 --- How far below zero this account is allowed to go.
@@ -103,6 +103,21 @@ local function sweepSavings(acc, shortfall)
     end
 
     return landed
+end
+
+--- How much past its balance this account could pay, counting the savings sweep
+--- and the overdraft line, without moving anything. For checks made ahead of
+--- the real debit (a teller withdrawal is checked when asked for).
+function Bank.overdraftHeadroom(acc)
+    if not eligible(acc) then return 0 end
+    local c = cfg()
+    local room = 0
+    if c.savingsFirst ~= false and Bank.getSavings then
+        local sav = Bank.getSavings(acc.owner)
+        if sav and sav.balance and sav.balance > 0 then room = room + sav.balance end
+    end
+    if c.limit and c.limit > 0 then room = room + Bank.overdraftLimit(acc.owner) + math.min(acc.balance, 0) end
+    return math.max(0, room)
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -228,7 +243,7 @@ function Bank.getOverdraftState(identifier, acc)
     return {
         enabled   = true,
         optIn     = c.optIn ~= false,
-        on        = (not c.optIn) or (settings and settings.overdraft == 1) or false,
+        on        = (not c.optIn) or (settings and Bank.flag(settings.overdraft)) or false,
         limit     = limit,
         used      = used,
         available = math.max(0, limit - used),

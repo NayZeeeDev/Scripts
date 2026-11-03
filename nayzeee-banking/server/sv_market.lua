@@ -334,7 +334,7 @@ function trade(src, side, assetId, spend, accountId)
                 { remaining, pl, holding.id })
         end
 
-        Bank.credit(accountId, net, {
+        Bank.creditOwed(accountId, net, {
             category = 'transfer',
             label    = ('Sold %s'):format(cfg.label),
             actor    = xPlayer.identifier,

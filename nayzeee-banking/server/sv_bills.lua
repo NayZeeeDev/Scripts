@@ -35,17 +35,24 @@ function Bank.createBill(identifier, issuerJob, amount, reason, senderName)
     amount = Bank.round(amount)
     if amount <= 0 or amount > Config.Bills.maxAmount then return false, 'Invalid amount.' end
 
+    -- a paid bill needs somewhere to land; without an account it would be money gone
     local issuer = Bank.getSociety(issuerJob)
+    if not issuer then
+        print(('^3[nayzeee-banking]^7 a bill from %s was refused: that job has no society account. ' ..
+               'Add it to Config.Bills.issuers or Config.Accounts.societyAccess.'):format(tostring(issuerJob)))
+        return false, 'That company has no account at this bank.'
+    end
+
     local billId = MySQL.insert.await([[
         INSERT INTO nz_bank_bills (identifier, issuer_id, issuer_label, sender_name, amount, reason, due_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ]], {
         identifier,
-        issuer and issuer.id or nil,
-        issuer and issuer.label or (issuerJob or 'City'),
-        senderName,
+        issuer.id,
+        issuer.label,
+        senderName and Bank.cut(senderName, 64) or nil,
         amount,
-        (reason or 'Invoice'):sub(1, 120),
+        Bank.cut(reason or 'Invoice', 120),
         os.time() + (Config.Bills.overdueMinutes * 60)
     })
 
@@ -53,7 +60,8 @@ function Bank.createBill(identifier, issuerJob, amount, reason, senderName)
     if xPlayer then
         -- auto-pay if the player opted in and can cover it
         local s = MySQL.single.await('SELECT auto_pay_bills FROM nz_bank_settings WHERE identifier = ?', { identifier })
-        if Config.Bills.autoPay and billId and s and s.auto_pay_bills == 1 then
+        local cap = tonumber(Config.Bills.autoPayMax) or 0
+        if Config.Bills.autoPay and billId and s and Bank.flag(s.auto_pay_bills) and (cap <= 0 or amount <= cap) then
             local acc = Bank.getPersonal(identifier)
             if acc and acc.balance >= amount and Bank.settleBill(identifier, billId, acc.id, true) then
                 return true
@@ -61,7 +69,7 @@ function Bank.createBill(identifier, issuerJob, amount, reason, senderName)
         end
 
         Bank.notify(xPlayer.source, 'New bill',
-            ('%s%s from %s'):format(Config.Currency, amount, issuer and issuer.label or issuerJob or 'the city'), 'inform')
+            ('%s%s from %s'):format(Config.Currency, amount, issuer.label), 'inform')
         TriggerClientEvent('nz_bank:refresh', xPlayer.source)
     end
     return true
@@ -73,6 +81,9 @@ function Bank.settleBill(identifier, billId, accountId, auto)
 
     local bill = MySQL.single.await('SELECT * FROM nz_bank_bills WHERE id = ?', { billId })
     if not bill or bill.identifier ~= identifier then return false, 'Bill not found.' end
+    if bill.issuer_id and Bank.id(bill.issuer_id) == Bank.id(accountId) then
+        return false, 'Pay it from a different account.'
+    end
     if bill.status ~= 'pending' and bill.status ~= 'overdue' then return false, 'This bill is already settled.' end
 
     -- Claim the bill before any money moves. Two payments racing both
@@ -110,7 +121,7 @@ function Bank.settleBill(identifier, billId, accountId, auto)
         })
         if not paid then
             -- the company's account is frozen or busy: nothing changes hands
-            Bank.credit(accountId, bill.amount, { category = 'bill', label = 'Bill payment returned' })
+            Bank.creditOwed(accountId, bill.amount, { category = 'bill', label = 'Bill payment returned' })
             unclaim()
             return false, 'The company is not taking payments right now.'
         end
@@ -160,8 +171,14 @@ Bank.callback('nz_bank:issueBill', function(src, targetSrc, amount, reason)
     local target = ESX.GetPlayerFromId(tonumber(targetSrc))
     if not target then return { ok = false, msg = 'No player online with that ID.' } end
 
-    local ok = Bank.createBill(target.identifier, issuerJob, amount, reason, Bank.fullName(xPlayer))
-    if not ok then return { ok = false, msg = 'Could not create that bill.' } end
+    -- the same rules as a bill raised through the bridge: grade, nearby, not too fast
+    if Bank.billGuard then
+        local allowed, why = Bank.billGuard(src, xPlayer, issuerJob, target.source)
+        if not allowed then return { ok = false, msg = why } end
+    end
+
+    local ok, why = Bank.createBill(target.identifier, issuerJob, amount, reason, Bank.fullName(xPlayer))
+    if not ok then return { ok = false, msg = why or 'Could not create that bill.' } end
 
     return { ok = true, msg = ('Billed %s for %s%s.'):format(Bank.fullName(target), Config.Currency, Bank.round(amount)) }
 end)
@@ -222,7 +239,7 @@ function Bank.getScheduled(identifier)
 
     for _, r in ipairs(rows) do
         r.nextIn = math.max(0, math.floor((r.next_run - os.time()) / 60))
-        r.enabled = r.enabled == 1
+        r.enabled = Bank.flag(r.enabled)
     end
     return rows
 end
@@ -271,7 +288,7 @@ Bank.callback('nz_bank:updateScheduled', function(src, id, action)
         MySQL.update.await('DELETE FROM nz_bank_scheduled WHERE id = ?', { id })
         return { ok = true, msg = 'Scheduled transfer removed.' }
     elseif action == 'toggle' then
-        local enabled = row.enabled == 1 and 0 or 1
+        local enabled = Bank.flag(row.enabled) and 0 or 1
         MySQL.update.await('UPDATE nz_bank_scheduled SET enabled = ?, failures = 0 WHERE id = ?', { enabled, id })
         return { ok = true, msg = enabled == 1 and 'Resumed.' or 'Paused.' }
     end

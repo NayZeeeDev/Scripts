@@ -212,7 +212,7 @@ local function cycleCard(cardId)
         if true and Bank.isCharacterId(owner) then
             local s = MySQL.single.await(
                 'SELECT auto_pay_loans FROM nz_bank_settings WHERE identifier = ?', { owner })
-            if s and s.auto_pay_loans == 1 and acc and acc.balance >= card.min_payment then
+            if s and Bank.flag(s.auto_pay_loans) and acc and acc.balance >= card.min_payment then
                 paid = select(1, payCardNow(nil, card.id, card.min_payment, card.account_id, true))
             end
         end

@@ -47,8 +47,8 @@ local function serialiseCard(c, includePin)
         limit    = c.daily_limit,
         spent    = (tonumber(c.spent_reset) or 0) > os.time() and c.spent_today or 0,
         spentIn  = math.max(0, math.floor(((tonumber(c.spent_reset) or 0) - os.time()) / 60)),
-        express  = c.express == 1,
-        isDefault= c.is_default == 1,
+        express  = Bank.flag(c.express),
+        isDefault= Bank.flag(c.is_default),
         skin     = c.skin,
         expires  = c.expires,
         pin      = includePin and c.pin or nil
@@ -183,6 +183,9 @@ end
 --- Daily spend on a rolling window rather than a calendar day, so a card
 --- maxed at 23:55 is not free again five minutes later.
 function Bank.spendOnCard(cardId, amount)
+    -- a zero or negative spend would wind the day's total backwards
+    amount = tonumber(amount)
+    if not amount or amount <= 0 then return false, 'bad_amount' end
     local c = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not c then return false, 'no_card' end
     if c.status ~= 'active' then return false, 'blocked' end
@@ -204,6 +207,14 @@ function Bank.spendOnCard(cardId, amount)
         'UPDATE nz_bank_cards SET spent_today = ?, spent_reset = ?, spent_day = CURDATE() WHERE id = ?',
         { spent + amount, reset, cardId })
     return true
+end
+
+--- Give back what a spend took off the day's limit, when the payment it was
+--- for did not go through after all.
+function Bank.unspendOnCard(cardId, amount)
+    amount = tonumber(amount)
+    if not cardId or not amount or amount <= 0 then return end
+    MySQL.update.await('UPDATE nz_bank_cards SET spent_today = GREATEST(spent_today - ?, 0) WHERE id = ?', { amount, cardId })
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -443,7 +454,7 @@ function updateCard(src, cardId, action, value)
         end
 
         if card.deposit and card.deposit > 0 then
-            Bank.credit(card.account_id, card.deposit, {
+            Bank.creditOwed(card.account_id, card.deposit, {
                 category = 'deposit', label = 'Secured card deposit returned'
             })
         end
@@ -486,6 +497,10 @@ function updateCard(src, cardId, action, value)
 end
 
 --- Verify a PIN. Wrong entries eat an attempt and eventually block the card.
+-- Wrong PINs per card, kept by card rather than by player session: a thief who
+-- reconnects does not get a fresh set of guesses.
+local pinTries = {}
+
 Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
     cardId = Bank.id(cardId)
     local card = cardId and MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
@@ -500,18 +515,18 @@ Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
 
     Bank.session[src] = Bank.session[src] or { pinOk = {}, attempts = {} }
     local sess = Bank.session[src]
-    sess.attempts = sess.attempts or {}
 
     if tostring(card.pin) == tostring(pin) then
         sess.pinOk[cardId] = true
-        sess.attempts[cardId] = nil
+        pinTries[cardId] = nil
         return { ok = true }
     end
 
-    sess.attempts[cardId] = (sess.attempts[cardId] or 0) + 1
-    local left = Config.ATM.pinAttempts - sess.attempts[cardId]
+    pinTries[cardId] = (pinTries[cardId] or 0) + 1
+    local left = Config.ATM.pinAttempts - pinTries[cardId]
 
     if left <= 0 then
+        pinTries[cardId] = nil
         MySQL.update.await('UPDATE nz_bank_cards SET status = "blocked" WHERE id = ?', { cardId })
         Bank.log('cards', 'Card auto-blocked', ('Card on account #%s blocked after failed PIN entries'):format(card.account_id))
         return { ok = false, msg = 'Too many wrong PINs. The card is now blocked.' }
@@ -532,7 +547,7 @@ Bank.callback('nz_bank:pinRequired', function(src, cardId, amount)
 
     if Config.Cards.express.enabled and amount and amount <= Config.Cards.express.threshold then
         local card = MySQL.single.await('SELECT express FROM nz_bank_cards WHERE id = ?', { cardId })
-        if card and card.express == 1 then return false end
+        if card and Bank.flag(card.express) then return false end
     end
     return true
 end)
@@ -582,8 +597,16 @@ Bank.callback('nz_bank:reportCard', function(src, cardId)
     local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card then return { ok = false, msg = 'Card not found.' } end
 
-    local acc = Bank.access(src, card.account_id)
+    local acc, perms = Bank.access(src, card.account_id)
     if not acc then return { ok = false, msg = 'You cannot use this account.' } end
+
+    -- reporting blocks a card for good: a member of a shared account may only
+    -- report their own, as with every other card setting
+    local xPlayer = Bank.getPlayer(src)
+    local ownCard = xPlayer and card.holder_identifier == xPlayer.identifier
+    if perms and perms.role == 'member' and not ownCard then
+        return { ok = false, msg = 'Only owners and managers can report this card.' }
+    end
 
     MySQL.update.await('UPDATE nz_bank_cards SET status = "stolen" WHERE id = ?', { cardId })
     Bank.log('cards', 'Card reported stolen', ('Card on %s reported'):format(acc.label))

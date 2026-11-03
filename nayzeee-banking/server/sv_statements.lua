@@ -92,19 +92,23 @@ function Bank.buildStatement(accountId, periodId, limit)
 
     table.sort(breakdown, function(a, b) return a.amount > b.amount end)
 
-    -- The lines themselves, oldest first so the running balance reads
-    -- down the page the way a real statement does.
+    -- The lines themselves: the latest ones (a busy period can have more than
+    -- fit), turned oldest first so the running balance reads down the page.
     local rows = MySQL.query.await(([[
         SELECT direction, amount, balance_after, label, category, %s
                DATE_FORMAT(created_at, '%%d %%b - %%H:%%i') AS stamp
         FROM nz_bank_transactions
         WHERE account_id = ? %s
-        ORDER BY id ASC
+        ORDER BY id DESC
         LIMIT ?
     ]]):format(
         Bank.schema.counterparty and 'counterparty_name,' or '',
         fromSql and 'AND created_at >= ?' or ''),
         fromSql and { accountId, fromSql, limit or 250 } or { accountId, limit or 250 }) or {}
+    for a, b in ipairs(rows) do
+        if a > #rows / 2 then break end
+        rows[a], rows[#rows - a + 1] = rows[#rows - a + 1], b
+    end
 
     return {
         account   = {

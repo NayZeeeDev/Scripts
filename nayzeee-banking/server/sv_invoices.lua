@@ -131,7 +131,10 @@ local function settle(src, accountId, bill, claim, unclaim)
     if not acc then return false, 'You cannot use that account.' end
     if not perms.withdraw then return false, 'You cannot spend from that account.' end
 
-    -- where the money goes: the company's account here, or the person who sent it
+    if Bank.flag(acc.frozen) then return false, 'This account is frozen.' end
+
+    -- where the money goes: the company's account here, or the person who sent it.
+    -- With nowhere to put it, the bill is not paid at all rather than paid to no one.
     local to
     if bill.job then
         local soc = Bank.getSociety(bill.job)
@@ -141,6 +144,8 @@ local function settle(src, accountId, bill, claim, unclaim)
         local p = Bank.getPersonal(bill.payee)
         to = p and p.id
     end
+    if not to then return false, 'Nobody at this bank can receive that payment.' end
+    if Bank.id(to) == Bank.id(accountId) then return false, 'Pay it from a different account.' end
 
     if not claim() then return false, 'This invoice was just paid or changed.' end
 
@@ -150,16 +155,14 @@ local function settle(src, accountId, bill, claim, unclaim)
     })
     if not ok then unclaim() return false, 'Not enough in that account.' end
 
-    if to then
-        local paid = Bank.credit(to, bill.amount, {
-            category = 'bill', label = ('Bill paid · %s'):format(bill.reason):sub(1, 90),
-            actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
-        })
-        if not paid then
-            Bank.credit(accountId, bill.amount, { category = 'bill', label = 'Bill payment returned' })
-            unclaim()
-            return false, 'The company is not taking payments right now.'
-        end
+    local paid = Bank.credit(to, bill.amount, {
+        category = 'bill', label = ('Bill paid · %s'):format(bill.reason):sub(1, 90),
+        actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
+    })
+    if not paid then
+        Bank.creditOwed(accountId, bill.amount, { category = 'bill', label = 'Bill payment returned' })
+        unclaim()
+        return false, 'The company is not taking payments right now.'
     end
 
     Bank.log('bills', 'Invoice paid', ('**%s%s** to %s · %s (%s)')
@@ -175,6 +178,14 @@ local function viaExport(src, bill, fn)
     if not xPlayer then return false, 'Player not found.' end
     local acc = Bank.getPersonal(xPlayer.identifier)
     if not acc or acc.balance < bill.amount then return false, 'Not enough in your personal account.' end
+    if Bank.flag(acc.frozen) then return false, 'Your personal account is frozen.' end
+
+    -- the mirror needs its reading of the bank figure first, or the money the
+    -- billing script takes would be written back over by our own balance
+    if Bank.syncNow then Bank.syncNow(xPlayer.identifier) end
+    if Bank.mirrorReady and not Bank.mirrorReady(xPlayer.identifier) then
+        return false, 'The bank is still syncing your account. Try again in a moment.'
+    end
 
     if Bank.expectExternal then
         Bank.expectExternal(xPlayer.identifier, bill.amount, ('%s · %s'):format(bill.issuer, bill.reason):sub(1, 90))
@@ -264,8 +275,8 @@ local function invoiceTable(key, resource, label, defaultTable)
 
         list = function(self, identifier)
             local c = self.cols
-            local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE receiver_identifier = ? ORDER BY id DESC LIMIT 40')
-                :format(self.tbl), { identifier }) or {}
+            local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE receiver_identifier = ? AND status IN (?, ?, ?) ORDER BY id DESC LIMIT 40')
+                :format(self.tbl), { identifier, 'unpaid', 'overdue', 'pending' }) or {}
             local out = {}
             for _, r in ipairs(rows) do
                 if UNPAID[tostring(r.status):lower()] then
@@ -369,11 +380,22 @@ ADAPTERS.okokBilling = {
         local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
         if not xPlayer then return self:offline(identifier) end
         local res = self:fetch(xPlayer.source)
-        if not res then return self.legacy and okokTable.list(okokTable, identifier) or {} end
+        -- nil = the read failed (unknown), as opposed to {} = nothing owed
+        if not res then return self.legacy and okokTable.list(okokTable, identifier) or nil end
+
+        -- getInvoices takes a player and may hand back what they sent as well as
+        -- what they owe: keep only the ones addressed to them
+        local me = tostring(Bank.fullName(xPlayer) or ''):lower()
+        local function mine(inv)
+            if me == '' then return true end
+            if inv.receiver and tostring(inv.receiver):lower() ~= me then return false end
+            if inv.sender and tostring(inv.sender):lower() == me then return false end
+            return true
+        end
 
         local out = {}
         for _, inv in ipairs(res) do
-            if type(inv) == 'table' and inv.ref_id and OKOK_OPEN[tostring(inv.status):lower()] then
+            if type(inv) == 'table' and inv.ref_id and OKOK_OPEN[tostring(inv.status):lower()] and mine(inv) then
                 local fees = tonumber(inv.fees) or 0
                 local due = parseDate(inv.dueDate)
                 out[#out + 1] = {
@@ -394,8 +416,11 @@ ADAPTERS.okokBilling = {
         return viaExport(src, bill, function()
             local _, _, ran = call('okokBilling', 'okokBilling', 'payReference', src, bill.ref)
             if not ran then return false end
-            -- payReference returns nothing documented: it worked if the invoice is no longer owed
-            for _, inv in ipairs(self:fetch(src) or {}) do
+            -- payReference returns nothing documented: it worked if the invoice is no
+            -- longer owed. A re-read that fails confirms nothing.
+            local after = self:fetch(src)
+            if not after then return false end
+            for _, inv in ipairs(after) do
                 if type(inv) == 'table' and inv.ref_id == bill.ref and OKOK_OPEN[tostring(inv.status):lower()] then
                     return false
                 end
@@ -427,7 +452,7 @@ ADAPTERS.bcs_companymanager = {
         for _, r in ipairs(rows) do
             out[#out + 1] = {
                 ref = r.id, amount = tonumber(r.price) or 0, reason = r.description,
-                issuer = companyLabel(r.company), sender = r.biller,
+                issuer = companyLabel(r.company), sender = r.biller, job = bareJob(r.company),
             }
         end
         return out
@@ -475,6 +500,7 @@ local function fromObject(inv)
         issuer = job and companyLabel(job, pick(inv, 'senderCompanyName', 'society_name', 'company_label'))
             or pick(inv, 'senderName', 'sender_name', 'author_name') or 'Private invoice',
         sender = pick(inv, 'senderName', 'sender_name', 'author_name'),
+        job = job,
         overdue = status == 'overdue',
     }
 end
@@ -494,7 +520,7 @@ local function exportAdapter(key, resource, label, o)
         end,
         list = function(self, identifier)
             local res, _, ran = call(key, resource, self.listExport, o.listArgs(identifier))
-            if not ran then return {} end
+            if not ran then return nil end
             local out = {}
             for _, inv in ipairs(type(res) == 'table' and res or {}) do
                 local b = type(inv) == 'table' and fromObject(inv)
@@ -512,7 +538,9 @@ local function exportAdapter(key, resource, label, o)
             return viaExport(src, bill, function(xPlayer)
                 local res, _, ran = call(key, resource, self.payExport, o.payArgs(src, xPlayer, bill.ref))
                 if not ran or res == false then return false end
-                if res ~= nil or not o.getExport then return res ~= nil end
+                if type(res) == 'table' then res = res.success or res.ok or res.paid end
+                if res == true then return true end
+                if res ~= nil or not o.getExport then return false end
                 -- nothing returned: it worked if the invoice now reads as settled or gone
                 local inv, _, read = call(key, resource, o.getExport, bill.ref)
                 return read and (type(inv) ~= 'table' or settled(inv))
@@ -577,7 +605,7 @@ ADAPTERS['qs-billing'] = {
         if self.legacy then return qsTable.list(qsTable, identifier) end
         if self.legacy == false then return {} end
         local res = self:fetch(identifier)
-        if not res then return self.legacy and qsTable.list(qsTable, identifier) or {} end
+        if not res then return self.legacy and qsTable.list(qsTable, identifier) or nil end
 
         local out = {}
         for _, inv in ipairs(res) do
@@ -596,6 +624,7 @@ ADAPTERS['qs-billing'] = {
                     due = due and os.date('%d %b %H:%M', due) or nil,
                     overdue = qsStatus(inv) == 'overdue',
                     partial = qsStatus(inv) == 'partial',
+                    job = job,
                 }
             end
         end
@@ -609,7 +638,7 @@ ADAPTERS['qs-billing'] = {
             if not ran or res == false then return false end
             -- the return value is not documented: it worked if nothing is left on it
             local inv = call('qs-billing', 'qs-billing', 'GetInvoice', bill.ref)
-            if type(inv) ~= 'table' then return res ~= nil end
+            if type(inv) ~= 'table' then return res == true end
             return not QS_OPEN[qsStatus(inv)] or qsOwed(inv) <= 0
         end)
     end,
@@ -631,7 +660,8 @@ ADAPTERS.wasabi_billing = {
 
     list = function(_, identifier)
         local res, _, ran = call('wasabi_billing', 'wasabi_billing', 'GetInvoicesByIdentifier', identifier)
-        if not ran or type(res) ~= 'table' then return {} end
+        if not ran then return nil end          -- unknown, not empty
+        if type(res) ~= 'table' then return {} end
         local out = {}
         for _, inv in ipairs(res) do
             if type(inv) == 'table' and inv.reference_id
@@ -645,6 +675,8 @@ ADAPTERS.wasabi_billing = {
                     amount = tonumber(inv.total_amount) or ((tonumber(inv.amount) or 0) + (tonumber(inv.vat_amount) or 0)),
                     reason = inv.reason or 'Invoice',
                     issuer = inv.author_name or 'Invoice',
+                    -- a society issuer is stored by its job name
+                    job = inv.invoice_type == 'society' and bareJob(inv.author_identifier) or nil,
                     due = due and os.date('%d %b %H:%M', due) or nil,
                     overdue = tostring(inv.status):lower() == 'overdue',
                 }
@@ -730,8 +762,8 @@ ADAPTERS['tgg-billing'] = {
 
     list = function(self, identifier)
         local m = self.map
-        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? ORDER BY `%s` DESC LIMIT 40')
-            :format(self.tbl, m.to, m.ref), { identifier }) or {}
+        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? AND `%s` IN (?, ?) ORDER BY `%s` DESC LIMIT 40')
+            :format(self.tbl, m.to, m.status, m.ref), { identifier, 'unpaid', 'overdue' }) or {}
         local out = {}
         for _, r in ipairs(rows) do
             local kind = pick(r, 'recipient_type', 'recipientType')
@@ -747,6 +779,7 @@ ADAPTERS['tgg-billing'] = {
                     issuer = (not personal and companyLabel(sender, pick(r, 'sender_company_name', 'senderCompanyName')))
                         or pick(r, 'sender_name', 'senderName') or 'Private invoice',
                     sender = not personal and pick(r, 'sender_name', 'senderName') or nil,
+                    job = not personal and bareJob(sender) or nil,
                     overdue = tostring(r[m.status]):lower() == 'overdue',
                 }
             end
@@ -779,7 +812,9 @@ ADAPTERS['bablo-billing'] = {
 
     list = function(self, identifier)
         local m = self.map
-        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ? LIMIT 40'):format(self.tbl, m.to), { identifier }) or {}
+        local open = m.have.status and ' AND `status` NOT IN (\'paid\', \'cancelled\', \'canceled\', \'refused\', \'rejected\', \'deleted\')' or ''
+        local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `%s` = ?%s ORDER BY `%s` DESC LIMIT 40')
+            :format(self.tbl, m.to, open, m.ref), { identifier }) or {}
         local out = {}
         for _, r in ipairs(rows) do
             local b = fromObject(r)
@@ -794,7 +829,7 @@ ADAPTERS['bablo-billing'] = {
     pay = function(_, src, bill)
         return viaExport(src, bill, function(xPlayer)
             local res, _, ran = call('bablo-billing', 'bablo-billing', 'payInvoice', bill.ref, xPlayer.identifier)
-            return ran and res ~= false and res ~= nil
+            return ran and res == true
         end)
     end,
 }
@@ -829,44 +864,53 @@ end)
 
 --- Every unpaid invoice the running billing scripts hold for this player,
 --- in the shape of this bank's own bill rows. Ids look like 'x:okokBilling:12'.
+--- Second value: the scripts that were actually read this time. One whose read
+--- failed is missing from it, which is not the same as owing nothing there.
 function Bank.externalBills(identifier)
-    local out = {}
+    local out, read = {}, {}
     for key, a in pairs(ADAPTERS) do
         if live[key] and running(a.resource) then
             local ok, rows = pcall(a.list, a, identifier)
             if not ok then
                 note(key, 'reading invoices failed: ' .. tostring(rows))
-            else
-                for _, b in ipairs(rows or {}) do
+            elseif rows then
+                read[key] = true
+                for _, b in ipairs(rows) do
                     out[#out + 1] = {
                         id = ('x:%s:%s'):format(key, tostring(b.ref)),
                         issuer_label = b.issuer, sender_name = b.sender,
                         amount = Bank.round(b.amount),
-                        reason = (tostring(b.reason or 'Invoice') .. (b.partial and ' (part paid)' or '')):sub(1, 120),
+                        reason = Bank.cut(tostring(b.reason or 'Invoice') .. (b.partial and ' (part paid)' or ''), 120),
                         status = b.overdue and 'overdue' or 'pending',
                         stamp = b.due and ('%s · due %s'):format(a.label, b.due) or a.label, dueIn = 0,
                         ext = a.label,
                         payable = b.payable ~= false,
                         anyAccount = a.mode == 'bank',
+                        company = b.job ~= nil,   -- from a business, not another player
                     }
                 end
             end
         end
     end
-    return out
+    return out, read
 end
 
 -- ═══════════════════════════════════════════════════════════
 --  WATCHING FOR NEW INVOICES
 --  Few billing scripts announce a new invoice, so online players are
 --  checked in the background. Something new: auto-pay it if the player
---  switched that on and can cover it, otherwise tell them; either way
---  an open bank or phone refreshes. One that went away (paid in the
---  billing script itself) refreshes them too. The first look after a
---  player joins only takes note, so old invoices raise nothing.
+--  switched that on and it is a company's invoice within the cap,
+--  otherwise tell them; either way an open bank or phone refreshes. One
+--  that went away (paid in the billing script itself) refreshes them too.
+--
+--  What has been seen is kept per billing script. The first good read of
+--  a script for a player only takes note, and a read that fails (or a
+--  script that is restarting) keeps what was known, so nothing old ever
+--  looks new and gets paid.
 -- ═══════════════════════════════════════════════════════════
 local WATCH = (Config.Bridge and Config.Bridge.watch) or {}
-local seen  = {}     -- [identifier] = { [bill id] = true }
+local seen  = {}     -- [identifier] = { [script] = { [bill id] = true } }
+local tried = {}     -- [bill id] = true: auto-pay is attempted once per invoice
 local owner = {}     -- [server id] = identifier, since a dropped player can no longer be looked up
 
 AddEventHandler('playerDropped', function()
@@ -879,45 +923,66 @@ local function playerSettings(identifier)
     return MySQL.single.await('SELECT auto_pay_bills, notifications FROM nz_bank_settings WHERE identifier = ?', { identifier }) or {}
 end
 
+--- Auto-pay is for a business's invoice, never a private one (anyone can send
+--- those), and never above the cap.
+local function autoPayable(b)
+    local cap = tonumber(WATCH.autoPayMax) or 0
+    return b.payable and b.company and (cap <= 0 or b.amount <= cap)
+end
+
 local function look(xPlayer)
     local identifier, src = xPlayer.identifier, xPlayer.source
+    -- gone since the list of players was taken: do not bring their state back
+    if not GetPlayerName(src) or Bank.identifier(src) ~= identifier then return end
     -- a character switch on the same server id starts fresh
     if owner[src] and owner[src] ~= identifier then seen[owner[src]] = nil end
     owner[src] = identifier
-    local rows = Bank.externalBills(identifier)
 
-    local now, fresh = {}, {}
+    local rows, read = Bank.externalBills(identifier)
+    local mine = seen[identifier] or {}
+    seen[identifier] = mine
+
+    local byScript = {}
+    for key in pairs(read) do byScript[key] = {} end
     for _, b in ipairs(rows) do
-        now[b.id] = true
-        if seen[identifier] and not seen[identifier][b.id] then fresh[#fresh + 1] = b end
+        local key = b.id:match('^x:([^:]+):')
+        if byScript[key] then byScript[key][b.id] = b end
     end
 
-    local before = seen[identifier]
-    seen[identifier] = now
-    if not before then return end    -- first look: take note only
-
-    local changed = #fresh > 0
-    for id in pairs(before) do
-        if not now[id] then changed = true break end
+    local fresh, changed = {}, false
+    for key, now in pairs(byScript) do
+        local before = mine[key]
+        if before then
+            for id, b in pairs(now) do
+                if not before[id] then fresh[#fresh + 1] = b end
+            end
+            for id in pairs(before) do
+                if not now[id] then changed = true tried[id] = nil end
+            end
+        end
+        local ids = {}
+        for id in pairs(now) do ids[id] = true end
+        mine[key] = ids      -- the first read of a script lands here and raises nothing
     end
-    if not changed then return end
+    if #fresh == 0 and not changed then return end
 
     if #fresh > 0 then
         local s = playerSettings(identifier)
         for _, b in ipairs(fresh) do
             local paid = false
-            if WATCH.autoPay ~= false and Config.Bills.autoPay and s.auto_pay_bills == 1 and b.payable then
+            if WATCH.autoPay ~= false and Config.Bills.autoPay and Bank.flag(s.auto_pay_bills)
+                and autoPayable(b) and not tried[b.id] then
+                tried[b.id] = true
                 local personal = Bank.getPersonal(identifier)
                 if personal and personal.balance >= b.amount then
                     paid = Bank.payExternalBill(src, b.id, personal.id)
                     if paid then
-                        seen[identifier][b.id] = nil
                         Bank.notify(src, 'Bill paid automatically',
                             ('%s%s to %s'):format(Config.Currency, b.amount, b.issuer_label), 'inform')
                     end
                 end
             end
-            if not paid and WATCH.notify ~= false and s.notifications ~= 0 then
+            if not paid and WATCH.notify ~= false and Bank.flag(s.notifications, true) then
                 Bank.notify(src, 'New bill',
                     ('%s%s from %s. Pay it in your bank.'):format(Config.Currency, b.amount, b.issuer_label), 'inform')
             end
@@ -946,6 +1011,8 @@ CreateThread(function()
     end
 end)
 
+local recent = {}   -- ['script:ref'] = when it was paid here, so a slow script cannot be paid twice
+
 --- Pay one of them. `id` is the 'x:<script>:<ref>' from the list.
 function Bank.payExternalBill(src, id, accountId)
     local key, ref = tostring(id):match('^x:([^:]+):(.+)$')
@@ -963,6 +1030,10 @@ function Bank.payExternalBill(src, id, accountId)
         end
         if not bill then return false, 'That invoice is already settled.' end
         if bill.payable == false then return false, ('Pay this one in %s.'):format(a.label) end
+        -- a billing script that writes its status a moment later still shows it
+        -- open: one payment per invoice within two minutes is enough
+        local done = recent[key .. ':' .. ref]
+        if done and os.time() - done < 120 then return false, 'That invoice was just paid.' end
         bill.amount = Bank.round(bill.amount)
         if bill.amount <= 0 then return false, 'That invoice has nothing to pay.' end
 
@@ -972,6 +1043,8 @@ function Bank.payExternalBill(src, id, accountId)
             local personal = Bank.getPersonal(identifier)
             accountId = personal and personal.id
         end
-        return a.pay(a, src, bill, accountId)
+        local ok, msg = a.pay(a, src, bill, accountId)
+        if ok then recent[key .. ':' .. ref] = os.time() end
+        return ok, msg
     end)
 end

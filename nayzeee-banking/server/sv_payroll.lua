@@ -63,10 +63,10 @@ function Bank.getPayroll(job)
             label    = g.label,
             amount   = r and r.amount or 0,
             interval = intervalId(r and r.interval_min or 60),
-            enabled  = not r or r.enabled == 1,
+            enabled  = not r or Bank.flag(r.enabled),
             nextIn   = r and math.max(0, math.floor((r.next_run - os.time()) / 60)) or 0
         }
-        if r and r.enabled == 1 and r.amount > 0 then
+        if r and Bank.flag(r.enabled) and r.amount > 0 then
             if not soonest or r.next_run < soonest then soonest = r.next_run end
         end
     end
@@ -166,7 +166,7 @@ local function payEmployee(xTarget, soc, wage)
 
     local settings = MySQL.single.await(
         'SELECT direct_deposit FROM nz_bank_settings WHERE identifier = ?', { xTarget.identifier })
-    local toBank = not settings or settings.direct_deposit == 1
+    local toBank = not settings or Bank.flag(settings.direct_deposit)
 
     -- a frozen or missing personal account takes the wage in cash instead
     local landed = false

@@ -158,6 +158,10 @@ window.addEventListener('message', (e) => {
     S.statementDoc = null;
     S.statementAccount = null;
     S.statementPeriod = 'week';
+    S.payrollData = null;
+    S.members = [];
+    closeModal();
+    if (typeof closePaper === 'function' && document.getElementById('paperVeil').classList.contains('up')) closePaper();
     const stale = document.getElementById('view');
     if (stale) stale.innerHTML = '';
     S.tx = { page: 1, search: '', category: 'all' };
@@ -175,6 +179,7 @@ window.addEventListener('message', (e) => {
     render();
     chrome();
   } else if (m.action === 'close') {
+    closeModal();
     document.body.classList.remove('up');
   } else if (m.action === 'paper') {
     openPaper(m.data);
@@ -495,7 +500,7 @@ function openModal({ title, text, body, confirm, danger, onConfirm, cancel }) {
         </div>
       </div>
       <div class="modal-f">
-        <button class="btn-line" data-modal="cancel">${esc(cancel || 'Cancel')}</button>
+        ${cancel === false ? '' : `<button class="btn-line" data-modal="cancel">${esc(cancel || 'Cancel')}</button>`}
         <button class="${danger ? 'btn-red' : 'btn-teal'}" data-modal="confirm">${esc(confirm || 'Confirm')}</button>
       </div>
     </div>`;
@@ -758,7 +763,8 @@ function chrome() {
     savings: d.config.features && d.config.features.savings === false,
     loans:   d.config.features && d.config.features.loans === false,
     bills:   d.config.features && d.config.features.bills === false,
-    invest:  d.config.features && d.config.features.market === false
+    invest:  d.config.features && d.config.features.market === false,
+    statements: d.config.features && d.config.features.statements === false
   };
 
   document.querySelectorAll('.nav').forEach(n => {
@@ -808,7 +814,7 @@ function pageDashboard() {
       ${statTile('bank', 'Total balance', money(acc.balance), acc.label)}
       ${statTile('out', 'Spending', money(d.summary.spending), 'This month', true)}
       ${statTile('in', 'Income', money(d.summary.income), 'This month')}
-      ${statTile('bag', 'Savings', money(d.summary.savings), d.savings.open ? `${(d.savings.rate * 100).toFixed(0)}% interest` : 'Not open')}
+      ${statTile('bag', 'Savings', money(d.summary.savings), (d.savings || {}).open ? `${(d.savings.rate * 100).toFixed(0)}% interest` : 'Not open')}
     </div>
 
     <div class="cols">
@@ -1418,7 +1424,7 @@ function payrollPanel() {
 
 /* ── savings ── */
 function pageSavings() {
-  const s = S.data.savings;
+  const s = S.data.savings || { open: false, balance: 0, rate: 0, goal: 0 };
 
   if (!s.open) {
     return `
@@ -1808,7 +1814,7 @@ function pageInvest() {
 
     <div class="stats">
       ${statTile('chart', 'Portfolio value', money(m.value), `${m.holdings.length} asset${m.holdings.length === 1 ? '' : 's'} held`)}
-      ${statTile(m.pl >= 0 ? 'interest' : 'out', 'Total return', signed(m.pl), m.cost > 0 ? `${pct(plPct)} on ${money(m.cost)} invested` : 'Nothing invested yet', m.pl < 0)}
+      ${statTile(m.pl >= 0 ? 'up' : 'out', 'Total return', signed(m.pl), m.cost > 0 ? `${pct(plPct)} on ${money(m.cost)} invested` : 'Nothing invested yet', m.pl < 0)}
       ${statTile('coin', 'Banked profit', signed(m.realised), 'From assets you sold', m.realised < 0)}
       ${statTile('bank', 'Ready to invest', money(cash), (account(S.data.primary) || {}).label || 'Personal')}
     </div>
@@ -1893,7 +1899,7 @@ function pageSettings() {
           <div class="kv"><span>Credit score</span><b class="teal">${S.data.credit.score} · ${esc(S.data.credit.band)}</b></div>
           <div class="kv"><span>Cards issued</span><b>${(S.data.cards || []).length}</b></div>
           <div class="kv"><span>Shared accounts</span><b>${accountsOfType('shared').length}</b></div>
-          <div class="kv"><span>Savings</span><b>${S.data.savings.open ? money(S.data.savings.balance) : 'Not open'}</b></div>
+          <div class="kv"><span>Savings</span><b>${(S.data.savings || {}).open ? money(S.data.savings.balance) : 'Not open'}</b></div>
         </div>
       </section>
     </div>
@@ -2157,7 +2163,11 @@ function render2() {
 
 async function loadPayroll(job) {
   if (!job) return;
-  S.payrollData = await post('nz_bank:getPayroll', job);
+  const res = await post('nz_bank:getPayroll', job);
+  // the player may have switched society while this was on its way
+  const chosen = accountsOfType('society').find(a => a.id === S.societyId);
+  if (chosen && chosen.owner !== job) return;
+  S.payrollData = res;
   if (S.page === 'society') {
     const view = document.getElementById('view');
     view.innerHTML = pageSociety();
@@ -2224,10 +2234,11 @@ document.getElementById('view').addEventListener('click', async (e) => {
   // a second click while the first is still in flight does nothing
   if (el.dataset.inflight === '1') return;
   el.dataset.inflight = '1';
-  setTimeout(() => { delete el.dataset.inflight; }, 700);
   const act = el.dataset.act;
   const id = parseInt(el.dataset.id, 10);
 
+  // held until the action has finished, however long the server takes
+  try {
   switch (act) {
     case 'goto':
       S.page = el.dataset.page; chrome(); render(); break;
@@ -2396,6 +2407,9 @@ document.getElementById('view').addEventListener('click', async (e) => {
       break;
     }
   }
+  } finally {
+    delete el.dataset.inflight;
+  }
 });
 
 /* ═══════════════ CARD FLOWS ═══════════════ */
@@ -2550,12 +2564,12 @@ function cardSettingsModal() {
     body: `
       <div class="field">
         <label>Daily spend limit</label>
-        <select data-name="limit">${limits.map(l =>
+        <select data-name="limit">${(limits.includes(card.limit) ? limits : [card.limit].concat(limits)).map(l =>
           `<option value="${l}" ${l === card.limit ? 'selected' : ''}>${money(l)}</option>`).join('')}</select>
       </div>
       ${stylePicker(card.type, card.skin)}
       <div class="sw-line">
-        <div><b>Express pay</b><span>Skip the PIN on payments under ${money(2500)}.</span></div>
+        <div><b>Express pay</b><span>Skip the PIN on payments under ${money(S.data.config.expressThreshold || 2500)}.</span></div>
         <input type="checkbox" data-name="express" ${card.express ? 'checked' : ''}>
       </div>`,
     onConfirm: async (v) => {
@@ -2713,7 +2727,7 @@ function savingsGoalModal() {
     confirm: 'Save goal',
     body: `<div class="field"><label>Target amount</label>
       <input data-name="amount" type="number" min="0" placeholder="0"
-        value="${S.data.savings.goal || ''}"></div>`,
+        value="${(S.data.savings || {}).goal || ''}"></div>`,
     onConfirm: async (v) => {
       const res = await post('nz_bank:setSavingsGoal', parseInt(v.amount, 10) || 0);
       closeModal();
@@ -2917,7 +2931,10 @@ function tradeModal(side, assetId) {
 
   const steps = buying
     ? [500, 1000, 5000, 25000].filter(v => v >= m.minTrade).map(v => [v, money(v)])
-    : [[0.25, '25%'], [0.5, 'Half'], [1, 'All']].map(([f, l]) => [Math.floor(held.value * f), l]);
+    // All asks for a little more than the position, which the server reads as everything,
+    // so a fraction of a unit worth less than a dollar is not stranded
+    : [[0.25, '25%'], [0.5, 'Half']].map(([f, l]) => [Math.floor(held.value * f), l])
+        .concat([[Math.ceil(held.value) + 1, 'All']]);
   S.trade = { buying, a, held, m };
 
   openModal({
@@ -2938,7 +2955,7 @@ function tradeModal(side, assetId) {
       if (!amount || amount <= 0) return notify('Not completed', 'Enter an amount above zero.', 'error');
       if (buying && amount < m.minTrade) return notify('Not completed', `The smallest order is ${money(m.minTrade)}.`, 'error');
       // the server quietly sells everything for an amount over the position
-      if (!buying && amount > Math.ceil(held.value)) {
+      if (!buying && amount > Math.ceil(held.value) + 1) {
         return notify('Not completed', `You only hold ${money(held.value)}.`, 'error');
       }
       const res = await post('nz_bank:trade', side, assetId, amount, parseInt(v.account, 10));
@@ -3049,7 +3066,7 @@ function creditModal() {
     title: `Credit report · ${c.score}`,
     text: `${c.band}. Here is what is moving your score and what changed it.`,
     confirm: paperOn() ? 'Print report' : 'Close',
-    cancel: paperOn() ? 'Close' : undefined,
+    cancel: paperOn() ? 'Close' : false,
     body: `
       <div class="cgauge">
         <div class="sbar">${bands.map(b => `<i style="${bandWidth(b)}"></i>`).join('')}<em style="left:${pos}%"></em></div>
@@ -3078,7 +3095,7 @@ function txModal(id) {
     title: t.label,
     text: t.stamp,
     confirm: paperOn() ? 'Print receipt' : 'Close',
-    cancel: paperOn() ? 'Close' : undefined,
+    cancel: paperOn() ? 'Close' : false,
     body: `
       <div class="kv"><span>Amount</span><b class="${dir ? 'teal' : 'red'}">${dir ? '+' : '−'} ${money(t.amount)}</b></div>
       <div class="kv"><span>Type</span><b>${esc(cap(t.category || ''))}</b></div>
@@ -3179,7 +3196,7 @@ function paperHtml(d) {
     const pos = Math.max(0, Math.min(100, ((d.score - (d.min || 0)) / (((d.max || 850) - (d.min || 0)) || 1)) * 100));
     return `${paperHead(d, 'CREDIT REPORT')}
       <div class="pc-top">
-        <div class="pc-score"><b>${d.score}</b><span>${esc(d.band)}</span></div>
+        <div class="pc-score"><b>${esc(d.score)}</b><span>${esc(d.band)}</span></div>
         <div class="pc-meta"><div><span>Prepared for</span><b>${esc(d.holder)}</b></div><div><span>Issued</span><b>${esc(d.issued)}</b></div></div>
       </div>
       <div class="pc-gauge"><i></i><em style="left:${pos}%"></em></div>
