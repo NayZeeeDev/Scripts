@@ -446,10 +446,9 @@ function Import.run(source, text, src)
   end
   if not allowed then return nil, L('Unknown import source') end
 
-  local candidates, err = {}, nil
+  local candidates = {}
   if source == 'json' then
-    local items
-    items, err = readJson(text)
+    local items, err = readJson(text)
     if not items then return nil, err end
     for _, item in ipairs(items) do
       local copy = Utils.deepCopy(item)
@@ -458,8 +457,7 @@ function Import.run(source, text, src)
     end
   else
     local files = source == 'qbx_garages' and QBX_FILES or QB_FILES
-    local entries
-    entries, err = readResource(source, files)
+    local entries, err = readResource(source, files)
     if not entries then return nil, err end
     for _, entry in ipairs(entries) do
       local location, reason = mapGarage(entry.key, entry.raw, entry.forcedType)
