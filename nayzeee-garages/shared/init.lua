@@ -32,6 +32,8 @@ else
   NZ.Keys = {}
   NZ.Fuel = {}
   NZ.Target = {}
+  NZ.Notify = {}
+  NZ.Peds = {}
   NZ.NUI = {}
   NZ.Points = {}
   NZ.Garage = {}

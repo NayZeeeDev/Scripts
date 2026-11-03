@@ -789,6 +789,46 @@ function DB.countInGarage(garageKey, ownerIdentifier)
   return tonumber((run('scalar', sql, params))) or 0
 end
 
+local STATS_TTL_MS = 30000
+local garageStatsCache = { at = -STATS_TTL_MS, data = nil }
+
+--- Vehicle counts per garage key and per impound location (admin location overview).
+--- One grouped query each, cached for 30 seconds.
+---@return { garages: table<string, { parked: number, out: number, impounded: number }>, impounds: table<string, number> }
+function DB.garageStats()
+  local now = GetGameTimer()
+  if garageStatsCache.data and now - garageStatsCache.at < STATS_TTL_MS then return garageStatsCache.data end
+  local result = { garages = {}, impounds = {} }
+  if not ready() or not has('nz_state') or not has('nz_garage') then return result end
+  local state = statements().effectiveState
+  if not state then return result end
+  local rows = run('query', ('SELECT v.`nz_garage` AS k, %s AS s, COUNT(*) AS n FROM `%s` v '
+    .. "WHERE v.`nz_garage` IS NOT NULL AND v.`nz_garage` <> '' GROUP BY v.`nz_garage`, s"):format(state, VT), {})
+  for _, row in ipairs(rows or {}) do
+    local key = type(row.k) == 'string' and row.k or nil
+    if key then
+      local entry = result.garages[key] or { parked = 0, out = 0, impounded = 0 }
+      local code, count = tonumber(row.s), tonumber(row.n) or 0
+      if code == 0 then entry.out = entry.out + count
+      elseif code == 2 then entry.impounded = entry.impounded + count
+      else entry.parked = entry.parked + count end
+      result.garages[key] = entry
+    end
+  end
+  if has('nz_impound') then
+    -- Vehicles held per impound location (nz_impound JSON). Older MySQL / MariaDB without
+    -- JSON functions only lose this figure.
+    local held = run('query', ("SELECT JSON_UNQUOTE(JSON_EXTRACT(v.`nz_impound`, '$.locationId')) AS l, "
+      .. 'COUNT(*) AS n FROM `%s` v WHERE %s = 2 AND v.`nz_impound` IS NOT NULL GROUP BY l'):format(VT, state), {})
+    for _, row in ipairs(held or {}) do
+      local id = tonumber(row.l)
+      if id then result.impounds[tostring(math.tointeger(id) or id)] = tonumber(row.n) or 0 end
+    end
+  end
+  garageStatsCache.at, garageStatsCache.data = now, result
+  return result
+end
+
 --- Whether a plate exists in the vehicle table (either stored form).
 --- Returns true on database errors so callers never create duplicate plates.
 --- `exactOnly`: only the indexed trimmed / 8-char padded forms (plate generators: their
@@ -1685,6 +1725,34 @@ function DB.logs.add(event, identifier, plate, data)
   local sql = ('INSERT INTO `nz_logs` (%s) VALUES (%s)'):format(table.concat(cols, ', '), table.concat(marks, ', '))
   local ok, err = pcall(MySQL.insert, sql, params, logInserted)
   if not ok then lib.print.error(('[db] log insert failed: %s'):format(tostring(err))) end
+end
+
+--- nz_logs rows of one plate, newest first (admin vehicle activity).
+---@param plate string
+---@param limit number
+---@param offset number
+---@return { rows: { id: number, event: string, identifier: string|nil, data: table|nil, at: number }[], total: number }
+function DB.logs.forPlate(plate, limit, offset)
+  local p = Utils.plate(plate)
+  local out = { rows = {}, total = 0 }
+  if not p or not ready() then return out end
+  p = p:sub(1, 16)
+  limit = math.max(1, math.min(int(limit, 25), 100))
+  offset = math.max(0, int(offset, 0))
+  out.total = tonumber((run('scalar', 'SELECT COUNT(*) FROM `nz_logs` WHERE `plate` = ?', { p }))) or 0
+  if out.total == 0 then return out end
+  local rows = run('query', 'SELECT `id`, `event`, `identifier`, `data`, UNIX_TIMESTAMP(`created_at`) AS `at` '
+    .. 'FROM `nz_logs` WHERE `plate` = ? ORDER BY `id` DESC LIMIT ? OFFSET ?', { p, limit, offset })
+  for _, row in ipairs(rows or {}) do
+    out.rows[#out.rows + 1] = {
+      id = tonumber(row.id) or 0,
+      event = tostring(row.event or ''),
+      identifier = type(row.identifier) == 'string' and row.identifier or nil,
+      data = decodeTable(row.data),
+      at = math.floor(tonumber(row.at) or 0),
+    }
+  end
+  return out
 end
 
 local PRUNE_BATCH = 5000

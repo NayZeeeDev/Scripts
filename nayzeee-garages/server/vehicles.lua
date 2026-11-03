@@ -905,6 +905,57 @@ end
 ---@param row table NZVehicleRow
 ---@param ctx table context from NZ.Vehicles.newContext (partial tables are completed)
 ---@return table GarageVehicle
+local function indexOf(key)
+  local n = tonumber(key)
+  return n and math.tointeger(n) or nil
+end
+
+--- Compact damage summary for the interface (DamageSummary in types.ts) from the stored
+--- NZ.Damage table. Keys may be numbers or strings after the JSON round trip.
+---@param damage table|nil
+---@return table|nil
+function Vehicles.damageSummary(damage)
+  if type(damage) ~= 'table' then return nil end
+  local out = {
+    engine = tonumber(damage.engine) or 1000.0,
+    body = tonumber(damage.body) or 1000.0,
+    tank = tonumber(damage.tank) or 1000.0,
+    doors = {}, windows = {}, tyres = {},
+    deformed = type(damage.deform) == 'table' and next(damage.deform) ~= nil,
+  }
+  for key, broken in pairs(type(damage.doors) == 'table' and damage.doors or {}) do
+    local i = indexOf(key)
+    if i and broken == true then out.doors[#out.doors + 1] = i end
+  end
+  for key, broken in pairs(type(damage.windows) == 'table' and damage.windows or {}) do
+    local i = indexOf(key)
+    if i and broken == true then out.windows[#out.windows + 1] = i end
+  end
+  for key, state in pairs(type(damage.tyres) == 'table' and damage.tyres or {}) do
+    local i, v = indexOf(key), tonumber(state)
+    if i and (v == 1 or v == 2) then out.tyres[#out.tyres + 1] = { index = i, state = v } end
+  end
+  table.sort(out.doors); table.sort(out.windows)
+  table.sort(out.tyres, function(a, b) return a.index < b.index end)
+  return out
+end
+
+local MOD_KEYS = { engine = 'modEngine', brakes = 'modBrakes', transmission = 'modTransmission',
+  suspension = 'modSuspension', armor = 'modArmor' }
+
+--- Installed performance upgrades (ModSummary in types.ts): level 0 = stock.
+---@param props table|nil
+---@return table|nil
+function Vehicles.modSummary(props)
+  if type(props) ~= 'table' then return nil end
+  local out = { turbo = props.modTurbo == true or props.modTurbo == 1 }
+  for name, key in pairs(MOD_KEYS) do
+    local v = tonumber(props[key])
+    out[name] = (v and v >= 0) and (math.floor(v) + 1) or 0
+  end
+  return out
+end
+
 function Vehicles.toGarageVehicle(row, ctx)
   ctx = Vehicles.ensureContext(ctx)
   local plate = row.plate or Utils.plate(row.dbPlate) or ''
@@ -976,6 +1027,8 @@ function Vehicles.toGarageVehicle(row, ctx)
     needsService = engine < ctx.needsServiceBelow,
     blocked = row.blocked == true,
     lastUsed = tonumber(row.lastOut),
+    damage = Vehicles.damageSummary(row.damage),
+    mods = Vehicles.modSummary(row.props),
   }
 end
 

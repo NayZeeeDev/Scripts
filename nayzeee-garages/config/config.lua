@@ -26,6 +26,17 @@ Config.Integrations = {
   fuel = 'auto',    -- ox_fuel | LegacyFuel | cdn-fuel | ps-fuel | lj-fuel | okokGasStation | qs-fuelstations | Renewed-Fuel | ti_fuel | native
   target = 'auto',  -- ox_target | qb-target | none
   housing = 'auto', -- qb-houses | ps-housing | none  (others can use the RegisterHouseGarage export)
+  -- Notifications: ox_lib | framework (qb / qbx / esx built-in) | qb | qbx | esx | okokNotify |
+  -- mythic_notify | pNotify | wasabi_notify | brutal_notify | lation_ui | t-notify | custom
+  -- ('custom': edit NZ.Notify.custom in bridge/client/notify.lua)
+  notify = 'ox_lib',
+}
+
+-- Notification look (used by every notify integration that supports it).
+Config.Notify = {
+  title = 'Garage',          -- title shown by integrations that have one ('' = none)
+  position = 'top-right',    -- ox_lib / lation_ui positions
+  duration = 5000,           -- milliseconds
 }
 
 Config.Commands = {
@@ -38,6 +49,14 @@ Config.Keys = {
   interact = 'E',          -- open garage / store vehicle (prompt mode)
   interiorPanel = 'F6',    -- interior control panel
   creatorFocus = 'E',      -- return to the interior creator panel while walking around
+}
+
+-- NPCs at garages (target interaction). The model and scenario are chosen per location in the
+-- admin panel; these are the defaults offered there.
+Config.Peds = {
+  defaultModel = 's_m_y_valet_01',
+  defaultScenario = 'WORLD_HUMAN_CLIPBOARD',
+  spawnDistance = 60.0,     -- metres: peds exist only while a player is this close
 }
 
 -- Interaction ranges (metres).
@@ -114,6 +133,6 @@ Config.DefaultSettings = {
     imageUrl = 'https://docs.fivem.net/vehicles/{model}.webp',
     showImages = true,
     accent = '#08afa2',
-    interaction = 'prompt',      -- 'prompt' (press E) | 'target' (ox_target / qb-target)
+    interaction = 'prompt',      -- 'prompt' (press E) | 'target' (ox_target / qb-target) | 'both'
   },
 }

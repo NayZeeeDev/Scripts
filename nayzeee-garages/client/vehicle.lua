@@ -201,6 +201,49 @@ end
 --- `hash` and is missing them. Existing values are kept. Returns `tbl`.
 ---@param tbl any
 ---@return any
+-- Reference maxima for the 0-100 performance ratings (values at or above rate 100).
+local STAT_REF = { speed = 55.0, acceleration = 0.45, braking = 1.6, traction = 3.3 }
+local statsCache = {}  -- [hash] = { classId, classLabel, stats } | false
+
+local function rating(value, ref)
+  value = tonumber(value) or 0
+  if value ~= value or value <= 0 then return 0 end
+  return math.max(0, math.min(100, math.floor(value / ref * 100 + 0.5)))
+end
+
+--- Vehicle class and performance figures of a model, read from the model info (the model
+--- does not have to be loaded). nil for unknown models.
+---@param hash number
+---@return { classId: number, classLabel: string, stats: table }|nil
+function Veh.modelInfo(hash)
+  hash = tonumber(hash)
+  if not hash or hash == 0 then return nil end
+  local cached = statsCache[hash]
+  if cached ~= nil then return cached or nil end
+  if not IsModelInCdimage(hash) or not IsModelAVehicle(hash) then
+    statsCache[hash] = false
+    return nil
+  end
+  local classId = GetVehicleClassFromName(hash)
+  local classLabel = GetLabelText(('VEH_CLASS_%d'):format(classId))
+  if not classLabel or classLabel == '' or classLabel == 'NULL' then classLabel = L('Vehicle') end
+  local maxSpeed = GetVehicleModelEstimatedMaxSpeed(hash)
+  local info = {
+    classId = classId,
+    classLabel = classLabel,
+    stats = {
+      topSpeed = math.floor((tonumber(maxSpeed) or 0) * 3.6 + 0.5),
+      speed = rating(maxSpeed, STAT_REF.speed),
+      acceleration = rating(GetVehicleModelAcceleration(hash), STAT_REF.acceleration),
+      braking = rating(GetVehicleModelMaxBraking(hash), STAT_REF.braking),
+      traction = rating(GetVehicleModelMaxTraction(hash), STAT_REF.traction),
+      seats = math.max(0, math.floor(tonumber(GetVehicleModelNumberOfSeats(hash)) or 0)),
+    },
+  }
+  statsCache[hash] = info
+  return info
+end
+
 function Veh.enrichDeep(tbl)
   if type(tbl) ~= 'table' then return tbl end
   local seen = {}
@@ -216,6 +259,12 @@ function Veh.enrichDeep(tbl)
         if missingLabel then t.label = label end
         if t.make == nil then t.make = make end
         if t.image == nil then t.image = imageModel or hint end
+      end
+      if t.stats == nil then
+        local info = Veh.modelInfo(t.hash)
+        if info then
+          t.classId, t.classLabel, t.stats = info.classId, info.classLabel, info.stats
+        end
       end
     end
     for _, v in pairs(t) do

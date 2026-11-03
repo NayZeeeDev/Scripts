@@ -362,9 +362,40 @@ end
 
 --- AdminOpenData (types.ts) for the admin panel.
 ---@return table
+--- Vehicle counts per location id (string keys): garages and job garages count their L key,
+--- private locations the G keys of every owned copy, impounds the vehicles they hold.
+---@return table<string, { parked: number, out: number, impounded: number, held: number }>
+local function locationStats()
+  local success, stats = pcall(NZ.DB.garageStats)
+  if not success or type(stats) ~= 'table' then return {} end
+  local groupLocation = {}
+  for _, group in ipairs(allGroups()) do groupLocation[group.id] = group.locationId end
+  local out = {}
+  local function entry(id)
+    local k = tostring(id)
+    out[k] = out[k] or { parked = 0, out = 0, impounded = 0, held = 0 }
+    return out[k]
+  end
+  for key, counts in pairs(stats.garages or {}) do
+    local kind, id = Utils.key.parse(key)
+    local locationId = (kind == 'L' and id) or (kind == 'G' and groupLocation[id]) or nil
+    if locationId then
+      local e = entry(locationId)
+      e.parked = e.parked + (counts.parked or 0)
+      e.out = e.out + (counts.out or 0)
+      e.impounded = e.impounded + (counts.impounded or 0)
+    end
+  end
+  for id, count in pairs(stats.impounds or {}) do
+    entry(id).held = count
+  end
+  return out
+end
+
 function Admin.openData()
   local hasGangs = NZ.Bridge.hasGangs == true
   return {
+    locationStats = locationStats(),
     page = 'garages',
     settings = NZ.Settings.all(),
     locations = Utils.deepCopy(NZ.Locations.all() or {}),
@@ -503,6 +534,8 @@ local function vehicleDetail(plate)
     service = service,
     garages = garageChoices(row.garageKey),
     impounds = impoundChoices(),
+    damage = NZ.Vehicles.damageSummary(row.damage),
+    lastUsed = tonumber(row.lastOut),
   }
 end
 
@@ -1192,6 +1225,28 @@ register('nz:admin:vehicle:get', 250, function(_, payload)
 end)
 
 -- { identifier, model, plate|'', garageKey } -> AdminVehicleRow
+-- { plate, page } -> Paged<VehicleActivity>
+local ACTIVITY_PAGE = 25
+register('nz:admin:vehicle:activity', 250, function(_, payload)
+  local plate = Utils.plate(payload.plate)
+  if not plate then return fail(L('Vehicle not found')) end
+  local page = math.max(1, math.floor(tonumber(payload.page) or 1))
+  local result = NZ.DB.logs.forPlate(plate, ACTIVITY_PAGE, (page - 1) * ACTIVITY_PAGE)
+  local names, rows = {}, {}
+  for _, row in ipairs(result.rows) do
+    local actorName = nil
+    if row.identifier then
+      if names[row.identifier] == nil then names[row.identifier] = charName(row.identifier) end
+      actorName = names[row.identifier]
+    end
+    rows[#rows + 1] = {
+      id = row.id, event = row.event, at = row.at,
+      actor = row.identifier, actorName = actorName, data = row.data,
+    }
+  end
+  return ok({ rows = rows, total = result.total, page = page, pageSize = ACTIVITY_PAGE })
+end)
+
 register('nz:admin:vehicle:assign', 1000, function(src, payload)
   local identifier = identifierArg(payload.identifier)
   if not identifier then return fail(L('Invalid identifier')) end
