@@ -17,9 +17,10 @@ local MAX_REASON = 120
 local MAX_PLATE_LENGTH = 16
 local FORM_RANGE = 10.0          -- metres between the officer and the vehicle being impounded
 
+-- Client hint only: NZ.Vehicles.retrieve derives the type it spawns with server-side.
 local ENTITY_TYPES = {
   automobile = true, bike = true, boat = true, heli = true,
-  plane = true, submarine = true, trailer = true, train = true,
+  plane = true, submarine = true, trailer = true,
 }
 
 local LOCK_MARKER = {}           -- identifies results produced inside withPlateLock
@@ -138,6 +139,19 @@ local function impoundLocation(id)
   local location = NZ.Locations.get(id)
   if type(location) ~= 'table' or location.kind ~= 'impound' or location.enabled == false then return nil end
   return location
+end
+
+--- Nearest enabled impound that takes vehicles of category `vtype` (from `origin`), or nil.
+local function nearestImpoundOfType(origin, vtype)
+  local best, bestDist = nil, math.huge
+  for _, location in ipairs(NZ.Locations.all('impound') or {}) do
+    if location.enabled ~= false and (location.vehicleType or 'car') == vtype then
+      local point = firstOpenPoint(location)
+      local dist = (origin and point) and Utils.dist(origin, point) or math.huge
+      if not best or dist < bestDist then best, bestDist = location, dist end
+    end
+  end
+  return best
 end
 
 ---------------------------------------------------------------------------------------
@@ -261,11 +275,14 @@ end
 
 --- Impound a vehicle. Owned vehicles get state 'impounded' + ImpoundInfo (their entity is
 --- deleted); unowned (NPC / spawner) vehicles given by netId are just deleted.
+--- An impound only hands out vehicles of its own category (car / sea / air): a vehicle of
+--- another category goes to the nearest impound of its category instead (refused when the
+--- server has none), otherwise its owner could never collect it.
 --- Used by the impound form, the admin panel and the ImpoundVehicle export.
 ---@param plate string
 ---@param opts table { locationId, reason?, fee?, hours?, retrievable?, netId?, byName? }
 ---@param src number|nil player who impounds (nil for exports / automation)
----@return boolean success, string|nil error (translated)
+---@return boolean success, string|nil error (translated), table|nil location actually used
 function Impound.impound(plate, opts, src)
   plate = readPlate(plate)
   if not plate then return false, L('Invalid plate') end
@@ -303,7 +320,16 @@ function Impound.impound(plate, opts, src)
         plate = plate, npc = true, impound = location.id, impoundName = location.name,
         reason = reason, by = by, byName = byName,
       })
-      return true, nil
+      return true, nil, location
+    end
+
+    local requested = location
+    local vtype = vehicleTypeOf(row)
+    if vtype ~= (location.vehicleType or 'car') then
+      location = nearestImpoundOfType(firstOpenPoint(requested), vtype)
+      if not location then return false, L('No impound accepts this type of vehicle') end
+      if toNumber(opts.fee) == nil then fee = math.floor(Utils.clamp(toNumber(location.defaultFee) or 0, 0, MAX_FEE)) end
+      if toNumber(opts.hours) == nil then hours = Utils.clamp(toNumber(location.defaultHours) or 0, 0, MAX_HOURS) end
     end
 
     local now = os.time()
@@ -327,6 +353,8 @@ function Impound.impound(plate, opts, src)
     if tracked and tracked ~= entity then removed = deleteEntity(tracked) or removed end
     clearOut(plate)
     releaseSpawner(plate)
+    -- its saved trailer is impounded with it: never leave a second copy in the world
+    if type(NZ.Vehicles.removeTrailerOf) == 'function' then pcall(NZ.Vehicles.removeTrailerOf, plate, row) end
 
     log('impound.add', src, {
       plate = plate,
@@ -337,6 +365,7 @@ function Impound.impound(plate, opts, src)
       previousImpound = type(row.impound) == 'table' and row.impound.locationId or nil,
       impound = location.id,
       impoundName = location.name,
+      requestedImpound = requested.id ~= location.id and requested.id or nil,
       reason = reason,
       fee = fee,
       hours = hours,
@@ -352,7 +381,7 @@ function Impound.impound(plate, opts, src)
         plate = plate, impound = location.name,
       }))
     end
-    return true, nil
+    return true, nil, location
   end)
 end
 
@@ -615,7 +644,10 @@ register('nz:impound:release', function(src, payload)
       local info = impoundInfoOf(row, location)
       info.retrievable = true
       info.releaseAt = now
-      if not NZ.DB.updateVehicle(plate, { impound = info }) then return fail(L('Something went wrong')) end
+      -- state too: the vehicle may be impounded through framework columns only (no nz state)
+      if not NZ.DB.updateVehicle(plate, { state = 'impounded', impound = info }) then
+        return fail(L('Something went wrong'))
+      end
       log('impound.release', src, {
         plate = plate, mode = mode, owner = row.owner, impound = location.id, impoundName = location.name,
         fee = info.fee,
@@ -677,16 +709,37 @@ register('nz:impound:formData', function(src, payload)
   end
   if not plate then return fail(L('No vehicle nearby')) end
 
-  local pos = pedCoords(src)
-  local impounds, nearest, nearestDist = {}, nil, math.huge
+  -- Category of the vehicle (its row, else the entity): offer the impounds that take it.
+  local row = NZ.DB.getVehicle(plate)
+  local vtype = row and vehicleTypeOf(row) or nil
+  local formEntity = (not vtype and netId) and entityFromNetId(netId) or nil
+  if formEntity then
+    local success, etype = pcall(GetVehicleType, formEntity)
+    if success and type(etype) == 'string' then
+      vtype = (etype == 'boat' or etype == 'submarine') and 'sea'
+        or ((etype == 'heli' or etype == 'plane') and 'air') or 'car'
+    end
+  end
+  local staffed = {}
   for _, id in ipairs(ids) do
     local location = impoundLocation(id)
-    if location then
-      impounds[#impounds + 1] = { id = location.id, name = location.name }
-      local point = firstOpenPoint(location)
-      local dist = (pos and point) and Utils.dist(pos, point) or math.huge
-      if not nearest or dist < nearestDist then nearest, nearestDist = location, dist end
-    end
+    if location then staffed[#staffed + 1] = location end
+  end
+  local matching = {}
+  for _, location in ipairs(staffed) do
+    if not vtype or (location.vehicleType or 'car') == vtype then matching[#matching + 1] = location end
+  end
+  -- None of the officer's impounds takes it: list them anyway, the impound itself is
+  -- redirected to an impound of the right category on submit (see Impound.impound).
+  if #matching == 0 then matching = staffed end
+
+  local pos = pedCoords(src)
+  local impounds, nearest, nearestDist = {}, nil, math.huge
+  for _, location in ipairs(matching) do
+    impounds[#impounds + 1] = { id = location.id, name = location.name }
+    local point = firstOpenPoint(location)
+    local dist = (pos and point) and Utils.dist(pos, point) or math.huge
+    if not nearest or dist < nearestDist then nearest, nearestDist = location, dist end
   end
   if not nearest then return fail(L('You are not allowed to impound vehicles')) end
 
@@ -694,7 +747,7 @@ register('nz:impound:formData', function(src, payload)
     plate = plate,
     netId = netId,
     label = '',
-    owned = NZ.DB.getVehicle(plate) ~= nil,
+    owned = row ~= nil,
     impounds = impounds,
     defaults = {
       fee = math.floor(Utils.clamp(toNumber(nearest.defaultFee) or 0, 0, MAX_FEE)),
@@ -748,7 +801,7 @@ register('nz:impoundForm:submit', function(src, payload)
     end
   end
 
-  local success, err = Impound.impound(plate, {
+  local success, err, used = Impound.impound(plate, {
     locationId = location.id,
     reason = payload.reason,
     fee = payload.fee,
@@ -757,6 +810,7 @@ register('nz:impoundForm:submit', function(src, payload)
     netId = netId,
   }, src)
   if not success then return fail(err or L('Could not impound the vehicle')) end
-  notify(src, 'success', L('Vehicle {plate} impounded at {impound}', { plate = plate, impound = location.name }))
+  local where = type(used) == 'table' and used.name or location.name
+  notify(src, 'success', L('Vehicle {plate} impounded at {impound}', { plate = plate, impound = where }))
   return ok(nil)
 end)

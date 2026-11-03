@@ -24,6 +24,7 @@ local KEY_RESOURCES = {
 local SERVER_SIDE = { qbx_vehiclekeys = true }
 
 local MAX_KEY_DISTANCE = 10.0   -- metres between the player and the vehicle
+local AWAIT_ENTITY_MS = 2500    -- a client asks right after creating the vehicle: wait for it
 local RATE_LIMIT_MS = 1000
 local DEDUPE_MS = 10000         -- the same player + vehicle is given keys once per window
 
@@ -202,7 +203,14 @@ local function validateRequest(src, payload, bucket)
   if type(netId) ~= 'number' then return nil, nil, L('Invalid vehicle') end
   local plate = type(payload.plate) == 'string' and #payload.plate <= 16 and Utils.plate(payload.plate) or nil
   if not plate then return nil, nil, L('Invalid vehicle') end
+  -- The client asks in the frame it created the vehicle; its clone and plate reach the
+  -- server separately from this request, so give them a moment before refusing.
   local entity = vehicleFromNetId(netId)
+  local deadline = GetGameTimer() + AWAIT_ENTITY_MS
+  while not (entity and entityPlate(entity) == plate) and GetGameTimer() < deadline do
+    Wait(50)
+    entity = vehicleFromNetId(netId)
+  end
   if not entity then return nil, nil, L('Vehicle not found') end
   if entityPlate(entity) ~= plate then
     log('security.keys', src, { plate = plate, netId = netId, reason = 'plate does not match the vehicle' })

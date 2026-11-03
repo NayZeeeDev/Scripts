@@ -36,9 +36,10 @@ local SPAWN_CLEARANCE = 3.0
 local MAX_PLATE_LENGTH = 16
 
 local ROLE_ORDER = { owner = 1, member = 2, guest = 3 }
+-- Client hint only: NZ.Vehicles.retrieve derives the type it spawns with server-side.
 local ENTITY_TYPES = {
   automobile = true, bike = true, boat = true, heli = true,
-  plane = true, submarine = true, trailer = true, train = true,
+  plane = true, submarine = true, trailer = true,
 }
 
 ---------------------------------------------------------------------------------------
@@ -410,8 +411,13 @@ local function allocateBucket(key)
   while bucketOwner[base + n] do n = n + 1 end
   local bucket = base + n
   bucketOwner[bucket] = key
+  -- No ambient population. Entity lockdown follows the server-wide setting: display
+  -- vehicles are local, and forcing 'strict' / 'relaxed' would block other resources'
+  -- networked props (phones, emotes, attachments) for players inside the garage.
   SetRoutingBucketPopulationEnabled(bucket, false)
-  SetRoutingBucketEntityLockdownMode(bucket, 'strict')
+  local lockdown = GetConvar('sv_entityLockdown', 'inactive')
+  if lockdown ~= 'strict' and lockdown ~= 'relaxed' then lockdown = 'inactive' end
+  SetRoutingBucketEntityLockdownMode(bucket, lockdown)
   return bucket
 end
 
@@ -920,6 +926,10 @@ function Interiors.enter(src, session, opts)
   if location.enabled == false then return nil, L('This garage is closed') end
   local interior, err = interiorOfLocation(location)
   if not interior then return nil, err end
+  -- Vehicles are shown (and driven out) on slots only: an interior without any is unusable.
+  if type(interior.slots) ~= 'table' or #interior.slots == 0 then
+    return nil, L('This garage interior has no vehicle slots')
+  end
 
   local identifier = identifierOf(src)
   if not identifier then return nil, L('Your character is not loaded') end

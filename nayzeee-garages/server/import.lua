@@ -305,7 +305,8 @@ local function mapGarage(key, raw, forcedType)
     local owner = 'job'
     local rules = jobRules
     if gtype == 'gang' or (#gangRules > 0 and #jobRules == 0) then
-      owner, rules = 'gang', gangRules
+      -- qb-garages stores a gang garage's gang name in `job` (type = 'gang', job = 'ballas').
+      owner, rules = 'gang', (#gangRules > 0 and gangRules or jobRules)
     end
     if #rules == 0 then
       rules = groupRules

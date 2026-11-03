@@ -35,7 +35,7 @@ local ESX_TYPE_CATEGORY = {
   airplane = 'air', plane = 'air', helicopter = 'air', heli = 'air', aircraft = 'air', air = 'air',
 }
 
-local QB_SELECT = { 'citizenid', 'vehicle', 'hash', 'mods', 'plate', 'garage', 'fuel', 'engine', 'body', 'state' }
+local QB_SELECT = { 'citizenid', 'vehicle', 'hash', 'mods', 'plate', 'garage', 'fuel', 'engine', 'body', 'state', 'depotprice' }
 local QB_FINANCE = { 'balance', 'paymentamount', 'paymentsleft', 'financetime' }
 local ESX_SELECT = { 'owner', 'plate', 'vehicle', 'type', 'stored', 'parking', 'pound' }
 local NZ_SELECT = {
@@ -210,22 +210,30 @@ local stmt = { version = -1, select = nil, effectiveState = nil }
 
 local UNMANAGED_SQL = "(v.`nz_garage` IS NULL OR v.`nz_garage` = '')"
 
---- SQL expression of the effective state code (see effectiveState below).
+--- SQL expression of the effective state code (see effectiveState below; both must agree).
 local function buildEffectiveStateSql()
   if not has('nz_state') then return nil end
   if not isEsx then
     if not has('state') then return 'v.`nz_state`' end
+    -- Managed rows: an impound written into the mirrored framework columns by another
+    -- resource (qb-policejob: state 2 = seized, state 0 + depotprice = depot) wins.
+    local drift = 'WHEN v.`state` = 2 AND COALESCE(v.`nz_state`, 1) <> 2 THEN 2 '
+    if has('depotprice') then
+      drift = drift .. 'WHEN v.`state` = 0 AND COALESCE(v.`nz_state`, 1) = 0 AND v.`depotprice` > 0 THEN 2 '
+    end
     return ('(CASE WHEN %s AND v.`state` IS NOT NULL THEN (CASE WHEN v.`state` = 0 THEN 0 '
-      .. 'WHEN v.`state` = 2 THEN 2 ELSE 1 END) ELSE v.`nz_state` END)'):format(UNMANAGED_SQL)
+      .. 'WHEN v.`state` = 2 THEN 2 ELSE 1 END) %sELSE v.`nz_state` END)'):format(UNMANAGED_SQL, drift)
   end
   if not has('stored') then return 'v.`nz_state`' end
-  local inner
+  local inner, drift
+  drift = ''
   if has('pound') then
     inner = "CASE WHEN v.`pound` IS NOT NULL AND v.`pound` <> '' THEN 2 WHEN v.`stored` = 1 THEN 1 ELSE 0 END"
+    drift = "WHEN COALESCE(v.`nz_state`, 1) <> 2 AND v.`pound` IS NOT NULL AND v.`pound` <> '' THEN 2 "
   else
     inner = 'CASE WHEN v.`stored` = 1 THEN 1 WHEN v.`nz_state` = 2 THEN 2 ELSE 0 END'
   end
-  return ('(CASE WHEN %s THEN (%s) ELSE v.`nz_state` END)'):format(UNMANAGED_SQL, inner)
+  return ('(CASE WHEN %s THEN (%s) %sELSE v.`nz_state` END)'):format(UNMANAGED_SQL, inner, drift)
 end
 
 local function statements()
@@ -262,6 +270,10 @@ end
 --- have an nz_garage). Rows without nz_garage were never stored by nayzeee-garages (e.g.
 --- inserted by a dealership after the migration, with the nz_state column default), so
 --- their state comes from the framework columns, which we always mirror on writes.
+--- Because every state write mirrors those columns, a managed row whose framework columns
+--- say "impounded" while nz_state does not was impounded by another resource (qb-policejob
+--- seizure `state = 2` / depot `state = 0, depotprice > 0`, esx_garage `pound`): that wins.
+--- Keep in sync with buildEffectiveStateSql.
 local function effectiveState(r)
   local nz = num(r.nz_state)
   if not nonEmpty(r.nz_garage) then
@@ -279,9 +291,54 @@ local function effectiveState(r)
       if truthy(r.stored) then return 1 end
       return nz == 2 and 2 or 0
     end
+  elseif not isEsx then
+    if has('state') then
+      local s = num(r.state)
+      if s == 2 and nz ~= 2 then return 2 end
+      if s == 0 and nz == 0 and has('depotprice') and (num(r.depotprice) or 0) > 0 then return 2 end
+    end
+  elseif has('stored') and has('pound') and nz ~= 2 and nonEmpty(r.pound) then
+    return 2
   end
   if nz == 0 or nz == 1 or nz == 2 then return math.floor(nz) end
   return 1
+end
+
+local intervalCache = nil   -- detected vehicle shop payment interval (false = none found)
+
+--- Payment interval (hours) of the framework vehicle shop whose finance we mirror.
+--- Order: ServerConfig.FinanceIntervalHours, settings `economy.financeIntervalHours`, the
+--- running qbx_vehicleshop / qb-vehicleshop config, else 24 (both shops' default).
+---@return number hours
+function DB.financeIntervalHours()
+  local configured = tonumber(type(ServerConfig) == 'table' and ServerConfig.FinanceIntervalHours or nil)
+  if configured and configured > 0 then return configured end
+  if type(NZ.Settings) == 'table' and type(NZ.Settings.get) == 'function' then
+    local ok, value = pcall(NZ.Settings.get, 'economy.financeIntervalHours', nil)
+    value = ok and tonumber(value) or nil
+    if value and value > 0 then return value end
+  end
+  if intervalCache == nil then
+    intervalCache = false
+    local candidates = {
+      { 'qbx_vehicleshop', { 'config/shared.lua', 'config/server.lua', 'config.lua' } },
+      { 'qb-vehicleshop', { 'config.lua' } },
+    }
+    for _, candidate in ipairs(candidates) do
+      if GetResourceState(candidate[1]) == 'started' then
+        for _, file in ipairs(candidate[2]) do
+          local ok, text = pcall(LoadResourceFile, candidate[1], file)
+          local value = ok and type(text) == 'string' and tonumber(text:match('[Pp]aymentInterval%s*=%s*([%d%.]+)')) or nil
+          if value and value > 0 then
+            intervalCache = value
+            break
+          end
+        end
+      end
+      if intervalCache then break end
+    end
+  end
+  return intervalCache or 24
 end
 
 local function financeOf(r)
@@ -304,7 +361,7 @@ local function financeOf(r)
     payment = math.floor(payment),
     paymentsLeft = math.floor(left),
     paymentsTotal = nil,
-    intervalHours = nil,
+    intervalHours = DB.financeIntervalHours(),
     nextPaymentHours = Utils.round(math.max(minutes, 0) / 60, 1),
     overdue = left > 0 and minutes <= 0,
   }
@@ -314,6 +371,60 @@ local function health(v)
   local n = tonumber(v)
   if not n then return nil end
   return pct(n / 10, 100)
+end
+
+--- ImpoundInfo for a vehicle impounded through the framework columns (no nz_impound):
+--- pre-install / 3rd-party impounds (qb `state = 2` or depot, ESX `pound`). Points at an
+--- enabled impound of the vehicle's category (ESX pound name, then garages.restartImpound,
+--- then the lowest id) so owners and staff can find it. nil when no impound exists.
+local function legacyImpound(r, row)
+  local Locations = NZ.Locations
+  if type(Locations) ~= 'table' or type(Locations.all) ~= 'function' then return nil end
+  local okList, list = pcall(Locations.all, 'impound')
+  if not okList or type(list) ~= 'table' then return nil end
+
+  local vtype = row.vehicleType
+  if type(NZ.Vehicles) == 'table' and type(NZ.Vehicles.vehicleTypeOf) == 'function' then
+    local okType, value = pcall(NZ.Vehicles.vehicleTypeOf, row)
+    if okType and Utils.vehicleTypes[value] then vtype = value end
+  end
+  local preferred = nil
+  if type(NZ.Settings) == 'table' and type(NZ.Settings.get) == 'function' then
+    local okSetting, value = pcall(NZ.Settings.get, 'garages.restartImpound', nil)
+    preferred = okSetting and tonumber(value) or nil
+  end
+  local pound = isEsx and nonEmpty(r.pound) and r.pound:lower() or nil
+
+  local best, bestScore = nil, -1
+  for _, location in ipairs(list) do
+    if type(location) == 'table' and location.kind == 'impound' and location.enabled ~= false and tonumber(location.id) then
+      local score = 0
+      if (location.vehicleType or 'car') == vtype then score = score + 4 end
+      if pound and type(location.name) == 'string' and location.name:lower() == pound then score = score + 2 end
+      if preferred and tonumber(location.id) == preferred then score = score + 1 end
+      if score > bestScore or (score == bestScore and tonumber(location.id) < tonumber(best.id)) then
+        best, bestScore = location, score
+      end
+    end
+  end
+  if not best then return nil end
+
+  local depot = (not isEsx) and (num(r.depotprice) or 0) or 0
+  local fee = depot > 0 and math.floor(depot) or math.max(int(best.defaultFee, 0), 0)
+  -- qb `state = 2` is a police seizure: released by impound staff, when the impound has any.
+  local seized = (not isEsx) and num(r.state) == 2
+  local staffed = type(best.jobs) == 'table' and #best.jobs > 0
+  return {
+    locationId = best.id,
+    locationName = type(best.name) == 'string' and best.name or '',
+    reason = '',
+    fee = fee,
+    by = nil,
+    byName = type(L) == 'function' and L('Impound service') or '',
+    at = 0,
+    releaseAt = 0,
+    retrievable = not (seized and staffed),
+  }
 end
 
 --- Raw DB row -> NZVehicleRow (docs §4.1). Returns nil for rows without a usable plate.
@@ -348,8 +459,9 @@ local function mapRow(r)
   end
 
   local job, gang = nonEmpty(r.nz_job), nonEmpty(r.nz_gang)
+  local stateCodeNow = effectiveState(r)
 
-  return {
+  local row = {
     plate = plate,
     dbPlate = r.plate,
     owner = nonEmpty(r[OWNER_COL]),
@@ -358,7 +470,7 @@ local function mapRow(r)
     props = props,
     garageKey = nonEmpty(r.nz_garage),
     frameworkGarage = nonEmpty(r[GARAGE_COL]),
-    state = STATE_NAME[effectiveState(r)],
+    state = STATE_NAME[stateCodeNow],
     nickname = nonEmpty(r.nz_nickname),
     vehicleType = vehicleType,
     vehicleTypeKnown = vehicleTypeKnown, -- false: no stored type (QBCore/Qbox rows never stored by us)
@@ -376,6 +488,8 @@ local function mapRow(r)
     finance = (not isEsx) and financeOf(r) or nil,
     lastOut = int(r.nz_last_out, nil),
   }
+  if stateCodeNow == 2 and row.impound == nil then row.impound = legacyImpound(r, row) end
+  return row
 end
 
 --- SELECT normalized rows. `where` must use the `v.` alias.
@@ -588,12 +702,8 @@ function DB.getImpounded(locationId)
   if not ready() or not has('nz_state') then return {} end
   local id = locationId ~= nil and tonumber(locationId) or nil
   if locationId ~= nil and not id then return {} end
-  local rows
-  if id then
-    rows = fetchRows('v.`nz_state` = 2', {})
-  else
-    rows = fetchRows(statements().effectiveState .. ' = 2', {})
-  end
+  -- Effective state: also finds framework / 3rd-party impounds (see effectiveState).
+  local rows = fetchRows(statements().effectiveState .. ' = 2', {})
   local out = {}
   for _, row in ipairs(rows) do
     if row.state == 'impounded'
@@ -623,12 +733,14 @@ end
 function DB.countInGarage(garageKey, ownerIdentifier)
   garageKey = str(garageKey, 64)
   if not garageKey or not ready() or not has('nz_state') or not has('nz_garage') then return 0 end
-  local sql = ('SELECT COUNT(*) FROM `%s` WHERE `nz_state` = 1 AND `nz_garage` = ?'):format(VT)
+  -- Effective state, so a vehicle impounded by another resource does not take a space.
+  local sql = ('SELECT COUNT(*) FROM `%s` v WHERE v.`nz_garage` = ? AND %s = 1')
+    :format(VT, statements().effectiveState)
   local params = { garageKey }
   if ownerIdentifier ~= nil then
     local owner = str(ownerIdentifier, 64)
     if not owner then return 0 end
-    sql = sql .. (' AND `%s` = ?'):format(OWNER_COL)
+    sql = sql .. (' AND v.`%s` = ?'):format(OWNER_COL)
     params[2] = owner
   end
   return tonumber((run('scalar', sql, params))) or 0
@@ -1033,7 +1145,8 @@ function DB.resetOutVehicles(mode, impoundInfo)
     else
       sets.set('state', 1)
     end
-    where = "v.`nz_state` = 0 AND v.`nz_garage` IS NOT NULL AND v.`nz_garage` <> ''"
+    -- effective state: rows impounded by another resource (see effectiveState) stay impounded
+    where = statements().effectiveState .. " = 0 AND v.`nz_garage` IS NOT NULL AND v.`nz_garage` <> ''"
   elseif mode == 'impound' then
     local info = type(impoundInfo) == 'table' and impoundInfo or nil
     sets.set('nz_state', 2)

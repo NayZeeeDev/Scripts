@@ -17,15 +17,12 @@ Jobs.active = Jobs.active or {}
 
 local SPAWN_GRACE = 90           -- seconds a spawned vehicle may stay unreported before its slot is freed
 local SWEEP_INTERVAL = 20000     -- ms between clean-up passes (only while slots exist)
+local ABANDON_SECONDS = 300      -- a vehicle of a player who left is removed after standing empty this long
 local PLATE_TRIES = 20
 local SPAWN_CLEARANCE = 2.5      -- metres; a spawn point with a vehicle closer than this is occupied
 local MAX_PLATE_LENGTH = 16
 local BAG_KEY = 'nzSpawner'      -- server-only entity state: lets slots survive a resource restart
-
-local ENTITY_TYPES = {
-  automobile = true, bike = true, boat = true, heli = true,
-  plane = true, submarine = true, trailer = true, train = true,
-}
+local SUNK_Z = -3.0              -- a vehicle this far under sea level is lost
 
 local entityPlates = {}          -- [entity] = plate of an active spawner vehicle
 local sweeperStarted = false
@@ -87,6 +84,14 @@ local function money(amount)
   return tostring(setting('interface.currency', '$') or '$') .. grouped
 end
 
+local function refund(src, amount, account)
+  if amount <= 0 then return end
+  local success, added = pcall(NZ.Bridge.addMoney, src, account or 'bank', amount, 'nayzeee-garages:spawner-refund')
+  if not success or not added then
+    log('security.refund', src, { amount = amount, account = account, reason = 'spawner refund failed' })
+  end
+end
+
 local function vehicleTypeOf(row)
   if type(NZ.Vehicles.vehicleTypeOf) == 'function' then return NZ.Vehicles.vehicleTypeOf(row) end
   local vtype = type(row) == 'table' and row.vehicleType or nil
@@ -99,6 +104,24 @@ end
 
 local function plateOf(entity)
   return Utils.plate(GetVehicleNumberPlateText(entity))
+end
+
+local function isOccupied(entity)
+  for seat = -1, 14 do
+    local ped = GetPedInVehicleSeat(entity, seat)
+    if ped and ped ~= 0 then return true end
+  end
+  return false
+end
+
+--- Destroyed, burnt out or sunk: such a vehicle can never be returned to the garage.
+local function isWrecked(entity)
+  if not isVehicleEntity(entity) then return false end
+  local success, health = pcall(GetEntityHealth, entity)
+  if success and tonumber(health) and tonumber(health) <= 0 then return true end
+  if (tonumber(GetVehicleEngineHealth(entity)) or 1000) <= -3500 then return true end
+  local coords = GetEntityCoords(entity)
+  return coords ~= nil and tonumber(coords.z) ~= nil and coords.z < SUNK_Z
 end
 
 local function findEntityByPlate(plate)
@@ -301,8 +324,17 @@ local function activeFor(locationId, src, identifier)
 end
 
 --- Is the slot still held by a vehicle that exists or is being spawned right now?
-local function slotInUse(plate, info)
-  if liveEntity(plate, info) then return true end
+--- `reclaimWreck`: a destroyed / sunk vehicle nobody sits in is deleted and frees the slot
+--- (it can never be returned, and server-created entities are kept until deleted).
+local function slotInUse(plate, info, reclaimWreck)
+  local live = liveEntity(plate, info)
+  if live then
+    if reclaimWreck and isWrecked(live) and not isOccupied(live) then
+      DeleteEntity(live)
+      return false
+    end
+    return true
+  end
   if not info.entity and os.time() - (tonumber(info.at) or 0) <= SPAWN_GRACE then return true end
   if not info.entity then
     local found = findEntityByPlate(plate)
@@ -316,9 +348,30 @@ end
 
 local function sweep()
   local stale = {}
+  local now = os.time()
   for plate, info in pairs(Jobs.active) do
     if not slotInUse(plate, info) then
       stale[#stale + 1] = { plate = plate, reason = info.entity and 'removed' or 'never spawned' }
+    elseif info.dropped and not info.src then
+      -- The player left and nobody uses the vehicle: remove it once it stood empty long enough
+      -- (unless the player came back: the slot is theirs again).
+      local entity = liveEntity(plate, info)
+      local back = nil
+      if info.identifier and type(NZ.Bridge.getSourceByIdentifier) == 'function' then
+        local found, value = pcall(NZ.Bridge.getSourceByIdentifier, info.identifier)
+        back = found and tonumber(value) or nil
+      end
+      if back then
+        info.src, info.dropped, info.idleSince = back, nil, nil
+      elseif entity and isOccupied(entity) then
+        info.idleSince = nil
+      elseif entity then
+        info.idleSince = info.idleSince or now
+        if now - info.idleSince >= ABANDON_SECONDS then
+          DeleteEntity(entity)
+          stale[#stale + 1] = { plate = plate, reason = 'abandoned' }
+        end
+      end
     end
   end
   for _, item in ipairs(stale) do releaseSlot(item.plate, item.reason) end
@@ -404,7 +457,32 @@ function Jobs.release(plate)
   return releaseSlot(plate, nil)
 end
 
---- Player left: keep slots whose vehicle still exists (freed when it disappears), free the rest.
+--- The client of `src` could not create the spawner vehicle it was given: refund what it
+--- paid (once, only while no entity was ever bound to the slot) and free the slot.
+--- Called by NZ.Vehicles.spawnFailed, which already checked that no copy exists.
+---@param plate string
+---@param src number
+---@return boolean released
+function Jobs.spawnFailed(plate, src)
+  plate = Utils.plate(plate)
+  src = tonumber(src)
+  local info = plate and Jobs.active[plate] or nil
+  if not info then return false end
+  local price = math.max(0, toInt(info.price) or 0)
+  if price > 0 and src and info.src == src and info.entity == nil and info.netId == nil and not info.refunded then
+    info.refunded = true
+    refund(src, price, info.account)
+    log('vehicle.spawner', src, {
+      plate = plate, model = info.model, location = info.locationId, failed = true,
+      reason = 'client spawn failed', refunded = price, account = info.account,
+    })
+  end
+  return releaseSlot(plate, 'spawn failed')
+end
+
+--- Player left: free slots whose vehicle is gone or stands empty (the vehicle is removed:
+--- server-created entities would otherwise stay forever); keep the slot of a vehicle that
+--- someone is using (removed by the sweep once it has stood empty for a while).
 ---@param src number
 function Jobs.onPlayerDropped(src)
   src = tonumber(src)
@@ -414,7 +492,13 @@ function Jobs.onPlayerDropped(src)
     if info.src == src then
       info.src = nil
       info.dropped = os.time()
-      if not liveEntity(plate, info) then stale[#stale + 1] = plate end
+      local entity = liveEntity(plate, info)
+      if not entity then
+        stale[#stale + 1] = plate
+      elseif not isOccupied(entity) then
+        DeleteEntity(entity)
+        stale[#stale + 1] = plate
+      end
     end
   end
   for _, plate in ipairs(stale) do releaseSlot(plate, 'owner left') end
@@ -484,14 +568,6 @@ local function pickSpawn(points, wanted)
   return nil, nil
 end
 
-local function refund(src, amount, account)
-  if amount <= 0 then return end
-  local success, added = pcall(NZ.Bridge.addMoney, src, account or 'bank', amount, 'nayzeee-garages:spawner-refund')
-  if not success or not added then
-    log('security.refund', src, { amount = amount, account = account, reason = 'spawner refund failed' })
-  end
-end
-
 local function register(name, handler)
   lib.callback.register(name, Utils.safe(function(source, payload)
     local src = tonumber(source)
@@ -535,7 +611,7 @@ register('nz:garage:spawner', function(src, payload)
   if not (location.kind == 'job' and location.infiniteSpawns == true) then
     local current, info = activeFor(location.id, src, identifier)
     if current then
-      if slotInUse(current, info) then return fail(L('Return your current vehicle first')) end
+      if slotInUse(current, info, true) then return fail(L('Return your current vehicle first')) end
       releaseSlot(current, 'replaced')
     end
   end
@@ -571,6 +647,8 @@ register('nz:garage:spawner', function(src, payload)
     model = entry.model,
     job = jobName,
     garageKey = garageKey,
+    price = price,       -- refunded when the client cannot create the vehicle
+    account = account,
   }
   Jobs.active[plate] = info
   local outInfo = { src = src, identifier = identifier, garageKey = garageKey, at = now, spawner = true, job = jobName }
@@ -588,9 +666,14 @@ register('nz:garage:spawner', function(src, payload)
     label = type(entry.label) == 'string' and entry.label or '',
   }
 
-  if setting('vehicles.serverSpawn', false) == true then
-    local entityType = type(payload.entityType) == 'string' and ENTITY_TYPES[payload.entityType] and payload.entityType
-      or 'automobile'
+  -- Server-derived network type (the client's hint only when it fits the category); unknown
+  -- -> the client creates the vehicle.
+  local entityType = nil
+  if type(NZ.Vehicles.resolveEntityType) == 'function' then
+    entityType = NZ.Vehicles.resolveEntityType(hash, type(payload.entityType) == 'string' and payload.entityType or nil,
+      location.vehicleType or 'car')
+  end
+  if setting('vehicles.serverSpawn', false) == true and entityType then
     local spawned, entity, netId = pcall(NZ.Vehicles.spawnServer, hash, entityType, spawn, { plate = plate },
       GetPlayerRoutingBucket(src))
     if not spawned or not entity then

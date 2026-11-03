@@ -177,12 +177,18 @@ end
 ---------------------------------------------------------------------------------------
 
 --- Draw centred 3D text at a world position (call every frame).
+--- Projects the point to the screen and draws 2D text there instead of using
+--- SetDrawOrigin: the game accepts only 32 draw origins per frame (shared with every
+--- other resource), and the editors can show up to 60+ labels at once.
 ---@param x number
 ---@param y number
 ---@param z number
 ---@param text string
 ---@param scale number|nil
 function Placement.drawText3D(x, y, z, text, scale)
+  local onScreen, sx, sy = GetScreenCoordFromWorldCoord(x + 0.0, y + 0.0, z + 0.0)
+  sx, sy = tonumber(sx), tonumber(sy)
+  if not onScreen or not sx or not sy then return end
   if type(text) ~= 'string' then text = tostring(text) end
   SetTextScale(0.0, scale or 0.4)
   SetTextFont(4)
@@ -190,11 +196,9 @@ function Placement.drawText3D(x, y, z, text, scale)
   SetTextColour(255, 255, 255, 235)
   SetTextOutline()
   SetTextCentre(true)
-  SetDrawOrigin(x + 0.0, y + 0.0, z + 0.0, 0)
   BeginTextCommandDisplayText('STRING')
   AddTextComponentSubstringPlayerName(text)
-  EndTextCommandDisplayText(0.0, 0.0)
-  ClearDrawOrigin()
+  EndTextCommandDisplayText(sx, sy)
 end
 
 local function drawPointMarker(x, y, z, heading, radius, alpha)

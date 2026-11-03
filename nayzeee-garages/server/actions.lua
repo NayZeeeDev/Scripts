@@ -745,13 +745,25 @@ register('nz:garage:payFinance', function(src, payload)
 
     local updated = nil
     if not payAll then
+      -- A paid instalment restarts the payment timer with the full interval, exactly like
+      -- qb-vehicleshop / qbx_vehicleshop do (their repossession check is financetime < 1).
+      -- Never reuse the time that was left: an overdue vehicle would stay overdue.
+      local interval = tonumber(finance.intervalHours)
+      if not interval or interval <= 0 then interval = tonumber(NZ.DB.financeIntervalHours()) or 24 end
+      local newBalance = balance - amount
+      local left = math.max(0, (toInt(finance.paymentsLeft) or 1) - 1)
+      local nextPayment = payment
+      if left == 0 and newBalance > 0 then
+        -- rounding left a remainder: one more payment of exactly what is owed
+        left, nextPayment = 1, newBalance
+      end
       updated = {
-        balance = balance - amount,
-        payment = payment,
-        paymentsLeft = math.max(0, (toInt(finance.paymentsLeft) or 1) - 1),
+        balance = newBalance,
+        payment = nextPayment,
+        paymentsLeft = left,
         paymentsTotal = finance.paymentsTotal,
-        intervalHours = finance.intervalHours,
-        nextPaymentHours = tonumber(finance.intervalHours) or finance.nextPaymentHours,
+        intervalHours = interval,
+        nextPaymentHours = interval,
         overdue = false,
       }
     end
