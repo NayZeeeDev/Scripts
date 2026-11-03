@@ -511,7 +511,7 @@ Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
     if not Bank.access(src, card.account_id) and not (atm and atm.cardId == cardId) then
         return { ok = false, msg = 'Card not found.' }
     end
-    if card.status ~= 'active' then return { ok = false, msg = 'This card is not active.' } end
+    if card.status ~= 'active' then return { ok = false, msg = 'This card is not active.', locked = true } end
 
     Bank.session[src] = Bank.session[src] or { pinOk = {}, attempts = {} }
     local sess = Bank.session[src]
@@ -529,7 +529,7 @@ Bank.callback('nz_bank:verifyPin', function(src, cardId, pin)
         pinTries[cardId] = nil
         MySQL.update.await('UPDATE nz_bank_cards SET status = "blocked" WHERE id = ?', { cardId })
         Bank.log('cards', 'Card auto-blocked', ('Card on account #%s blocked after failed PIN entries'):format(card.account_id))
-        return { ok = false, msg = 'Too many wrong PINs. The card is now blocked.' }
+        return { ok = false, msg = 'Too many wrong PINs. The card is now blocked.', locked = true }
     end
 
     return { ok = false, msg = ('Wrong PIN. %s attempt%s left.'):format(left, left == 1 and '' or 's') }
@@ -552,6 +552,9 @@ Bank.callback('nz_bank:pinRequired', function(src, cardId, amount)
     return true
 end)
 
+-- Cards sitting in a machine right now (declared here so markCardStolen can see them)
+local inMachine = {}   -- [src] = { cardId, item, slot, meta, identifier }
+
 -- ═══════════════════════════════════════════════════════════
 --  STOLEN CARDS
 -- ═══════════════════════════════════════════════════════════
@@ -561,6 +564,12 @@ exports('markCardStolen', function(cardId, thiefSrc)
     if not Config.Cards.stealable then return false end
     local card = MySQL.single.await('SELECT * FROM nz_bank_cards WHERE id = ?', { cardId })
     if not card or card.status ~= 'active' then return false end
+
+    -- a card inside a machine is not in anyone's pockets to take; handing the
+    -- thief a copy now would leave two when the owner's comes back out
+    for _, held in pairs(inMachine) do
+        if held.cardId == card.id then return false, 'in_machine' end
+    end
 
     local acc = Bank.getAccountById(card.account_id)
 
@@ -619,7 +628,6 @@ end)
 --  The card physically sits in the machine while it is in use,
 --  so it cannot be handed off or stolen mid-transaction.
 -- ═══════════════════════════════════════════════════════════
-local inMachine = {}   -- [src] = { cardId, item, slot, meta, identifier }
 
 -- ── card items in any inventory ───────────────────────────
 --- Every card item the player carries: { name, slot, meta }.
@@ -760,6 +768,9 @@ CreateThread(function()
 end)
 
 Bank.callback('nz_bank:atmCards', function(src)
+    -- a card left in by a session that never closed comes back before choosing
+    returnCard(src)
+    retryStuck(src)
     local list, declined = usableCards(src)
     local out = {}
     for _, u in ipairs(list) do out[#out + 1] = cardInfo(u) end
@@ -771,6 +782,26 @@ end)
 --- A player who drops mid-session may already be gone from their inventory, so
 --- their card waits in KVP until they next load in. `quick` skips the database
 --- (resource stop and disconnects can't wait on a query).
+local stuck = {}   -- [src] = a card that could not go back in (pockets full); retried until it does
+
+--- Keep a card for its owner's next login. A list per character, so a second
+--- card waiting does not replace the first.
+local function saveForLater(held)
+    if not held or not held.identifier then return end
+    local key = 'nzb_card_return:' .. held.identifier
+    local list = {}
+    local ok, prev = pcall(json.decode, GetResourceKvpString(key) or '')
+    if ok and type(prev) == 'table' then list = prev.item and { prev } or prev end   -- the old one-card shape
+    list[#list + 1] = { item = held.item, meta = held.meta }
+    SetResourceKvp(key, json.encode(list))
+end
+
+--- Put a held card in the player's pockets. false when there is no room.
+local function giveBack(src, held)
+    local ok, given = pcall(CardItems.giveRaw, src, held.item, held.meta)
+    return ok and given and true or false
+end
+
 local function returnCard(src, dropped, quick)
     local held = inMachine[src]
     if not held then return end
@@ -787,21 +818,47 @@ local function returnCard(src, dropped, quick)
         end
     end
 
-    local given = not dropped and CardItems.giveRaw(src, held.item, held.meta)
-    if not given and held.identifier then
-        SetResourceKvp('nzb_card_return:' .. held.identifier, json.encode({ item = held.item, meta = held.meta }))
+    if dropped then return saveForLater(held) end
+    if giveBack(src, held) then return end
+    -- shutting down: no one is left to retry, so it waits for the next login
+    if quick then return saveForLater(held) end
+    -- still online but out of room: the machine keeps it and says so
+    stuck[src] = held
+    Bank.notify(src, 'Card', 'Your card is still in the machine. Make room in your pockets to take it back.', 'error')
+end
+
+--- A card the machine is still holding for this player, tried again.
+local function retryStuck(src)
+    local held = stuck[src]
+    if held and giveBack(src, held) then
+        stuck[src] = nil
+        Bank.notify(src, 'Card', 'You took your card back.', 'success')
     end
 end
+
+CreateThread(function()
+    while true do
+        Wait(15000)
+        for src in pairs(stuck) do
+            if GetPlayerName(src) then retryStuck(src) else saveForLater(stuck[src]) stuck[src] = nil end
+        end
+    end
+end)
 
 Framework.onPlayerLoaded(function(src, xPlayer)
     local key = 'nzb_card_return:' .. xPlayer.identifier
     local saved = GetResourceKvpString(key)
     if not saved then return end
-    local held = json.decode(saved)
+    local ok, list = pcall(json.decode, saved)
+    if not ok or type(list) ~= 'table' then return DeleteResourceKvp(key) end
+    if list.item then list = { list } end   -- the old one-card shape
     SetTimeout(5000, function()   -- let the inventory load them first
-        if held and GetPlayerName(src) and CardItems.giveRaw(src, held.item, held.meta) then
-            DeleteResourceKvp(key)
+        if not GetPlayerName(src) then return end
+        local left = {}
+        for _, held in ipairs(list) do
+            if not giveBack(src, held) then left[#left + 1] = held end
         end
+        if #left > 0 then SetResourceKvp(key, json.encode(left)) else DeleteResourceKvp(key) end
     end)
 end)
 
@@ -810,6 +867,7 @@ end)
 --- they walk away.
 Bank.callback('nz_bank:atmStart', function(src, cardId, coords)
     returnCard(src)   -- a card left in from a session that never ended
+    retryStuck(src)
 
     local chosen
     if Config.ATM.requireCard then
@@ -825,8 +883,9 @@ Bank.callback('nz_bank:atmStart', function(src, cardId, coords)
     end
 
     local session = chosen and { id = chosen.row.id, account_id = chosen.row.account_id, foreign = chosen.foreign }
-    if not Bank.startATM(src, coords, session) then
-        return { ok = false, msg = 'Stand at the machine to use it.' }
+    local started, why = Bank.startATM(src, coords, session)
+    if not started then
+        return { ok = false, msg = why == 'busy' and 'Someone is already using that machine.' or 'Stand at the machine to use it.' }
     end
 
     -- a fresh PIN every visit; wrong attempts are kept
@@ -858,10 +917,17 @@ Bank.callback('nz_bank:atmEnd', function(src)
 end)
 
 AddEventHandler('playerDropped', function()
-    returnCard(source, true, true)
+    local src = source
+    returnCard(src, true, true)
+    if stuck[src] then saveForLater(stuck[src]) stuck[src] = nil end
 end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    for src in pairs(inMachine) do returnCard(src, false, true) end
+    -- each one on its own, so an inventory already gone cannot stop the rest
+    for src in pairs(inMachine) do
+        local ok = pcall(returnCard, src, false, true)
+        if not ok then saveForLater(inMachine[src]) inMachine[src] = nil end
+    end
+    for src, held in pairs(stuck) do saveForLater(held) stuck[src] = nil end
 end)

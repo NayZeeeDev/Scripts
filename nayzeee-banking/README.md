@@ -315,6 +315,12 @@ The page becomes the prop's screen texture, and **the buttons you press are the 
 
 You look around with the mouse inside a set of limits. A button lights up when it falls under the middle of your view — on the plastic *and* on the screen at the same time — and left click pushes it. The number pad types digits and PINs; the side buttons mean whatever the screen beside them says.
 
+One player per machine at a time; a second is told someone is already using it. The card stays in the machine while you use it and always comes back: if your pockets are full the machine keeps it and says so until you make room, and a card left in when you disconnect is handed back when you next load in.
+
+{% hint style="warning" %}
+**Two things to know.** The game swaps a screen texture for every prop of that model at once, so while you use a machine, other machines of the same model in view show your screen too (most noticeable at a Fleeca bank's row of wall units). And the server knows where you stand but has no list of where every ATM in the map is, so it checks you are by the machine your client names: a modded client could claim a machine that is not there.
+{% endhint %}
+
 {% hint style="info" %}
 The screen itself has no cursor and no way to reach Lua. The client works out which physical button is being looked at and tells the page which one to light, and **the PIN never exists in the browser at all**, only the number of dots to draw. Whether a PIN is right, and whether cash may move, is decided on the server.
 {% endhint %}

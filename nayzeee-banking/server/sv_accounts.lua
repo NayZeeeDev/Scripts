@@ -256,6 +256,8 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount, fromMachine)
 
     local point, why = Bank.cashPoint(src)
     if not point then return { ok = false, msg = why } end
+    -- a machine that lost its session must not carry on as a branch counter
+    if fromMachine and point ~= 'atm' then return { ok = false, msg = 'The machine lost your session. Take your card and start again.' } end
 
     local acc, perms, err = moneyAccess(src, accountId, point)
     if not acc then return { ok = false, msg = err } end
@@ -383,6 +385,7 @@ Bank.callback('nz_bank:withdraw', function(src, accountId, amount, fromMachine)
     -- the ATM fee and cap follow where the player really is, not what the client says
     local point, why = Bank.cashPoint(src)
     if not point then return { ok = false, msg = why } end
+    if fromMachine and point ~= 'atm' then return { ok = false, msg = 'The machine lost your session. Take your card and start again.' } end
 
     -- at a branch the teller counts it out and the player picks it up (sv_teller.lua).
     -- A request from an ATM screen never does: the machine pays out itself, and

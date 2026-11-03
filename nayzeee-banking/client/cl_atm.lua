@@ -6,6 +6,7 @@ if BankLocked then return end
 
 local pinPromise = nil
 local cardProp, atStandby, inSession = nil, false, false
+local inSessionAt = 0   -- when inSession was claimed, so a stuck claim heals itself
 local promptShown = false   -- only ever hide the TextUI this file showed
 
 local function destroyProp()
@@ -23,6 +24,7 @@ local function cardInHand()
     if not IsModelValid(model) or not pcall(lib.requestModel, model, 2500) then return end
 
     local ped = PlayerPedId()
+    destroyProp()   -- never two: only the latest one would ever be cleaned up
     cardProp = CreateObject(model, 0.0, 0.0, 0.0, false, false, false)
     AttachEntityToEntity(cardProp, ped, GetPedBoneIndex(ped, 28422),
         0.13, 0.02, 0.02, -90.0, 0.0, -75.0, true, true, false, true, 1, true)
@@ -85,6 +87,14 @@ end
 --- reaches for it and takes it, and the player steps away. `onCardOut`
 --- runs once the card is showing (the screen mode hands the camera back
 --- there). On a resource stop nothing here may wait.
+--- Is the player free to play the walk-away? Not in a car (clearing tasks there
+--- throws them out), not ragdolled, cuffed or being led away by someone.
+function Bank.atmFree(ped)
+    ped = ped or PlayerPedId()
+    return not IsEntityDead(ped) and not IsPedInAnyVehicle(ped, false) and not IsPedRagdoll(ped)
+        and not IsPedCuffed(ped) and not IsEntityAttached(ped)
+end
+
 function Bank.atmExit(entity, model, onCardOut)
     destroyProp()
 
@@ -92,10 +102,11 @@ function Bank.atmExit(entity, model, onCardOut)
     local was = atStandby
     atStandby = false
 
-    -- nothing may wait on a resource stop, and a dead ped plays no gestures
-    if Bank.stopping or IsEntityDead(ped) then
+    -- nothing may wait on a resource stop, and a player who is not free (dead,
+    -- in a car, ragdolled, cuffed, escorted) plays no gestures and keeps their task
+    if Bank.stopping or not Bank.atmFree(ped) then
         if onCardOut then onCardOut() end
-        if was then ClearPedTasksImmediately(ped) end
+        if was and Bank.atmFree(ped) then ClearPedTasksImmediately(ped) end
         return
     end
 
@@ -177,7 +188,10 @@ local function resolveATM(entity)
         end
     end
 
+    -- the closest machine of any model that the player is stood in front of: a
+    -- Fleeca wall unit behind the counter is near but faces the other way
     local pos = GetEntityCoords(PlayerPedId())
+    local best, bestModel, bestDist
     for _, m in ipairs(Config.ATMModels) do
         local found = GetClosestObjectOfType(pos.x, pos.y, pos.z,
             (Config.ATM.targetDistance or 2.5) + 1.0, m, false, false, false)
@@ -185,10 +199,18 @@ local function resolveATM(entity)
         if found ~= 0 and DoesEntityExist(found) then
             local ok, model = pcall(GetEntityModel, found)
             if ok and model and model ~= 0 then
-                Bank.debug('the targeted ATM handle was no good; found it again by proximity')
-                return found, model
+                local d = #(pos - GetEntityCoords(found))
+                local rel = GetOffsetFromEntityGivenWorldCoords(found, pos.x, pos.y, pos.z)
+                -- the screen side is the machine's -Y; a little slack for standing to one side
+                if rel.y < 0.25 and (not bestDist or d < bestDist) then
+                    best, bestModel, bestDist = found, model, d
+                end
             end
         end
+    end
+    if best then
+        Bank.debug('the targeted ATM handle was no good; found it again by proximity')
+        return best, bestModel
     end
 end
 
@@ -196,14 +218,14 @@ end
 local function pickCard(cards)
     if #cards == 1 then return cards[1] end
 
-    local p = promise.new()
+    local picked, done = nil, false
     local options = {}
     for _, c in ipairs(cards) do
         options[#options + 1] = {
             title       = c.label,
             description = c.holder,
             icon        = 'credit-card',
-            onSelect    = function() p:resolve(c) end
+            onSelect    = function() picked, done = c, true end
         }
     end
 
@@ -211,10 +233,33 @@ local function pickCard(cards)
         id      = 'nz_bank_atm_cards',
         title   = L('atm_which_card'),
         options = options,
-        onExit  = function() p:resolve(nil) end
+        onExit  = function() done = true end
     })
     lib.showContext('nz_bank_atm_cards')
-    return Citizen.Await(p)
+
+    -- the menu can be closed or replaced by another resource without onExit
+    -- running; waiting on it forever would leave every machine dead
+    local deadline = GetGameTimer() + 60000
+    Wait(250)
+    while not done do
+        if lib.getOpenContextMenu() ~= 'nz_bank_atm_cards' or GetGameTimer() > deadline then break end
+        Wait(100)
+    end
+    if not done and lib.getOpenContextMenu() == 'nz_bank_atm_cards' then lib.hideContext(false) end
+    return picked
+end
+
+--- A server answer with a time limit, so a reply that never comes cannot
+--- leave the machine stuck as busy.
+local function timed(name, ...)
+    local args, result, finished = table.pack(...), nil, false
+    CreateThread(function()
+        result = lib.callback.await(name, false, table.unpack(args, 1, args.n))
+        finished = true
+    end)
+    local limit = GetGameTimer() + (Config.ATM.timeoutSeconds or 10) * 1000
+    while not finished and GetGameTimer() < limit do Wait(50) end
+    return result
 end
 
 --- Reasons a player can't step up to a machine right now.
@@ -223,6 +268,8 @@ local function cantUse()
     if IsEntityDead(ped) or IsPedFatallyInjured(ped) then return L('atm_cant_now') end
     if IsPedInAnyVehicle(ped, false) then return L('atm_in_vehicle') end
     if IsPedRagdoll(ped) or IsPedCuffed(ped) then return L('atm_cant_now') end
+    -- a claim much older than any start can take is a stuck one: let it go
+    if inSession and GetGameTimer() - (inSessionAt or 0) > 90000 then inSession = false end
     if inSession or Bank.isOpen or Bank.atmClosing or (Bank.screenActive and Bank.screenActive()) then return 'busy' end
 end
 
@@ -236,18 +283,18 @@ end
 function Bank.useATM(targeted, cardId)
     local why = cantUse()
     if why then
-        if why ~= 'busy' then Bank.notify(L('atm_title'), why, 'error') end
+        Bank.notify(L('atm_title'), why == 'busy' and L('atm_busy') or why, 'error')
         return
     end
 
     local entity, model = resolveATM(targeted)
     if not entity then return end
-    inSession = true
+    inSession, inSessionAt = true, GetGameTimer()
 
     -- which card goes in: with physical cards, one you are carrying
     local card
     if Config.ATM.requireCard then
-        local res = lib.callback.await('nz_bank:atmCards', false) or {}
+        local res = timed('nz_bank:atmCards') or {}
         local cards = res.cards or {}
         if #cards == 0 then
             inSession = false
@@ -269,15 +316,16 @@ function Bank.useATM(targeted, cardId)
     end
 
     -- the server checks we are at the machine and keeps the card until we leave
-    local start = lib.callback.await('nz_bank:atmStart', false, card and card.id, GetEntityCoords(entity))
+    local start = timed('nz_bank:atmStart', card and card.id, GetEntityCoords(entity))
     if not start or not start.ok then
         inSession = false
         return Bank.notify(L('atm_title'), start and start.msg or L('atm_no_answer'), 'error')
     end
     card = start.card or card
 
-    local data = lib.callback.await('nz_bank:getData', false, 'atm')
-    if not data or not DoesEntityExist(entity) then
+    local data = timed('nz_bank:getData', 'atm')
+    -- an error comes back as { ok = false }, which is not an account to show
+    if not data or not data.player or not DoesEntityExist(entity) then
         inSession = false
         lib.callback.await('nz_bank:atmEnd', false)
         return Bank.notify(L('atm_title'), data and L('atm_moved') or L('atm_bank_silent'), 'error')
@@ -314,11 +362,14 @@ end
 function Bank.leaveATM()
     local entity, model = Bank.atmEntity, Bank.atmModel
     Bank.atmEntity, Bank.atmModel = nil, nil
+    -- busy from the very start of the walk-away, not only once it has played
+    local holding = Bank.atmCard ~= nil
+    if holding then Bank.atmClosing = true end
 
     local ok, err = pcall(Bank.atmExit, entity, model)
     if not ok then print('^1[nayzeee-banking]^7 ATM exit failed: ' .. tostring(err)) end
 
-    if not Bank.atmCard then return end
+    if not Bank.atmCard then Bank.atmClosing = false return end
     Bank.atmCard = nil
     -- busy until the server has closed it, so a quick re-use is not wiped by this end
     Bank.atmClosing = true

@@ -143,6 +143,8 @@ Bank.callback('nz_bank:accountStatement', function(src, accountId, periodId)
     if not accountId then return { ok = false, msg = 'No account to read.' } end
 
     local acc = Bank.access(src, accountId)
+    -- a card and its PIN at a machine read that card's own account, as printing does
+    if not acc and Bank.cardAccess then acc = Bank.cardAccess(src, accountId) end
     if not acc then return { ok = false, msg = 'You cannot read that account.' } end
 
     local statement = Bank.buildStatement(accountId, periodId,

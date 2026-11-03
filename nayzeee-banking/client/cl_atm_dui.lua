@@ -255,7 +255,7 @@ end
 --- the area you have to hit is a circle rather than a wide ellipse
 --- that changes shape on an ultrawide monitor.
 local function buttonUnderCrosshair()
-  local best, bestDist = nil, (Config.ATM.buttons.proximity or 0.030)
+  local best, bestDist = nil, ((Config.ATM.buttons or {}).proximity or 0.030)
   local aspect = GetAspectRatio(false)
 
   for _, b in ipairs(DUI.buttons) do
@@ -381,6 +381,9 @@ end
 --  screens. Lua owns that map and hands the page labels to print
 --  beside them, so the two can never drift apart.
 -- ═══════════════════════════════════════════════════════════
+-- the quick amounts on the amount screen, one per left-hand button
+local QUICK = { deposit = { 500, 1000, 5000 }, withdraw = { 500, 1000, 5000, 10000 } }
+
 local function sidesFor(state)
   if state == 'home' then
     local map = {
@@ -408,10 +411,18 @@ local function sidesFor(state)
   end
 
   if state == 'amount' or state == 'transfer' then
-    return {
+    local map = {
       side_r3 = { act = 'confirm', label = 'Confirm' },
       side_r4 = { act = 'cancel',  label = 'Cancel'  },
     }
+    -- the chips drawn on the amount screen, each on a button beside it
+    if state == 'amount' then
+      for i, v in ipairs(QUICK[DUI.mode == 'deposit' and 'deposit' or 'withdraw']) do
+        if i > 4 then break end
+        map['side_l' .. i] = { act = 'quick:' .. v, label = Config.Currency .. tostring(v) }
+      end
+    end
+    return map
   end
 
   if state == 'statement' or state == 'done' then
@@ -448,7 +459,7 @@ local function goHome()
 end
 
 local function quickFor(mode)
-  return mode == 'deposit' and { 500, 1000, 5000 } or { 500, 1000, 5000, 10000 }
+  return QUICK[mode == 'deposit' and 'deposit' or 'withdraw']
 end
 
 local function goAmount(mode)
@@ -521,7 +532,8 @@ end
 
 local function refresh()
   local data = ask('nz_bank:getData', 'atm')
-  if not data then return end
+  -- an error comes back as { ok = false }: keep what is on screen rather than show $0
+  if not data or not data.player then return end
 
   DUI.data.balance = data.summary and data.summary.balance or 0
   DUI.data.cash = data.player and data.player.cash or 0
@@ -552,6 +564,18 @@ local function runAction(act)
   end
 
   if act == 'cancel' then return goHome() end
+
+  -- a quick amount fills the figure; Confirm still sends it
+  local quick = DUI.state == 'amount' and act:match('^quick:(%d+)$')
+  if quick then
+    DUI.buffer = quick
+    send({
+      action = 'amount', mode = DUI.mode,
+      balance = DUI.data.balance or 0, cash = DUI.data.cash or 0,
+      amount = DUI.buffer, quick = quickFor(DUI.mode)
+    })
+    return
+  end
 
   if DUI.state == 'transfer' and DUI.stage == 'payee' then
     if act == 'more' then DUI.page = (DUI.page or 1) + 1 return showPayees() end
@@ -637,8 +661,12 @@ printStatement = function()
   -- the paper that came out of the slot ends up in the player's pocket
   if Config.Paper and Config.Paper.enabled then
     CreateThread(function()
-      ask('nz_bank:printPaper', 'statement', DUI.data.primary,
+      local printed = ask('nz_bank:printPaper', 'statement', DUI.data.primary,
         Config.Statements and Config.Statements.atmPeriod or 'week')
+      -- no room, no money for the print: say so, the slot alone does not
+      if not printed or not printed.ok then
+        Bank.notify(L('atm_title'), (printed and printed.msg) or 'The paper copy could not be printed.', 'error')
+      end
     end)
   end
 
@@ -704,10 +732,13 @@ local function pressKey(key)
 
     DUI.pin = ''
     Bank.atmSound('declined')
-    send({ action = 'pin', length = 0, error = res and res.msg or 'Wrong PIN' })
+    -- no answer is not a wrong PIN: the bank may not have checked it at all
+    send({ action = 'pin', length = 0, error = res and res.msg or 'The bank did not answer. Try again.' })
 
-    if res and res.msg and res.msg:lower():find('blocked') then
-      SetTimeout(1400, function() DUI.active = false end)
+    -- a card blocked by this attempt (or already) comes back out; only this session's
+    if res and res.locked then
+      local session = DUI.session
+      SetTimeout(1400, function() if DUI.session == session then DUI.active = false end end)
     end
     return
   end
@@ -771,6 +802,7 @@ function Bank.useATMScreen(entity, model, card, data)
 
   DUI.active, DUI.entity, DUI.model, DUI.cfg = true, entity, model, cfg
   DUI.card, DUI.hover = card, nil
+  DUI.session = (DUI.session or 0) + 1   -- so a timer from an old visit cannot end this one
   DUI.data = {
     balance   = data.summary and data.summary.balance or 0,
     cash      = data.player and data.player.cash or 0,
@@ -836,12 +868,17 @@ function Bank.useATMScreen(entity, model, card, data)
 
   -- ── the loop ──
   CreateThread(function()
+    -- guarded: an error in a frame ends the session cleanly (camera back, card
+    -- back, player free) instead of leaving everything stuck as it was
+    local looped, loopErr = pcall(function()
     while DUI.active do
       if not DoesEntityExist(DUI.entity) then DUI.active = false break end
 
-      -- killed, knocked over or pulled away at the machine: the session ends there
+      -- killed, knocked over, cuffed, led away or put in a car: the session ends there
       local me = PlayerPedId()
-      if IsEntityDead(me) or IsPedRagdoll(me) or IsPedInAnyVehicle(me, false) then
+      if IsEntityDead(me) or IsPedRagdoll(me) or IsPedInAnyVehicle(me, false)
+        or IsPedCuffed(me) or IsEntityAttached(me)
+        or #(GetEntityCoords(me) - GetEntityCoords(DUI.entity)) > 3.0 then
         DUI.active = false
         break
       end
@@ -931,6 +968,11 @@ function Bank.useATMScreen(entity, model, card, data)
       end
 
       Wait(0)
+    end
+    end)
+    if not looped then
+      print('^1[nayzeee-banking]^7 ATM screen loop failed: ' .. tostring(loopErr))
+      DUI.active = false
     end
 
     -- still busy until the server has closed the session: a quick re-use

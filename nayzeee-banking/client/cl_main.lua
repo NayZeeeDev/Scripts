@@ -212,6 +212,27 @@ RegisterNetEvent('nz_bank:open', function(context)
     Bank.openUI(context)
 end)
 
+-- The bank window opened at an ATM closes on its own when the player can no
+-- longer be stood at it: dead, in a car, knocked over, or moved away. Without
+-- this every cash call would fail and the walk-away would play wherever they are.
+CreateThread(function()
+    while true do
+        if Bank.isOpen and Bank.context == 'atm' then
+            local ped = PlayerPedId()
+            local machine = Bank.atmEntity
+            local away = machine and DoesEntityExist(machine)
+                and #(GetEntityCoords(ped) - GetEntityCoords(machine)) > 3.0
+            if IsEntityDead(ped) or IsPedInAnyVehicle(ped, false) or IsPedRagdoll(ped) or away
+                or (machine and not DoesEntityExist(machine)) then
+                Bank.close()
+            end
+            Wait(250)
+        else
+            Wait(1000)
+        end
+    end
+end)
+
 -- ESC handling is done in the UI; this is the fallback
 CreateThread(function()
     while true do

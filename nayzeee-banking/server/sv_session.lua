@@ -45,6 +45,13 @@ function Bank.startATM(src, coords, card)
     coords = vec3(tonumber(coords.x) or 0.0, tonumber(coords.y) or 0.0, tonumber(coords.z) or 0.0)
     if not Bank.nearPoint(src, coords) then return false end
 
+    -- one player per machine: the next one would be walked into the first
+    for other, w in pairs(Bank.where) do
+        if other ~= src and w.kind == 'atm' and GetPlayerName(other) and #(w.coords - coords) < 0.6 then
+            return false, 'busy'
+        end
+    end
+
     Bank.where[src] = {
         kind      = 'atm',
         coords    = coords,
@@ -81,6 +88,11 @@ function Bank.cashPoint(src)
             if not (s and s.pinOk and s.pinOk[atm.cardId]) then
                 return nil, 'Enter your PIN first.'
             end
+        end
+        -- blocked or reported while it sat in the machine: it stops there and then
+        if atm.cardId then
+            local status = MySQL.scalar.await('SELECT status FROM nz_bank_cards WHERE id = ?', { atm.cardId })
+            if status ~= 'active' then return nil, 'This card is no longer active.' end
         end
         return 'atm', atm
     end
