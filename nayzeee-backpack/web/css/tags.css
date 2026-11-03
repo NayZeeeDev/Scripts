@@ -52,8 +52,7 @@
 
 /* ---------- styles ---------- */
 
-/* classic: thick dark outline + a little drop, the default */
-.nbt.s-classic .nbt-back{}
+/* classic (the default) is the base .nbt-back above: thick dark outline + a little drop */
 
 /* 3D: letters pushed out in a darker shade of the colour */
 .nbt.s-3d .nbt-back{
@@ -74,7 +73,10 @@
   color:var(--c1l);
   text-shadow:0 0 2px #fff,0 0 6px var(--c1),0 0 14px var(--c1),0 0 26px var(--c1);
 }
-.nbt.s-neon.grad .nbt-front{text-shadow:none;filter:drop-shadow(0 0 5px var(--c1)) drop-shadow(0 0 12px var(--c2))}
+.nbt.s-neon.grad .nbt-front,.nbt.s-neon.e-shimmer .nbt-front,.nbt.s-neon.e-rainbow .nbt-front{
+  text-shadow:none;filter:drop-shadow(0 0 5px var(--c1)) drop-shadow(0 0 12px var(--c2));
+}
+.nbt.s-neon.e-shimmer .nbt-front i,.nbt.s-neon.e-rainbow .nbt-front i{text-shadow:none}
 
 /* sticker: fat white border, like a die-cut sticker */
 .nbt.s-sticker .nbt-back{

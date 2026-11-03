@@ -171,7 +171,10 @@ function SetWornPropVisible(visible)
     localHidden = not visible
     local p = props[myId]
     if p and DoesEntityExist(p.entity) then
-        SetEntityVisible(p.entity, visible, false)
+        -- while a straps-flat copy sits on the car seat, the worn one stays hidden
+        local seated = p.seat and DoesEntityExist(p.seat)
+        SetEntityVisible(p.entity, visible and not seated, false)
+        if seated then SetEntityVisible(p.seat, visible, false) end
     end
 end
 
@@ -380,16 +383,21 @@ local function setPlacement(serverId, place)
         if Bags.def(state.bag).loose then
             if not (p.seat and DoesEntityExist(p.seat)) then
                 local model, texture = Bags.resolve(state.bag, state.variant, true)
-                p.seat = Util.spawnModel(model, texture, GetEntityCoords(ped))
+                local spawned = Util.spawnModel(model, texture, GetEntityCoords(ped))
+                -- the model may have loaded over several frames: if the bag went
+                -- away meanwhile (taken off, stowed, refreshed) don't leave this behind
+                if props[serverId] ~= p or not DoesEntityExist(p.entity) then
+                    Util.delete(spawned)
+                    placing[serverId] = nil
+                    return
+                end
+                p.seat = spawned
             end
             onSeat = p.seat or p.entity
+            if onSeat ~= p.entity then SetEntityVisible(p.entity, false, false) end -- no flash while it seats
         end
         if veh and DoesEntityExist(veh) and VehicleBags.place(onSeat, GetEntityModel(onSeat), key, veh, seat) then
-            if onSeat == p.entity then
-                p.holder = veh
-            else
-                SetEntityVisible(p.entity, false, false)
-            end
+            if onSeat == p.entity then p.holder = veh end
         else
             -- couldn't seat it: keep it out of sight, and remember we tried this
             -- seat so the loop doesn't try again every tick
