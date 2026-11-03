@@ -251,16 +251,26 @@ adapters.okokNotify = {
   end,
 }
 
--- mythic_notify: DoCustomHudText(type, text, length, style). Types: inform / error /
--- success, so warnings use 'inform' with an amber style. No title field.
+-- mythic_notify: v1.0.x exports DoCustomHudText(type, text, length, style); v1.1.0 renamed
+-- it to SendAlert(type, text, length, style) with the same arguments. Both are tried (the
+-- one that worked is tried first next time); when neither exists the call raises and the
+-- notification goes to ox_lib. Types: inform / error / success, so warnings use 'inform'
+-- with an amber style. No title field.
 local MYTHIC_TYPES = { success = 'success', error = 'error', info = 'inform', warning = 'inform' }
 local MYTHIC_WARNING = { ['background-color'] = 'rgb(229, 165, 10)', ['color'] = '#1d1400' }
+local MYTHIC_CALLS = {
+  function(t, text, ms, style) exports['mythic_notify']:DoCustomHudText(t, text, ms, style) end, -- v1.0.x
+  function(t, text, ms, style) exports['mythic_notify']:SendAlert(t, text, ms, style) end,       -- v1.1.0
+}
+local mythicCall = 1
 adapters.mythic_notify = {
   resource = 'mythic_notify',
   show = function(n)
     local text = n.explicitTitle and joined(n.title, n.message) or n.message
-    exports['mythic_notify']:DoCustomHudText(MYTHIC_TYPES[n.kind], text, n.duration,
-      n.kind == 'warning' and MYTHIC_WARNING or nil)
+    local t, style = MYTHIC_TYPES[n.kind], n.kind == 'warning' and MYTHIC_WARNING or nil
+    if pcall(MYTHIC_CALLS[mythicCall], t, text, n.duration, style) then return end
+    mythicCall = 3 - mythicCall
+    MYTHIC_CALLS[mythicCall](t, text, n.duration, style) -- raises when missing too -> ox_lib
   end,
 }
 

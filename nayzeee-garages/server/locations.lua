@@ -626,6 +626,10 @@ function Locations.registerHouse(houseId, data)
     source = 'personal',
     capacity = { mode = 'unlimited', appliesTo = 'player', spaces = 1 },
     access = { mode = 'quick' },
+    -- the housing script draws its own garage interaction (hook-driven integrations): no
+    -- prompt, marker or target zone from this resource; the garage still works through
+    -- OpenHouseGarage / StoreHouseGarage and the proximity checks use openPoints
+    hidden = data.hidden == true or nil,
   }
   houses[key] = loc
   return loc
@@ -685,6 +689,7 @@ function Locations.clientView(location)
     view.capacity = copy(location.capacity)
   elseif kind == 'house' then
     view.houseId = location.houseId
+    view.hidden = location.hidden == true or nil
   end
   return view
 end

@@ -63,7 +63,7 @@ import { RulesEditor } from '../shared/RulesEditor';
 import { TagInput } from '../shared/TagInput';
 import { accessModeOptions, coordsText, kindNoun, vehicleTypeOptions } from '../shared/labels';
 import type { LocationPageKind } from '../shared/labels';
-import { defaultBlipSprite, newLocation, normalizeLocation } from './defaults';
+import { defaultBlipSprite, newLocation, normalizeLocation, pedDefaults } from './defaults';
 import { SpawnerEditor } from './SpawnerEditor';
 import { OwnersSection } from './OwnersSection';
 import { InteractionFields } from './InteractionFields';
@@ -121,6 +121,8 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
   const hasOwners = initial.kind === 'private' && initial.id !== null;
   const noun = kindNoun(kind);
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(initial), [draft, initial]);
+  // Config.Peds defaults of this server (NPC model placeholder / first scenario)
+  const peds = useMemo(() => pedDefaults(data), [data]);
 
   const set = (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch }) as Location);
 
@@ -494,6 +496,8 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
             <InteractionFields
               draft={draft}
               globalMode={data.settings?.interface?.interaction ?? 'prompt'}
+              defaultModel={peds.model}
+              defaultScenario={peds.scenario}
               onChange={(interaction) => set({ interaction })}
             />
           </Section>

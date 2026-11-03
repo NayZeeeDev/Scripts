@@ -2,7 +2,7 @@
  * Building blocks of the vehicle dossier: turntable Stage, registration Plate, segmented
  * gauges, section headings, fact rows and attention callouts.
  */
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Icon, VehicleImage, autoTone, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
@@ -141,7 +141,7 @@ export function ColourChip({ hex, size = 30, glow = false, className }: { hex: s
   return (
     <span
       className={cx('nz-dos-chip', !hex && 'is-unknown', glow && 'is-glow', className)}
-      style={{ width: size, height: size, ...(hex ? { background: hex, color: hex } : {}) }}
+      style={{ '--nz-chip': `${size}px`, ...(hex ? { background: hex, color: hex } : {}) } as CSSProperties}
       aria-hidden="true"
     />
   );

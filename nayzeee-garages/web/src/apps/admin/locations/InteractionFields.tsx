@@ -155,6 +155,8 @@ export function InteractionFields({
   const facing = openPoint && spawn ? headingTo(openPoint, spawn) : null;
   const options = targetOptions(draft);
   const scenarioOptions = PED_SCENARIOS.map((s) => ({ value: s.value, label: t(s.label) }));
+  // a scenario from the server config / an import that is not in the list stays selectable
+  if (ped && !PED_SCENARIOS.some((s) => s.value === ped.scenario)) scenarioOptions.push({ value: ped.scenario, label: ped.scenario });
   const pedWarning = !!ped && !target;
   // the NPC stands in the middle of the parking zone of open interaction #1
   const parksAroundPed = !!ped && !!openPoint && storesAtOpen(draft);

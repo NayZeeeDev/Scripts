@@ -183,6 +183,24 @@ N.show('warning', 'Payment due soon', 'Finance')
 local last = calls[#calls]
 check(last and last.args[1] == 'inform' and last.args[2] == 'Finance: Payment due soon' and type(last.args[4]) == 'table',
   'mythic warning: inform + amber style + joined explicit title, got ' .. dump(last and { table.unpack(last.args, 1, last.args.n) }))
+-- mythic_notify v1.1.0 only exports SendAlert (same arguments).
+N = setup('mythic_notify', { running = { 'mythic_notify' } })
+throwIn['mythic_notify:DoCustomHudText'] = true -- "No such export"
+N.show('success', 'Vehicle stored')
+expectCall('mythic v1.1 SendAlert', 'mythic_notify:SendAlert', 'success', 'Vehicle stored', 5000, nil)
+N.show('error', 'No money')
+expectCall('mythic v1.1 second call', 'mythic_notify:SendAlert', 'error', 'No money', 5000, nil)
+check(#calls == 2 and #warnings == 0, 'mythic v1.1: no ox_lib fallback, no warning')
+throwIn['mythic_notify:DoCustomHudText'] = nil
+N.show('info', 'Old build again')
+expectCall('mythic remembers SendAlert', 'mythic_notify:SendAlert', 'inform', 'Old build again', 5000, nil)
+-- Neither export: ox_lib with one warning.
+N = setup('mythic_notify', { running = { 'mythic_notify' } })
+throwIn['mythic_notify:DoCustomHudText'], throwIn['mythic_notify:SendAlert'] = true, true
+N.show('info', 'No exports')
+N.show('info', 'Still none')
+check(#calls == 2 and calls[1].name == 'lib.notify' and calls[2].name == 'lib.notify' and #warnings == 1,
+  'mythic without either export -> ox_lib + one warning')
 
 N = setup('pNotify', { running = { 'pNotify' } })
 N.show('error', 'R&D <b>bold</b>')

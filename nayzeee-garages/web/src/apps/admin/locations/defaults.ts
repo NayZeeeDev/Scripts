@@ -11,7 +11,10 @@
  * - DEFAULT_BLIP_COLOUR[kind]       3 garage, 38 job, 5 private, 1 impound.
  * - OPEN_RADIUS / STORE_RADIUS      Config.Interaction defaults (2.0 / 4.0 m).
  * - defaultInteraction()            { mode: 'default', ped: null } (follow the server setting, no NPC).
- * - normalizeInteraction(raw)       a complete LocationInteraction from whatever Lua sent (absent = defaults).
+ * - normalizeInteraction(raw, scenario?)
+ *                                   a complete LocationInteraction from whatever Lua sent (absent = defaults).
+ * - pedDefaults(data)               { model, scenario }: Config.Peds defaults from the admin data
+ *                                   (`peds`, when the server sends it), else the shipped values.
  * - PED_DEFAULT_MODEL / PED_DEFAULT_SCENARIO / PED_SCENARIOS / PED_MODEL_PRESETS
  *                                   NPC defaults (Config.Peds) and the choices offered in the editor.
  */
@@ -53,11 +56,24 @@ export function defaultBlip(kind: LocationPageKind, vt: VehicleType = 'car'): Bl
   return { enabled: true, sprite: defaultBlipSprite(kind, vt), color: DEFAULT_BLIP_COLOUR[kind], scale: 0.7 };
 }
 
-/** Config.Peds.defaultModel / defaultScenario (config/config.lua). */
+/** Shipped Config.Peds.defaultModel / defaultScenario (config/config.lua), used until the
+ *  server sends its own (pedDefaults). */
 export const PED_DEFAULT_MODEL = 's_m_y_valet_01';
 export const PED_DEFAULT_SCENARIO = 'WORLD_HUMAN_CLIPBOARD';
 /** Same rule as the server (server/locations.lua): letters, digits and _, max 32. */
 export const PED_MODEL_MAX = 32;
+
+/** Config.Peds defaults of this server: AdminOpenData.peds when present (validated like the
+ *  server validates location NPCs), else the shipped values. */
+export function pedDefaults(data: AdminOpenData): { model: string; scenario: string } {
+  const raw = (data as AdminOpenData & { peds?: { defaultModel?: unknown; defaultScenario?: unknown } | null }).peds;
+  const model = raw?.defaultModel;
+  const scenario = raw?.defaultScenario;
+  return {
+    model: typeof model === 'string' && /^[A-Za-z0-9_]{1,32}$/.test(model) ? model : PED_DEFAULT_MODEL,
+    scenario: typeof scenario === 'string' && /^[A-Za-z0-9_]{0,64}$/.test(scenario) ? scenario : PED_DEFAULT_SCENARIO,
+  };
+}
 
 /** Scenarios offered for location NPCs ('' = stands idle). Labels are translated where shown. */
 export const PED_SCENARIOS: { value: string; label: string }[] = [
@@ -84,8 +100,9 @@ export const defaultInteraction = (): LocationInteraction => ({ mode: 'default',
 
 const INTERACTION_MODES: LocationInteraction['mode'][] = ['default', 'prompt', 'target', 'both'];
 
-/** Complete LocationInteraction from Lua (the field is absent on locations using the defaults). */
-export function normalizeInteraction(raw: unknown): LocationInteraction {
+/** Complete LocationInteraction from Lua (the field is absent on locations using the defaults).
+ *  `scenario` fills an NPC without one (the server always sends it). */
+export function normalizeInteraction(raw: unknown, scenario: string = PED_DEFAULT_SCENARIO): LocationInteraction {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return defaultInteraction();
   const src = raw as Partial<LocationInteraction> & { ped?: unknown };
   const mode = INTERACTION_MODES.includes(src.mode as LocationInteraction['mode']) ? (src.mode as LocationInteraction['mode']) : 'default';
@@ -94,7 +111,7 @@ export function normalizeInteraction(raw: unknown): LocationInteraction {
     const p = src.ped as { model?: unknown; scenario?: unknown };
     ped = {
       model: typeof p.model === 'string' ? p.model : '',
-      scenario: typeof p.scenario === 'string' ? p.scenario : PED_DEFAULT_SCENARIO,
+      scenario: typeof p.scenario === 'string' ? p.scenario : scenario,
     };
   }
   return { mode, ped };
@@ -199,7 +216,7 @@ export function normalizeLocation(raw: Location, data: AdminOpenData): Location 
   out.openPoints = arr(src.openPoints);
   out.storePoints = arr(src.storePoints);
   out.blip = obj(src.blip, defaults.blip);
-  out.interaction = normalizeInteraction(src.interaction);
+  out.interaction = normalizeInteraction(src.interaction, pedDefaults(data).scenario);
   if (out.kind === 'garage' || out.kind === 'job' || out.kind === 'private') {
     const d = defaults as GarageLocation;
     const capacity = obj(src.capacity, d.capacity);

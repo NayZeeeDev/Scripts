@@ -873,7 +873,8 @@ function Points.rebuild()
     addLocation(loc, ctx, showBlips)
   end
   for _, loc in pairs(NZ.State.houses or {}) do
-    addLocation(loc, ctx, false)
+    -- hidden: the housing script shows the garage interaction itself (OpenHouseGarage)
+    if loc.hidden ~= true then addLocation(loc, ctx, false) end
   end
   if type(NZ.Peds.sync) == 'function' then
     local ok, err = pcall(NZ.Peds.sync, ctx.peds)
