@@ -1113,6 +1113,8 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dos-hero__vitals > span,
 .nz-dos-hero__vitals .nz-tip-anchor > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .nz-dos-hero__vitals svg { flex: none; color: var(--ink-3); }
+.nz-dos-hero__vitals > * { flex: none; }
+.nz-dos-hero__vitals > .is-where { flex: 0 1 auto; overflow: hidden; }
 
 .nz-dos-hero__type {
   display: grid;
@@ -1141,6 +1143,11 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 
 .nz-dos-hero__actions .nz-tip-anchor { display: block; min-width: 0; }
 .nz-dos-hero__actions .nz-btn { width: 100%; padding: 0 8px; }
+.nz-dos-hero__actions.has-split { grid-template-columns: auto minmax(0, 1fr) auto; }
+.nz-dos-hero__split { display: flex; gap: 4px; min-width: 0; }
+.nz-dos-hero__split .nz-btn { flex: 1 1 auto; min-width: 0; }
+.nz-dos-hero__split .nz-tip-anchor { flex: none; }
+.nz-dos-hero__split .nz-ibtn { height: 100%; }
 
 .nz-dos-hero.is-skel { grid-template-columns: auto 236px minmax(0, 1fr) 300px; }
 
@@ -1343,6 +1350,7 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 
 /* ── tab body / sheet ────────────────────────────────────────────────── */
 .nz-dos-body {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -1350,6 +1358,24 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
   min-width: 0;
   animation: nz-dos-in 180ms var(--ease) both;
 }
+
+/* more content below: fade the bottom edge (set from VehicleDetailView) */
+.nz-dos-body::after {
+  content: '';
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 0;
+  z-index: 3;
+  height: 34px;
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  background: linear-gradient(transparent, var(--panel) 85%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fast);
+}
+
+.nz-dos-body.has-more::after { opacity: 1; }
 
 .nz-dos-pane {
   display: flex;
@@ -1448,6 +1474,8 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 }
 
 .nz-dos-fact:last-child { border-bottom: 0; }
+/* impounded vehicles list three more facts: keep the column within the window */
+.nz-dos-facts.is-dense .nz-dos-fact { min-height: 27px; padding: 2px 0; }
 
 .nz-dos-fact__label {
   display: flex;
@@ -1562,21 +1590,25 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 
 .nz-dos-callout__text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
 
-.nz-dos-callout__text b,
-.nz-dos-callout__text span {
+.nz-dos-callout__text > b,
+.nz-dos-callout__text > span {
+  display: -webkit-box;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.nz-dos-callout__text b { font-size: 12.5px; font-weight: 600; color: var(--white); }
-.nz-dos-callout__text span { font-size: 11px; font-weight: 300; color: var(--ink-2); }
-.nz-dos-callout__action { flex: none; }
+.nz-dos-callout__text > b { font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--white); }
+.nz-dos-callout__text > span { font-size: 11px; font-weight: 300; line-height: 1.4; color: var(--ink-2); }
+.nz-dos-callout__em { font-weight: 500; color: var(--ink); }
+.nz-dos-callout__text .nz-tip-anchor { display: inline; }
+.nz-dos-callout__action { display: flex; align-items: center; gap: 4px; flex: none; }
 
 /* ── overview ────────────────────────────────────────────────────────── */
 .nz-dos-ov__callouts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 8px;
   flex: none;
 }
@@ -1665,7 +1697,17 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 
 .nz-dos-ov__glyph:hover { border-color: var(--line); background: var(--raise); }
 .nz-dos-ov__glyph .nz-dmg { max-width: 220px; }
-.nz-dos-ov__glyph > span { max-width: 100%; font-size: 11px; color: var(--ink-2); text-align: center; }
+.nz-dos-ov__glyph > span {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  text-align: center;
+}
 .nz-dos-ov__glyph > span.is-bad { color: var(--amber); }
 .nz-dos-ov__glyph > span.is-muted { color: var(--ink-3); }
 
@@ -1733,6 +1775,9 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dmg__head { fill: rgba(255, 255, 255, .24); }
 .nz-dmg__tail { fill: rgba(var(--red-rgb), .55); }
 .nz-dmg__bay { pointer-events: none; }
+.nz-dmg__bar { fill: none; stroke: rgba(255, 255, 255, .28); stroke-width: 3; stroke-linecap: round; }
+.nz-dmg__rotor { fill: rgba(255, 255, 255, .012); stroke: rgba(255, 255, 255, .09); stroke-width: 1; stroke-dasharray: 3 5; }
+.nz-dmg__blade { fill: none; stroke: rgba(255, 255, 255, .16); stroke-width: 2.4; stroke-linecap: round; }
 
 .nz-dmg__panel,
 .nz-dmg__glass,
@@ -1893,28 +1938,9 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dos-perf__label { font-size: 12px; color: var(--ink-2); }
 .nz-dos-perf__row b { font-size: 11.5px; font-weight: 500; text-align: right; color: var(--ink-3); }
 .nz-dos-perf__row.is-on b { color: var(--white); }
+.nz-dos-paint__item.is-missing b { font-weight: 400; color: var(--ink-3); }
 
-.nz-dos-switch {
-  position: relative;
-  width: 26px;
-  height: 14px;
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, .14);
-}
-
-.nz-dos-switch i {
-  position: absolute;
-  left: 2px;
-  top: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--white);
-  transition: transform var(--fast);
-}
-
-.nz-dos-switch.is-on { background: var(--teal); }
-.nz-dos-switch.is-on i { transform: translateX(12px); background: var(--on-teal); }
+.nz-dos-perf__state { display: flex; justify-content: flex-end; grid-column: 2 / 4; }
 
 .nz-dos-model { display: flex; flex-direction: column; gap: 7px; }
 .nz-dos-model__top { display: flex; align-items: baseline; gap: 8px; }
@@ -2245,7 +2271,9 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
   background: linear-gradient(rgba(255, 255, 255, .012), rgba(255, 255, 255, 0));
 }
 
-.nz-dos-actlog__note { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 300; color: var(--ink-3); }
+.nz-dos-actlog__note { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; font-weight: 300; color: var(--ink-3); }
+.nz-dos-actlog__note.is-error { font-weight: 400; color: var(--red); }
+.nz-dos-actlog__note.is-error .nz-btn { margin-left: 2px; }
 
 .nz-dos-actday h5 {
   position: sticky;
@@ -2337,6 +2365,19 @@ button.nz-dos-act__head:hover,
 }
 
 .nz-dos-act__actor .nz-avatar { flex: none; border-radius: 5px; font-size: 8.5px; }
+.nz-dos-act__actor.is-server { color: var(--ink-3); }
+
+.nz-dos-act__sys {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--ink-2);
+  background: var(--inset);
+  border: 1px dashed var(--line);
+}
 .nz-dos-act__chev { flex: none; color: var(--ink-3); }
 
 .nz-dos-act__more {
@@ -2456,6 +2497,7 @@ button.nz-dos-act__head:hover,
   .nz-dos-owner { padding: 8px 10px; row-gap: 6px; }
   .nz-dos-col { padding: 10px 14px 12px; gap: 7px; }
   .nz-dos-fact { min-height: 27px; padding: 3px 0; }
+  .nz-dos-facts.is-dense .nz-dos-fact { min-height: 23px; padding: 1px 0; }
   .nz-dos-callout { padding: 7px 10px 7px 12px; }
   .nz-dos-callout__icon { width: 28px; height: 28px; }
   .nz-dos-ov__gauges { gap: 9px; }
@@ -2464,4 +2506,16 @@ button.nz-dos-act__head:hover,
   .nz-dos-cond__diagram .nz-dos-cond__canvas { min-height: 170px; }
   .nz-dos-ov__snap { display: none; }
   .nz-dos-ov__sheet { grid-template-rows: auto; }
+  .nz-dos-perf__row { height: 25px; }
+  .nz-dos-model { gap: 5px; }
+  .nz-dos-model__top b { font-size: 18px; }
+  .nz-dos-h--gap { margin-top: 4px; }
+  .nz-dos-paint__item { padding: 5px 7px; }
+  .nz-dos-pane { padding-bottom: 2px; }
+  .nz-dos-cond__gauges { gap: 9px 16px; margin-bottom: 0; }
+  .nz-dos-parts { gap: 5px; }
+  .nz-dos-parts__group { grid-template-columns: 100px minmax(0, 1fr); }
+  .nz-dos-parts__label { padding-top: 3px; }
+  .nz-dos-part { height: 20px; padding: 0 7px; }
+  .nz-dos-cond__facts .nz-dos-fact { min-height: 24px; padding: 2px 0; }
 }

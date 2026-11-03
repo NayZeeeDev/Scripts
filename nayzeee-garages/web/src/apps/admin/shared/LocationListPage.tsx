@@ -20,6 +20,8 @@
  *   Keyboard: "/" search, ↑/↓ move through the cards (list focused), Enter edits and Delete
  *   asks to delete the selected location from anywhere on the page (list, map, pin), Esc
  *   closes the inspector (then the panel). Filter changes refit the map (MapView fitKey).
+ *   Fit all with the inspector open folds it to its header row when the pins need the room
+ *   (MapView onMakeRoom); any new selection or its chevron unfolds it.
  *
  * Flows kept from the table version: create / edit (LocationEditor, opened exactly as before),
  * delete (ConfirmDialog), enable toggle, teleport (admin:location:teleport), import
@@ -132,6 +134,8 @@ export function LocationListPage<L extends Location>({
   const [importOpen, setImportOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState<L>>({ open: false, seed: null, session: 0 });
   const [inset, setInset] = useState(0);
+  /** Inspector folded to its header row (Fit all needed the room). */
+  const [inspFolded, setInspFolded] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const inspRef = useRef<HTMLElement>(null);
@@ -183,6 +187,9 @@ export function LocationListPage<L extends Location>({
   useEffect(() => {
     if (selectedId !== null && !filtered.some((l) => l.id === selectedId)) setSelectedId(null);
   }, [filtered, selectedId]);
+
+  // A new selection opens the inspector unfolded.
+  useEffect(() => setInspFolded(false), [selectedId]);
 
   /* ── inspector height → map inset ── */
   useLayoutEffect(() => {
@@ -245,10 +252,15 @@ export function LocationListPage<L extends Location>({
   const selectCard = useCallback((l: Location) => {
     if (l.id === null) return;
     setSelectedId(l.id);
+    setInspFolded(false);
     setFocusTick((n) => n + 1);
   }, []);
 
-  const selectFromMap = useCallback((id: Id | null) => setSelectedId(id), []);
+  const selectFromMap = useCallback((id: Id | null) => {
+    setSelectedId(id);
+    if (id !== null) setInspFolded(false);
+  }, []);
+  const foldInspector = useCallback(() => setInspFolded(true), []);
 
   // Bring the selected card into view (after a pin click, keyboard move or save).
   useEffect(() => {
@@ -635,6 +647,7 @@ export function LocationListPage<L extends Location>({
               const l = all.find((x) => x.id === id);
               if (l) openEditor(l);
             }}
+            onMakeRoom={foldInspector}
             focusTick={focusTick}
             fitKey={fitKey}
             bottomInset={selected ? inset : 0}
@@ -665,6 +678,8 @@ export function LocationListPage<L extends Location>({
               capacityMeter={kind !== 'private'}
               spawner={(selected.kind === 'garage' || selected.kind === 'job') && selected.source === 'spawner' ? selected.spawner.length : null}
               busy={selBusy}
+              folded={inspFolded}
+              onUnfold={() => setInspFolded(false)}
               onClose={() => setSelectedId(null)}
               onEdit={() => openEditor(selected)}
               onTeleport={() => void teleport(selected)}

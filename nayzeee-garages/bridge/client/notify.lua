@@ -2,9 +2,10 @@
   nayzeee-garages — notification integration (client): NZ.Notify.
   Every notification of the resource ends in NZ.Notify.show(kind, message, title, duration):
   client code (NZ.NUI.notify / NZ.Bridge.notify), the server (event nz:client:notify) and the
-  interface (NUI callback 'notify'). It is handed to the system picked with
-  Config.Integrations.notify; when that resource is not started (or its call fails) the
-  notification is shown with ox_lib instead. NZ.Notify.show never throws.
+  interface (NUI callback 'notify'). While a garage window holds NUI focus it is drawn inside
+  that window (Config.Notify.inInterface, see showSafe); otherwise it is handed to the system
+  picked with Config.Integrations.notify, and when that resource is not started (or its call
+  fails) the notification is shown with ox_lib instead. NZ.Notify.show never throws.
 ]]
 
 local Notify = NZ.Notify
@@ -19,6 +20,8 @@ local Notify = NZ.Notify
 --             (nil when there is none)
 --   duration  number, milliseconds (Config.Notify.duration unless the sender chose one)
 -- Return false (or raise an error) to show that notification with ox_lib instead.
+-- While a garage window holds the mouse, notifications are drawn inside that window and do
+-- not reach this function (set Config.Notify.inInterface = false to change that).
 -- Out of the box it returns false, so ox_lib is used until you fill it in, e.g.:
 --   exports['my_notify']:Send({ type = kind, title = title, text = message, time = duration })
 --   return true
@@ -226,8 +229,9 @@ adapters.qbx = {
 
 -- ESX: esx_notify, the notification resource of ESX Legacy (1.9+), called directly:
 -- exports.esx_notify:Notify(type, length, message, title?, position?), types success / error /
--- info / warning. Title and position are read by recent versions (older ones ignore them;
--- without a title esx_notify shows its own default heading). ESX.ShowNotification only
+-- info / warning. Title and position are read by recent versions (older ones ignore them).
+-- Without a title the title is '' rather than nil: esx_notify replaces a nil title with its
+-- own "New Notification" heading, and '' (truthy in Lua) keeps it empty. ESX.ShowNotification only
 -- forwards to this export (and does nothing when esx_notify is missing), and the
 -- 'esx:showNotification' event drops local triggers on 1.11 / 1.12 (secured net event), so
 -- neither is used: when esx_notify is not started the notification is shown with ox_lib.
@@ -239,7 +243,7 @@ local ESX_POSITIONS = {
 adapters.esx = {
   resource = 'esx_notify',
   show = function(n)
-    exports['esx_notify']:Notify(n.kind, n.duration, n.message, n.title, ESX_POSITIONS[n.position])
+    exports['esx_notify']:Notify(n.kind, n.duration, n.message, n.title or '', ESX_POSITIONS[n.position])
   end,
 }
 
@@ -397,6 +401,14 @@ end
 
 local lastKey, lastAt = nil, -REPEAT_MS
 
+--- Whether the next notification is drawn inside the interface (a window holds NUI focus).
+local function inInterface()
+  if configured().inInterface == false then return false end
+  local nui = NZ.NUI
+  return type(nui) == 'table' and type(nui.toast) == 'function' and type(nui.hasFocus) == 'function'
+    and nui.hasFocus() == true
+end
+
 local function showSafe(kind, message, title, duration)
   local n = build(kind, message, title, duration)
   if not n then return false end
@@ -405,6 +417,22 @@ local function showSafe(kind, message, title, duration)
   local now = GetGameTimer()
   if key == lastKey and now - lastAt < REPEAT_MS then return true end
   lastKey, lastAt = key, now
+
+  -- While one of our windows holds NUI focus, FiveM draws our page above every other
+  -- resource's NUI (its root page raises the focused frame), so the notify resource would be
+  -- hidden behind the window: draw the notification inside our own page instead. Only an
+  -- explicit title is shown there (the generic Config.Notify.title is redundant inside the
+  -- garage window). Config.Notify.inInterface = false always uses the integration.
+  if inInterface() then
+    local ok, err = pcall(NZ.NUI.toast, {
+      type = n.kind,
+      title = n.explicitTitle and n.title or nil,
+      message = n.message,
+      duration = n.duration,
+    })
+    if ok then return true end
+    warnOnce('failed:interface', ('drawing in the interface failed (%s), using the integration.'):format(tostring(err)))
+  end
 
   local name = Notify.current()
   local adapter = adapters[name]

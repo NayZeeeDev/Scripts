@@ -96,6 +96,7 @@ export function ShareModal({
 
   return (
     <Modal
+      className="nz-garage-modal"
       open={!!vehicle}
       title={t('Share vehicle')}
       subtitle={t('Shared players can drive it. You stay the owner.')}

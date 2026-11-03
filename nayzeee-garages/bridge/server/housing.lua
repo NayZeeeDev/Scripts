@@ -9,16 +9,23 @@
       '<prefix>:<id>' with their owners + key holders and, when the script stores them, the
       garage coordinates. Reloads every 5 minutes, on hints from the housing scripts (events,
       resource start, the RefreshHousing export) and when a client asks ('nz:housing:refresh',
-      at most one reload per minute for those). A loader that fails (or suddenly returns
-      nothing) keeps the houses it loaded before;
+      at most one reload per minute for those; client-triggered housing events at most one per
+      30 s and loader). A loader that fails keeps the houses it loaded before; an empty read is
+      only trusted when a read at least a minute later confirms it;
     - answers hasAccess (live check through the script's key export when the loader has one,
-      then the cached owner / key holder sets) and viewsFor;
+      then the cached owner / key holder sets; a definitive "no" from a loader whose check is
+      authoritative overrides the cached sets) and viewsFor;
     - backs the RegisterHouseGarage / RemoveHouseGarage / SetHouseAccess / RefreshHousing exports;
     - serves 'nz:housing:hook' for housing scripts that own the garage interaction and call the
       OpenHouseGarage / StoreHouseGarage client exports (bridge/client/housing.lua): checks access
       live, registers the garage at the player's SERVER-SIDE position when the house has no known
       garage coordinates (hidden: the housing script draws the interaction, positions are kept in
-      resource KVP across restarts) and returns the player's house views;
+      resource KVP across restarts, within 'nayzeee_housing_hook_range' metres of the property
+      when the loader knows where it is; an existing garage never moves while the property's
+      position is unknown) and returns the player's house views. Only hook-driven loaders
+      (hook = 'always', or 'whenUsed' with create = true) get new garages this way, under their
+      canonical id (numeric ids normalised: 'tk:1.0' -> 'tk:1'); the others only open / store at
+      garages that already exist;
     - pushes 'nz:client:houses' (list of client views) to online players whose houses changed.
   Ids stay compatible with older versions: 'qb:<house name>' (qb-houses), 'ps:<property id>'
   (ps-housing); vehicles stored under 'H..' keys keep working.
@@ -37,8 +44,13 @@ local HOOK_RATE_MS = 1500          -- per player rate limit of the hook callback
 local TICK_MS = 15000              -- housekeeping (grants, caches, per-loader intervals)
 local LIVE_TTL_MS = 10000          -- cache of live access checks
 local LIVE_GRANT_MS = 30 * 60 * 1000 -- a successful hook keeps the house in the player's list
-local HOOK_MOVE_DIST = 6.0         -- metres: a hook garage moves when used this far away
+local HOOK_MOVE_DIST = 6.0         -- metres: a hook garage moves when used this far away (at most
+                                   -- half of the garages.maxDistance setting)
 local HOOK_RANGE = 200.0           -- metres: a hook garage must be this close to the property
+local NET_HINT_GAP_MS = 30000      -- minimum gap between two reloads of a loader from client events
+local NET_HINT_RATE_MS = 5000      -- per player rate limit of those events
+local EMPTY_CONFIRM_MS = 60000     -- an empty read (or a "gone" answer) needs a confirming read this much later
+local YIELD_EVERY = 200            -- long loops yield (Wait(0)) after this many items
 local MAX_ACCESS = 200             -- identifiers per house and per access source
 local MAX_ID_LENGTH = 60
 local KVP_SPOT = 'nz_housing:spot:'
@@ -64,14 +76,19 @@ local loaderIds = {}      -- [prefix] = { [houseId] = true } houses the loader r
 local spots = {}          -- [houseId] = { x, y, z, w } hook positions (persisted)
 local hookSeen = {}       -- [prefix] = true once its hook was used (console hint printed)
 local liveCache = {}      -- [identifier .. '\n' .. houseId] = { at, result }
-local emptyStreak = {}    -- [prefix] = consecutive empty reads
+local emptySince = {}     -- [prefix] = GetGameTimer() of the first of consecutive empty reads
+local goneSince = {}      -- [houseId] = GetGameTimer() of the first "does not exist" answer (incomplete loaders)
 local lastLoaderLoad = {} -- [prefix] = GetGameTimer() of the last successful read
+local lastReadAt = {}     -- [prefix] = GetGameTimer() of the last read attempt
+local netHintPending = {} -- [prefix] = true while a reload asked for by a client event is scheduled
+local netHintAt = {}      -- [prefix] = GetGameTimer() when the last such reload was asked for
 local warned = {}         -- warnOnce keys
 
 local booted = false
 local loading = false
 local lastLoadAt = nil
-local trailingReload = false
+local trailingAt = nil       -- GetGameTimer() when the scheduled trailing reload runs
+local trailingGen = 0
 local pushScheduled = false
 local pendingAll, pendingSet = false, {}
 local hintTimers = {}
@@ -236,6 +253,11 @@ end
 
 local function lower(s)
   return type(s) == 'string' and Utils.trim(s):lower() or nil
+end
+
+--- Yield every YIELD_EVERY items of a long loop (only inside a thread; loops over local data).
+local function yieldEvery(i)
+  if i % YIELD_EVERY == 0 and coroutine.isyieldable() then Wait(0) end
 end
 
 ---------------------------------------------------------------------------------------
@@ -570,16 +592,32 @@ function H.call(resource, name, ...)
   end)
 end
 
---- Export call on the loader's running resource: the first result or nil (errors debug-logged).
-function H.export(ctx, name, ...)
+local function exportCall(ctx, quiet, name, ...)
   local resource = ctx.resource or (ctx.def and firstStarted(ctx.def))
   if not resource then return nil end
+  local key = 'export:' .. resource .. ':' .. tostring(name)
   local ok, res = H.call(resource, name, ...)
   if not ok then
-    Utils.debug(('housing: %s:%s failed: %s'):format(resource, name, tostring(res)))
+    if not quiet then
+      warnOnce(key, ('housing: %s export %s failed; that part of the integration is skipped until it works again (Config.Debug for details)'):format(
+        resource, tostring(name)))
+    end
+    Utils.debug(('housing: %s:%s failed: %s'):format(resource, tostring(name), tostring(res)))
     return nil, res
   end
+  if warned[key] then warned[key] = nil end -- recovered: a new failure warns again
   return res
+end
+
+--- Export call on the loader's running resource: the first result, or nil + error (a failure is
+--- warned once per export until it works again; details under Config.Debug).
+function H.export(ctx, name, ...)
+  return exportCall(ctx, false, name, ...)
+end
+
+--- Same as H.export for probes that have a fallback: failures are only debug-logged.
+function H.tryExport(ctx, name, ...)
+  return exportCall(ctx, true, name, ...)
 end
 
 H.decode = decodeJson
@@ -594,6 +632,7 @@ H.started = Utils.resourceStarted
 H.debug = Utils.debug
 H.warnOnce = warnOnce
 H.identifierOf = identifierOf
+H.yield = yieldEvery
 
 function H.text(value, maxLen)
   if type(value) == 'number' then value = tostring(value) end
@@ -676,6 +715,11 @@ function H.hint(ctx, delayMs)
   Housing.hint(ctx and ctx.def and ctx.def.prefix or nil, delayMs)
 end
 
+--- Same for an event a client can trigger: rate limited per player and per loader.
+function H.netHint(ctx, src, delayMs)
+  Housing.netHint(src, ctx and ctx.def and ctx.def.prefix or nil, delayMs)
+end
+
 --- Register a loader (called at load time by bridge/server/housing/<script>.lua).
 --- def = {
 ---   prefix = 'vms',                    -- house ids '<prefix>:<id>' (letters, digits, _)
@@ -683,15 +727,30 @@ end
 ---   load = function(ctx) return houses, complete end,
 ---          -- houses = { [rawId] = { id?, name?, coords?, spawn?, store?, access = set|list } },
 ---          -- nil on failure (the previous houses are kept); complete = false when the list
----          -- only covers some houses (nothing is removed then).
+---          -- only covers some houses (nothing is removed then, except entries { id, gone = true }:
+---          -- houses the script answered "does not exist" for, removed when a read at least a
+---          -- minute later still says so).
 ---   check = function(ctx, identifier, rawId, src) return true|false|nil end,  -- optional live check
+---          -- nil = unknown (export failed / player offline): the cached sets decide
+---   authoritative = false,             -- true: a live `false` overrides the cached owners / key holders
+---   blocked = function(ctx, rawId) return true|false|nil end, -- optional: true denies everyone
+---          -- (e.g. a police lockdown), checked before any access source
 ---   anchors = function(ctx, rawId, src) return { coords... } end,  -- optional: hook garages must be near
+---          -- these points; nil / nothing usable = property position unknown
 ---   hook = 'never' | 'whenUsed' | 'always',  -- does the script draw its own garage interaction?
+---   create = false,                    -- 'whenUsed': may a hook call create a garage for a house
+---                                      -- the loader knows without one ('always' always may)
 ---   trustCoords = true,                -- false: a hook call may move loader coordinates
+---   numericIds = false,                -- true: the script's ids are integers (hook ids must be numbers)
 ---   interval = ms,                     -- optional extra reload interval for this loader
 ---   autoSkip = function(ctx) return boolean end, -- optional: skip in 'auto' mode
 ---   startDelay = ms,                   -- reload delay after the resource (re)starts
 --- }
+--- Every function gets the loader's ctx: the Housing.lib helpers (ctx.query, ctx.decode, ctx.point,
+--- ctx.addAny, ctx.yield(i) ...) plus ctx.export('Name', ...) (pcall'd export call on the running
+--- resource: the first result, or nil + error; a failure is warned once), ctx.tryExport (the same,
+--- debug-logged only: probes with a fallback), ctx.known(), ctx.hint(delayMs) and
+--- ctx.netHint(src, delayMs) (client-triggered events), all called with a dot.
 ---@return boolean
 function Housing.addLoader(def)
   if type(def) ~= 'table' or type(def.prefix) ~= 'string' or not def.prefix:match('^[%a][%w_]*$')
@@ -716,7 +775,27 @@ function Housing.addLoader(def)
   def.resources = resources
   def.label = type(def.label) == 'string' and def.label or resources[1]
   if def.hook ~= 'always' and def.hook ~= 'whenUsed' then def.hook = 'never' end
-  def.ctx = setmetatable({ def = def }, { __index = H })
+  -- ctx: the helpers below plus export / known / hint bound to this loader, so loaders call
+  -- them with a dot (ctx.export('Name', ...)); a colon call works too.
+  local ctx = setmetatable({ def = def }, { __index = H })
+  ctx.export = function(first, ...)
+    if first == ctx then return H.export(ctx, ...) end
+    return H.export(ctx, first, ...)
+  end
+  ctx.tryExport = function(first, ...)
+    if first == ctx then return H.tryExport(ctx, ...) end
+    return H.tryExport(ctx, first, ...)
+  end
+  ctx.known = function() return H.known(ctx) end
+  ctx.hint = function(first, delayMs)
+    if first ~= ctx then delayMs = first end
+    return H.hint(ctx, delayMs)
+  end
+  ctx.netHint = function(first, ...)
+    if first == ctx then return H.netHint(ctx, ...) end
+    return H.netHint(ctx, first, ...)
+  end
+  def.ctx = ctx
   loaders[#loaders + 1] = def
   byPrefix[def.prefix] = def
   return true
@@ -737,29 +816,45 @@ local function clearLiveCache(prefix)
   end
 end
 
---- Ask the housing script directly: true / false / nil (unknown, unavailable or failed).
+--- Ask the housing script directly.
+--- Returns result (true / false / nil = unknown, unavailable or failed), blocked (true when the
+--- script denies everyone right now, e.g. a police lockdown) and the loader definition.
 local function liveCheck(identifier, id, src)
   local prefix, raw = splitId(id)
   local def = prefix and byPrefix[prefix]
-  if not def or type(def.check) ~= 'function' or not def.active then return nil end
+  if not def or not def.active then return nil, false, nil end
+  if type(def.check) ~= 'function' and type(def.blocked) ~= 'function' then return nil, false, def end
   local resource = firstStarted(def)
-  if not resource then return nil end
+  if not resource then return nil, false, def end
   local key = identifier .. '\n' .. id
   local now = GetGameTimer()
   local cached = liveCache[key]
-  if cached and now - cached.at < LIVE_TTL_MS then return cached.result end
+  if cached and now - cached.at < LIVE_TTL_MS then return cached.result, cached.blocked, def end
   def.ctx.resource = resource
   local rawId = rawIds[id]
   if rawId == nil then rawId = raw end
-  local ok, res = pcall(def.check, def.ctx, identifier, rawId, src)
-  local result = nil
-  if not ok then
-    warnOnce('check:' .. prefix, ('housing: %s access check failed (using the cached owners / key holders): %s'):format(def.label, tostring(res)))
-  elseif res == true or res == false then
-    result = res
+
+  local blocked = false
+  if type(def.blocked) == 'function' then
+    local okB, res = pcall(def.blocked, def.ctx, rawId)
+    if not okB then
+      warnOnce('blocked:' .. prefix, ('housing: %s lockdown check failed: %s'):format(def.label, tostring(res)))
+    else
+      blocked = res == true
+    end
   end
-  liveCache[key] = { at = now, result = result }
-  return result
+
+  local result = nil
+  if not blocked and type(def.check) == 'function' then
+    local ok, res = pcall(def.check, def.ctx, identifier, rawId, src)
+    if not ok then
+      warnOnce('check:' .. prefix, ('housing: %s access check failed (using the cached owners / key holders): %s'):format(def.label, tostring(res)))
+    elseif res == true or res == false then
+      result = res
+    end
+  end
+  liveCache[key] = { at = now, result = result, blocked = blocked }
+  return result, blocked, def
 end
 
 ---------------------------------------------------------------------------------------
@@ -768,8 +863,10 @@ end
 
 --- Normalized loader output: list of { id, raw, name, coords, spawn, store, access }.
 local function normalize(def, houses)
-  local list, seen = {}, {}
+  local list, seen, n = {}, {}, 0
   for key, entry in pairs(houses) do
+    n = n + 1
+    yieldEvery(n) -- `houses` is the loader's own table: safe to traverse across a yield
     if type(entry) == 'table' then
       local raw = entry.id
       if raw == nil then raw = key end
@@ -777,7 +874,10 @@ local function normalize(def, houses)
       if type(rawText) == 'number' then rawText = tostring(math.tointeger(rawText) or rawText) end
       rawText = type(rawText) == 'string' and Utils.cleanText(rawText, MAX_ID_LENGTH - #def.prefix - 1) or nil
       local id = rawText and canonicalId(def.prefix .. ':' .. rawText)
-      if id and not seen[id] then
+      if id and not seen[id] and entry.gone == true then
+        seen[id] = true
+        list[#list + 1] = { id = id, raw = raw, gone = true }
+      elseif id and not seen[id] then
         seen[id] = true
         local access = {}
         if type(entry.access) == 'table' then
@@ -827,22 +927,50 @@ local function place(def, id)
   if not canonical then Utils.debug(('housing: skipped %s: %s'):format(id, tostring(err))) end
 end
 
---- Apply one loader read. Returns the number of houses with a garage.
+--- Forget everything a loader reported about one house (its 'H..' vehicles keep their key).
+local function dropLoaderHouse(id)
+  setAccessSource(loaderAccess, id, nil)
+  entries[id], rawIds[id], goneSince[id] = nil, nil, nil
+  local rec = registry[id]
+  if rec and rec.origin ~= 'export' then unregister(id) end
+  forgetSpot(id)
+end
+
+--- Apply one loader read. Returns the number of houses with a garage (nil: read not trusted).
+--- Shared tables (registry, spots, loaderIds) are never traversed across a yield: the hook
+--- callback may change them meanwhile, so those loops work on snapshots.
 local function apply(def, houses, complete)
   local prefix = def.prefix
   local list = normalize(def, houses)
   local before = loaderIds[prefix] or {}
+  local now = GetGameTimer()
 
-  -- A read that suddenly finds nothing (script still loading, failed query) is only trusted
-  -- when the next read confirms it.
+  -- Incomplete loaders name houses that no longer exist: removed when a read at least
+  -- EMPTY_CONFIRM_MS after the first such answer still says so.
+  local gone = {}
+  for i = #list, 1, -1 do
+    local item = list[i]
+    if item.gone then
+      table.remove(list, i)
+      if not complete then
+        goneSince[item.id] = goneSince[item.id] or now
+        if now - goneSince[item.id] >= EMPTY_CONFIRM_MS then gone[#gone + 1] = item.id end
+      end
+    else
+      goneSince[item.id] = nil
+    end
+  end
+
+  -- A read that suddenly finds nothing (script still loading its data after a restart, failed
+  -- query) is only trusted when a read at least EMPTY_CONFIRM_MS later confirms it.
   if #list == 0 and next(before) ~= nil then
-    emptyStreak[prefix] = (emptyStreak[prefix] or 0) + 1
-    if emptyStreak[prefix] < 2 then
-      warnOnce('empty:' .. prefix, ('housing: %s returned no houses; keeping the previous ones until the next read confirms it'):format(def.label))
+    emptySince[prefix] = emptySince[prefix] or now
+    if now - emptySince[prefix] < EMPTY_CONFIRM_MS then
+      warnOnce('empty:' .. prefix, ('housing: %s returned no houses; keeping the previous ones unless a read a minute later confirms it'):format(def.label))
       return nil
     end
   end
-  emptyStreak[prefix] = 0
+  emptySince[prefix] = nil
   warned['empty:' .. prefix] = nil
 
   local seen = {}
@@ -852,39 +980,49 @@ local function apply(def, houses, complete)
     rawIds[item.id] = item.raw
     entries[item.id] = { name = item.name, coords = item.coords, spawn = item.spawn, store = item.store }
     setAccessSource(loaderAccess, item.id, item.access)
+    yieldEvery(i)
   end
 
   if complete then
+    local dropped = {}
     for id in pairs(before) do
-      if not seen[id] then
-        setAccessSource(loaderAccess, id, nil)
-        entries[id], rawIds[id] = nil, nil
-        local rec = registry[id]
-        if rec and rec.origin ~= 'export' then unregister(id) end
-        forgetSpot(id)
-      end
+      if not seen[id] then dropped[#dropped + 1] = id end
     end
+    for i = 1, #dropped do dropLoaderHouse(dropped[i]) end
     -- Hook positions of houses the script no longer has.
+    local stale = {}
     for id, rec in pairs(registry) do
-      if rec.source == prefix and rec.origin == 'hook' and not seen[id] then
-        unregister(id)
-        forgetSpot(id)
-      end
+      if rec.source == prefix and rec.origin == 'hook' and not seen[id] then stale[#stale + 1] = id end
     end
     for id in pairs(spots) do
-      if not seen[id] and splitId(id) == prefix then forgetSpot(id) end
+      if not seen[id] and splitId(id) == prefix then stale[#stale + 1] = id end
+    end
+    for i = 1, #stale do
+      unregister(stale[i])
+      forgetSpot(stale[i])
     end
     loaderIds[prefix] = seen
   else
     for id in pairs(seen) do before[id] = true end
+    for i = 1, #gone do
+      local id = gone[i]
+      before[id] = nil
+      dropLoaderHouse(id)
+      Utils.debug(('housing: %s no longer has %s'):format(def.label, id))
+    end
     loaderIds[prefix] = before
   end
 
-  for id in pairs(loaderIds[prefix]) do place(def, id) end
+  local ids = {}
+  for id in pairs(loaderIds[prefix]) do ids[#ids + 1] = id end
   if not complete then
     for id in pairs(spots) do
-      if splitId(id) == prefix and not loaderIds[prefix][id] then place(def, id) end
+      if splitId(id) == prefix and not loaderIds[prefix][id] then ids[#ids + 1] = id end
     end
+  end
+  for i = 1, #ids do
+    place(def, ids[i])
+    yieldEvery(i)
   end
 
   local count = 0
@@ -906,6 +1044,7 @@ local function doReload(only)
       if allowed and resource then
         def.active = true
         def.ctx.resource = resource
+        lastReadAt[def.prefix] = GetGameTimer()
         local ok, houses, complete = pcall(def.load, def.ctx)
         if ok and type(houses) == 'table' then
           local count = apply(def, houses, complete ~= false)
@@ -970,11 +1109,17 @@ local function reloadPending()
   return reload(only)
 end
 
+--- One trailing reload at a time; a request for an earlier one moves it forward.
 function scheduleTrailing(delay)
-  if trailingReload then return end
-  trailingReload = true
-  SetTimeout(math.max(0, delay), function()
-    trailingReload = false
+  delay = math.max(0, math.floor(tonumber(delay) or 0))
+  local at = GetGameTimer() + delay
+  if trailingAt and trailingAt <= at then return end
+  trailingAt = at
+  trailingGen = trailingGen + 1
+  local gen = trailingGen
+  SetTimeout(delay, function()
+    if gen ~= trailingGen then return end -- replaced by an earlier one
+    trailingAt = nil
     if loading then
       scheduleTrailing(MIN_RELOAD_MS)
       return
@@ -1101,11 +1246,13 @@ function Housing.refresh(which)
   return true
 end
 
---- Reload hint from a housing script event: reloads that loader after `delayMs`
---- (default 1500 ms, debounced) and drops its cached live checks.
+--- Reload hint from a housing script event (server-side events only: see Housing.netHint for
+--- events a client can trigger): reloads that loader after `delayMs` (default 1500 ms,
+--- debounced) and drops its cached live checks.
 ---@param prefix string|nil loader prefix (nil = every loader)
 ---@param delayMs number|nil
-function Housing.hint(prefix, delayMs)
+---@param minGap number|nil minimum ms since the last reload (default MIN_RELOAD_MS)
+function Housing.hint(prefix, delayMs, minGap)
   if not booted then return end
   if prefix ~= nil then
     local def = byPrefix[prefix]
@@ -1113,12 +1260,47 @@ function Housing.hint(prefix, delayMs)
   end
   clearLiveCache(prefix)
   local delay = math.floor(math.max(0, math.min(600000, tonumber(delayMs) or 1500)))
+  local gap = math.max(MIN_RELOAD_MS, tonumber(minGap) or MIN_RELOAD_MS)
+  -- Hints for the same loader and delay coalesce; the shortest gap asked for wins.
   local key = tostring(prefix or '*') .. '@' .. delay
-  if hintTimers[key] then return end
-  hintTimers[key] = true
+  local timer = hintTimers[key]
+  if timer then
+    timer.minGap = math.min(timer.minGap, gap)
+    return
+  end
+  timer = { minGap = gap }
+  hintTimers[key] = timer
   SetTimeout(delay, function()
     hintTimers[key] = nil
-    requestReload(false, nil, prefix)
+    requestReload(false, timer.minGap, prefix)
+  end)
+end
+
+--- Reload hint from an event a client can trigger (key given / removed through the housing
+--- script's client): at most one per NET_HINT_RATE_MS per player, and the loader is reloaded at
+--- most once per NET_HINT_GAP_MS through these, however many players send them.
+---@param src number|string server id of the sender (`source` in the event handler)
+---@param prefix string loader prefix
+---@param delayMs number|nil
+function Housing.netHint(src, prefix, delayMs)
+  if not booted or type(prefix) ~= 'string' then return end
+  local def = byPrefix[prefix]
+  if not def or def.enabled == false then return end
+  src = tonumber(src)
+  if not src or src <= 0 then return end
+  if not NZ.Access.rateLimit(src, 'housing:nethint:' .. prefix, NET_HINT_RATE_MS) then return end
+  if netHintPending[prefix] then return end
+  netHintPending[prefix] = true
+  -- Counted from the last read of the loader or the last reload asked for this way (which may
+  -- still be waiting for its turn), whichever is later.
+  local last = math.max(lastReadAt[prefix] or -math.huge, netHintAt[prefix] or -math.huge)
+  local since = GetGameTimer() - last
+  local delay = math.max(tonumber(delayMs) or 1500, NET_HINT_GAP_MS - since)
+  delay = math.floor(math.max(0, math.min(600000, delay)))
+  SetTimeout(delay, function()
+    netHintPending[prefix] = nil
+    netHintAt[prefix] = GetGameTimer()
+    Housing.hint(prefix, 0)
   end)
 end
 
@@ -1132,9 +1314,14 @@ function Housing.hasAccess(identifier, houseId, src)
   if type(identifier) ~= 'string' or identifier == '' then return false end
   local id = knownId(houseId)
   if not id then return false end
-  local live = liveCheck(identifier, id, tonumber(src))
+  local live, blocked, def = liveCheck(identifier, id, tonumber(src))
+  if blocked then return false end
   if live == true then return true end
   local a, b = loaderAccess[id], exportAccess[id]
+  -- The script answered "no" and its answer is final: only an export grant still counts.
+  if live == false and def and def.authoritative == true then
+    return b ~= nil and b[identifier] == true
+  end
   if (a ~= nil and a[identifier] == true) or (b ~= nil and b[identifier] == true) then return true end
   -- Hook grants only count while the housing script cannot be asked.
   if live == nil then
@@ -1279,6 +1466,18 @@ local function playerSpot(src)
   return { x = Utils.round(spot.x, 3), y = Utils.round(spot.y, 3), z = Utils.round(spot.z, 3), w = Utils.round(spot.w % 360.0, 2) }
 end
 
+--- Distance from its saved position at which a hook garage moves to where it is used.
+local function hookMoveDist()
+  local ok, value = pcall(NZ.Settings.get, 'garages.maxDistance', 25.0)
+  local max = ok and tonumber(value) or 25.0
+  return math.max(1.0, math.min(HOOK_MOVE_DIST, max * 0.5))
+end
+
+--- May a hook call create a garage for a house of this loader that has none yet?
+local function hookCreates(def)
+  return def ~= nil and (def.hook == 'always' or (def.hook == 'whenUsed' and def.create == true))
+end
+
 local function hookRange()
   local ok, value = pcall(GetConvar, RANGE_CONVAR, '')
   local n = ok and tonumber(value) or nil
@@ -1286,20 +1485,22 @@ local function hookRange()
   return HOOK_RANGE
 end
 
---- Is the spot near the property (when the loader knows where the property is)?
+--- Is the spot near the property? true = near (or no range check), false = too far,
+--- nil = the property's position is unknown (no anchors, or they could not be read).
 local function nearProperty(def, id, spot, src)
-  if type(def.anchors) ~= 'function' then return true end
   local range = hookRange()
   if range <= 0 then return true end
+  if type(def.anchors) ~= 'function' then return nil end
   local _, raw = splitId(id)
   local rawId = rawIds[id]
   if rawId == nil then rawId = raw end
+  def.ctx.resource = firstStarted(def)
   local ok, anchors = pcall(def.anchors, def.ctx, rawId, src)
   if not ok then
-    Utils.debug(('housing: %s anchors failed: %s'):format(def.label, tostring(anchors)))
-    return true
+    warnOnce('anchors:' .. def.prefix, ('housing: %s: could not read where a property is (%s)'):format(def.label, tostring(anchors)))
+    return nil
   end
-  if type(anchors) ~= 'table' or next(anchors) == nil then return true end
+  if type(anchors) ~= 'table' then return nil end
   local nearest
   for _, anchor in pairs(anchors) do
     local v = vec4Of(anchor)
@@ -1309,10 +1510,30 @@ local function nearProperty(def, id, spot, src)
       nearest = math.min(nearest or d, d)
     end
   end
-  if not nearest then return true end
-  lib.print.warn(('housing: refused a garage for %s %.0f m from the property (limit %.0f m, convar %s)'):format(
+  if not nearest then return nil end
+  warnOnce('range:' .. id, ('housing: refused a garage for %s %.0f m from the property (limit %.0f m, convar %s)'):format(
     id, nearest, range, RANGE_CONVAR))
   return false
+end
+
+--- Canonical id for a hook call: numeric raw ids become plain integers ('tk:1.0', 'nolag:021' ->
+--- 'tk:1', 'nolag:21'), so one property never gets several garages (or a garage under an id
+--- the loader does not report, removed again by its next read). nil when a loader whose ids
+--- are integers (numericIds) gets something else.
+local function canonicalHookId(id, def)
+  local prefix, raw = splitId(id)
+  if not prefix or not def or def.prefix ~= prefix then return id end
+  local n = H.int(raw)
+  if not n then
+    if def.numericIds then return nil end
+    return id
+  end
+  local canonical = prefix .. ':' .. tostring(n)
+  if canonical == id or def.numericIds then return canonical end
+  -- A string id that only looks numeric ('0012') and that the loader reported as such: keep it.
+  local ids = loaderIds[prefix] or {}
+  if (known(id) or ids[id]) and not (known(canonical) or ids[canonical]) then return id end
+  return canonical
 end
 
 --- First hook call of a script that also has loader coordinates: say how to hide our points.
@@ -1325,7 +1546,7 @@ local function noteHook(def)
   end
 end
 
--- { houseId, action = 'open'|'store', name? } -> { houseId, action, views }
+-- { houseId, action = 'open'|'store', name? } -> { houseId, garageKey, action, views }
 lib.callback.register('nz:housing:hook', Utils.safe(function(source, payload)
   local src = tonumber(source)
   if not src or src <= 0 then return Utils.fail(L('Invalid request')) end
@@ -1344,8 +1565,18 @@ lib.callback.register('nz:housing:hook', Utils.safe(function(source, payload)
   local prefix = splitId(id)
   local def = prefix and byPrefix[prefix] or nil
   if def and not def.active then def = nil end
+  id = canonicalHookId(id, def)
+  if not id then return Utils.fail(L('Invalid house id')) end
   if not def and not registry[id] then
     Utils.debug(('housing: hook for unknown house %s'):format(id))
+    return Utils.fail(L('This garage is not available'))
+  end
+
+  -- Scripts whose garage points we draw (or know) never get a new garage from a hook call:
+  -- only houses that already have one may be opened / stored through it.
+  local rec = registry[id]
+  if not rec and not hookCreates(def) then
+    Utils.debug(('housing: hook for %s, which has no garage'):format(id))
     return Utils.fail(L('This garage is not available'))
   end
 
@@ -1353,25 +1584,38 @@ lib.callback.register('nz:housing:hook', Utils.safe(function(source, payload)
     return Utils.fail(L('You do not have access to this house garage'))
   end
 
-  local rec = registry[id]
-  local movable = not rec or rec.origin == 'hook' or (def and rec.origin == 'loader' and def.trustCoords == false)
+  rec = registry[id]
+  local movable = (not rec and hookCreates(def)) or (rec ~= nil and def ~= nil
+    and (rec.origin == 'hook' or (rec.origin == 'loader' and def.trustCoords == false)))
+  local spot
   if movable then
-    local spot = playerSpot(src)
+    spot = playerSpot(src)
     if not spot then return Utils.fail(L('Something went wrong')) end
-    if not rec or Utils.dist(rec.coords, spot) > HOOK_MOVE_DIST then
-      if def and not nearProperty(def, id, spot, src) then
-        return Utils.fail(L('You are too far from the garage'))
-      end
-      local entry = entries[id] or {}
-      local name = entry.name or (rec and rec.name) or H.text(payload.name, 60)
-        or (def and defaultName(def, id)) or L('House garage')
-      local canonical, err = registerInternal(id, { name = name, coords = spot, spawn = spot, hidden = true },
-        def and def.prefix or 'export', 'hook')
-      if not canonical then return Utils.fail(err or L('Something went wrong')) end
-      spots[canonical] = spot
-      saveSpot(canonical, spot)
-      id = canonical
+    if rec and Utils.dist(rec.coords, spot) <= hookMoveDist() then movable = false end
+  end
+  if movable then
+    local near = true
+    if def then near = nearProperty(def, id, spot, src) end
+    if near == false then return Utils.fail(L('You are too far from the garage')) end
+    if near == nil and rec then
+      -- Where the property is cannot be read: never move an existing garage (a key holder could
+      -- otherwise carry it anywhere). It stays where it is and the usual distance check of the
+      -- garage menu applies. A first placement is allowed: it happens at the housing script's
+      -- own garage point, and the id is canonical, so there is one garage per property.
+      warnOnce('noanchor:' .. id, ('housing: %s: property position unknown, garage not moved'):format(id))
+      movable = false
     end
+  end
+  if movable then
+    local entry = entries[id] or {}
+    local name = entry.name or (rec and rec.name) or H.text(payload.name, 60)
+      or (def and defaultName(def, id)) or L('House garage')
+    local canonical, err = registerInternal(id, { name = name, coords = spot, spawn = spot, hidden = true },
+      def and def.prefix or 'export', 'hook')
+    if not canonical then return Utils.fail(err or L('Something went wrong')) end
+    spots[canonical] = spot
+    saveSpot(canonical, spot)
+    id = canonical
   end
   if def then noteHook(def) end
 
@@ -1379,7 +1623,7 @@ lib.callback.register('nz:housing:hook', Utils.safe(function(source, payload)
   local views = Housing.viewsFor(identifier)
   lastSent[src] = viewsFingerprint(views)
   schedulePush()
-  return Utils.ok({ houseId = id, action = action, views = views })
+  return Utils.ok({ houseId = id, garageKey = Utils.key.house(id), action = action, views = views })
 end))
 
 ---------------------------------------------------------------------------------------

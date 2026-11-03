@@ -1,6 +1,7 @@
 /**
- * Showroom keyboard: ↑/↓ move the selection, Enter drives, F favourites, R renames,
- * "/" focuses the search. Escape stays with the escape stack (modal → app).
+ * Showroom keyboard: ↑/↓ move the selection, Enter runs the dock's primary action (drive,
+ * recover, pay, waypoint, take out, release), F favourites, R renames, "/" focuses the
+ * search. Escape stays with the escape stack (modal → app).
  * Ignored while typing (except ↑/↓ from the search box), inside popovers / modals, with
  * modifier keys, and Enter on a focused button keeps its native click.
  */

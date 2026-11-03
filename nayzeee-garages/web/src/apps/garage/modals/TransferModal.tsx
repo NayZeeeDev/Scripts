@@ -123,6 +123,7 @@ export function TransferModal({
   return (
     <>
       <Modal
+        className="nz-garage-modal"
         open={!!vehicle}
         title={t('Transfer vehicle')}
         icon="transfer"
@@ -209,6 +210,7 @@ export function TransferModal({
         )}
       </Modal>
       <ConfirmDialog
+        className="nz-garage-modal"
         open={confirm}
         tone="red"
         icon="transfer"

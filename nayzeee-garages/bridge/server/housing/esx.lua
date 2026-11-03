@@ -46,8 +46,10 @@ Housing.addLoader({
     if type(props) ~= 'table' or next(props) == nil then props = fromFile(ctx) end
     if type(props) ~= 'table' or next(props) == nil then return nil end
 
-    local out = {}
+    local out, n = {}, 0
     for index, p in pairs(props) do
+      n = n + 1
+      ctx.yield(n)
       local id = ctx.int(index)
       local garage = id and type(p) == 'table' and ctx.decode(p.garage) or nil
       if garage and garage.enabled == true then

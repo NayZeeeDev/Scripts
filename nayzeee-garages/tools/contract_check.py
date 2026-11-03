@@ -44,7 +44,7 @@ CLIENT_TO_SERVER = {
     'creator:save': 'nz:creator:save',
 }
 APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior'}
-ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint'}
+ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint', 'notify'}
 
 
 def read(path):

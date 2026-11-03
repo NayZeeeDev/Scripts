@@ -590,7 +590,7 @@
 
 /* ───────────────────────── small screens ───────────────────────── */
 
-@media (max-width: 1340px), (max-height: 760px) {
+@media (max-width: 1340px), (max-height: 820px) {
   .nz-admin-map__styles { top: 8px; left: 8px; }
   .nz-admin-map__controls { top: 8px; right: 8px; gap: 4px; }
   .nz-admin-map__ctl { height: 30px; padding: 0 10px; }

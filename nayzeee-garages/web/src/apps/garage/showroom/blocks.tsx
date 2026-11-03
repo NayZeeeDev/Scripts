@@ -216,7 +216,8 @@ export function ConditionBlock({
   );
 }
 
-export function PerformanceBlock({ stats, className }: { stats: VehicleStats; className?: string }) {
+/** `hideSeats`: the spawner shows the seats in its status strip already. */
+export function PerformanceBlock({ stats, className, hideSeats = false }: { stats: VehicleStats; className?: string; hideSeats?: boolean }) {
   const unit = useSettings().distanceUnit;
   const top = speedIn(stats.topSpeed, unit);
   return (
@@ -228,7 +229,7 @@ export function PerformanceBlock({ stats, className }: { stats: VehicleStats; cl
             <span>{top.unit}</span>
           </div>
           <span className="nz-garage__perf-cap">{t('Top speed')}</span>
-          {stats.seats > 0 && (
+          {stats.seats > 0 && !hideSeats && (
             <span className="nz-garage__perf-seats" title={t('Seats')}>
               <Icon name="users" size={12} strokeWidth={1.9} />
               {stats.seats === 1 ? t('1 seat') : t('{n} seats', { n: stats.seats })}
@@ -310,11 +311,12 @@ export function FinanceBlock({
           <Badge tone="red" icon="warning" size="sm">
             {t('Payment overdue')}
           </Badge>
-        ) : (
+        ) : total ? (
+          // Without a known total the progress line under the figures says it instead.
           <Badge tone="neutral" size="sm">
             {t('{n} payment(s) left', { n: finance.paymentsLeft })}
           </Badge>
-        )
+        ) : undefined
       }
     >
       <div className="nz-garage__fin">
@@ -420,30 +422,43 @@ function ReleasePill({ info }: { info: ImpoundInfo }) {
 }
 
 /**
- * Impound details. `lot`: inside the impound app, where the status strip already shows the
- * date, fee and availability; only the reason, who impounded it and the owner remain.
+ * Impound details: reason + facts, with the live release countdown in the heading.
+ * `lot`: inside the impound app, where the status strip already shows the date, fee and
+ * availability (and the owner): only the reason remains, "by <officer>" moves to the heading.
  */
-export function ImpoundBlock({
-  info,
-  owner,
-  lot = false,
-}: {
-  info: ImpoundInfo;
-  owner?: string | null;
-  lot?: boolean;
-}) {
+export function ImpoundBlock({ info, lot = false }: { info: ImpoundInfo; lot?: boolean }) {
+  const reason = (
+    <div className="nz-garage__imp-reason">
+      <span>{t('Reason')}</span>
+      <p title={info.reason}>{info.reason || t('No reason given')}</p>
+    </div>
+  );
+  if (lot) {
+    return (
+      <Block
+        title={t('Impound')}
+        icon="impound"
+        wide
+        tone="red"
+        className="nz-garage__blk--imp"
+        aside={
+          <span className="nz-garage__blk-note">
+            {t('By {name}', { name: info.byName || t('Unknown') })}
+          </span>
+        }
+      >
+        {reason}
+      </Block>
+    );
+  }
   return (
-    <Block title={t('Impound')} icon="impound" wide tone="red" className="nz-garage__blk--imp" aside={lot ? undefined : <ReleasePill info={info} />}>
-      <div className={cx('nz-garage__imp', lot && 'is-lot')}>
-        <div className="nz-garage__imp-reason">
-          <span>{t('Reason')}</span>
-          <p title={info.reason}>{info.reason || t('No reason given')}</p>
-        </div>
+    <Block title={t('Impound')} icon="impound" wide tone="red" className="nz-garage__blk--imp" aside={<ReleasePill info={info} />}>
+      <div className="nz-garage__imp">
+        {reason}
         <div className="nz-garage__imp-facts">
           <Fact label={t('Impounded by')}>{info.byName || t('Unknown')}</Fact>
-          {owner && <Fact label={t('Owner')}>{owner}</Fact>}
-          {!lot && <Fact label={t('Impounded on')}>{dateTime(info.at)}</Fact>}
-          {!lot && <Fact label={t('Retrieval fee')}>{info.fee > 0 ? money(info.fee) : t('No charge')}</Fact>}
+          <Fact label={t('Impounded on')}>{dateTime(info.at)}</Fact>
+          <Fact label={t('Retrieval fee')}>{info.fee > 0 ? money(info.fee) : t('No charge')}</Fact>
         </div>
       </div>
     </Block>

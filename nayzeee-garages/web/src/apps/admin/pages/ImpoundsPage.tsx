@@ -93,7 +93,8 @@ export function ImpoundsPage(props: AdminPageProps) {
         key: 'fees',
         icon: 'money',
         label: t('Default fee range'),
-        value: fees.length ? (lo === hi ? money(lo) : `${money(lo)} – ${money(hi)}`) : '—',
+        // Compact range ("$500–750"): the wait line next to it keeps its room.
+        value: fees.length ? (lo === hi ? money(lo) : `${money(lo)}–${fmt(hi)}`) : '—',
         sub: !fees.length
           ? t('none yet')
           : hHi === 0
@@ -101,8 +102,8 @@ export function ImpoundsPage(props: AdminPageProps) {
             : hLo === hHi
               ? t('{time} wait', { time: hoursLabel(hLo) })
               : hLo === 0
-                ? t('up to {time} wait', { time: hoursLabel(hHi) })
-                : t('wait {from} – {to}', { from: hoursLabel(hLo), to: hoursLabel(hHi) }),
+                ? t('max {time} wait', { time: hoursLabel(hHi) })
+                : t('{from}–{to} wait', { from: hoursLabel(hLo), to: hoursLabel(hHi) }),
         tone: 'amber',
       },
     ];

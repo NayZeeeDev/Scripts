@@ -7,7 +7,7 @@
  * "Release to owner" / "Return to garage" for staff.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Button, ConfirmDialog, EmptyState, Icon, KeyHint, PlateTag, Window, cx } from '@/components/ui';
+import { Badge, Button, ConfirmDialog, Icon, KeyHint, PlateTag, Window, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import type { SelectOption } from '@/components/ui';
 import { useApp, useUi, toast } from '@/lib/store';
@@ -75,6 +75,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
   const [retrieving, setRetrieving] = useState<string | null>(null);
   const [releasing, setReleasing] = useState<{ plate: string; mode: 'owner' | 'garage' } | null>(null);
   const [confirmGarage, setConfirmGarage] = useState<string | null>(null);
+  const [confirmCollect, setConfirmCollect] = useState<string | null>(null);
   const timer = useRef<number>();
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -130,8 +131,20 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       setRetrieving(null);
       return;
     }
+    // Paid: the dock keeps "Loading vehicle..." until Lua closes the menu.
+    setConfirmCollect(null);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setRetrieving(null), DRIVE_TIMEOUT);
+  };
+
+  /** The fee the player pays to collect `v` (staff with "fees waived" pay nothing). */
+  const feeFor = (v: ImpoundedVehicle) => (staff && data.feeWaived ? 0 : Math.max(0, v.impound.fee));
+
+  /** Collecting costs money: confirm first, the same way the garage's Recover does. */
+  const askCollect = (v: ImpoundedVehicle) => {
+    if (retrieving) return;
+    if (feeFor(v) > 0) setConfirmCollect(v.plate);
+    else void retrieve(v);
   };
 
   const release = async (v: ImpoundedVehicle, mode: 'owner' | 'garage') => {
@@ -156,7 +169,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
   const nowS = Math.floor(Date.now() / 1000);
   const primary = sv ? impoundPrimary(sv, staff, nowS) : null;
 
-  useShowroomKeys(!confirmGarage, {
+  useShowroomKeys(!confirmGarage && !confirmCollect, {
     move: (dir) => {
       if (!flatKeys.length) return;
       const i = currentKey ? flatKeys.indexOf(currentKey) : -1;
@@ -165,7 +178,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
     enter: () => {
       if (!sv || retrieving || releasing) return;
       const p = impoundPrimary(sv, staff, Math.floor(Date.now() / 1000));
-      if (p === 'collect') void retrieve(sv);
+      if (p === 'collect') askCollect(sv);
       else if (p === 'release') void release(sv, 'owner');
     },
     focusSearch: () => bodyRef.current?.querySelector<HTMLInputElement>('.nz-garage__search input')?.focus(),
@@ -177,24 +190,13 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
     { value: 'none', label: t('No groups'), icon: 'list' },
   ];
   const confirmVehicle = vehicles.find((v) => v.plate === confirmGarage) ?? null;
+  const collectVehicle = vehicles.find((v) => v.plate === confirmCollect) ?? null;
 
   let railList: JSX.Element;
   if (vehicles.length === 0) {
-    railList = <RailVacant label={t('0 vehicles held')} />;
+    railList = <RailVacant icon="impound" label={t('0 vehicles held')} />;
   } else if (shown.length === 0) {
-    railList = (
-      <EmptyState
-        compact
-        icon="search"
-        title={t('No vehicles match “{query}”', { query: query.trim() })}
-        description={staff ? t('Try a name, plate or owner.') : t('Try a name, model or plate.')}
-        action={
-          <Button size="sm" icon="close" onClick={() => setQuery('')}>
-            {t('Clear search')}
-          </Button>
-        }
-      />
-    );
+    railList = <RailVacant icon="search" label={t('No matches')} bays={false} />;
   } else {
     railList = (
       <RailList<ImpoundedVehicle>
@@ -216,7 +218,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       feeWaived={!!data.feeWaived}
       retrieving={retrieving}
       releasing={releasing}
-      onRetrieve={() => void retrieve(sv)}
+      onRetrieve={() => askCollect(sv)}
       onReleaseOwner={() => void release(sv, 'owner')}
       onReturnGarage={() => setConfirmGarage(sv.plate)}
     />
@@ -233,8 +235,8 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
   ) : (
     <EmptyShowcase
       icon="search"
-      title={t('No vehicles match')}
-      description={t('Nothing held here fits this search.')}
+      title={t('No vehicles match “{query}”', { query: query.trim() })}
+      description={staff ? t('Try a name, plate or owner.') : t('Try a name, model or plate.')}
       action={
         <Button size="sm" icon="close" onClick={() => setQuery('')}>
           {t('Clear search')}
@@ -252,7 +254,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
         className="nz-garage nz-impound"
         bodyClassName="nz-garage__body"
         width="min(1240px, 94vw)"
-        height="min(800px, 92vh)"
+        height="min(930px, 92vh)"
         title={impound.name}
         icon="impound"
         subtitle={staff ? t('Impound lot · staff view, every vehicle held here') : t('Impound lot · your vehicles held here')}
@@ -291,14 +293,14 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
               {shown.length === vehicles.length ? t('vehicle(s)') : t('of {total} vehicle(s)', { total: vehicles.length })}
             </span>
             <span className="nz-garage__spacer" />
-            {vehicles.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
+            {shown.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
             {primary && (
               <KeyHint
                 keys={['Enter']}
-                label={primary === 'release' ? t('Release') : staff || !(sv && sv.impound.fee > 0) ? t('Drive out') : t('Pay & drive')}
+                label={primary === 'release' ? t('Release') : sv && feeFor(sv) > 0 ? t('Pay & drive') : t('Drive out')}
               />
             )}
-            <KeyHint keys={['/']} label={t('Search')} />
+            {vehicles.length > 0 && <KeyHint keys={['/']} label={t('Search')} />}
             <KeyHint keys={['Esc']} label={t('Close')} />
           </>
         }
@@ -323,6 +325,29 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       </Window>
 
       <ConfirmDialog
+        className="nz-garage-modal"
+        open={!!collectVehicle}
+        tone="teal"
+        icon="money"
+        title={t('Pay {fee} and drive out {vehicle}?', {
+          fee: money(collectVehicle ? feeFor(collectVehicle) : 0),
+          vehicle: collectVehicle ? displayName(collectVehicle) : '',
+        })}
+        message={
+          collectVehicle ? (
+            <>
+              {t('The impound fee of')} <b>{money(feeFor(collectVehicle))}</b> {t('is paid now and')}{' '}
+              <b>{displayName(collectVehicle)}</b> ({collectVehicle.plate}) {t('is brought out for you to drive.')}
+            </>
+          ) : null
+        }
+        confirmLabel={t('Pay {fee}', { fee: money(collectVehicle ? feeFor(collectVehicle) : 0) })}
+        busy={!!collectVehicle && retrieving === collectVehicle.plate}
+        onConfirm={() => collectVehicle && void retrieve(collectVehicle)}
+        onCancel={() => setConfirmCollect(null)}
+      />
+      <ConfirmDialog
+        className="nz-garage-modal"
         open={!!confirmVehicle}
         tone="red"
         icon="garage"
@@ -432,7 +457,7 @@ function ImpoundShowcase({
     reason = { tone: 'red', icon: 'ban', text: v.reason };
   } else if (!collect) {
     reason = available
-      ? { tone: 'neutral', icon: 'checkCircle', text: t('Already released: the owner can collect it now.') }
+      ? { tone: 'neutral', icon: 'info', text: t('The owner can collect it now, or you can return it to its garage.') }
       : {
           tone: a?.state === 'release' ? 'red' : 'neutral',
           icon: a?.state === 'release' ? 'lock' : 'info',
@@ -503,19 +528,24 @@ function ImpoundShowcase({
       dock={
         <>
           <div className="nz-garage__dock-main">
-            {!collect && (
-              <Button
-                variant="white"
-                size="lg"
-                icon="unlock"
-                loading={isReleasing}
-                disabled={available || (busy && !isReleasing)}
-                onClick={onReleaseOwner}
-                className="nz-garage__go"
-              >
-                <PrimaryLabel keycap={!available && !isReleasing}>{isReleasing ? t('Releasing...') : t('Release to owner')}</PrimaryLabel>
-              </Button>
-            )}
+            {!collect &&
+              (available ? (
+                <Button variant="line" size="lg" icon="checkCircle" disabled className="nz-garage__go">
+                  {t('Released')}
+                </Button>
+              ) : (
+                <Button
+                  variant="white"
+                  size="lg"
+                  icon="unlock"
+                  loading={isReleasing}
+                  disabled={busy && !isReleasing}
+                  onClick={onReleaseOwner}
+                  className="nz-garage__go"
+                >
+                  <PrimaryLabel keycap={!isReleasing}>{isReleasing ? t('Releasing...') : t('Release to owner')}</PrimaryLabel>
+                </Button>
+              ))}
             {collect && (
               <Button
                 variant="teal"
@@ -559,7 +589,7 @@ function ImpoundShowcase({
         </>
       }
     >
-      <ImpoundBlock info={info} owner={staff ? owner : null} lot />
+      <ImpoundBlock info={info} lot />
       <ConditionBlock
         engine={v.engine}
         body={v.body}

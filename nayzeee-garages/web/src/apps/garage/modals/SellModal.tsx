@@ -63,6 +63,7 @@ export function SellModal({ vehicle, onClose }: { vehicle: GarageVehicle | null;
 
   return (
     <Modal
+      className="nz-garage-modal"
       open={!!vehicle}
       title={t('Sell vehicle')}
       subtitle={t('The buyer gets an offer and has to accept it.')}

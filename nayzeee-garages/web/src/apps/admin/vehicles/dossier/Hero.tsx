@@ -2,7 +2,7 @@
  * Dossier hero band: back, turntable stage, identity (make · class, name, nickname, badges,
  * plate, model, top speed), owner card and the record actions.
  */
-import { Avatar, Button, Icon, IconButton, Tooltip } from '@/components/ui';
+import { Avatar, Button, Icon, IconButton, Tooltip, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { useSettings } from '@/lib/store';
 import { dateTime, distance } from '@/lib/format';
@@ -87,9 +87,11 @@ export function Hero({ detail, data, busy, onBack, onOwner, onBlock, onImpound, 
           </div>
         </div>
         <div className="nz-dos-hero__vitals">
-          <span title={t('Location')}>
+          <span className="is-where" title={t('Location')}>
             <Icon name={detail.impound ? 'impound' : v.state === 'out' ? 'route' : 'garage'} size={13} strokeWidth={1.7} />
-            {detail.impound ? detail.impound.locationName : v.state === 'out' ? t('Out in the world') : v.garageName ?? t('No garage')}
+            <span className="nz-aveh-ellipsis">
+              {detail.impound ? detail.impound.locationName : v.state === 'out' ? t('Out in the world') : v.garageName ?? t('No garage')}
+            </span>
           </span>
           <span title={t('Mileage')}>
             <Icon name="route" size={13} strokeWidth={1.7} />
@@ -121,16 +123,19 @@ export function Hero({ detail, data, busy, onBack, onOwner, onBlock, onImpound, 
             <Icon name="chevronRight" size={13} strokeWidth={1.8} />
           </span>
         </button>
-        <div className="nz-dos-hero__actions">
+        <div className={cx('nz-dos-hero__actions', detail.impound && 'has-split')}>
           <Tooltip content={v.blocked ? t('Players can take this vehicle out again.') : t('Blocked vehicles cannot be taken out of any garage.')} side="bottom">
             <Button size="sm" variant="line" icon={v.blocked ? 'unlock' : 'ban'} onClick={onBlock} loading={busy === 'block'} full>
               {v.blocked ? t('Unblock') : t('Block')}
             </Button>
           </Tooltip>
           {detail.impound ? (
-            <Button size="sm" variant="line" icon="unlock" onClick={onRelease} loading={busy === 'release'} full>
-              {t('Release')}
-            </Button>
+            <span className="nz-dos-hero__split">
+              <Button size="sm" variant="line" icon="unlock" onClick={onRelease} loading={busy === 'release'}>
+                {t('Release')}
+              </Button>
+              <IconButton icon="edit" size="sm" variant="line" label={t('Edit impound')} onClick={onImpound} tooltipSide="bottom" />
+            </span>
           ) : (
             <Tooltip content={detail.impounds.length ? t('Send this vehicle to an impound.') : t('Create an impound location first.')} side="bottom">
               <Button size="sm" variant="line" icon="impound" onClick={onImpound} disabled={!detail.impounds.length} full>

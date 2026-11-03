@@ -3,13 +3,15 @@
   House ids 'rx:<property id>'. Resource 'RxHousing' (also 'rxscripts_housing').
 
   Reads exports GetAllProperties() (array or id-keyed map): owner (identifier string, a table
-  shape is tolerated) + keyholders (field, else GetPropertyKeyholders(id)). The garage point is
+  shape is tolerated) + keyholders (field, else GetPropertyKeyholders(id) for owned properties;
+  unowned ones are skipped). Ids are integers ('rx:9.0' from a hook becomes 'rx:9'). The garage point is
   coords.garage when the property has one (documented only as an input of
   GiveApartmentToPlayer: unconfirmed, so a hook call may move it). RxHousing hands garages to
   RX's fmLib: install/housing/RxHousing adds a nayzeee garage adapter to fmLib that calls
   OpenHouseGarage / StoreHouseGarage (garage registered hidden where it is used when the property
-  has no garage point). Refresh hints: rxhousing:on* server events, resource start.
-  Live access: HasKey(id, identifier), then the owner of GetProperty(id).
+  has no garage point, within range of its entrance). Refresh hints: rxhousing:on* server events, resource start.
+  Live access (authoritative): HasKey(id, identifier), then the owner of GetProperty(id);
+  unknown when HasKey fails.
   Confidence: medium (escrowed; exports and events from RX's documentation).
 ]]
 
@@ -28,20 +30,24 @@ Housing.addLoader({
   prefix = 'rx',
   resources = { 'RxHousing', 'rxscripts_housing' },
   hook = 'whenUsed',
-  trustCoords = false,
+  create = true,       -- most properties have no readable garage point
+  trustCoords = false, -- coords.garage is unconfirmed: the hook may move it
+  numericIds = true,   -- RX exports take numeric ids
+  authoritative = true,
 
   load = function(ctx)
     local all = ctx.export('GetAllProperties')
     if type(all) ~= 'table' then return nil end
 
-    local out = {}
+    local out, n = {}, 0
     for key, p in pairs(all) do
+      n = n + 1
+      ctx.yield(n)
       p = ctx.decode(p)
       local pid = type(p) == 'table' and (p.id or p.propertyId or p.property_id or key) or nil
-      if pid ~= nil then
-        local set = {}
-        local owner = ownerOf(ctx, p.owner)
-        if owner then set[owner] = true end
+      local owner = pid ~= nil and ownerOf(ctx, p.owner) or nil
+      if owner then -- unowned: nobody has access, nothing to read
+        local set = { [owner] = true }
         local holders = p.keyholders or p.keyHolders
         if holders == nil then holders = ctx.export('GetPropertyKeyholders', idOf(ctx, pid)) end
         ctx.addAny(set, holders)
@@ -59,10 +65,16 @@ Housing.addLoader({
 
   check = function(ctx, identifier, rawId)
     local id = idOf(ctx, rawId)
-    if ctx.export('HasKey', id, identifier) == true then return true end
+    local has, err = ctx.export('HasKey', id, identifier)
+    if has == true then return true end
     local p = ctx.decode(ctx.export('GetProperty', id))
     if type(p) ~= 'table' then return nil end
-    return ownerOf(ctx, p.owner) == identifier
+    if ownerOf(ctx, p.owner) == identifier then return true end
+    local holders = {}
+    ctx.addAny(holders, p.keyholders or p.keyHolders)
+    if holders[identifier] then return true end
+    if err ~= nil then return nil end -- HasKey failed: the cached key holders decide
+    return false
   end,
 
   --- The property's entrance (coords.entrance, or coords itself).

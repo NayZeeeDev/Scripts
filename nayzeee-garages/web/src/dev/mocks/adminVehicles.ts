@@ -8,7 +8,8 @@
  * Scenarios: admin-interiors, admin-interiors-create, admin-interiors-empty, admin-vehicles,
  * admin-vehicles-results, admin-vehicles-player, admin-vehicles-detail (+ one per dossier tab:
  * -condition, -upgrades, -finance, -history, -activity, -data), admin-vehicles-impounded,
- * admin-vehicles-damaged, admin-vehicles-nostats, admin-vehicles-props, admin-settings,
+ * admin-vehicles-damaged, admin-vehicles-bike, admin-vehicles-boat, admin-vehicles-heli,
+ * admin-vehicles-nostats, admin-vehicles-props, admin-settings,
  * admin-settings-interface.
  *
  * mockNui: admin:players:search, admin:players:vehicles, admin:vehicle:get|assign|update|delete|activity,
@@ -568,6 +569,19 @@ function seedJordan() {
   // Out in the world with body damage.
   const sandking = made.get('sandking');
   if (sandking) sandking.damage = { engine: 880, body: 380, tank: 1000, doors: [1, 3, 5], windows: {}, tyres: [{ index: 5, state: 1 }], deformed: true };
+  // Saved by an older props format: no interior / dashboard colours (shown as "Not saved", never guessed).
+  const futo = made.get('futo');
+  if (futo && futo.props && typeof futo.props === 'object') {
+    delete (futo.props as Record<string, unknown>).interiorColor;
+    delete (futo.props as Record<string, unknown>).dashboardColor;
+  }
+  // Non-car outlines: a bike with a burst front tyre, a boat and a helicopter with smashed glass.
+  const sanchez = made.get('sanchez');
+  if (sanchez) sanchez.damage = { engine: 720, body: 640, tank: 1000, doors: [], windows: [], tyres: [{ index: 0, state: 1 }, { index: 4, state: 2 }], deformed: true };
+  const jetmax = made.get('jetmax');
+  if (jetmax) jetmax.damage = { engine: 930, body: 870, tank: 1000, doors: {}, windows: [6], tyres: {}, deformed: false };
+  const frogger = made.get('frogger');
+  if (frogger) frogger.damage = { engine: 380, body: 610, tank: 900, doors: [], windows: [6], tyres: [], deformed: true };
   // Engine below the service threshold.
   const baller = made.get('baller');
   if (baller) baller.damage = { engine: 470, body: 1000, tank: 1000, doors: [], windows: [], tyres: [], deformed: false };
@@ -705,15 +719,21 @@ function showcaseActivity(v: MockVehicle): Draft[] {
   const list: Draft[] = [
     byPlayer('vehicle.store', now - 5 * H + 1400, me, { plate, garage: 'L3', garageName: 'Mirror Park', owner: me.identifier, mileage: 11048, fuel: 81, engine: 100, body: 96, trailer: false }),
     byPlayer('vehicle.retrieve', now - 5 * H - 12 * 60, me, { plate, garage: 'L3', fee: 0, fromImpound: false, fromInterior: true, serverSpawn: true }),
+    // The same drive-out also logs interior.driveOut (server/interiors.lua): the UI folds it into the retrieve row.
+    byPlayer('interior.driveOut', now - 5 * H - 12 * 60 + 1, me, { instance: `L3:${me.identifier}`, plate, spawnIndex: 2 }),
     byPlayer('racing.lapRecord', now - 26 * H, me, { plate, track: 'Vinewood Bowl', lap: '1:12.48', position: 1, entrants: 9 }),
     byPlayer('vehicle.favourite', now - 27 * H, me, { plate, value: true }),
     byServer('vehicle.service', now - 3 * DAY, { plate, item: 'Spark plugs', shop: 'Los Santos Customs', mileage: 10951 }),
     byServer('vehicle.service', now - 3 * DAY - 600, { plate, item: 'Engine oil', shop: 'Los Santos Customs', mileage: 10956 }),
     byPlayer('vehicle.finance', now - 4 * DAY, me, { plate, amount: 18000, paidOff: false, balance: 324000 }),
+    // Real 'remove' payloads carry only the target identifier (server/actions.lua).
+    byPlayer('vehicle.share', now - 2 * DAY - 5 * H, me, { plate, action: 'remove', target: 'QX55821', byOwner: true }),
     byPlayer('vehicle.share', now - 6 * DAY, me, { plate, action: 'add', target: 'QX55821', targetName: 'Lena Ortiz' }),
     byPlayer('vehicle.recover', now - 8 * DAY, me, { plate, garage: 'L3', garageName: 'Mirror Park', fee: 250, owner: me.identifier, removedEntity: true }),
     byPlayer('admin.vehicle.update', now - 12 * DAY, STAFF, { plate, changed: ['finance', 'details'], removedEntity: false }),
     byPlayer('vehicle.transfer', now - 14 * DAY, me, { plate, type: 'garage', from: 'L1', to: 'L3', toName: 'Mirror Park', fee: 250 }),
+    // Staff made it collectable (mode 'owner'): it stays impounded until the owner pays.
+    byPlayer('impound.release', now - 19 * DAY - 3 * H, kenji, { plate, mode: 'owner', owner: me.identifier, impound: 18, impoundName: 'Davis Impound', fee: 500 }),
     byPlayer('impound.retrieve', now - 19 * DAY, me, { plate, owner: me.identifier, impound: 18, impoundName: 'Davis Impound', fee: 500, staff: false, impoundedBy: 'Kenji Tanaka', reason: 'Parked in a red zone' }),
     byPlayer('impound.add', now - 20 * DAY, kenji, { plate, owner: me.identifier, previousState: 'out', impound: 18, impoundName: 'Davis Impound', reason: 'Parked in a red zone', fee: 500, hours: 2, retrievable: true, by: kenji.identifier, byName: kenji.name, removedEntity: true }),
     byPlayer('vehicle.finance', now - 24 * DAY, me, { plate, amount: 18000, paidOff: false, balance: 342000 }),
@@ -1197,6 +1217,21 @@ registerMock({
   label: 'Vehicle dossier — wrecked (condition)',
   messages: [open('vehicles', { __adminB: { player: 'NZV41207', plate: [...vehicles.values()].find((v) => v.owner === 'NZV41207' && v.row.model === 'jester')?.row.plate, dossierTab: 'condition' } })],
 });
+const platesOf = (model: string) => [...vehicles.values()].find((v) => v.owner === 'NZV41207' && v.row.model === model)?.row.plate;
+(
+  [
+    ['bike', 'sanchez', 'bike outline (condition)'],
+    ['boat', 'jetmax', 'boat outline (condition)'],
+    ['heli', 'frogger', 'helicopter outline (condition)'],
+  ] as const
+).forEach(([id, model, label]) =>
+  registerMock({
+    id: `admin-vehicles-${id}`,
+    group: G,
+    label: `Vehicle dossier — ${label}`,
+    messages: [open('vehicles', { __adminB: { player: 'NZV41207', plate: platesOf(model), dossierTab: 'condition' } })],
+  }),
+);
 registerMock({
   id: 'admin-vehicles-nostats',
   group: G,

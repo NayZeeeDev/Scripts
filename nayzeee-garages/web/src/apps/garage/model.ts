@@ -38,6 +38,24 @@ export function vehicleIcon(v: { vehicleType: VehicleType; classId?: number }): 
   }
 }
 
+/** What kind of vehicle it is, from the same class / type mapping as its icon. */
+export function vehicleKindLabel(v: { vehicleType: VehicleType; classId?: number }): string {
+  switch (vehicleIcon(v)) {
+    case 'bike':
+      return v.classId === 13 ? t('Bicycle') : t('Motorcycle');
+    case 'heli':
+      return t('Helicopter');
+    case 'plane':
+      return v.classId === 16 ? t('Plane') : t('Aircraft');
+    case 'boat':
+      return t('Boat');
+    case 'truck':
+      return t('Truck');
+    default:
+      return t('Car');
+  }
+}
+
 export function kindLabel(kind: LocationKind, vehicleType: VehicleType): string {
   if (kind === 'job') return t('Job garage');
   if (kind === 'private') return t('Private garage');

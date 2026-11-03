@@ -14,12 +14,16 @@
     'nz:phone:failed'  (plate)          the phone could not create it: put it back
 
   Valet flow: ClaimVehicleForValet applies the rules of taking a vehicle out of its garage
-  (owner / shared access, blocked, impounded, finance overdue, already out, garage access),
-  marks it out under NZ.Vehicles.withLock and returns its props / damage / fuel. The phone
-  spawns it and reports the entity (MarkValetSpawned / 'nz:phone:spawned' ->
-  NZ.Vehicles.markSpawned: tracking, keys, duplicate protection). A watchdog adopts a valet
-  vehicle found by plate when the phone never reports it, and puts the vehicle back in its
-  garage when no copy appears before the claim times out (or the phone reports a failure).
+  (owner / shared access, blocked, impounded, finance overdue, already out, access to the
+  garage it is parked in incl. private group membership; fleet vehicles, saved trailers and
+  categories outside Config.Phone.valetTypes are refused), marks it out under
+  NZ.Vehicles.withLock and returns its props / damage / fuel. The phone spawns it and
+  reports the entity (MarkValetSpawned / 'nz:phone:spawned' -> NZ.Vehicles.markSpawned:
+  tracking, keys, duplicate protection; plate and model must match). A watchdog adopts a
+  valet vehicle found by plate + model when the phone never reports it, and puts the vehicle
+  back in its garage when no copy appears before the claim times out, the phone reports a
+  failure, or the claimant leaves / unloads their character. Undelivered claims are kept in
+  the resource KVP ('nz_phone_claim:<plate>') and resumed after a resource restart.
 
   Optional Config.Phone (config/config.lua) overrides the defaults below. Built only on
   the public NZ.Vehicles / NZ.DB / NZ.Locations / NZ.Access / NZ.Bridge APIs.
@@ -40,25 +44,29 @@ local DEFAULTS = {
 
 local TICK_MS = 2000            -- watchdog interval while claims are pending
 local SPAWN_WAIT_MS = 10000     -- MarkValetSpawned: wait this long for the entity's plate
+local WAIT_GRACE = SPAWN_WAIT_MS // 1000 + 5 -- max seconds a waiting report extends a claim
+local KVP_PREFIX = 'nz_phone_claim:' -- undelivered claims survive a resource restart
+local MAX_STORED_CLAIMS = 500
 local LIST_CACHE_SECONDS = 3    -- a rate-limited list request gets the previous answer
 local MAX_PLATE_LENGTH = 16
 local MAX_ID = 0x7FFFFFFF
 
 -- Phones (and NPWD garage apps) with a file in install/phone/ or a README section.
+-- skipIf: npwd_qbx_garages `provide`s npwd_qb_garage, which may then look started too.
 local PHONES = {
   { name = 'lb-phone', folder = 'install/phone/lb-phone' },
   { name = 'npwd_qbx_garages', folder = 'install/phone/npwd_qbx_garages' },
-  { name = 'npwd_qb_garage', folder = 'install/phone/npwd_qb_garage' },
+  { name = 'npwd_qb_garage', folder = 'install/phone/npwd_qb_garage', skipIf = 'npwd_qbx_garages' },
   { name = 'npwd_esx_garage', folder = 'install/phone/npwd_esx_garage' },
-  { name = 'qs-smartphone', folder = 'install/phone/qs-smartphone' },
-  { name = 'qs-smartphone-pro', folder = 'install/phone/qs-smartphone' },
+  { name = 'qs-smartphone', folder = 'install/phone/generic' },
+  { name = 'qs-smartphone-pro', folder = 'install/phone/generic' },
   { name = 'yseries', folder = 'install/phone/generic' },
   { name = 'gksphone', folder = 'install/phone/generic' },
   { name = 'okokPhone', folder = 'install/phone/generic' },
   { name = 'high-phone', folder = 'install/phone/generic' },
 }
 
-local claims = {}       -- [plate] = { token, src, identifier, at, prevLastOut, garageKey, init, dropped }
+local claims = {}       -- [plate] = { token, src, identifier, at, prevLastOut, garageKey, hash, init, dropped, waiting }
 local lists = {}        -- [src] = { at, identifier, list } last GetPhoneVehicles answer
 local warned = {}       -- warn-once keys
 local watching = false
@@ -178,20 +186,28 @@ local function isOccupied(entity)
   return false
 end
 
---- One pass over the world: first entity of each wanted plate ({ [plate] = true }).
+--- Is `entity` of model `hash` (true / nil = any model)?
+local function modelMatches(entity, hash)
+  if hash == nil or hash == true then return true end
+  return toSigned(GetEntityModel(entity)) == hash
+end
+
+--- One pass over the world: first entity of each wanted plate. `wanted` = { [plate] = hash }
+--- (hash = true: any model; a copy of the claimed vehicle has the claimed model).
 local function findEntities(wanted)
   local found = {}
   for _, entity in ipairs(GetAllVehicles() or {}) do
     if isVehicleEntity(entity) then
       local plate = plateOf(entity)
-      if plate and wanted[plate] and not found[plate] then found[plate] = entity end
+      local want = plate and wanted[plate]
+      if want and not found[plate] and modelMatches(entity, want) then found[plate] = entity end
     end
   end
   return found
 end
 
-local function findEntity(plate)
-  return findEntities({ [plate] = true })[plate]
+local function findEntity(plate, hash)
+  return findEntities({ [plate] = hash or true })[plate]
 end
 
 local function firstOpenPoint(location)
@@ -273,7 +289,7 @@ end
 --- Garage-session view of where the vehicle is parked, for NZ.Vehicles.canDrive.
 --- retrieveMode 'anywhere' (or a vehicle with no garage): any personal garage of its type.
 ---@return table|nil session, string|nil error
-local function parkedSession(src, row, mode, resolvedCache)
+local function parkedSession(src, row, mode, resolvedCache, ctx)
   local key = row.garageKey
   if key and mode ~= 'anywhere' then
     local resolved = resolvedCache and resolvedCache[key]
@@ -286,6 +302,13 @@ local function parkedSession(src, row, mode, resolvedCache)
     if location.enabled == false then return nil, L('This garage is closed') end
     local allowed, reason = NZ.Access.canUse(src, location)
     if not allowed then return nil, reason or L('You do not have access to this garage') end
+    -- A private garage instance: membership of that very group (canUse only checks for any
+    -- group of the player at this location).
+    if resolved.kind == 'G' then
+      local identifier = type(ctx) == 'table' and ctx.identifier or nil
+      local okRole, role = pcall(NZ.Private.role, resolved.groupId, identifier)
+      if not (identifier and okRole and role) then return nil, L('You do not have a garage here') end
+    end
     return {
       garageKey = key,
       location = location,
@@ -324,7 +347,7 @@ local function checkValet(src, row, ctx)
   if setting('vehicles.trailers', true) == true and type(row.trailer) == 'table' then
     return false, L('Take this vehicle out at its garage to bring its trailer')
   end
-  local session, err = parkedSession(src, row, ctx.retrieveMode, ctx.resolved)
+  local session, err = parkedSession(src, row, ctx.retrieveMode, ctx.resolved, ctx)
   if not session then return false, err end
   return NZ.Vehicles.canDrive(src, row, session, { cache = ctx })
 end
@@ -527,6 +550,46 @@ local function pendingCount(src)
   return n
 end
 
+--- Remember an undelivered claim across a resource restart (see Phone.recover).
+local function persist(plate, claim)
+  local encoded, text = pcall(json.encode, {
+    at = claim.at, prev = tonumber(claim.prevLastOut), identifier = claim.identifier,
+    hash = claim.hash, garageKey = claim.garageKey,
+  })
+  if not encoded or type(text) ~= 'string' then
+    warnOnce('persist', ('could not remember the valet claim of %s: %s'):format(plate, tostring(text)))
+    return
+  end
+  SetResourceKvp(KVP_PREFIX .. plate, text)
+end
+
+local function unpersist(plate)
+  DeleteResourceKvp(KVP_PREFIX .. plate)
+end
+
+--- The claim is over (delivered, put back, or superseded): forget it.
+local function endClaim(plate, claim)
+  if claims[plate] ~= claim then return false end
+  claims[plate] = nil
+  unpersist(plate)
+  return true
+end
+
+--- A vehicle of another model was reported for this claim (e.g. through the generic
+--- 'nz:garage:spawned' callback, which only checks the plate): stop tracking it, so the
+--- real vehicle can still be reported or adopted and the claim times out normally.
+--- anyEntry: also an entry this claim did not create (re-adopted by plate after a restart).
+local function dropWrongModel(plate, claim, anyEntry)
+  local entry = NZ.Vehicles.out[plate]
+  if not (entry and (anyEntry or entry.phone == claim.token) and isVehicleEntity(entry.entity)) then return end
+  local entity = entry.entity
+  if modelMatches(entity, claim.hash) then return end
+  log('security.model', claim.src, { plate = plate, netId = entry.netId, expected = claim.hash,
+    actual = toSigned(GetEntityModel(entity)), reason = 'phone valet tracked another model' })
+  pcall(function() Entity(entity).state:set('nzPlate', nil, true) end)
+  NZ.Vehicles.clearOut(plate)
+end
+
 --- (Re)register the claim's out entry so NZ.Vehicles.markSpawned accepts the phone's entity.
 local function ensureEntry(plate, claim)
   local entry = NZ.Vehicles.out[plate]
@@ -572,8 +635,7 @@ end
 
 --- The valet vehicle exists and is tracked: hand nayzeee's saved data to its owner client.
 local function finish(plate, claim, entity)
-  if claims[plate] ~= claim then return end
-  claims[plate] = nil
+  if not endClaim(plate, claim) then return end
   if option('applyData') ~= false and type(claim.init) == 'table' and isVehicleEntity(entity) then
     local success, err = pcall(function() Entity(entity).state:set('nzInit', claim.init, true) end)
     if not success then warnOnce('nzInit', ('could not attach the saved vehicle data: %s'):format(tostring(err))) end
@@ -637,8 +699,12 @@ local function doClaim(src, plate, identifier, resource)
   if not allowed then return fail(reason or L('You cannot do that right now')) end
   if NZ.Vehicles.isOut(plate) then return fail(L('Vehicle is already out')) end
 
-  -- An untracked entity with this plate is a duplicate: remove it when nobody uses it.
-  local stray = findEntity(plate)
+  local hash = rowHash(row)
+  if not hash then return fail(L('Unknown vehicle model')) end
+
+  -- An untracked copy of this vehicle (same plate AND model; a car of another model that
+  -- shows this plate is not touched) is a duplicate: remove it when nobody uses it.
+  local stray = findEntity(plate, hash)
   if stray then
     if isOccupied(stray) then
       log('security.dupe', src, { plate = plate, reason = 'phone valet while an occupied copy exists' })
@@ -648,13 +714,7 @@ local function doClaim(src, plate, identifier, resource)
     log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before a phone valet' })
   end
 
-  local hash = rowHash(row)
-  if not hash then return fail(L('Unknown vehicle model')) end
-
   local now = os.time()
-  if not NZ.DB.updateVehicle(plate, { state = 'out', lastOut = now }) then
-    return fail(L('Something went wrong'))
-  end
   tokenSeq = tokenSeq + 1
   local claim = {
     token = tokenSeq,
@@ -663,7 +723,14 @@ local function doClaim(src, plate, identifier, resource)
     at = now,
     prevLastOut = row.lastOut,
     garageKey = row.garageKey,
+    hash = hash,
   }
+  -- written before the database so a restart during the write is recovered too
+  persist(plate, claim)
+  if not NZ.DB.updateVehicle(plate, { state = 'out', lastOut = now }) then
+    unpersist(plate)
+    return fail(L('Something went wrong'))
+  end
   NZ.Vehicles.setOut(plate, {
     src = src,
     identifier = identifier,
@@ -675,7 +742,8 @@ local function doClaim(src, plate, identifier, resource)
 
   local built, data, init = pcall(buildData, row, plate, hash, now)
   if not built or type(data) ~= 'table' then
-    restore(plate, claim)
+    local done = restore(plate, claim)
+    if done then unpersist(plate) end -- else: put back at the next start (Phone.recover)
     lib.print.error(('[nayzeee-garages] phone valet for %s failed: %s'):format(plate, tostring(data)))
     return fail(L('Something went wrong'))
   end
@@ -734,16 +802,16 @@ function Phone.release(src, plate, why)
   local claim = claims[plate]
   if not claim or claim.src ~= src then return false, L('This vehicle was not taken out by you') end
   local entry = NZ.Vehicles.out[plate]
-  if (entry and isVehicleEntity(entry.entity)) or findEntity(plate) then
+  if (entry and isVehicleEntity(entry.entity)) or findEntity(plate, claim.hash) then
     return false, L('Vehicle is already out')
   end
 
   local result = NZ.Vehicles.withLock(plate, function()
     if claims[plate] ~= claim then return ok(false) end
-    if findEntity(plate) then return fail(L('Vehicle is already out')) end
+    if findEntity(plate, claim.hash) then return fail(L('Vehicle is already out')) end
     local done, restored = restore(plate, claim)
     if not done then return fail(L('Something went wrong')) end
-    claims[plate] = nil
+    endClaim(plate, claim)
     return ok(restored)
   end)
   if type(result) ~= 'table' or result.ok ~= true then
@@ -786,20 +854,33 @@ function Phone.spawned(src, plate, netId)
     return false, L('Please wait a moment before trying again')
   end
   if not claim then return false, L('This vehicle was not taken out by you') end
-  if claim.src ~= src then return false, L('This vehicle was not taken out by you') end
+  -- dropped: the claimant changed character meanwhile (the watchdog adopts it, no keys)
+  if claim.src ~= src or claim.dropped then return false, L('This vehicle was not taken out by you') end
 
-  -- A server-created vehicle gets its plate from the client a moment later.
+  -- A server-created vehicle gets its plate from the client a moment later. The claim does
+  -- not time out while a report waits for it (at most WAIT_GRACE seconds past the timeout).
+  claim.waiting = (claim.waiting or 0) + 1
   local entity = waitForPlate(netId, plate, SPAWN_WAIT_MS)
+  claim.waiting = math.max(0, (claim.waiting or 1) - 1)
   if claims[plate] ~= claim then
     local entry = NZ.Vehicles.out[plate]
     if entry and entry.src == src and entry.netId == netId then return true end
     return false, L('This vehicle was not taken out by you')
   end
+  -- The plate never arrived (e.g. the phone's client could not take control of a server-
+  -- created vehicle): nothing to track. The watchdog still adopts it if the plate comes later.
+  if not entity then return false, L('Vehicle not found') end
+  if not modelMatches(entity, claim.hash) then
+    log('security.model', src, { plate = plate, netId = netId, expected = claim.hash,
+      actual = toSigned(GetEntityModel(entity)), reason = 'phone valet reported another model' })
+    return false, L('This vehicle does not match its registration')
+  end
+  dropWrongModel(plate, claim)
   ensureEntry(plate, claim)
 
   local marked, err = NZ.Vehicles.markSpawned(src, plate, netId)
   if not marked then return false, err end
-  finish(plate, claim, entity or NetworkGetEntityFromNetworkId(netId))
+  finish(plate, claim, entity)
   return true
 end
 
@@ -808,9 +889,11 @@ end
 ---------------------------------------------------------------------------------------
 
 local function adopt(plate, claim, entity)
+  dropWrongModel(plate, claim)
   ensureEntry(plate, claim)
   local netId = NetworkGetNetworkIdFromEntity(entity)
-  local marked = netId and netId ~= 0 and NZ.Vehicles.markSpawned(claim.src, plate, netId)
+  -- The claimant left (or changed character): track the vehicle, no keys for that source.
+  local marked = not claim.dropped and netId and netId ~= 0 and NZ.Vehicles.markSpawned(claim.src, plate, netId)
   if marked == true then
     finish(plate, claim, entity)
     return
@@ -829,18 +912,18 @@ local function adopt(plate, claim, entity)
     finish(plate, claim, entity)
   elseif type(row) == 'table' then
     -- Stored, recovered or impounded meanwhile: the claim is over.
-    if claims[plate] == claim then claims[plate] = nil end
+    endClaim(plate, claim)
   end
 end
 
 local function expire(plate, claim)
-  if findEntity(plate) then return end -- created this very moment: adopted on the next tick
+  if findEntity(plate, claim.hash) then return end -- created this very moment: adopted on the next tick
   local result = NZ.Vehicles.withLock(plate, function()
     if claims[plate] ~= claim then return ok(false) end
-    if findEntity(plate) then return fail('spawned') end
+    if findEntity(plate, claim.hash) then return fail('spawned') end
     local done, restored = restore(plate, claim)
     if not done then return fail('restore') end
-    claims[plate] = nil
+    endClaim(plate, claim)
     return ok(restored)
   end)
   if type(result) ~= 'table' or result.ok ~= true then
@@ -872,7 +955,19 @@ local function keepAlive(plate, claim)
   if row.state == 'out' and tonumber(row.lastOut) == claim.at then
     ensureEntry(plate, claim)
   elseif claims[plate] == claim then
-    claims[plate] = nil
+    -- Put back through nayzeee's generic failure report ('nz:garage:spawned' failed = true),
+    -- which keeps the claim's lastOut: restore the previous one.
+    if row.state == 'garaged' and tonumber(row.lastOut) == claim.at then
+      local result = NZ.Vehicles.withLock(plate, function()
+        local fresh = NZ.DB.getVehicle(plate)
+        if type(fresh) == 'table' and fresh.state == 'garaged' and tonumber(fresh.lastOut) == claim.at then
+          NZ.DB.updateVehicle(plate, { lastOut = claim.prevLastOut or false })
+        end
+        return ok(true)
+      end)
+      if type(result) ~= 'table' or result.ok ~= true then return end -- busy: next tick
+    end
+    endClaim(plate, claim)
   end
 end
 
@@ -880,7 +975,7 @@ local function tick()
   local snapshot, wanted = {}, {}
   for plate, claim in pairs(claims) do
     snapshot[#snapshot + 1] = { plate = plate, claim = claim }
-    wanted[plate] = true
+    wanted[plate] = claim.hash or true
   end
   if #snapshot == 0 then return end
   local found = findEntities(wanted)
@@ -889,13 +984,17 @@ local function tick()
   for _, item in ipairs(snapshot) do
     local plate, claim = item.plate, item.claim
     if claims[plate] == claim then
+      dropWrongModel(plate, claim)
       local entry = NZ.Vehicles.out[plate]
       local tracked = entry and isVehicleEntity(entry.entity) and entry.entity or nil
+      local age = now - claim.at
+      -- a report waiting for its plate holds the claim, at most WAIT_GRACE seconds longer
+      local overdue = age >= timeout and ((claim.waiting or 0) == 0 or age >= timeout + WAIT_GRACE)
       if tracked then
         finish(plate, claim, tracked)
       elseif found[plate] then
         adopt(plate, claim, found[plate])
-      elseif claim.dropped or now - claim.at >= timeout then
+      elseif claim.dropped or overdue then
         expire(plate, claim)
       else
         keepAlive(plate, claim)
@@ -928,13 +1027,116 @@ function Phone.pending(plate)
   return { src = claim.src, at = claim.at, expiresAt = claim.at + claimTimeout() }
 end
 
+---------------------------------------------------------------------------------------
+-- Resource restart: claims that were still undelivered
+---------------------------------------------------------------------------------------
+
+local function storedClaimKeys()
+  local keys = {}
+  local handle = StartFindKvp(KVP_PREFIX)
+  if type(handle) ~= 'number' or handle < 0 then return keys end
+  while #keys < MAX_STORED_CLAIMS do
+    local key = FindKvp(handle)
+    if type(key) ~= 'string' then break end
+    keys[#keys + 1] = key
+  end
+  EndFindKvp(handle)
+  return keys
+end
+
+--- One remembered claim. The claim still owns the vehicle when the row is out since the
+--- claim (lastOut) and no copy exists: it is re-armed, so the watchdog adopts the vehicle
+--- if the phone still delivers it, or puts it back once the original claim times out (at
+--- once when that time is over or the claimant is offline). Anything else is stale.
+---@return string outcome 'rearmed' | 'delivered' | 'stale' | 'retry' | 'live'
+local function recoverClaim(key)
+  local plate = readPlate(key:sub(#KVP_PREFIX + 1))
+  if plate and claims[plate] then return 'live' end -- claimed since the start: its own entry
+  local decoded, data = pcall(json.decode, GetResourceKvpString(key) or '')
+  local at = decoded and type(data) == 'table' and tonumber(data.at) or nil
+  if not plate or not at then
+    DeleteResourceKvp(key)
+    return 'stale'
+  end
+  local row = NZ.DB.getVehicle(plate)
+  if type(row) ~= 'table' then
+    if NZ.DB.plateExists(plate) ~= false then return 'retry' end -- database not answering
+    DeleteResourceKvp(key)
+    return 'stale'
+  end
+  if row.plate and row.plate ~= plate then
+    DeleteResourceKvp(key)
+    return 'stale'
+  end
+  if row.state ~= 'out' or tonumber(row.lastOut) ~= at then
+    DeleteResourceKvp(key)
+    return 'stale'
+  end
+  local hash = toSigned(data.hash) or rowHash(row)
+  if not hash or findEntity(plate, hash) then
+    -- delivered before the restart (re-adopted by NZ.Vehicles), or no model to look for
+    DeleteResourceKvp(key)
+    return 'delivered'
+  end
+
+  local identifier = nonEmpty(data.identifier) or nonEmpty(row.owner)
+  local src = nil
+  if identifier then
+    local found, value = pcall(NZ.Bridge.getSourceByIdentifier, identifier)
+    src = found and validSrc(value) or nil
+    if src and identifierOf(src) ~= identifier then src = nil end
+  end
+  tokenSeq = tokenSeq + 1
+  local claim = {
+    token = tokenSeq,
+    src = src,
+    identifier = identifier,
+    at = at,
+    prevLastOut = tonumber(data.prev),
+    garageKey = row.garageKey,
+    hash = hash,
+    dropped = src == nil or nil,
+  }
+  local built, _, init = pcall(buildData, row, plate, hash, at)
+  if built then claim.init = init end
+  claims[plate] = claim
+  dropWrongModel(plate, claim, true)
+  ensureEntry(plate, claim) -- no recover / retrieve while it may still be delivered
+  return 'rearmed'
+end
+
+--- Re-arm (or put back) the valet claims that were undelivered when the resource stopped.
+--- A full server start already handled them through garages.outOnRestart (they are stale
+--- then, unless it is 'keep': then they go back to their garage, never delivered).
+function Phone.recover()
+  local counts = {}
+  for _, key in ipairs(storedClaimKeys()) do
+    local success, outcome = pcall(recoverClaim, key)
+    if not success then
+      warnOnce('recover', ('could not recover a valet claim (%s): %s'):format(key, tostring(outcome)))
+      outcome = 'retry'
+    end
+    counts[outcome] = (counts[outcome] or 0) + 1
+  end
+  if (counts.rearmed or 0) > 0 then
+    lib.print.info(('[nayzeee-garages] phone: %d undelivered valet claim(s) resumed after a restart'):format(counts.rearmed))
+    Phone.watch()
+  end
+  if (counts.retry or 0) > 0 then
+    warnOnce('recover:retry', ('%d valet claim(s) could not be checked (database), kept for the next start'):format(counts.retry))
+  end
+  return counts
+end
+
 --- Console hint for installed phones that never called the phone exports (adapter missing).
 function Phone.boot()
   if option('hints') == false then return end
   for _, phone in ipairs(PHONES) do
     local state = GetResourceState(phone.name)
-    if state ~= 'missing' and state ~= 'unknown' and GetResourceKvpString('nz_phone_seen:' .. phone.name) == nil then
-      lib.print.info(('[nayzeee-garages] %s found: install the garage app adapter from %s (see install/phone/README.md)')
+    local provided = phone.skipIf and GetResourceState(phone.skipIf) == 'started'
+    if not provided and state ~= 'missing' and state ~= 'unknown'
+      and GetResourceKvpString('nz_phone_seen:' .. phone.name) == nil then
+      lib.print.info(('[nayzeee-garages] %s found: optional garage app adapter in %s (install/phone/README.md); Config.Phone.hints = false hides this')
         :format(phone.name, phone.folder))
     end
   end
@@ -944,13 +1146,37 @@ end
 -- Player lifecycle
 ---------------------------------------------------------------------------------------
 
-AddEventHandler('playerDropped', function()
-  local src = tonumber(source)
+--- The player left or unloaded their character: their pending claims go back on the next
+--- watchdog tick (a vehicle already created is still adopted, without keys).
+local function forget(src)
+  src = tonumber(src)
   if not src then return end
   lists[src] = nil
   for _, claim in pairs(claims) do
     if claim.src == src then claim.dropped = true end
   end
+end
+
+AddEventHandler('playerDropped', function()
+  forget(source)
+end)
+
+AddEventHandler('nz:server:playerUnloaded', function(src)
+  forget(src)
+end)
+
+-- Once the garages are loaded: resume undelivered claims, then (when the other resources
+-- had time to start) the adapter hint.
+CreateThread(function()
+  local deadline = GetGameTimer() + 120000
+  while not NZ.Ready and GetGameTimer() < deadline do Wait(1000) end
+  if NZ.Ready then
+    local recovered, err = pcall(Phone.recover)
+    if not recovered then warnOnce('recover', ('valet claim recovery failed: %s'):format(tostring(err))) end
+  end
+  Wait(5000)
+  local success, err = pcall(Phone.boot)
+  if not success then warnOnce('boot', ('boot hint failed: %s'):format(tostring(err))) end
 end)
 
 ---------------------------------------------------------------------------------------

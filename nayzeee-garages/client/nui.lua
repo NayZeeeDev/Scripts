@@ -176,9 +176,10 @@ function NUI.onClose(app, fn)
   list[#list + 1] = fn
 end
 
---- Notification through the configured notify integration (NZ.Notify.show,
---- bridge/client/notify.lua). Also reachable from the server through the
---- 'nz:client:notify' event and from the interface through the 'notify' callback.
+--- Notification through NZ.Notify.show (bridge/client/notify.lua): drawn inside the interface
+--- while a window holds focus, otherwise through the configured notify integration. Also
+--- reachable from the server through the 'nz:client:notify' event and from the interface
+--- through the 'notify' callback.
 --- Call shapes: NUI.notify(type, message, title) or NUI.notify({ type, message, title?, duration? }).
 ---@param ntype string|table 'success'|'error'|'info'|'warning' (or a notification table)
 ---@param message string|nil
@@ -191,6 +192,21 @@ function NUI.notify(ntype, message, title)
   end
   if type(message) ~= 'string' or message == '' then return end
   NZ.Notify.show(ntype, message, title, tonumber(duration))
+end
+
+--- Draw a notification inside the interface (Lua -> NUI 'notify'). Only NZ.Notify.show calls
+--- this, while a window holds NUI focus (FiveM then draws our page above every other
+--- resource's NUI, so the notify resource would be hidden behind the window); everything
+--- else uses NUI.notify. The text is already plain and capped by NZ.Notify.
+---@param n table { type, message, title?, duration }
+function NUI.toast(n)
+  if type(n) ~= 'table' or type(n.message) ~= 'string' then return end
+  NUI.send('notify', {
+    type = n.type,
+    title = n.title,
+    message = n.message,
+    duration = n.duration,
+  })
 end
 
 --- Show (label) or hide (nil) the interaction prompt.
@@ -364,7 +380,8 @@ NUI.register('close', function(data)
 end)
 
 -- 'notify' { type, message, title? }: the interface raises a notification (every toast()
--- and request() error in the web app). Validated and lightly rate limited.
+-- and request() error in the web app). Validated and lightly rate limited; NZ.Notify.show
+-- then decides where it is drawn (back inside the interface while a window has focus).
 local NOTIFY_KINDS = { success = true, error = true, info = true, warning = true }
 local NOTIFY_MAX_MESSAGE, NOTIFY_MAX_TITLE = 300, 60
 local NOTIFY_WINDOW_MS, NOTIFY_PER_WINDOW = 3000, 8

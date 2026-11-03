@@ -35,6 +35,8 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
   const [playerLoading, setPlayerLoading] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [ui, setUi] = useState<PlayerUi>(emptyPlayerUi);
+  // Last vehicle opened from the player list: focused again on the way back.
+  const [lastPlate, setLastPlate] = useState<string | null>(hint.plate ?? null);
   // Dev deep link "open the props editor" applies to the first vehicle view only.
   const [propsHint, setPropsHint] = useState(!!hint.props);
   const [tabHint, setTabHint] = useState(() => (isDossierTab(hint.dossierTab) ? hint.dossierTab : null));
@@ -85,6 +87,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
     if (player?.player.identifier !== row.identifier) {
       setPlayer(null);
       setUi(emptyPlayerUi);
+      setLastPlate(null);
       void loadPlayer(row.identifier);
     }
     setView({ level: 'player', identifier: row.identifier, name: row.name });
@@ -92,6 +95,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
 
   const openVehicle = (row: AdminVehicleRow) => {
     if (view.level === 'search') return;
+    setLastPlate(row.plate);
     setView({ level: 'vehicle', identifier: view.identifier, name: view.name, plate: row.plate });
   };
 
@@ -123,6 +127,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
 
   const onPlateChange = useCallback((plate: string) => {
     setView((v) => (v.level === 'vehicle' ? { ...v, plate } : v));
+    setLastPlate(plate);
   }, []);
 
   const onAssigned = (row: AdminVehicleRow) => {
@@ -156,6 +161,7 @@ export function PlayerVehiclesPage({ data }: AdminPageProps) {
           onRetry={() => void loadPlayer(view.identifier)}
           onOpen={openVehicle}
           onAssigned={onAssigned}
+          focusPlate={lastPlate}
         />
       )}
       {view.level === 'vehicle' && (

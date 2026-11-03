@@ -30,7 +30,7 @@ export interface RailToolbarProps {
   onView: (v: ViewMode) => void;
   /** Extra line under the controls (garage full notice, job hint). */
   notice?: ReactNode;
-  /** Only the search box (empty collection). */
+  /** Empty collection: nothing to search, filter or sort, so only the notice (if any) stays. */
   bare?: boolean;
 }
 
@@ -63,6 +63,7 @@ export function RailToolbar({
     { value: 'status', label: t('By status'), icon: 'pin' },
     { value: 'none', label: t('No groups'), icon: 'list' },
   ];
+  if (bare) return notice ? <div className="nz-garage__railtop">{notice}</div> : null;
   return (
     <div className="nz-garage__railtop">
       <SearchInput value={query} onChange={onQuery} placeholder={placeholder} shortcut="/" className="nz-garage__search" />
@@ -75,7 +76,6 @@ export function RailToolbar({
           ))}
         </div>
       )}
-      {!bare && (
       <div className="nz-garage__railctl">
         {sort && onSort && (
           <Select<GarageSort> value={sort} onChange={onSort} options={sortOptions} size="sm" icon="sort" className="nz-garage__ctl-sort" />
@@ -102,7 +102,6 @@ export function RailToolbar({
           className="nz-garage__ctl-density"
         />
       </div>
-      )}
       {notice}
     </div>
   );

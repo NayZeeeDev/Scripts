@@ -46,6 +46,7 @@ export function RenameModal({
 
   return (
     <Modal
+      className="nz-garage-modal"
       open={!!vehicle}
       title={t('Rename vehicle')}
       icon="edit"

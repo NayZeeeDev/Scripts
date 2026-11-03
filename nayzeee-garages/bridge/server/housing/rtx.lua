@@ -4,12 +4,14 @@
   Reads exports GetAllProperties() (array or map; housedata may be flattened onto the property
   or still a JSON column), falling back to the `houses` table (owned houses). Garage =
   garage { enabled, coords {x,y,z}, heading } (rtx's own -2.0 z offset is not applied).
-  Access = owner + players whose rtx permission set has garage = true (tenants follow rtx's
-  TenantPropertyPermissions.garage, default false, which another resource cannot read: not added).
+  Access = owner + players whose rtx permission set has garage = true. Tenants are not in the
+  cached sets (rtx's TenantPropertyPermissions.garage cannot be read from another resource);
+  while online they get access through the live GetPropertyPermission check, which follows it.
   Automatic: we draw the garage point (install/housing/rtx_housing turns rtx's own garage
   interaction off and adds the optional hook / refresh branches).
   Refresh hints: rtx_housing:Global:AddPermission / RemovePermission (net events, payload
-  ignored), rtx_housing:Global:AddLog (server event), resource start, the RefreshHousing export.
+  ignored, rate limited: Housing.netHint), rtx_housing:Global:AddLog (server event), resource
+  start, the RefreshHousing export.
   Live access (online players): exports GetPropertyPermission(src, houseid, 'garage').
   Confidence: medium (escrowed; editable files and SQL read).
 ]]
@@ -40,8 +42,10 @@ Housing.addLoader({
       if not rows then return nil end
     end
 
-    local out = {}
+    local out, n = {}, 0
     for key, p in pairs(rows) do
+      n = n + 1
+      ctx.yield(n)
       p = ctx.decode(p)
       local houseid = type(p) == 'table' and (p.houseid or key) or nil
       if houseid ~= nil then
@@ -53,7 +57,7 @@ Housing.addLoader({
           for k, entry in pairs(permissions) do
             local flags = type(entry) == 'table' and ctx.decode(entry.permissions) or nil
             if flags and flags.garage == true then
-              local who = ctx.identifier(entry.identifierdata) or ctx.identifier(k)
+              local who = ctx.identifier(entry.identifierdata) or (type(k) == 'string' and ctx.identifier(k) or nil)
               if who then set[who] = true end
             end
           end
@@ -79,8 +83,9 @@ Housing.addLoader({
 })
 
 -- Permission changes from the rtx client (payload untrusted and ignored); rtx saves them in its
--- escrowed handler, so read a little later.
-RegisterNetEvent('rtx_housing:Global:AddPermission', function() Housing.hint('rtx', 1500) end)
-RegisterNetEvent('rtx_housing:Global:RemovePermission', function() Housing.hint('rtx', 1500) end)
+-- escrowed handler, so read a little later. Any client can send them: rate limited per player,
+-- at most one reload of this loader per 30 s through them.
+RegisterNetEvent('rtx_housing:Global:AddPermission', function() Housing.netHint(source, 'rtx', 1500) end)
+RegisterNetEvent('rtx_housing:Global:RemovePermission', function() Housing.netHint(source, 'rtx', 1500) end)
 -- Purchases, sales, transfers, rent changes (if rtx triggers its log event for them).
 AddEventHandler('rtx_housing:Global:AddLog', function() Housing.hint('rtx', 1500) end)

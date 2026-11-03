@@ -22,7 +22,8 @@ Housing.addLoader({
     if not owners then return nil end
 
     local access = {}
-    for _, row in ipairs(owners) do
+    for i, row in ipairs(owners) do
+      ctx.yield(i)
       if type(row.house) == 'string' then
         local set = access[row.house]
         if not set then
@@ -36,7 +37,8 @@ Housing.addLoader({
     end
 
     local out = {}
-    for _, row in ipairs(houses) do
+    for i, row in ipairs(houses) do
+      ctx.yield(i)
       local coords = type(row.name) == 'string' and ctx.point(row.garage) or nil
       if coords then
         out[row.name] = {

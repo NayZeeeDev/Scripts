@@ -3,7 +3,7 @@
  *
  * API
  *   <MapView pins selectedId? hoverId? onSelect?(id|null) onHover?(id|null) onActivate?(id)
- *            focusTick? fitKey? bottomInset? distanceUnit? emptyText? className? />
+ *            onMakeRoom?() focusTick? fitKey? bottomInset? distanceUnit? emptyText? className? />
  *   MapPin { id, x, y (world), label, type: VehicleType, muted?, meta?, stat? }
  *
  * - Built on the three calibrated images in web/public/maps (see mapGeo.ts). Style switcher
@@ -18,14 +18,20 @@
  *   Muted (disabled) pins are grey. Close pins cluster into a count bubble (click → zoom in);
  *   the selected / hovered pin never clusters. Selected: larger, pulse ring, name label.
  *   Hover: tooltip card (label, meta, stat). Click empty map → onSelect(null);
- *   double-click a pin → onActivate(id); double-click the map → zoom in there.
+ *   double-click a pin → onActivate(id); double-click the map → zoom in there. A pin
+ *   double-click is recognised by time and place (the pin may fly away, or the inspector slide
+ *   over it, between the two clicks): the second click never deselects, zooms or hits the
+ *   inspector.
+ * - Zoom limit per style: satellite and dark are upscaled images and stop earlier than atlas.
  * - bottomInset: px covered by an overlay at the bottom (the inspector). Bottom overlays
  *   (legend, scale, cursor coordinates) sit above it and focusing centres in the visible part.
  * - focusTick: change it to fly to the selected pin (zooming in to a moderate level).
  * - fitKey: change it when the filters change. With nothing selected, the map refits when a
  *   matching pin is off-screen (a single match: flies to it).
- * - Fit all with the inspector open: when the pins cannot fit above it, the selection is
- *   cleared (onSelect(null)) and the whole set is fitted.
+ * - Fit all keeps the selection. With the inspector open and the pins too spread out to fit
+ *   above it, onMakeRoom() asks the page to fold the inspector to its header row; the map fits
+ *   into the room that frees up (the running fly is retargeted when the new inset arrives).
+ *   Without onMakeRoom the pins are fitted into the whole map height.
  * - The image edges melt into the sea colour (.nz-admin-map__edge); pins are clipped above
  *   the inset so nothing shows between the bottom overlays and the inspector.
  */
@@ -62,6 +68,8 @@ export interface MapViewProps {
   onHover?: (id: Id | null) => void;
   /** Double-click on a pin. */
   onActivate?: (id: Id) => void;
+  /** Fit all needs more room than the bottom overlay leaves: shrink it (bottomInset follows). */
+  onMakeRoom?: () => void;
   /** Change this number to fly to the selected pin. */
   focusTick?: number;
   /** Change this string when the filters change: off-screen matches bring the map to them. */
@@ -84,8 +92,17 @@ type Anim =
   | { kind: 'zoom'; target: number; ix: number; iy: number; sx: number; sy: number; last: number }
   | { kind: 'fling'; vx: number; vy: number; last: number };
 
-/** Screen px per image px. The images are upscaled from smaller sources: beyond ~1.6 they blur. */
-const MAX_K = 1.6;
+/**
+ * Deepest zoom (screen px per image px) per style. The satellite and dark images are upscaled
+ * from smaller sources: past ~1 they only get blurrier, so they stop earlier than the atlas.
+ */
+const MAX_K: Record<MapStyle, number> = { satellite: 1.05, dark: 1.15, atlas: 1.6 };
+/**
+ * A second click this soon and this close to a pin click is a double-click on that pin (time
+ * and place only: the click count CEF reports is not relied on).
+ */
+const DOUBLE_MS = 500;
+const DOUBLE_PX = 8;
 /** Fit-all never zooms in further than this. */
 const FIT_MAX_K = 0.62;
 /** Flying to a selected location zooms in to at least this. */
@@ -161,6 +178,7 @@ export function MapView({
   onSelect,
   onHover,
   onActivate,
+  onMakeRoom,
   focusTick,
   fitKey,
   bottomInset = 0,
@@ -194,6 +212,19 @@ export function MapView({
     samples: { t: number; x: number; y: number }[];
   } | null>(null);
   const suppressClick = useRef(false);
+  /** Deepest zoom of the current style (read by the clamps, the wheel and the clusters). */
+  const maxKRef = useRef(MAX_K[style]);
+  maxKRef.current = MAX_K[style];
+  /**
+   * Last mouse click on a pin. The first click selects, the inspector opens and the map flies
+   * the pin into view, so the second click of a double-click often lands on the bare map or on
+   * the inspector: it is recognised by time and place instead of by target.
+   */
+  const lastPinClick = useRef<{ id: Id; t: number; x: number; y: number } | null>(null);
+  const onActivateRef = useRef(onActivate);
+  onActivateRef.current = onActivate;
+  /** When a double-click opened a pin: the browser's dblclick that follows is swallowed. */
+  const activatedAt = useRef(-Infinity);
 
   /* ── size ── */
   useLayoutEffect(() => {
@@ -215,7 +246,7 @@ export function MapView({
     (v: View): View => {
       const { w, h } = sizeRef.current;
       const lo = Math.min(w / MAP_W, h / MAP_H) * 0.9;
-      const k = clamp(v.k, lo, MAX_K);
+      const k = clamp(v.k, lo, maxKRef.current);
       return { k, cx: clamp(v.cx, 0, MAP_W), cy: clamp(v.cy, 0, MAP_H) };
     },
     [],
@@ -254,9 +285,12 @@ export function MapView({
         const dt = Math.min(64, now - a.last);
         a.last = now;
         const f = 1 - Math.exp(-dt / 65);
-        let k = Math.exp(lerp(Math.log(v.k), Math.log(a.target), f));
-        if (Math.abs(Math.log(k / a.target)) < 0.003) {
-          k = a.target;
+        // The limits can change mid-zoom (style switch, resize): never chase an unreachable zoom.
+        const target = clampView({ k: a.target, cx: 0, cy: 0 }).k;
+        a.target = target;
+        let k = Math.exp(lerp(Math.log(v.k), Math.log(target), f));
+        if (Math.abs(Math.log(k / target)) < 0.003) {
+          k = target;
           done = true;
         }
         next = { k, cx: a.ix - (a.sx - w / 2) / k, cy: a.iy - (a.sy - h / 2) / k };
@@ -273,7 +307,7 @@ export function MapView({
       if (done) anim.current = null;
       else raf.current = requestAnimationFrame(tick);
     },
-    [setView],
+    [setView, clampView],
   );
 
   const start = useCallback(
@@ -402,7 +436,7 @@ export function MapView({
       const a = anim.current;
       const base = a && a.kind === 'zoom' ? a.target : v.k;
       const lo = Math.min(w / MAP_W, h / MAP_H) * 0.9;
-      const target = clamp(base * factor, lo, MAX_K);
+      const target = clamp(base * factor, lo, maxKRef.current);
       const ix = v.cx + (sx - w / 2) / v.k;
       const iy = v.cy + (sy - h / 2) / v.k;
       if (reducedMotion()) {
@@ -440,9 +474,19 @@ export function MapView({
   const lastInset = useRef(bottomInset);
   /** When the last forced focus started: an inset arriving right after it re-centres. */
   const pendingFocus = useRef(-Infinity);
+  /** When Fit all asked for room (onMakeRoom): the smaller inset that follows refits. */
+  const pendingFit = useRef(-Infinity);
   useEffect(() => {
     const insetChanged = bottomInset !== lastInset.current;
     lastInset.current = bottomInset;
+    if (insetChanged && performance.now() - pendingFit.current < 700 && size.w && viewRef.current.k) {
+      pendingFit.current = -Infinity;
+      const to = fitView(placedRef.current, FIT_MAX_K, bottomInset);
+      const running = anim.current;
+      if (running && running.kind === 'fly' && !running.anchor && !reducedMotion()) running.to = clampView(to);
+      else flyTo(to, 480);
+      return;
+    }
     if (!selected || !size.w || !viewRef.current.k) return;
     let force = focusTick !== lastFocus.current;
     lastFocus.current = focusTick;
@@ -452,7 +496,7 @@ export function MapView({
     // Mid-flight: judge the destination.
     const v = destination();
     if (!force && inSafeArea(selected, v, bottomInset)) return;
-    const k = force ? Math.max(v.k, Math.min(FOCUS_K, MAX_K)) : v.k;
+    const k = force ? Math.max(v.k, Math.min(FOCUS_K, maxKRef.current)) : v.k;
     const to = centreOn(selected, k, bottomInset);
     if (force) pendingFocus.current = performance.now();
     const running = anim.current;
@@ -477,7 +521,8 @@ export function MapView({
       if (list.length === 1) {
         const only = list[0];
         if (inSafeArea(only, v) && v.k >= FOCUS_K) return;
-        flyTo(centreOn(only, Math.min(MAX_K, Math.max(v.k, FOCUS_K))), 520);
+        // Off-screen: arrive at the usual focus zoom (a deep zoom elsewhere gives no context).
+        flyTo(centreOn(only, Math.min(FOCUS_K, maxKRef.current)), 520);
         return;
       }
       if (list.every((p) => inSafeArea(p, v))) return;
@@ -486,25 +531,66 @@ export function MapView({
     return () => window.clearTimeout(timer);
   }, [fitKey]);
 
-  /** Fit all; with the inspector open and too little room above it, close it first. */
+  /**
+   * Fit all. A view action: the selection stays. With the inspector open and too little room
+   * above it, the pins are fitted into the whole map height (southern ones may sit under it).
+   */
   const fitAll = () => {
     if (!placed.length) return;
     const inset = insetRef.current;
-    if (inset > 0 && selectedRef.current) {
-      const v = clampView(fitView(placed));
-      if (!placed.every((p) => inSafeArea(p, v, inset))) {
-        onSelect?.(null);
+    if (inset > 0 && !placed.every((p) => inSafeArea(p, clampView(fitView(placed)), inset))) {
+      if (!onMakeRoom) {
         flyTo(fitView(placed, FIT_MAX_K, 0));
         return;
       }
+      // Start now; the fly is retargeted once the folded inspector's inset is measured.
+      pendingFit.current = performance.now();
+      onMakeRoom();
     }
-    flyTo(fitView(placed));
+    flyTo(fitView(placed), 520);
   };
+
+  /** Is this click the second half of a double-click on a pin (same place, right after)? */
+  const recentPin = (e: { clientX: number; clientY: number }) => {
+    const lp = lastPinClick.current;
+    return !!lp && performance.now() - lp.t < DOUBLE_MS && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) < DOUBLE_PX;
+  };
+  const recentPinRef = useRef(recentPin);
+  recentPinRef.current = recentPin;
+
+  // The second click of a pin double-click can land anywhere the pin was: on the pin, the bare
+  // map (it flew away) or the inspector that slid in over it (even on one of its buttons).
+  // Caught on the document before anything else sees it: opens that pin, nothing else happens.
+  useEffect(() => {
+    const onClickCapture = (e: MouseEvent) => {
+      if (e.button !== 0 || suppressClick.current || !onActivateRef.current || !recentPinRef.current(e)) return;
+      const id = lastPinClick.current!.id;
+      lastPinClick.current = null;
+      activatedAt.current = performance.now();
+      e.stopPropagation();
+      e.preventDefault();
+      onActivateRef.current?.(id);
+    };
+    const onDblCapture = (e: MouseEvent) => {
+      if (performance.now() - activatedAt.current > 700) return;
+      activatedAt.current = -Infinity;
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    document.addEventListener('click', onClickCapture, true);
+    document.addEventListener('dblclick', onDblCapture, true);
+    return () => {
+      document.removeEventListener('click', onClickCapture, true);
+      document.removeEventListener('dblclick', onDblCapture, true);
+    };
+  }, []);
 
   /* ── pointer: drag to pan, click to deselect ── */
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.nz-admin-map__ui')) return;
+    // Second half of a pin double-click: no drag, no deselect, the fly to the pin keeps going.
+    if (recentPin(e)) return;
     stop();
     suppressClick.current = false;
     drag.current = {
@@ -630,6 +716,13 @@ export function MapView({
     setStyle(s);
     writeMapStyle(s);
     setMounted((m) => (m.includes(s) ? m : [...m, s]));
+    // A softer image stops zooming earlier: back out to its limit around the centre.
+    maxKRef.current = MAX_K[s];
+    const v = destination();
+    if (v.k > MAX_K[s]) {
+      const { w, h } = sizeRef.current;
+      flyTo({ ...v, k: MAX_K[s] }, 300, { ix: v.cx, iy: v.cy, sx: w / 2, sy: h / 2 });
+    }
   };
   // The new style fades in over the old one, which stays opaque underneath until the fade ends
   // (transitionend, or this timer when transitions are off).
@@ -696,13 +789,18 @@ export function MapView({
       heads.push({ x0: o.x - 15, x1: o.x + 15, y0: o.y - 40, y1: o.y + 4 });
     }
     for (const o of clusterPos.values()) heads.push({ x0: o.x - 22, x1: o.x + 22, y0: o.y - 22, y1: o.y + 22 });
-    const blocked = (b: { x0: number; x1: number }) =>
-      heads.some((r) => r.x0 < b.x1 && r.x1 > b.x0 && r.y0 < bottom && r.y1 > top);
+    /** Area of other pins the label would cover on that side (both sides can touch a neighbour). */
+    const covered = (b: { x0: number; x1: number }) =>
+      heads.reduce(
+        (sum, r) => sum + Math.max(0, Math.min(r.x1, b.x1) - Math.max(r.x0, b.x0)) * Math.max(0, Math.min(r.y1, bottom) - Math.max(r.y0, top)),
+        0,
+      );
     const rightOut = right.x1 > w - 8;
     const leftOut = left.x0 < 8;
     if (leftOut) return false;
     if (rightOut) return true;
-    return blocked(right) && !blocked(left);
+    const onRight = covered(right);
+    return onRight > 0 && covered(left) < onRight;
   })();
 
   const hovered = hoverId !== null ? placed.find((p) => p.pin.id === hoverId) ?? null : null;
@@ -790,11 +888,14 @@ export function MapView({
               onClick={() => {
                 if (suppressClick.current) return;
                 setClusterHover(null);
+                // The bubble unmounts once it splits: keep the keyboard on the map (+/−, arrows, F, Esc).
+                wrapRef.current?.focus({ preventScroll: true });
                 // Zoom in just enough to split the bubble (never past "fit these members").
+                const maxK = maxKRef.current;
                 let d = Infinity;
                 g.members.forEach((a, i) => g.members.slice(i + 1).forEach((b) => (d = Math.min(d, Math.hypot(a.ix - b.ix, a.iy - b.iy)))));
-                const split = d > 0 && d < Infinity ? ((CLUSTER_PX + 18) / d) * 1.15 : MAX_K;
-                const fit = fitView(g.members, MAX_K);
+                const split = d > 0 && d < Infinity ? ((CLUSTER_PX + 18) / d) * 1.15 : maxK;
+                const fit = fitView(g.members, maxK);
                 const k = Math.min(fit.k, Math.max(viewRef.current.k * 1.8, split));
                 const { h: vh0 } = sizeRef.current;
                 const vh = vh0 - insetRef.current;
@@ -829,11 +930,12 @@ export function MapView({
               style={{ transform: `translate3d(${s.x}px, ${s.y}px, 0)` }}
               aria-label={pin.label}
               aria-pressed={isSel}
-              onClick={() => {
+              onClick={(e) => {
                 if (suppressClick.current) return;
+                // Mouse clicks only (keyboard clicks have detail 0): the double-click record.
+                lastPinClick.current = e.detail > 0 ? { id: pin.id, t: performance.now(), x: e.clientX, y: e.clientY } : null;
                 onSelect?.(pin.id);
               }}
-              onDoubleClick={() => onActivate?.(pin.id)}
               onMouseEnter={() => !drag.current?.moved && onHover?.(pin.id)}
               onMouseLeave={() => onHover?.(null)}
               onFocus={() => onHover?.(pin.id)}
@@ -912,18 +1014,32 @@ export function MapView({
       </div>
 
       <div className="nz-admin-map__ui nz-admin-map__controls">
-        <button type="button" className="nz-admin-map__ctl" onClick={fitAll} disabled={!pins.length}>
+        {/* Narrow maps show these two as icons only: the title / aria-label name them. */}
+        <button
+          type="button"
+          className="nz-admin-map__ctl"
+          onClick={fitAll}
+          disabled={!pins.length}
+          title={t('Fit all locations (F)')}
+          aria-label={t('Fit all')}
+        >
           <Icon name="pin" size={13} strokeWidth={1.8} />
           <span>{t('Fit all')}</span>
         </button>
-        <button type="button" className="nz-admin-map__ctl" onClick={() => flyTo(fullView())}>
+        <button
+          type="button"
+          className="nz-admin-map__ctl"
+          onClick={() => flyTo(fullView())}
+          title={t('Show the whole map (0)')}
+          aria-label={t('Reset')}
+        >
           <Icon name="map" size={13} strokeWidth={1.8} />
           <span>{t('Reset')}</span>
         </button>
         <span className="nz-admin-map__zoom">
           <IconButton icon="minus" label={t('Zoom out')} size="sm" tooltipSide="bottom" disabled={k <= minK * 1.001} onClick={() => zoomBy(1 / 1.6)} />
           <span className="nz-admin-map__zoom-val">{zoomFactor.toFixed(1)}×</span>
-          <IconButton icon="plus" label={t('Zoom in')} size="sm" tooltipSide="bottom" disabled={k >= MAX_K * 0.999} onClick={() => zoomBy(1.6)} />
+          <IconButton icon="plus" label={t('Zoom in')} size="sm" tooltipSide="bottom" disabled={k >= MAX_K[style] * 0.999} onClick={() => zoomBy(1.6)} />
         </span>
       </div>
 

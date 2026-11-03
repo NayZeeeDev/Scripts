@@ -3,12 +3,12 @@
  * Each entry: family icon, readable sentence, actor, relative time (exact time on hover)
  * and expandable details. ActivityRow is reused (compact) by the Overview.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Avatar, Button, EmptyState, Icon, Pagination, Skeleton, Tooltip, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { date, dateTime } from '@/lib/format';
 import type { AdminOpenData, AdminVehicleDetail, VehicleActivity } from '@/lib/types';
-import { activityDetails, actorOf, describeActivity } from './activity';
+import { activityDetails, actorOf, collapseActivity, describeActivity, nameIndex } from './activity';
 import { ago } from './data';
 import type { ActivityState } from './useActivity';
 
@@ -16,14 +16,17 @@ interface RowProps {
   row: VehicleActivity;
   detail: AdminVehicleDetail;
   data: AdminOpenData;
+  /** identifier → name from the loaded rows (nameIndex). */
+  names?: Map<string, string>;
   compact?: boolean;
   open?: boolean;
   onToggle?: () => void;
 }
 
-export function ActivityRow({ row, detail, data, compact = false, open = false, onToggle }: RowProps) {
-  const view = describeActivity(row, { detail, data });
-  const details = compact ? [] : activityDetails(row);
+export function ActivityRow({ row, detail, data, names, compact = false, open = false, onToggle }: RowProps) {
+  const ctx = { detail, data, names };
+  const view = describeActivity(row, ctx);
+  const details = compact || !open ? [] : activityDetails(row, ctx);
   const expandable = !compact && !!onToggle;
   const head = (
     <>
@@ -50,8 +53,14 @@ export function ActivityRow({ row, detail, data, compact = false, open = false, 
         )}
       </span>
       {!compact && (
-        <span className="nz-dos-act__actor">
-          <Avatar name={actorOf(row)} size={20} />
+        <span className={cx('nz-dos-act__actor', !row.actor && 'is-server')}>
+          {row.actor ? (
+            <Avatar name={actorOf(row)} size={20} />
+          ) : (
+            <span className="nz-dos-act__sys" aria-hidden="true">
+              <Icon name="cog" size={12} strokeWidth={1.8} />
+            </span>
+          )}
           <span className="nz-aveh-ellipsis">{actorOf(row)}</span>
         </span>
       )}
@@ -124,7 +133,8 @@ interface Props {
 export function ActivityTab({ detail, data, activity }: Props) {
   const [open, setOpen] = useState<number | null>(null);
   const { current, loading, error } = activity;
-  const rows = current?.rows ?? [];
+  const rows = useMemo(() => collapseActivity(current?.rows ?? []), [current]);
+  const names = useMemo(() => nameIndex([...(current?.rows ?? []), ...(activity.latest?.rows ?? [])], detail), [current, activity.latest, detail]);
   const pageCount = current ? Math.max(1, Math.ceil(current.total / current.pageSize)) : 1;
 
   if (error && !current) {
@@ -196,17 +206,37 @@ export function ActivityTab({ detail, data, activity }: Props) {
             </h5>
             <ul className="nz-dos-actlist">
               {g.rows.map((r) => (
-                <ActivityRow key={r.id} row={r} detail={detail} data={data} open={open === r.id} onToggle={() => setOpen((o) => (o === r.id ? null : r.id))} />
+                <ActivityRow
+                  key={r.id}
+                  row={r}
+                  detail={detail}
+                  data={data}
+                  names={names}
+                  open={open === r.id}
+                  onToggle={() => setOpen((o) => (o === r.id ? null : r.id))}
+                />
               ))}
             </ul>
           </section>
         ))}
       </div>
       <div className="nz-dos-actlog__foot">
-        <span className="nz-dos-actlog__note">
-          <Icon name="info" size={13} strokeWidth={1.7} />
-          {t('Newest first. Click an entry for its details.')}
-        </span>
+        {error ? (
+          <span className="nz-dos-actlog__note is-error" role="alert">
+            <Icon name="warning" size={13} strokeWidth={1.7} />
+            <span className="nz-aveh-ellipsis" title={error}>
+              {t('Could not load that page.')}
+            </span>
+            <Button size="sm" variant="ghost" icon="refresh" onClick={activity.reload} loading={loading}>
+              {t('Retry')}
+            </Button>
+          </span>
+        ) : (
+          <span className="nz-dos-actlog__note">
+            <Icon name="info" size={13} strokeWidth={1.7} />
+            {t('Newest first. Click an entry for its details.')}
+          </span>
+        )}
         <Pagination page={current.page} pageCount={pageCount} total={current.total} pageSize={current.pageSize} onChange={activity.setPage} />
       </div>
     </div>

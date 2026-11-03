@@ -8,7 +8,7 @@ import { t } from '@/lib/i18n';
 import { percent } from '@/lib/format';
 import type { AdminVehicleDetail, DamageSummary } from '@/lib/types';
 import { DamageDiagram } from './DamageDiagram';
-import { PARTS, damageCaption, damageCounts, partStates } from './data';
+import { damageCaption, damageCounts, partStates, partsFor, shapeOf } from './data';
 import type { PartGroup, PartState } from './data';
 import { Fact, Heading, SegGauge } from './parts';
 
@@ -31,10 +31,15 @@ const GROUPS: { id: PartGroup; label: () => string }[] = [
 export function ConditionTab({ detail, damage, needsService, serviceBelow }: Props) {
   const v = detail.vehicle;
   const [hot, setHot] = useState<string | null>(null);
-  const states = partStates(damage);
-  const counts = damageCounts(damage);
-  const hotPart = hot ? PARTS.find((p) => p.id === hot) : null;
+  const shape = shapeOf(v);
+  const parts = partsFor(shape);
+  const states = partStates(damage, shape);
+  const counts = damageCounts(damage, shape);
+  const hotPart = hot ? parts.find((p) => p.id === hot) : null;
   const of1000 = (n: number) => t('{n}/1000', { n: Math.round(n) });
+  // Engine / body come from the vehicle row (it wins on spawn and admin edits update it);
+  // the stored damage only adds the tank, the parts and the deformation.
+  const groups = GROUPS.filter((g) => parts.some((p) => p.group === g.id));
 
   return (
     <div className="nz-dos-pane">
@@ -44,16 +49,20 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
             actions={
               <span className="nz-dos-legend" aria-hidden="true">
                 <span className="is-ok">{t('Intact')}</span>
-                <span className="is-bad">{t('Damaged')}</span>
-                <span className="is-burst">{t('Burst')}</span>
-                <span className="is-rim">{t('On the rim')}</span>
+                {groups.some((g) => g.id !== 'tyres') && <span className="is-bad">{t('Damaged')}</span>}
+                {groups.some((g) => g.id === 'tyres') && (
+                  <>
+                    <span className="is-burst">{t('Burst')}</span>
+                    <span className="is-rim">{t('On the rim')}</span>
+                  </>
+                )}
               </span>
             }
           >
             {t('Damage map')}
           </Heading>
           <div className={cx('nz-dos-cond__canvas', !damage && 'is-nodata')}>
-            <DamageDiagram damage={damage} labels hot={hot} onHot={setHot} />
+            <DamageDiagram damage={damage} shape={shape} engine={v.engine} labels hot={hot} onHot={setHot} />
             {!damage && (
               <div className="nz-dos-cond__nodata">
                 <Icon name="info" size={14} strokeWidth={1.7} />
@@ -68,7 +77,7 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
                 <span>{damage ? stateText(states[hotPart.id], hotPart.group) : t('Unknown')}</span>
               </>
             ) : (
-              <span>{damageCaption(damage)}</span>
+              <span>{damageCaption(damage, shape)}</span>
             )}
           </p>
         </section>
@@ -76,21 +85,21 @@ export function ConditionTab({ detail, damage, needsService, serviceBelow }: Pro
         <section className="nz-dos-col nz-dos-cond__side">
           <Heading>{t('Health')}</Heading>
           <div className="nz-dos-cond__gauges">
-            <SegGauge icon="engine" label={t('Engine')} value={v.engine} detail={damage ? of1000(damage.engine) : undefined} />
-            <SegGauge icon="shield" label={t('Body')} value={v.body} detail={damage ? of1000(damage.body) : undefined} />
+            <SegGauge icon="engine" label={t('Engine')} value={v.engine} detail={of1000(v.engine * 10)} />
+            <SegGauge icon="shield" label={t('Body')} value={v.body} detail={of1000(v.body * 10)} />
             {damage && <SegGauge icon="fuel" label={t('Fuel tank')} value={damage.tank / 10} detail={of1000(damage.tank)} />}
             <SegGauge icon="fuel" label={t('Fuel level')} value={v.fuel} />
           </div>
 
           <Heading count={damage ? counts.doors + counts.windows + counts.burst + counts.rim : undefined}>{t('Parts')}</Heading>
           <div className="nz-dos-parts">
-            {GROUPS.map((g) => {
-              const parts = PARTS.filter((p) => p.group === g.id && (!p.optional || states[p.id] !== 'ok'));
+            {groups.map((g) => {
+              const list = parts.filter((p) => p.group === g.id && (!p.optional || states[p.id] !== 'ok'));
               return (
                 <div key={g.id} className="nz-dos-parts__group">
-                  <span className="nz-dos-parts__label">{g.label()}</span>
+                  <span className="nz-dos-parts__label">{g.id === 'windows' && shape !== 'car' ? t('Glass') : g.label()}</span>
                   <div className="nz-dos-parts__chips">
-                    {parts.map((p) => {
+                    {list.map((p) => {
                       const s = damage ? states[p.id] : null;
                       return (
                         <span

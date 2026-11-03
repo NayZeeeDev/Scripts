@@ -1,12 +1,14 @@
 /**
  * Root: mounts every app (each renders nothing while closed) and the in-world widgets.
  * File paths and export names here are part of the contract — see docs/UI_KIT.md.
- * Notifications are not rendered here: toast() sends them to Lua, which shows them through
- * the configured notify integration (bridge/client/notify.lua).
+ * Notifications: toast() always sends them to Lua (bridge/client/notify.lua), which draws them
+ * back here in <Toasts /> while one of our windows holds NUI focus (FiveM puts the focused page
+ * above every other resource's NUI) and otherwise uses the configured notify integration.
  */
 import { useEffect } from 'react';
 import { useUi } from './lib/store';
 import { isBrowser } from './lib/nui';
+import { Toasts } from './components/Toasts';
 import { Prompt } from './apps/hud/Prompt';
 import { Hint } from './apps/hud/Hint';
 import { InteriorHud } from './apps/interior/InteriorHud';
@@ -39,6 +41,7 @@ export function App() {
       <ImpoundFormApp />
       <ForSaleApp />
       <AdminApp />
+      <Toasts />
     </div>
   );
 }

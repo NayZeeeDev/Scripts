@@ -4,7 +4,9 @@
  */
 import { t } from '@/lib/i18n';
 import { date } from '@/lib/format';
-import type { AdminOpenData, AdminVehicleDetail, DamageSummary } from '@/lib/types';
+import type { AdminOpenData, AdminVehicleDetail, DamageSummary, VehicleType } from '@/lib/types';
+import { glyphShape } from '@/apps/garage/showroom/DamageGlyph';
+import type { GlyphShape } from '@/apps/garage/showroom/DamageGlyph';
 import { colourByIndex, isRgb, rgbToHex } from '../props/catalog';
 import { num } from '../util';
 
@@ -40,6 +42,13 @@ export function normDamage(raw: unknown): DamageSummary | null {
 
 /* ───────────────────────── damage parts ───────────────────────── */
 
+/** Outline family of the damage map: the showroom glyph's shapes (class first, then type). */
+export type DmgShape = GlyphShape;
+
+export function shapeOf(v: { vehicleType: VehicleType; classId?: number; model?: string | null }): DmgShape {
+  return glyphShape(v.vehicleType, v.classId, v.model);
+}
+
 export type PartGroup = 'doors' | 'windows' | 'tyres';
 export type PartState = 'ok' | 'bad' | 'burst' | 'rim';
 
@@ -54,7 +63,7 @@ export interface Part {
   optional?: boolean;
 }
 
-export const PARTS: Part[] = [
+const CAR_PARTS: Part[] = [
   { id: 'door0', group: 'doors', label: () => t('Front left door'), short: () => t('Front left') },
   { id: 'door1', group: 'doors', label: () => t('Front right door'), short: () => t('Front right') },
   { id: 'door2', group: 'doors', label: () => t('Rear left door'), short: () => t('Rear left') },
@@ -75,21 +84,56 @@ export const PARTS: Part[] = [
   { id: 'tyre5', group: 'tyres', label: () => t('Rear right tyre'), short: () => t('Rear right') },
   { id: 'tyre2', group: 'tyres', label: () => t('Middle left tyre'), short: () => t('Middle left'), optional: true },
   { id: 'tyre3', group: 'tyres', label: () => t('Middle right tyre'), short: () => t('Middle right'), optional: true },
+  { id: 'tyre45', group: 'tyres', label: () => t('Second middle left tyre'), short: () => t('Middle left 2'), optional: true },
+  { id: 'tyre47', group: 'tyres', label: () => t('Second middle right tyre'), short: () => t('Middle right 2'), optional: true },
 ];
 
-/** GTA tyre index → diagram slot (45 / 47 are the middle wheels of 6-wheelers). */
-const tyreSlot = (i: number) => (i === 45 ? 2 : i === 47 ? 3 : i);
+/** Bikes: GTA wheel 0 is the front tyre, 4 the rear one (1 / 5 are read as the same tyre). */
+const BIKE_PARTS: Part[] = [
+  { id: 'tyre0', group: 'tyres', label: () => t('Front tyre'), short: () => t('Front') },
+  { id: 'tyre4', group: 'tyres', label: () => t('Rear tyre'), short: () => t('Rear') },
+];
 
-/** State of every part ('ok' for intact). */
-export function partStates(d: DamageSummary | null): Record<string, PartState> {
+const BOAT_PARTS: Part[] = [{ id: 'win6', group: 'windows', label: () => t('Windscreen'), short: () => t('Windscreen') }];
+const AIR_PARTS: Part[] = [{ id: 'win6', group: 'windows', label: () => t('Cockpit glass'), short: () => t('Cockpit glass') }];
+
+/** The parts a shape can show (cars: doors, windows, tyres; bikes: tyres; boats / aircraft: glass). */
+export function partsFor(shape: DmgShape): Part[] {
+  switch (shape) {
+    case 'bike':
+      return BIKE_PARTS;
+    case 'boat':
+      return BOAT_PARTS;
+    case 'plane':
+    case 'heli':
+      return AIR_PARTS;
+    default:
+      return CAR_PARTS;
+  }
+}
+
+const CAR_TYRES = new Set([0, 1, 2, 3, 4, 5, 45, 47]);
+const worse = (a: PartState | undefined, b: PartState): PartState => (a === 'rim' || (a === 'burst' && b !== 'rim') ? a : b);
+
+/** State of every part of the shape ('ok' for intact). */
+export function partStates(d: DamageSummary | null, shape: DmgShape = 'car'): Record<string, PartState> {
   const out: Record<string, PartState> = {};
-  for (const p of PARTS) out[p.id] = 'ok';
+  for (const p of partsFor(shape)) out[p.id] = 'ok';
   if (!d) return out;
-  for (const i of d.doors) if (i >= 0 && i <= 5) out[`door${i}`] = 'bad';
-  for (const i of d.windows) if (i >= 0 && i <= 7) out[`win${i}`] = 'bad';
-  for (const ty of d.tyres) {
-    const s = tyreSlot(ty.index);
-    if (s >= 0 && s <= 5) out[`tyre${s}`] = ty.state === 2 ? 'rim' : 'burst';
+  const tyre = (id: string, state: 1 | 2) => {
+    if (id in out) out[id] = worse(out[id], state === 2 ? 'rim' : 'burst');
+  };
+  if (shape === 'car') {
+    for (const i of d.doors) if (i >= 0 && i <= 5) out[`door${i}`] = 'bad';
+    for (const i of d.windows) if (i >= 0 && i <= 7) out[`win${i}`] = 'bad';
+    for (const ty of d.tyres) if (CAR_TYRES.has(ty.index)) tyre(`tyre${ty.index}`, ty.state);
+  } else if (shape === 'bike') {
+    for (const ty of d.tyres) {
+      if (ty.index === 0 || ty.index === 1) tyre('tyre0', ty.state);
+      else if (ty.index === 4 || ty.index === 5) tyre('tyre4', ty.state);
+    }
+  } else if (d.windows.includes(6)) {
+    out.win6 = 'bad';
   }
   return out;
 }
@@ -101,23 +145,30 @@ export interface DamageCounts {
   rim: number;
 }
 
-export function damageCounts(d: DamageSummary | null): DamageCounts {
-  if (!d) return { doors: 0, windows: 0, burst: 0, rim: 0 };
-  return {
-    doors: new Set(d.doors).size,
-    windows: new Set(d.windows).size,
-    burst: d.tyres.filter((x) => x.state !== 2).length,
-    rim: d.tyres.filter((x) => x.state === 2).length,
-  };
+/** Damaged parts the shape can show (the map, the parts list and the caption agree). */
+export function damageCounts(d: DamageSummary | null, shape: DmgShape = 'car'): DamageCounts {
+  const c: DamageCounts = { doors: 0, windows: 0, burst: 0, rim: 0 };
+  if (!d) return c;
+  const states = partStates(d, shape);
+  for (const p of partsFor(shape)) {
+    const s = states[p.id];
+    if (s === 'bad' && p.group === 'doors') c.doors += 1;
+    else if (s === 'bad' && p.group === 'windows') c.windows += 1;
+    else if (s === 'burst') c.burst += 1;
+    else if (s === 'rim') c.rim += 1;
+  }
+  return c;
 }
 
 /** "2 windows smashed · 1 tyre burst" / "No visible damage" / "No damage data". */
-export function damageCaption(d: DamageSummary | null): string {
+export function damageCaption(d: DamageSummary | null, shape: DmgShape = 'car'): string {
   if (!d) return t('No damage data');
-  const c = damageCounts(d);
+  const c = damageCounts(d, shape);
   const parts: string[] = [];
   if (c.doors) parts.push(c.doors === 1 ? t('1 panel damaged') : t('{n} panels damaged', { n: c.doors }));
-  if (c.windows) parts.push(c.windows === 1 ? t('1 window smashed') : t('{n} windows smashed', { n: c.windows }));
+  if (c.windows && shape === 'boat') parts.push(t('windscreen smashed'));
+  else if (c.windows && shape !== 'car') parts.push(t('cockpit glass smashed'));
+  else if (c.windows) parts.push(c.windows === 1 ? t('1 window smashed') : t('{n} windows smashed', { n: c.windows }));
   if (c.burst) parts.push(c.burst === 1 ? t('1 tyre burst') : t('{n} tyres burst', { n: c.burst }));
   if (c.rim) parts.push(c.rim === 1 ? t('1 tyre on the rim') : t('{n} tyres on the rim', { n: c.rim }));
   if (d.deformed) parts.push(t('body deformed'));
@@ -126,9 +177,28 @@ export function damageCaption(d: DamageSummary | null): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function hasVisibleDamage(d: DamageSummary | null): boolean {
+/** Compact caption for the small glyph: "2 panels · 3 windows · 2 tyres · deformed". */
+export function damageShort(d: DamageSummary | null, shape: DmgShape = 'car'): string {
+  if (!d) return t('No damage data');
+  const c = damageCounts(d, shape);
+  const tyres = c.burst + c.rim;
+  const parts: string[] = [];
+  if (c.doors) parts.push(c.doors === 1 ? t('1 panel') : t('{n} panels', { n: c.doors }));
+  if (c.windows && shape === 'boat') parts.push(t('windscreen'));
+  else if (c.windows && shape !== 'car') parts.push(t('cockpit glass'));
+  else if (c.windows) parts.push(c.windows === 1 ? t('1 window') : t('{n} windows', { n: c.windows }));
+  if (tyres) parts.push(tyres === 1 ? t('1 tyre') : t('{n} tyres', { n: tyres }));
+  if (d.deformed) parts.push(t('deformed'));
+  if (!parts.length) return t('No visible damage');
+  const s = parts.join(' · ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function hasVisibleDamage(d: DamageSummary | null, shape: DmgShape = 'car'): boolean {
   if (!d) return false;
-  return d.doors.length > 0 || d.windows.length > 0 || d.tyres.length > 0 || d.deformed;
+  if (d.deformed) return true;
+  const c = damageCounts(d, shape);
+  return c.doors + c.windows + c.burst + c.rim > 0;
 }
 
 /* ───────────────────────── time ───────────────────────── */
@@ -217,23 +287,27 @@ export function groupLabel(detail: AdminVehicleDetail, data: AdminOpenData): str
 /* ───────────────────────── colours ───────────────────────── */
 
 export interface Swatch {
-  /** CSS colour, or null when the index is not in the catalogue. */
+  /** CSS colour, or null when the index is not in the catalogue or nothing is saved. */
   hex: string | null;
   name: string;
-  /** "#12" for palette indexes, "RGB" for custom paint. */
+  /** "#12" for palette indexes, "RGB" for custom paint, '' when nothing is saved. */
   code: string;
   custom: boolean;
+  /** The props have no value for this colour (never guessed). */
+  missing: boolean;
 }
 
-/** A props colour value (palette index or [r, g, b]) → swatch. */
-export function swatchOf(v: unknown, fallbackIndex = 0): Swatch {
+/** A props colour value (palette index or [r, g, b]) → swatch; absent values stay unknown. */
+export function swatchOf(v: unknown): Swatch {
+  if (v === undefined || v === null || v === '') return { hex: null, name: t('Not saved'), code: '', custom: false, missing: true };
   if (isRgb(v)) {
     const hex = rgbToHex(v);
-    return { hex, name: t('Custom {hex}', { hex: hex.toUpperCase() }), code: 'RGB', custom: true };
+    return { hex, name: t('Custom {hex}', { hex: hex.toUpperCase() }), code: 'RGB', custom: true, missing: false };
   }
-  const n = num(v, fallbackIndex);
+  const n = num(v, -1);
+  if (n < 0) return { hex: null, name: t('Not saved'), code: '', custom: false, missing: true };
   const c = colourByIndex(n);
-  return { hex: c?.hex ?? null, name: c ? t(c.name) : t('Colour #{n}', { n }), code: `#${n}`, custom: false };
+  return { hex: c?.hex ?? null, name: c ? t(c.name) : t('Colour #{n}', { n }), code: `#${n}`, custom: false, missing: false };
 }
 
 /** Approximate light colour of the GTA xenon presets (255 = stock). */

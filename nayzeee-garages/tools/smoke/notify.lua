@@ -4,8 +4,9 @@
 
   Loads the real files in a stubbed client environment and checks, for every value of
   Config.Integrations.notify, the exact call each notification system receives, plus the
-  ox_lib fallback (resource stopped / adapter error), text sanitizing, limits and the
-  callback validation + rate limit.
+  ox_lib fallback (resource stopped / adapter error), text sanitizing, limits, the
+  callback validation + rate limit and the in-interface drawing while a window has focus
+  (Config.Notify.inInterface).
 
   Usage (from the resource root):  lua5.4 tools/smoke/notify.lua
 ]]
@@ -39,6 +40,7 @@ end
 ---------------------------------------------------------------------------------------
 
 local calls, warnings, errors, printed = {}, {}, {}, {}
+local nuiMessages = {}
 local states = {}
 local now = 100000
 local throwIn = {}
@@ -57,7 +59,10 @@ local handlers, nuiCallbacks = {}, {}
 function RegisterNetEvent(name, fn) if fn then handlers[name] = fn end end
 function AddEventHandler(name, fn) handlers[name] = fn end
 function RegisterNUICallback(name, fn) nuiCallbacks[name] = fn end
-function SendNUIMessage() end
+function SendNUIMessage(msg)
+  if throwIn.SendNUIMessage then error('boom in SendNUIMessage') end
+  nuiMessages[#nuiMessages + 1] = msg
+end
 function SetNuiFocus() end
 function SetNuiFocusKeepInput() end
 function CreateThread(fn) local co = coroutine.create(fn) local ok, e = coroutine.resume(co) if not ok then error(e) end end
@@ -164,7 +169,7 @@ N.show('warning', 'Garage almost full')
 expectCall('esx', 'esx_notify:Notify', 'warning', 5000, 'Garage almost full', 'Garage', 'top-right')
 N = setup('esx', { running = { 'es_extended', 'esx_notify' }, notify = { title = '', position = 'center-right' } })
 N.show('success', 'Vehicle stored')
-expectCall('esx position + no title', 'esx_notify:Notify', 'success', 5000, 'Vehicle stored', nil, 'middle-right')
+expectCall('esx position + no title', 'esx_notify:Notify', 'success', 5000, 'Vehicle stored', '', 'middle-right')
 N = setup('esx', { running = { 'es_extended' } }) -- ESX without esx_notify
 N.show('warning', 'No esx_notify')
 N.show('info', 'Still none')
@@ -407,6 +412,73 @@ check(accepted == 8, "'notify' rate limit: 8 per 3 s (accepted " .. accepted .. 
 now = now + 3500
 r = callNotify({ type = 'info', message = 'After the window' })
 check(r and r.ok == true, "'notify' accepts again after the window")
+
+---------------------------------------------------------------------------------------
+-- In-interface drawing (a window holds NUI focus)
+---------------------------------------------------------------------------------------
+
+local function lastNotifyMessage()
+  for i = #nuiMessages, 1, -1 do
+    if nuiMessages[i].action == 'notify' then return nuiMessages[i] end
+  end
+end
+
+-- setup() reloads notify.lua only: NZ.NUI keeps the client/nui.lua functions loaded above.
+setup('okokNotify', { running = { 'okokNotify' } })
+nuiMessages = {}
+check(NZ.NUI.hasFocus() == false, 'no window open: no focus')
+NZ.Notify.show('info', 'No window yet')
+check(#calls == 1 and calls[1].name == 'okokNotify:Alert' and lastNotifyMessage() == nil,
+  'without focus the integration is used')
+
+NZ.NUI.open('garage', {})
+check(NZ.NUI.hasFocus() == true, 'garage window holds focus')
+calls, nuiMessages = {}, {}
+check(NZ.Notify.show('error', 'Not enough money') == true, 'in-interface show returns true')
+local m = lastNotifyMessage()
+check(#calls == 0, 'focused window: no adapter call (got ' .. #calls .. ')')
+check(m and deepEq(m.data, { type = 'error', message = 'Not enough money', duration = 5000 }),
+  'focused window: NUI notify message without the generic title ' .. dump(m and m.data))
+NZ.Notify.show('success', 'Saved as "Track toy"', 'Vehicle renamed', 7000)
+m = lastNotifyMessage()
+check(m and deepEq(m.data, { type = 'success', title = 'Vehicle renamed', message = 'Saved as "Track toy"', duration = 7000 }),
+  'focused window: explicit title and duration kept ' .. dump(m and m.data))
+NZ.Notify.show('warning', 'R&D <img src=x>')
+m = lastNotifyMessage()
+check(m and m.data.message == 'R&D ‹img src=x›', 'focused window: text is sanitized the same way ' .. dump(m and m.data))
+
+now = now + 10000
+nuiMessages = {}
+r = callNotify({ type = 'warning', message = 'From the web while focused' })
+m = lastNotifyMessage()
+check(r and r.ok == true and m and m.data.message == 'From the web while focused' and #calls == 0,
+  "'notify' callback while focused comes back to the interface")
+handlers['nz:client:notify']('success', 'Server says hi')
+m = lastNotifyMessage()
+check(m and m.data.message == 'Server says hi' and #calls == 0, 'server notification while focused -> interface')
+
+Config.Notify.inInterface = false
+NZ.Notify.show('info', 'Integration forced')
+check(calls[#calls] and calls[#calls].name == 'okokNotify:Alert' and lastNotifyMessage().data.message ~= 'Integration forced',
+  'inInterface = false always uses the integration')
+Config.Notify.inInterface = nil
+
+NZ.NUI.setFocus('garage', false) -- e.g. creator walk mode
+NZ.Notify.show('info', 'Walking around')
+check(calls[#calls] and calls[#calls].name == 'okokNotify:Alert' and calls[#calls].args[2] == 'Walking around',
+  'window without focus -> integration')
+NZ.NUI.setFocus('garage', true)
+
+throwIn.SendNUIMessage = true
+calls = {}
+check(NZ.Notify.show('info', 'NUI broken') == true, 'NUI failure still shows the notification')
+check(#calls == 1 and calls[1].name == 'okokNotify:Alert', 'NUI failure -> integration')
+throwIn.SendNUIMessage = nil
+
+NZ.NUI.close('garage')
+check(NZ.NUI.hasFocus() == false, 'closing the window releases focus')
+NZ.Notify.show('success', 'Vehicle stored after closing')
+check(calls[#calls] and calls[#calls].args[2] == 'Vehicle stored after closing', 'after closing -> integration')
 
 ---------------------------------------------------------------------------------------
 

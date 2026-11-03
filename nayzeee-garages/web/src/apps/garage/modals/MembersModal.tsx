@@ -105,6 +105,7 @@ export function MembersModal({
 
   return (
     <Modal
+      className="nz-garage-modal"
       open={open}
       title={t('Manage members')}
       subtitle={garageName}

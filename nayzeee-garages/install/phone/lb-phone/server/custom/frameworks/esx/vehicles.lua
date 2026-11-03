@@ -20,10 +20,12 @@
                  cars are sent as type 'boat' / 'aircraft' so the valet button should stay
                  hidden for them (nayzeee refuses them anyway unless Config.Phone.valetTypes
                  allows them). impoundReason.retrievable is sent in JS milliseconds like
-                 lb-phone's own ConvertJSTimestamp.
-  OPTIONAL       the two small patches in install/phone/README.md (lb-phone section) make the
-                 hand-over instant; without them nayzeee finds the valet car by its plate
-                 within ~2 s and puts an undelivered car back after Config.Phone.claimTimeout.
+                 lb-phone's own ConvertJSTimestamp, and left out for a vehicle held by
+                 police (nayzeee impound.retrievable = false).
+  OPTIONAL       install/phone/lb-phone/patches/client-garage.lua (recommended) and
+                 server-garage.lua make the hand-over / roll-back instant; without them
+                 nayzeee finds the valet car by its plate and model within ~2 s and puts an
+                 undelivered car back after Config.Phone.claimTimeout (60 s).
 ]]
 
 if Config.Framework ~= 'esx' then
@@ -81,7 +83,8 @@ local function toVehicleData(vehicle)
             reason = impound.reason,
             price = tonumber(impound.fee),
             impounder = impound.by,
-            retrievable = releaseAt and releaseAt * 1000 or nil, -- JS milliseconds
+            -- JS milliseconds; none for a vehicle held by police (the owner cannot get it out)
+            retrievable = (impound.retrievable ~= false and releaseAt) and releaseAt * 1000 or nil,
         }
     end
 

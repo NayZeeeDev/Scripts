@@ -5,7 +5,7 @@
   only (apartments have no garage zone in ps-housing). Fully automatic: we draw the garage point.
   Live refresh hints: ps-housing:server:updateProperty (realtor edits, purchases),
   ps-housing:server:addAccess / removeAccess (key changes; client-triggered, so only a
-  rate-limited reload hint), resource start. Live access: exports IsOwner(src, id) for online
+  rate-limited reload hint: Housing.netHint), resource start. Live access: exports IsOwner(src, id) for online
   players (owner or key holder). Confidence: high (open source, archived at v2.0.8).
 ]]
 
@@ -41,7 +41,8 @@ Housing.addLoader({
     if not rows then return nil end
 
     local out = {}
-    for _, row in ipairs(rows) do
+    for i, row in ipairs(rows) do
+      ctx.yield(i)
       local id = ctx.int(row.property_id)
       local coords = id and ctx.point(row.garage_data)
       if coords then
@@ -84,6 +85,7 @@ AddEventHandler('ps-housing:server:updateProperty', function(kind)
   end
 end)
 
--- Key changes (net events from the ps-housing client; payload ignored).
-RegisterNetEvent('ps-housing:server:addAccess', function() Housing.hint('ps', 1500) end)
-RegisterNetEvent('ps-housing:server:removeAccess', function() Housing.hint('ps', 1500) end)
+-- Key changes (net events from the ps-housing client; payload ignored). Any client can send
+-- them: rate limited per player, at most one reload of this loader per 30 s through them.
+RegisterNetEvent('ps-housing:server:addAccess', function() Housing.netHint(source, 'ps', 1500) end)
+RegisterNetEvent('ps-housing:server:removeAccess', function() Housing.netHint(source, 'ps', 1500) end)

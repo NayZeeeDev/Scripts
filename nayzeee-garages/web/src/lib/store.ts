@@ -1,7 +1,7 @@
 /**
- * Global UI state: which apps are open and their data, HUD widgets, settings.
+ * Global UI state: which apps are open and their data, HUD widgets, in-interface toasts, settings.
  * Apps read their slot with useApp('<name>'); nothing else should hold app data globally.
- * Notifications are not drawn here: toast() hands them to Lua (see below).
+ * toast() hands every notification to Lua, which decides where it is drawn (see below).
  */
 import { create } from 'zustand';
 import { fetchNui, isBrowser, onNuiMessage, setErrorReporter } from './nui';
@@ -16,6 +16,7 @@ import type {
   NotifyType,
   NuiMessage,
   PromptData,
+  Toast,
 } from './types';
 
 export const defaultInterface: InterfaceSettings = {
@@ -49,11 +50,20 @@ export interface UiState {
   hud: HudVehicle | null;
   prompt: PromptData | null;
   hint: HintData | null;
+  /** Notifications drawn inside the interface (Lua 'notify' message), newest last, max 5. */
+  toasts: (Toast & { id: string })[];
   openApp: <K extends AppName>(app: K, data: AppDataMap[K]) => void;
   updateApp: <K extends AppName>(app: K, partial: Partial<AppDataMap[K]>) => void;
   /** Close locally only (Lua already knows). Use closeApp() to also tell Lua. */
   hideApp: (app?: AppName | null) => void;
+  /** Draw a notification inside the interface. Use toast() to raise one: Lua decides where. */
+  pushToast: (t: Toast) => void;
+  dismissToast: (id: string) => void;
 }
+
+/** Most toasts on screen at once; the oldest is dropped. */
+const MAX_TOASTS = 5;
+let toastSeq = 0;
 
 export const useUi = create<UiState>((set) => ({
   ready: false,
@@ -63,6 +73,7 @@ export const useUi = create<UiState>((set) => ({
   hud: null,
   prompt: null,
   hint: null,
+  toasts: [],
   openApp: (app, data) =>
     set((s) => ({ apps: { ...s.apps, [app]: { open: true, data } } })),
   updateApp: (app, partial) =>
@@ -80,6 +91,13 @@ export const useUi = create<UiState>((set) => ({
       if (!app) return { apps: emptySlots() };
       return { apps: { ...s.apps, [app]: { open: false, data: s.apps[app].data } } };
     }),
+  pushToast: (t) =>
+    set((s) => {
+      if (!t || typeof t.message !== 'string' || !t.message.trim()) return s;
+      const next = [...s.toasts, { ...t, id: `t${++toastSeq}` }];
+      return { toasts: next.slice(-MAX_TOASTS) };
+    }),
+  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
 /* ───────────────────────── notifications ───────────────────────── */
@@ -99,9 +117,12 @@ function clipText(value: unknown, max: number): string {
 }
 
 /**
- * Raise a notification from anywhere (React or not). The interface draws none: Lua shows it
- * through the configured notify integration (Config.Integrations.notify: ox_lib, the
- * framework's own, okokNotify, ...). In the browser dev harness it is logged instead.
+ * Raise a notification from anywhere (React or not). It always goes to Lua (NUI callback
+ * 'notify'), which decides where it is drawn: while one of our windows holds NUI focus it comes
+ * straight back as a 'notify' message and <Toasts /> draws it (FiveM draws the focused page above
+ * every other resource's NUI, so the notify resource would be hidden behind the window);
+ * otherwise it goes through the configured notify integration (Config.Integrations.notify).
+ * The browser dev harness behaves like a focused window: it draws the toast and logs it.
  */
 export function toast(n: NotifyRequest) {
   const message = clipText(n.message, NOTIFY_MAX_MESSAGE);
@@ -111,6 +132,7 @@ export function toast(n: NotifyRequest) {
   const payload: NotifyRequest = title ? { type, title, message } : { type, message };
   if (isBrowser) {
     console.info(`[notify:${type}] ${title ? `${title} · ` : ''}${message}`);
+    useUi.getState().pushToast(payload);
     return;
   }
   void fetchNui('notify', payload);
@@ -173,6 +195,9 @@ function handleMessage(msg: NuiMessage) {
       break;
     case 'hint':
       useUi.setState({ hint: msg.data });
+      break;
+    case 'notify':
+      st.pushToast(msg.data);
       break;
   }
 }

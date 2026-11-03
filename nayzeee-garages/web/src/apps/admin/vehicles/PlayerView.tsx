@@ -3,7 +3,7 @@
  * Player band (back, identity, filter, assign), status tiles that filter the list, rich
  * vehicle rows (thumbnail, plate, location, condition) with ↑/↓ + Enter, and pagination.
  */
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Avatar, Badge, Button, EmptyState, Icon, IconButton, Pagination, SearchInput, Skeleton, VehicleImage, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
@@ -44,6 +44,8 @@ interface Props {
   onRetry: () => void;
   onOpen: (row: AdminVehicleRow) => void;
   onAssigned: (row: AdminVehicleRow) => void;
+  /** Plate of the vehicle last opened: its row gets the focus when coming back (↑/↓ keep working). */
+  focusPlate?: string | null;
 }
 
 function statusOf(row: AdminVehicleRow, s: StatusFilter): boolean {
@@ -66,7 +68,7 @@ function VehicleRowItem({ v, query, onOpen }: { v: AdminVehicleRow; query: strin
   const where = v.state === 'garaged' ? v.garageName ?? t('No garage') : stateLabel(v.state);
   return (
     <li>
-      <button type="button" className={cx('nz-aveh-vrow', v.blocked && 'is-blocked')} onClick={onOpen}>
+      <button type="button" className={cx('nz-aveh-vrow', v.blocked && 'is-blocked')} onClick={onOpen} data-plate={v.plate}>
         <span className="nz-aveh-vrow__thumb">
           <VehicleImage image={v.image} vehicleType={v.vehicleType} />
         </span>
@@ -108,9 +110,10 @@ function VehicleRowItem({ v, query, onOpen }: { v: AdminVehicleRow; query: strin
   );
 }
 
-export function PlayerView({ data, identifier, fallbackName, player, loading, error, ui, onUi, onBack, onRetry, onOpen, onAssigned }: Props) {
+export function PlayerView({ data, identifier, fallbackName, player, loading, error, ui, onUi, onBack, onRetry, onOpen, onAssigned, focusPlate = null }: Props) {
   const [assign, setAssign] = useState(false);
   const listRef = useRef<HTMLUListElement>(null);
+  const refocused = useRef(false);
   const name = player?.player.name ?? fallbackName;
   const list = useMemo(() => player?.vehicles ?? [], [player]);
 
@@ -140,6 +143,24 @@ export function PlayerView({ data, identifier, fallbackName, player, loading, er
     { value: 'financed', label: t('Financed'), icon: 'money', tone: 'blue' },
     { value: 'blocked', label: t('Blocked'), icon: 'ban', tone: 'red' },
   ];
+
+  // Back from the dossier: show the page holding the vehicle just viewed and focus its row,
+  // so ↑/↓ and Enter keep working without a click.
+  useEffect(() => {
+    if (refocused.current || !focusPlate || !player) return;
+    const index = filtered.findIndex((v) => v.plate === focusPlate);
+    const target = index < 0 ? page : Math.floor(index / PAGE_SIZE) + 1;
+    if (target !== page) {
+      onUi({ page: target });
+      return;
+    }
+    refocused.current = true;
+    const row = Array.from(listRef.current?.querySelectorAll<HTMLElement>('.nz-aveh-vrow') ?? []).find((el) => el.dataset.plate === focusPlate);
+    if (row) {
+      row.focus({ preventScroll: true });
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focusPlate, player, filtered, page, onUi]);
 
   const onListKey = (e: KeyboardEvent<HTMLElement>) => {
     moveFocus(e, listRef.current, '.nz-aveh-vrow');

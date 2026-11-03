@@ -383,18 +383,47 @@ local function houseIdArg(value)
   return s
 end
 
---- RegisterHouseGarage(houseId, { name, coords = vec4, spawn = vec4|nil, hidden = boolean|nil })
---- -> ok, error. hidden = true: the housing script draws the garage interaction itself and
---- calls the OpenHouseGarage / StoreHouseGarage client exports (no marker / target from us).
+--- House garage point from another resource: vector3 / vector4 / { x, y, z, w|h|heading } /
+--- { x, y, z } array or the same as a JSON string. nil when unusable.
+local function housePointArg(value)
+  if type(value) == 'string' then
+    local ok, decoded = pcall(json.decode, value)
+    value = ok and decoded or nil
+  end
+  local v = Utils.v4(value)
+  if not v then return nil end
+  for _, key in ipairs({ 'x', 'y', 'z', 'w' }) do
+    local n = v[key]
+    if n ~= n or n == math.huge or n == -math.huge or math.abs(n) > 100000 then return nil end
+  end
+  return v
+end
+
+--- Identifier of a house owner / key holder from another resource (numbers become strings).
+local function houseIdentifierArg(value)
+  if type(value) == 'number' then
+    if value ~= value or value == math.huge or value == -math.huge then return nil end
+    value = tostring(math.tointeger(value) or value)
+  end
+  return identifierArg(value)
+end
+
+--- RegisterHouseGarage(houseId, { name, coords = vec4, spawn = vec4|nil, store = vec4|nil,
+--- hidden = boolean|nil }) -> ok, error. coords: the walk-up "open" point (and the store point
+--- unless `store` is given), spawn: where vehicles appear (default coords), store: where vehicles
+--- are parked. hidden = true: the housing script draws the garage interaction itself and calls
+--- the OpenHouseGarage / StoreHouseGarage client exports (no marker / target from us).
 export('RegisterHouseGarage', function(houseId, data)
   houseId = houseIdArg(houseId)
   if not houseId then return false, L('Invalid house id') end
-  if type(data) ~= 'table' or not Utils.v4(data.coords) then return false, L('Invalid house coordinates') end
-  if data.spawn ~= nil and not Utils.v4(data.spawn) then return false, L('Invalid house coordinates') end
+  if type(data) ~= 'table' or not housePointArg(data.coords) then return false, L('Invalid house coordinates') end
+  if data.spawn ~= nil and not housePointArg(data.spawn) then return false, L('Invalid house coordinates') end
+  if data.store ~= nil and not housePointArg(data.store) then return false, L('Invalid house coordinates') end
   local clean = {
     name = safeText(data.name or data.label, 60),
-    coords = Utils.v4(data.coords),
-    spawn = data.spawn ~= nil and Utils.v4(data.spawn) or nil,
+    coords = housePointArg(data.coords),
+    spawn = data.spawn ~= nil and housePointArg(data.spawn) or nil,
+    store = data.store ~= nil and housePointArg(data.store) or nil,
     hidden = data.hidden == true,
   }
   if type(NZ.Housing.register) == 'function' then
@@ -419,18 +448,34 @@ export('RemoveHouseGarage', function(houseId)
   return true
 end)
 
---- SetHouseAccess(houseId, { identifier, ... }) -> ok, error
+--- SetHouseAccess(houseId, identifiers) -> ok, error. identifiers: a list ({ 'CID1', 'CID2' })
+--- or a map keyed by identifier ({ CID1 = true, CID2 = { name = '...' } }), or the same as a JSON
+--- string; replaces what this export set before (what the housing integration reads is kept).
 export('SetHouseAccess', function(houseId, identifiers)
   houseId = houseIdArg(houseId)
   if not houseId then return false, L('Invalid house id') end
+  if type(identifiers) == 'string' then
+    local ok, decoded = pcall(json.decode, identifiers)
+    identifiers = ok and decoded or nil
+  end
   if type(identifiers) ~= 'table' then return false, L('Invalid identifier list') end
   local list, seen = {}, {}
-  for _, value in ipairs(identifiers) do
-    if #list >= 100 then break end
-    local identifier = identifierArg(value)
+  local function add(value)
+    if #list >= 100 then return end
+    local identifier = houseIdentifierArg(value)
     if identifier and not seen[identifier] then
       seen[identifier] = true
       list[#list + 1] = identifier
+    end
+  end
+  if identifiers[1] ~= nil or next(identifiers) == nil then
+    for _, value in ipairs(identifiers) do
+      if type(value) == 'table' then value = value.identifier or value.citizenid or value.cid end
+      add(value)
+    end
+  else
+    for key, value in pairs(identifiers) do
+      if value ~= false and value ~= nil then add(key) end
     end
   end
   if type(NZ.Housing.setAccess) ~= 'function' then return false, L('House garages are not available') end

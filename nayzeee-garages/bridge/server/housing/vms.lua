@@ -7,9 +7,11 @@
   exports GetAllProperties() (array or id-keyed map; falls back to SELECT * FROM `houses`),
   owner + renter + the identifier-keyed `keys` map (UseKeysOnItem = false; item keys cannot be
   read offline). Buildings are skipped. A garage point in `metadata` is probed under a few names
-  (unconfirmed) and only used until the hook places the garage. Live access: owner / renter of
-  GetProperty(id), then HasKeys(src, identifier, id), then HasAnyPermission(id, identifier).
-  Refresh hints: vms_housing:sv:giveKey / buyKey / removeKey (net events), resource start.
+  (unconfirmed) and only used until the hook places the garage. Live access (authoritative for
+  online players): owner / renter / keys of GetProperty(id), then HasKeys(src, identifier, id),
+  then HasAnyPermission(id, identifier); unknown when a call fails or the player is offline.
+  Refresh hints: vms_housing:sv:giveKey / buyKey / removeKey (net events, rate limited:
+  Housing.netHint), resource start.
   Confidence: medium (escrowed; exports seen in vendor-provided and third-party files).
 ]]
 
@@ -31,6 +33,7 @@ Housing.addLoader({
   resources = { 'vms_housing' },
   hook = 'always',
   trustCoords = false,
+  authoritative = true,
 
   load = function(ctx)
     local all = ctx.export('GetAllProperties')
@@ -40,8 +43,10 @@ Housing.addLoader({
       if not all then return nil end
     end
 
-    local out = {}
+    local out, n = {}, 0
     for key, p in pairs(all) do
+      n = n + 1
+      ctx.yield(n)
       p = ctx.decode(p)
       if type(p) == 'table' and p.type ~= 'building' then
         local raw = p.id
@@ -80,12 +85,18 @@ Housing.addLoader({
 
   check = function(ctx, identifier, rawId, src)
     local id = asId(ctx, rawId)
-    local p = ctx.export('GetProperty', id)
+    local p = ctx.decode(ctx.export('GetProperty', id))
     if type(p) ~= 'table' then return nil end
     if same(p.owner, identifier) or same(p.renter, identifier) then return true end
-    src = src or ctx.sourceOf(identifier)
-    if src and ctx.export('HasKeys', src, identifier, id) == true then return true end
+    local keys = ctx.decode(p.keys)
+    if keys and not ctx.isArray(keys) and keys[identifier] ~= nil and keys[identifier] ~= false then return true end
     if ctx.export('HasAnyPermission', id, identifier) == true then return true end
+    -- Item keys (UseKeysOnItem) can only be asked for an online player.
+    src = src or ctx.sourceOf(identifier)
+    if not src then return nil end
+    local has, err = ctx.export('HasKeys', src, identifier, id)
+    if has == true then return true end
+    if err ~= nil then return nil end -- unknown: the cached sets decide
     return false
   end,
 
@@ -107,7 +118,8 @@ Housing.addLoader({
 })
 
 -- Key changes come from vms_housing clients (TriggerServerEvent): they must be net events here
--- too. Payload ignored; any client can send them, so they only ask for a rate-limited reload.
+-- too. Payload ignored; any client can send them, so they only ask for a rate-limited reload
+-- (per player, and at most one reload of this loader per 30 s through them).
 for _, name in ipairs({ 'vms_housing:sv:giveKey', 'vms_housing:sv:buyKey', 'vms_housing:sv:removeKey' }) do
-  RegisterNetEvent(name, function() Housing.hint('vms', 2000) end)
+  RegisterNetEvent(name, function() Housing.netHint(source, 'vms', 2000) end)
 end

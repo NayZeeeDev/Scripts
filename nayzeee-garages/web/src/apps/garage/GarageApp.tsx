@@ -12,7 +12,6 @@ import {
   Badge,
   Button,
   ConfirmDialog,
-  EmptyState,
   Icon,
   KeyHint,
   Menu,
@@ -376,8 +375,8 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   /* ── header ── */
   const limited = !!capacity && capacity.mode === 'limited' && capacity.total > 0;
   const isFull = limited && capacity!.used >= capacity!.total && !spawnerMode;
+  // "Find a garage with space" lives in the rail's Garage full notice (shown whenever it is full).
   const menuItems: MenuItem[] = [];
-  if (isFull) menuItems.push({ label: t('Find a garage with space'), icon: 'route', onSelect: () => void directions() });
   if (garage.canSellGarage) menuItems.push({ label: t('Sell garage'), icon: 'tag', danger: true, onSelect: () => setSellGarage(true) });
 
   // Group labels usually repeat the garage name ("La Mesa Motor Club #2"): show the distinct part.
@@ -488,7 +487,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       spawner.length === 0 ? (
         <RailVacant label={t('0 vehicles for your rank')} />
       ) : shownSpawner.length === 0 ? (
-        <NoMatch query={query} onClear={clearAll} />
+        <RailVacant icon="search" label={t('No matches')} bays={false} />
       ) : (
         <RailList<SpawnerVehicleView>
           groups={spawnerGroups}
@@ -507,7 +506,8 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   } else if (vehicles.length === 0) {
     railList = <RailVacant label={t('0 vehicles stored')} />;
   } else if (shown.length === 0) {
-    railList = <NoMatch query={query} filter={activeFilter} onClear={clearAll} />;
+    // The showcase explains it (and offers Clear filters): the rail only says so.
+    railList = <RailVacant icon={query.trim() ? 'search' : 'filter'} label={t('No matches')} bays={false} />;
   } else {
     railList = (
       <RailList<GarageVehicle>
@@ -532,16 +532,14 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   if (spawnerMode) {
     showcase = ss ? (
       <SpawnerShowcase s={ss} garage={garage} spawning={spawning} onSpawn={() => void spawn(ss)} />
-    ) : (
+    ) : spawner.length === 0 ? (
       <EmptyShowcase
-        icon={spawner.length === 0 ? 'lock' : 'search'}
-        title={spawner.length === 0 ? t('Nothing to take out') : t('No vehicles match')}
-        description={
-          spawner.length === 0
-            ? t('There are no vehicles for your rank at this garage. Ask a supervisor if you need access.')
-            : t('Try another name or model.')
-        }
+        icon="lock"
+        title={t('Nothing to take out')}
+        description={t('There are no vehicles for your rank at this garage. Ask a supervisor if you need access.')}
       />
+    ) : (
+      <NoMatch query={query} onClear={clearAll} spawner />
     );
   } else if (sv) {
     showcase = (
@@ -578,18 +576,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       />
     );
   } else {
-    showcase = (
-      <EmptyShowcase
-        icon="filter"
-        title={t('No vehicles match')}
-        description={t('Nothing in your collection fits this search or filter.')}
-        action={
-          <Button size="sm" icon="close" onClick={clearAll}>
-            {t('Clear filters')}
-          </Button>
-        }
-      />
-    );
+    showcase = <NoMatch query={query} filter={activeFilter} onClear={clearAll} />;
   }
 
   const modalVehicle = (kind: ModalKind) => (modal?.kind === kind ? byPlate(modal.plate) : null);
@@ -600,10 +587,10 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   return (
     <>
       <Window
-        className="nz-garage"
+        className={cx('nz-garage', busyHeader && 'is-busyhead')}
         bodyClassName="nz-garage__body"
         width="min(1240px, 94vw)"
-        height="min(800px, 92vh)"
+        height="min(930px, 92vh)"
         title={garage.name}
         icon={garage.kind === 'house' ? 'building' : spawnerMode || garage.kind === 'job' ? 'briefcase' : vehicleTypeIcon(garage.vehicleType)}
         subtitle={subtitle}
@@ -636,11 +623,11 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
               </span>
             )}
             <span className="nz-garage__spacer" />
-            {total > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
+            {count > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
             {enterKind && <KeyHint keys={['Enter']} label={enterLabel[enterKind]} />}
-            {!spawnerMode && total > 0 && <KeyHint keys={['F']} label={t('Favourite')} />}
-            {!spawnerMode && total > 0 && <KeyHint keys={['R']} label={t('Rename')} />}
-            <KeyHint keys={['/']} label={t('Search')} />
+            {sv && <KeyHint keys={['F']} label={t('Favourite')} />}
+            {sv?.isOwner && <KeyHint keys={['R']} label={t('Rename')} />}
+            {total > 0 && <KeyHint keys={['/']} label={t('Search')} />}
             <KeyHint keys={['Esc']} label={t('Close')} />
           </>
         }
@@ -690,6 +677,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       <MembersModal open={members} garageName={garage.name} onClose={() => setMembers(false)} onChanged={() => void refreshGarage()} />
 
       <ConfirmDialog
+        className="nz-garage-modal"
         open={!!pay && !!payVehicle?.finance}
         tone="teal"
         icon="money"
@@ -722,6 +710,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         onCancel={() => setPay(null)}
       />
       <ConfirmDialog
+        className="nz-garage-modal"
         open={!!recoverVehicle && recoverVehicle.canRecover}
         tone="teal"
         icon="refresh"
@@ -740,6 +729,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         onCancel={() => setConfirmRecover(null)}
       />
       <ConfirmDialog
+        className="nz-garage-modal"
         open={sellGarage}
         tone="red"
         icon="tag"
@@ -759,9 +749,19 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   );
 }
 
-/* ── rail empty state ────────────────────────────────────────────────── */
+/* ── search / filter empty state (showcase) ─────────────────────────── */
 
-function NoMatch({ query, filter = 'all', onClear }: { query: string; filter?: GarageFilter; onClear: () => void }) {
+function NoMatch({
+  query,
+  filter = 'all',
+  onClear,
+  spawner = false,
+}: {
+  query: string;
+  filter?: GarageFilter;
+  onClear: () => void;
+  spawner?: boolean;
+}) {
   const q = query.trim();
   const copy: Partial<Record<GarageFilter, string>> = {
     favourites: t('Tap the star on a vehicle to keep it at the top of your list.'),
@@ -771,14 +771,19 @@ function NoMatch({ query, filter = 'all', onClear }: { query: string; filter?: G
     out: t('All of your vehicles are parked.'),
   };
   return (
-    <EmptyState
-      compact
+    <EmptyShowcase
       icon={q ? 'search' : 'filter'}
       title={q ? t('No vehicles match “{query}”', { query: q }) : t('No vehicles match')}
-      description={q ? t('Try a name, nickname, model, class or plate.') : copy[filter]}
+      description={
+        spawner
+          ? t('Try another name or model.')
+          : q
+            ? t('Try a name, nickname, model, class or plate.')
+            : copy[filter] ?? t('Nothing in your collection fits this search or filter.')
+      }
       action={
         <Button size="sm" icon="close" onClick={onClear}>
-          {t('Clear filters')}
+          {spawner ? t('Clear search') : t('Clear filters')}
         </Button>
       }
     />

@@ -3,12 +3,15 @@
 
   Reads exports GetHomes() (fields at the top level or under `properties`): the garage point
   data.garage (vector4: interaction and spawn), skipped when configuration.garage == false;
-  access = owner + GetKeyHolders(id) holders whose key has the 'Garage' permission
-  (HasKey(id, identifier, 'Garage'); a holder is kept when that call fails). Every name and
+  access = owner + GetKeyHolders(id) holders for whom HasKey(id, identifier, 'Garage') answers
+  true (a holder is left out when that call fails or answers anything else; online holders still
+  get access through the live HasKey check); homes without an owner are not asked. Every name and
   argument order is from documentation excerpts only (unconfirmed): all calls are pcall'd.
   We draw our own point by default. bcs_housing also draws a garage prompt (GaragePrompt in its
   client/garage.lua): install/housing/bcs_housing routes it to OpenHouseGarage /
-  StoreHouseGarage; then set the 'nayzeee_housing_hooked' convar to hide our own point.
+  StoreHouseGarage; then set the 'nayzeee_housing_hooked' convar to hide our own point. When the
+  garage point cannot be read, the hook places the garage where the prompt is used (near the
+  entrance).
   No change events are documented: periodic reload + resource start.
   Live access: HasKey(id, identifier, 'Garage'). Confidence: low.
 ]]
@@ -25,13 +28,18 @@ Housing.addLoader({
   prefix = 'bcs',
   resources = { 'bcs_housing' },
   hook = 'whenUsed',
+  -- The Home shape is unconfirmed: when data.garage cannot be read, the hook places the garage
+  -- where GaragePrompt is used (near the entrance, see anchors).
+  create = true,
 
   load = function(ctx)
     local homes = ctx.export('GetHomes')
     if type(homes) ~= 'table' then return nil end
 
-    local out = {}
+    local out, n = {}, 0
     for key, home in pairs(homes) do
+      n = n + 1
+      ctx.yield(n)
       if type(home) == 'table' then
         local p = homeFields(home)
         local homeId = home.identifier or p.identifier or home.id or key
@@ -43,11 +51,14 @@ Housing.addLoader({
 
           local set = {}
           local owner = ctx.identifier(p.owner or home.owner)
-          if owner then set[owner] = true end
-          local holders = {}
-          ctx.addAny(holders, ctx.export('GetKeyHolders', homeId))
-          for who in pairs(holders) do
-            if not set[who] and ctx.export('HasKey', homeId, who, PERMISSION) ~= false then set[who] = true end
+          if owner then
+            set[owner] = true
+            -- Key holders of an owned home (an unowned one has none worth asking about).
+            local holders = {}
+            ctx.addAny(holders, ctx.export('GetKeyHolders', homeId))
+            for who in pairs(holders) do
+              if not set[who] and ctx.export('HasKey', homeId, who, PERMISSION) == true then set[who] = true end
+            end
           end
 
           out[tostring(homeId)] = {

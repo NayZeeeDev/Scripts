@@ -9,7 +9,10 @@
     list -> claim -> phone spawns -> report (or watchdog adoption) -> keys / nzPlate / nzInit
     -> store in a garage; release / client failure / timeout / player drop roll back;
     server-side spawn whose plate arrives late; refusals (access, state, finance, type,
-    trailer, garage access, closed / deleted garage, rate limit, pending limit, duplicates).
+    trailer, garage access, closed / deleted garage, rate limit, pending limit, duplicates);
+    another model wearing the plate (stray check, generic callback, watchdog, restart
+    re-adoption); bounded report waits; plate that never arrives; generic failure report;
+    resource restart with undelivered claims (KVP); boot hint; adapters in install/phone/.
 
   Usage (from the resource root):  lua5.4 tools/smoke/phone.lua
 ]]
@@ -146,6 +149,23 @@ function GetResourceState(name) return resourceStates[name] or 'missing' end
 local kvp = {}
 function GetResourceKvpString(k) return kvp[k] end
 function SetResourceKvp(k, v) kvp[k] = v end
+function DeleteResourceKvp(k) kvp[k] = nil end
+local kvpFinds, kvpHandle = {}, 0
+function StartFindKvp(prefix)
+  local keys = {}
+  for k in pairs(kvp) do if k:sub(1, #prefix) == prefix then keys[#keys + 1] = k end end
+  table.sort(keys)
+  kvpHandle = kvpHandle + 1
+  kvpFinds[kvpHandle] = { keys = keys, i = 0 }
+  return kvpHandle
+end
+function FindKvp(handle)
+  local f = kvpFinds[handle]
+  if not f then return nil end
+  f.i = f.i + 1
+  return f.keys[f.i]
+end
+function EndFindKvp(handle) kvpFinds[handle] = nil end
 
 -- Entities: [handle] = { plate, model, netId, seats = { [-1] = ped }, coords, vtype }
 local entities, nextHandle, nextNet = {}, 5000, 100
@@ -216,10 +236,10 @@ end })
 -- ox_lib / exports / json
 ---------------------------------------------------------------------------------------
 
-local printed = { warn = {}, error = {} }
+local printed = { info = {}, warn = {}, error = {} }
 lib = {
   print = {
-    info = function() end,
+    info = function(...) printed.info[#printed.info + 1] = table.concat({ ... }, ' ') end,
     warn = function(...) printed.warn[#printed.warn + 1] = table.concat({ ... }, ' ') end,
     error = function(...) printed.error[#printed.error + 1] = table.concat({ ... }, ' ') end,
     debug = function() end,
@@ -235,7 +255,30 @@ exports = setmetatable({}, {
   end,
 })
 
-json = { encode = function() return '{}' end, decode = function() return nil end }
+local hasDk, dk = pcall(require, 'dkjson')
+if hasDk then
+  json = { encode = function(v) return dk.encode(v) end,
+    decode = function(text) if type(text) ~= 'string' then return nil end return (dk.decode(text)) end }
+else
+  -- flat objects of numbers / strings are all server/phone.lua stores
+  json = {
+    encode = function(v)
+      local parts = {}
+      for k, x in pairs(v) do
+        parts[#parts + 1] = ('%q:%s'):format(k, type(x) == 'number' and tostring(x) or ('%q'):format(tostring(x)))
+      end
+      return '{' .. table.concat(parts, ',') .. '}'
+    end,
+    decode = function(text)
+      if type(text) ~= 'string' or not text:match('^%b{}$') then return nil end
+      local out = {}
+      for k, x in text:gmatch('"([^"]+)":("?[^,}"]*"?)') do
+        out[k] = x:match('^"(.*)"$') or tonumber(x)
+      end
+      return out
+    end,
+  }
+end
 
 ---------------------------------------------------------------------------------------
 -- Load the shared files
@@ -516,6 +559,9 @@ local entry = Vehicles.out.ABC123
 check(entry and entry.src == 1 and entry.phone ~= nil, 'out entry registered for the claimant')
 check(Vehicles.isOut('ABC123') == true, 'isOut during the delivery grace')
 check(NZ.Phone.pending('ABC123') ~= nil, 'claim pending')
+local stored1 = json.decode(kvp['nz_phone_claim:ABC123'])
+check(type(stored1) == 'table' and stored1.at == os.time() and stored1.prev == 1000 and stored1.identifier == 'CID001'
+  and stored1.hash == joaat_('sultan'), 'pending claim remembered in the resource KVP')
 local retrieveLog = lastLog('vehicle.retrieve')
 check(retrieveLog and retrieveLog.data.via == 'phone' and retrieveLog.data.resource == 'lb-phone', 'retrieve logged with via = phone')
 
@@ -532,6 +578,7 @@ check(stateOf(car).nzPlate == 'ABC123', 'nzPlate state bag set')
 check(type(stateOf(car).nzInit) == 'table' and stateOf(car).nzInit.damage ~= nil, 'nzInit (saved damage / fuel) attached')
 check(#keysGiven == 1 and keysGiven[1].plate == 'ABC123' and keysGiven[1].netId == carNet, 'server-side keys given')
 check(NZ.Phone.pending('ABC123') == nil, 'claim finished')
+check(kvp['nz_phone_claim:ABC123'] == nil, 'delivered claim forgotten in the KVP')
 
 -- a duplicate report (phone server + client) is harmless
 local dupOk = call('MarkValetSpawned', 1, 'ABC123', carNet)
@@ -575,6 +622,7 @@ check(db.GHI789.state == 'out' and Vehicles.isOut('GHI789') == true, 'still on i
 advance(32000)
 check(db.GHI789.state == 'garaged' and db.GHI789.lastOut == before, 'rolled back after the timeout (state + lastOut)')
 check(Vehicles.out.GHI789 == nil and NZ.Phone.pending('GHI789') == nil, 'rollback cleared the out entry and the claim')
+check(kvp['nz_phone_claim:GHI789'] == nil, 'rolled-back claim forgotten in the KVP')
 local failLog = lastLog('vehicle.spawnFailed')
 check(failLog and failLog.data.plate == 'GHI789' and failLog.data.via == 'phone', 'rollback logged')
 local notified = false
@@ -719,6 +767,427 @@ for _, args in ipairs({ { nil, 'ABC123' }, { 1, nil }, { 1, {} }, { 'x', 'ABC123
   local m = call('MarkValetSpawned', args[1], args[2], -5)
   check(m ~= true, 'invalid spawned input refused')
 end
+
+---------------------------------------------------------------------------------------
+-- 8. Private group membership, model checks, character unload, report at the deadline
+---------------------------------------------------------------------------------------
+
+advance(70000) -- every pending claim above times out
+for plate, row in pairs(db) do
+  if row.state == 'out' and not Vehicles.isOut(plate) then row.state = 'garaged' end
+end
+
+-- private garage instance G7 (location 6); CID001 is a member of G8 at the same location only
+locations[6] = location(6, 'private', { name = 'Crew lot' })
+local groups = {
+  [7] = { id = 7, locationId = 6, label = 'Crew lot #7', members = { CID002 = { role = 'owner' } } },
+  [8] = { id = 8, locationId = 6, label = 'Crew lot #8', members = { CID001 = { role = 'owner' } } },
+}
+NZ.Private.getGroup = function(id) return groups[tonumber(id)] end
+NZ.Private.role = function(gid, identifier)
+  local g = groups[tonumber(gid) or -1]
+  local m = g and g.members[identifier]
+  return m and m.role or nil
+end
+NZ.Private.groupsFor = function(identifier, locationId)
+  local out = {}
+  for _, g in pairs(groups) do
+    if g.members[identifier] and (not locationId or g.locationId == locationId) then out[#out + 1] = g end
+  end
+  return out
+end
+local baseResolve = NZ.Locations.resolveKey
+NZ.Locations.resolveKey = function(key)
+  local kind, id = Utils.key.parse(key)
+  if kind == 'G' and groups[id] then
+    return { kind = 'G', key = key, location = locations[groups[id].locationId], locationId = 6, group = groups[id], groupId = id }
+  end
+  return baseResolve(key)
+end
+addRow('PRV001', { garageKey = 'G7' })
+refused('PRV001', 'parked in another private group of the same location')
+groups[7].members.CID001 = { role = 'member' }
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'PRV001')
+check(type(data) == 'table', 'private group member accepted')
+fireNet('nz:phone:failed', 1, 'PRV001')
+check(db.PRV001.state == 'garaged', 'private claim released')
+
+-- a reported entity of another model is refused (and logged)
+addRow('MOD001')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'MOD001')
+check(type(data) == 'table', 'claim 7 accepted')
+local fake, fakeNet = spawnEntity('MOD001', 'adder')
+local fakeOk = call('MarkValetSpawned', 1, 'MOD001', fakeNet)
+check(fakeOk ~= true and (Vehicles.out.MOD001 == nil or Vehicles.out.MOD001.entity ~= fake), 'other model refused')
+check(lastLog('security.model') ~= nil, 'other model logged')
+-- the watchdog does not adopt it either, and the claim still times out
+advance(62000)
+check(db.MOD001.state == 'garaged' and NZ.Phone.pending('MOD001') == nil, 'same plate, other model: claim rolled back')
+DeleteEntity(fake)
+
+-- character unload: the pending claim goes back
+addRow('UNL001')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'UNL001')
+check(type(data) == 'table', 'claim 8 accepted')
+TriggerEvent('nz:server:playerUnloaded', 1)
+advance(2500)
+check(db.UNL001.state == 'garaged' and NZ.Phone.pending('UNL001') == nil, 'claim of an unloaded character rolled back')
+
+-- a report still waiting for the plate at the deadline keeps the claim alive
+addRow('LAT001')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'LAT001')
+check(type(data) == 'table', 'claim 9 accepted')
+advance(55000)
+local late, lateNet = spawnEntity('TMP00001', 'sultan')
+local lateOk
+CreateThread(function() lateOk = exported.MarkValetSpawned(1, 'LAT001', lateNet) end)
+advance(7000)             -- past the 60 s timeout while the report waits
+check(db.LAT001.state == 'out', 'claim kept while a report waits for the plate')
+entities[late].plate = 'LAT001'
+advance(1000)
+check(lateOk == true and Vehicles.out.LAT001 and Vehicles.out.LAT001.entity == late, 'late plate: vehicle tracked')
+
+---------------------------------------------------------------------------------------
+-- 8b. Review round 1: model-aware strays, wrong model through the generic callback,
+--     bounded report waits, plate that never arrives, generic failure report
+---------------------------------------------------------------------------------------
+
+local function logCount(event, plate)
+  local n = 0
+  for _, entryLog in ipairs(logs) do
+    if entryLog.event == event and (not plate or entryLog.data.plate == plate) then n = n + 1 end
+  end
+  return n
+end
+
+-- an unoccupied car of ANOTHER model showing the plate is neither deleted nor blocking
+addRow('OTM001')
+local otherCar = spawnEntity('OTM001', 'blista')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'OTM001')
+check(type(data) == 'table' and entities[otherCar] ~= nil and logCount('security.dupe', 'OTM001') == 0,
+  'same plate, other model: not deleted, claim accepted')
+advance(600)
+fireNet('nz:phone:failed', 1, 'OTM001')
+check(db.OTM001.state == 'garaged' and NZ.Phone.pending('OTM001') == nil, 'same plate, other model: release not blocked')
+DeleteEntity(otherCar)
+
+-- another model reported through the generic 'nz:garage:spawned' (NZ.Vehicles.markSpawned)
+addRow('TRK001')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'TRK001')
+check(type(data) == 'table', 'claim 10 accepted')
+local blista, blistaNet = spawnEntity('TRK001', 'blista')
+local genericOk = run(Vehicles.markSpawned, 1, 'TRK001', blistaNet)
+check(genericOk == true and Vehicles.out.TRK001.entity == blista, 'generic callback (plate-only) took the other model')
+local realCar, realNet = spawnEntity('TRK001', 'sultan')
+fireNet('nz:phone:spawned', 1, 'TRK001', realNet)
+check(entities[realCar] ~= nil and Vehicles.out.TRK001 and Vehicles.out.TRK001.entity == realCar
+  and NZ.Phone.pending('TRK001') == nil and type(stateOf(realCar).nzInit) == 'table' and stateOf(blista).nzInit == nil,
+  'real car still accepted after another model was reported (not deleted as a duplicate)')
+check(lastLog('security.model') and lastLog('security.model').data.plate == 'TRK001', 'other model tracked: logged')
+DeleteEntity(blista)
+DeleteEntity(realCar)
+db.TRK001.state = 'garaged'
+
+-- same, but the watchdog finds the wrong model first: dropped, the claim goes on
+addRow('TRK002')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'TRK002')
+check(type(data) == 'table', 'claim 10b accepted')
+local blista2, blista2Net = spawnEntity('TRK002', 'blista')
+run(Vehicles.markSpawned, 1, 'TRK002', blista2Net)
+advance(2500)
+check(NZ.Phone.pending('TRK002') ~= nil and Vehicles.out.TRK002 and Vehicles.out.TRK002.entity == nil
+  and stateOf(blista2).nzInit == nil and stateOf(blista2).nzPlate == nil, 'watchdog: other model dropped, claim still pending')
+local real2 = spawnEntity('TRK002', 'sultan')
+advance(2500)
+check(Vehicles.out.TRK002 and Vehicles.out.TRK002.entity == real2 and NZ.Phone.pending('TRK002') == nil,
+  'watchdog: real car adopted afterwards')
+DeleteEntity(blista2)
+DeleteEntity(real2)
+db.TRK002.state = 'garaged'
+
+-- a plate that never arrives: refused after the wait, without a false plate alarm
+addRow('NOP001')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'NOP001')
+check(type(data) == 'table', 'claim 10c accepted')
+local noPlate, noPlateNet = spawnEntity('TMP00002', 'sultan')
+local plateLogs = logCount('security.plate')
+local npOk, npErr = call('MarkValetSpawned', 1, 'NOP001', noPlateNet)
+check(npOk == false and type(npErr) == 'string' and logCount('security.plate') == plateLogs
+  and (Vehicles.out.NOP001 == nil or Vehicles.out.NOP001.entity == nil), 'plate never arrived: refused, no plate alarm')
+entities[noPlate].plate = 'NOP001'
+advance(2500)
+check(Vehicles.out.NOP001 and Vehicles.out.NOP001.entity == noPlate, 'plate arrived later: adopted by the watchdog')
+DeleteEntity(noPlate)
+db.NOP001.state = 'garaged'
+
+-- repeated bogus reports cannot hold a claim forever
+addRow('WAI001')
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'WAI001')
+check(type(data) == 'table', 'claim 11 accepted')
+local heldAt70 = nil
+for i = 1, 24 do
+  CreateThread(function() exported.MarkValetSpawned(1, 'WAI001', 99999) end)
+  advance(5000)
+  if i == 14 then heldAt70 = db.WAI001.state end
+end
+check(heldAt70 == 'out', 'a waiting report extends the claim past its timeout')
+check(db.WAI001.state == 'garaged' and NZ.Phone.pending('WAI001') == nil, 'repeated reports: rolled back after timeout + grace')
+
+-- generic failure report ('nz:garage:spawned' failed = true -> NZ.Vehicles.spawnFailed)
+addRow('GFL001', { lastOut = 777 })
+waitRate()
+data = call('ClaimVehicleForValet', 1, 'GFL001')
+check(type(data) == 'table', 'claim 12 accepted')
+advance(600)
+local gfOk = run(Vehicles.spawnFailed, 1, 'GFL001')
+advance(2500)
+check(gfOk == true and db.GFL001.state == 'garaged' and db.GFL001.lastOut == 777 and NZ.Phone.pending('GFL001') == nil
+  and kvp['nz_phone_claim:GFL001'] == nil, 'generic failure report: claim closed, previous lastOut restored')
+
+check(#printed.error == 0, 'no lib.print.error: ' .. table.concat(printed.error, ' | '))
+
+---------------------------------------------------------------------------------------
+-- 9. Adapters in install/phone/ (loaded in their own environment, calling the exports)
+---------------------------------------------------------------------------------------
+
+resourceStates['nayzeee-garages'] = 'started'
+local adapterExports = {
+  ['nayzeee-garages'] = setmetatable({}, {
+    __index = function(_, name)
+      return function(_, ...) return exported[name](...) end
+    end,
+  }),
+}
+local registered = {}
+local function loadAdapter(file, extra)
+  local env = extra or {}
+  env.exports = adapterExports
+  env.lib = env.lib or { callback = { register = function(name, fn) registered[name] = fn end } }
+  env._G = env
+  -- real globals first; the harness' catch-all stubs only for natives (not the helper's table)
+  setmetatable(env, { __index = function(_, k)
+    local v = rawget(_G, k)
+    if v ~= nil or (type(k) == 'string' and k:match('^Nayzeee')) then return v end
+    return _G[k]
+  end })
+  local f = assert(io.open(file, 'r'), 'missing ' .. file)
+  local src = f:read('a')
+  f:close()
+  local chunk = assert(load(src, '@' .. file, 't', env))
+  local okLoad, err = xpcall(chunk, debug.traceback)
+  check(okLoad, 'adapter loads: ' .. file .. ' ' .. tostring(err))
+  return env
+end
+
+-- lb-phone (qb / qbox / esx files)
+for _, fw in ipairs({ 'qb', 'qbox', 'esx' }) do
+  local env = loadAdapter(('install/phone/lb-phone/server/custom/frameworks/%s/vehicles.lua'):format(fw),
+    { Config = { Framework = fw } })
+  check(type(env.GetPlayerVehicles) == 'function' and type(env.GetVehicle) == 'function', 'lb-phone ' .. fw .. ': functions defined')
+  local other = loadAdapter(('install/phone/lb-phone/server/custom/frameworks/%s/vehicles.lua'):format(fw),
+    { Config = { Framework = 'ox' } })
+  check(rawget(other, 'GetPlayerVehicles') == nil, 'lb-phone ' .. fw .. ': guarded by Config.Framework')
+end
+local lb = loadAdapter('install/phone/lb-phone/server/custom/frameworks/qb/vehicles.lua', { Config = { Framework = 'qb' } })
+addRow('IMP002', { state = 'impounded', impound = { locationId = 3, locationName = 'Davis Impound', reason = 'Evidence',
+  fee = 0, byName = 'Officer Hayes', at = BASE_TIME - 60, releaseAt = BASE_TIME + 7200, retrievable = false } })
+advance(1100)
+local lbList = run(lb.GetPlayerVehicles, 1)
+local lbBy = {}
+for _, v in ipairs(lbList or {}) do lbBy[v.plate] = v end
+check(lbBy.ABC123 and lbBy.ABC123.location == 'Legion Square' and lbBy.ABC123.impounded == false
+  and lbBy.ABC123.model == joaat_('sultan') and lbBy.ABC123.type == 'car'
+  and lbBy.ABC123.statistics.fuel == math.floor(db.ABC123.fuel + 0.5)
+  and lbBy.ABC123.statistics.engine == math.floor(db.ABC123.engine + 0.5), 'lb-phone VehicleData (garaged)')
+check(lbBy.IMP001 and lbBy.IMP001.impounded == true and lbBy.IMP001.location == 'Davis Impound'
+  and lbBy.IMP001.impoundReason.retrievable == (BASE_TIME + 3600) * 1000 and lbBy.IMP001.impoundReason.price == 500
+  and lbBy.IMP001.impoundReason.impounder == 'Officer Hayes', 'lb-phone VehicleData (impounded, JS ms)')
+check(lbBy.IMP002 and lbBy.IMP002.impounded == true and lbBy.IMP002.impoundReason
+  and lbBy.IMP002.impoundReason.retrievable == nil, 'lb-phone VehicleData: no release time for a police hold')
+check(lbBy.LAT001 and lbBy.LAT001.location == 'out', 'lb-phone VehicleData (out)')
+check(lbBy.BOAT01 and lbBy.BOAT01.type == 'boat', 'lb-phone VehicleData (boat type)')
+
+addRow('LBP001')
+waitRate()
+local lbData = run(lb.GetVehicle, 1, 'LBP001')
+check(type(lbData) == 'table' and lbData.hash == joaat_('sultan') and lbData.model == joaat_('sultan')
+  and type(lbData.mods) == 'table' and lbData.mods.plate == 'LBP001' and type(lbData.vehicle) == 'string'
+  and lbData.plate == 'LBP001' and db.LBP001.state == 'out', 'lb-phone GetVehicle claims and returns spawn data')
+local lbCar, lbNet = spawnEntity('LBP001', 'sultan')
+fireNet('nz:phone:spawned', 1, 'LBP001', lbNet)
+check(Vehicles.out.LBP001 and Vehicles.out.LBP001.entity == lbCar, 'lb-phone client report tracked')
+waitRate()
+local before2 = #clientEvents
+local lbNone = run(lb.GetVehicle, 1, 'IMP001')
+check(lbNone == nil and #clientEvents > before2 and clientEvents[#clientEvents].name == 'nz:client:notify',
+  'lb-phone GetVehicle refusal: nil + toast')
+
+-- NPWD (Qbox): lib.callback
+loadAdapter('install/phone/npwd_qbx_garages/server/server.lua')
+local qbxCb = registered['npwd_qbx_garages:server:getPlayerVehicles']
+check(type(qbxCb) == 'function', 'npwd_qbx_garages callback registered')
+advance(1100)
+local qbxList = qbxCb and run(qbxCb, 1) or {}
+local qbxBy = {}
+for _, v in ipairs(qbxList) do qbxBy[v.plate] = v end
+check(qbxBy.ABC123 and qbxBy.ABC123.engine == math.floor(db.ABC123.engine * 10 + 0.5)
+  and qbxBy.ABC123.body == math.floor(db.ABC123.body * 10 + 0.5) and qbxBy.ABC123.state == 'garaged'
+  and qbxBy.ABC123.garage == 'Legion Square' and qbxBy.ABC123.fuel == math.floor(db.ABC123.fuel + 0.5),
+  'npwd_qbx_garages GarageItem')
+check(qbxBy.IMP001 and qbxBy.IMP001.state == 'impounded' and qbxBy.IMP001.garage == 'Davis Impound', 'npwd_qbx_garages impounded item')
+
+-- NPWD (QBCore / ESX): net event -> client event, always answered
+for _, spec in ipairs({
+  { file = 'install/phone/npwd_qb_garage/server/server.lua', ev = 'npwd:qb-garage:getVehicles', reply = 'npwd:qb-garage:sendVehicles' },
+  { file = 'install/phone/npwd_esx_garage/server/server.lua', ev = 'npwd:esx-garage:getVehicles', reply = 'npwd:esx-garage:sendVehicles' },
+}) do
+  loadAdapter(spec.file)
+  advance(1100)
+  local n = #clientEvents
+  fireNet(spec.ev, 1)
+  local reply = clientEvents[#clientEvents]
+  check(#clientEvents == n + 1 and reply.name == spec.reply and reply.target == 1 and type(reply.payload) == 'table'
+    and #reply.payload > 0, spec.reply .. ' answered with the list')
+  online[3] = 'CID003'
+  advance(1100)
+  fireNet(spec.ev, 3)
+  reply = clientEvents[#clientEvents]
+  check(reply.name == spec.reply and reply.target == 3 and type(reply.payload) == 'table' and #reply.payload == 0,
+    spec.reply .. ' answered (empty) for a player without vehicles')
+  online[3] = nil
+end
+houses.Hh_a = location('Hh_a', 'house', { name = 'House garage', houseId = 'h_a',
+  openPoints = { { coords = vec3(500, 0, 0), radius = 2.0 } } })
+houses.Hh_b = location('Hh_b', 'house', { name = 'House garage', houseId = 'h_b',
+  openPoints = { { coords = vec3(900, 0, 0), radius = 2.0 } } })
+addRow('HSA001', { garageKey = 'Hh_a' })
+addRow('HSA002', { garageKey = 'Hh_a' })
+addRow('HSB001', { garageKey = 'Hh_b' })
+local esxItems = {}
+advance(1100)
+fireNet('npwd:esx-garage:getVehicles', 1)
+for _, v in ipairs(clientEvents[#clientEvents].payload or {}) do esxItems[v.plate] = v end
+check(esxItems.HSA001 and esxItems.HSB001 and esxItems.HSA001.parking ~= esxItems.HSB001.parking
+  and esxItems.HSA001.parking == esxItems.HSA002.parking and esxItems.HSA001.key == esxItems.HSA001.parking
+  and esxItems.HSB001.parking:find('House garage', 1, true) == 1,
+  'npwd_esx_garage: same name, other place -> distinct parking text (' .. tostring(esxItems.HSA001 and esxItems.HSA001.parking)
+  .. ' / ' .. tostring(esxItems.HSB001 and esxItems.HSB001.parking) .. ')')
+check(esxItems.GHI789 and esxItems.GHI789.parking == 'Legion Square', 'npwd_esx_garage: same garage keeps its plain name')
+check(esxItems.ABC123 and esxItems.ABC123.stored == true and esxItems.ABC123.parking == 'Legion Square'
+  and esxItems.ABC123.type == 'car' and esxItems.ABC123.coords, 'npwd_esx_garage item (garaged)')
+check(esxItems.LBP001 and esxItems.LBP001.stored == false, 'npwd_esx_garage item (out)')
+check(esxItems.IMP001 and esxItems.IMP001.pound == 'Davis Impound' and esxItems.IMP001.stored == true, 'npwd_esx_garage item (impounded)')
+check(esxItems.BOAT01 and esxItems.BOAT01.type == 'boat', 'npwd_esx_garage item (boat)')
+
+-- generic helper
+local gen = loadAdapter('install/phone/generic/nayzeee_phone.lua')
+local NP = gen.NayzeeePhone
+check(type(NP) == 'table' and type(NP.qbRows) == 'function', 'generic helper defines NayzeeePhone')
+advance(1100)
+local qbRows = run(NP.qbRows, 1)
+local qbBy = {}
+for _, r in ipairs(qbRows or {}) do qbBy[r.plate] = r end
+check(qbBy.ABC123 and qbBy.ABC123.state == 1 and qbBy.ABC123.engine == math.floor(db.ABC123.engine * 10 + 0.5)
+  and qbBy.ABC123.garage == 'Legion Square',
+  'generic qbRows (garaged)')
+check(qbBy.IMP001 and qbBy.IMP001.state == 2 and qbBy.IMP001.depotprice == 500, 'generic qbRows (impounded)')
+check(qbBy.LBP001 and qbBy.LBP001.state == 0, 'generic qbRows (out)')
+advance(1100)
+local esxRows = run(NP.esxRows, 1)
+local esxBy = {}
+for _, r in ipairs(esxRows or {}) do esxBy[r.plate] = r end
+check(esxBy.ABC123 and esxBy.ABC123.stored == 1 and esxBy.IMP001 and esxBy.IMP001.pound == 'Davis Impound'
+  and esxBy.IMP001.stored == 0, 'generic esxRows')
+addRow('GEN001')
+waitRate()
+local gData = run(NP.claim, 1, 'GEN001')
+check(type(gData) == 'table' and gData.model == joaat_('sultan') and db.GEN001.state == 'out', 'generic claim')
+advance(600)
+check(run(NP.release, 1, 'GEN001') == true and db.GEN001.state == 'garaged', 'generic release')
+
+check(#printed.error == 0, 'no lib.print.error: ' .. table.concat(printed.error, ' | '))
+
+---------------------------------------------------------------------------------------
+-- 10. Resource restart with undelivered claims (KVP recovery) and the boot hint
+---------------------------------------------------------------------------------------
+
+addRow('RST001')
+addRow('RST002', { lastOut = 1000 })
+addRow('RST003', { owner = 'CID002' })
+waitRate()
+check(type(call('ClaimVehicleForValet', 1, 'RST001')) == 'table', 'restart: claim A accepted')
+waitRate()
+check(type(call('ClaimVehicleForValet', 1, 'RST002')) == 'table', 'restart: claim B accepted')
+waitRate()
+check(type(call('ClaimVehicleForValet', 2, 'RST003')) == 'table', 'restart: claim C accepted')
+local claimedAt = os.time()
+kvp['nz_phone_claim:ABC123'] = json.encode({ at = 12345, identifier = 'CID001' }) -- stale: the row moved on
+kvp['nz_phone_claim:BAD001'] = 'not json'
+local abcBefore = Utils.deepCopy(db.ABC123)
+
+-- stop: every thread and the in-memory out registry die; player 2 leaves meanwhile
+for i = #threads, 1, -1 do table.remove(threads, i) end
+for plate in pairs(Vehicles.out) do Vehicles.out[plate] = nil end
+online[2] = nil
+-- NZ.Vehicles re-adopts by plate only: a car of another model wearing RST002's plate
+local wearer, wearerNet = spawnEntity('RST002', 'blista')
+Vehicles.setOut('RST002', { entity = wearer, netId = wearerNet, src = 1, identifier = 'CID001', adopted = true })
+resourceStates['npwd_qbx_garages'] = 'started'
+resourceStates['npwd_qb_garage'] = 'started' -- provided by npwd_qbx_garages
+resourceStates['okokPhone'] = 'started'
+printed.info = {}
+
+-- start again
+load_('server/phone.lua')
+advance(100)
+check(NZ.Phone.pending('RST001') ~= nil and NZ.Phone.pending('RST002') ~= nil, 'restart: undelivered claims resumed')
+check(Vehicles.out.RST001 and Vehicles.out.RST001.src == 1, 'restart: out entry re-created for the online claimant')
+check(kvp['nz_phone_claim:ABC123'] == nil and kvp['nz_phone_claim:BAD001'] == nil, 'restart: stale / broken entries removed')
+check(db.ABC123.state == abcBefore.state and db.ABC123.lastOut == abcBefore.lastOut, 'restart: stale entry left the vehicle alone')
+check(db.RST001.state == 'out' and db.RST002.state == 'out', 'restart: resumed claims keep the vehicles out')
+check(Vehicles.out.RST002 and Vehicles.out.RST002.entity == nil and Vehicles.out.RST002.phone ~= nil,
+  'restart: re-adopted car of another model dropped from the resumed claim')
+
+local rstCar, rstNet = spawnEntity('RST001', 'sultan') -- the phone delivers after the restart
+local keysBefore = #keysGiven
+advance(2500)
+check(Vehicles.out.RST001 and Vehicles.out.RST001.entity == rstCar and NZ.Phone.pending('RST001') == nil
+  and kvp['nz_phone_claim:RST001'] == nil, 'restart: late delivery adopted')
+check(#keysGiven > keysBefore and keysGiven[#keysGiven].plate == 'RST001' and keysGiven[#keysGiven].src == 1
+  and keysGiven[#keysGiven].netId == rstNet, 'restart: keys for the online claimant')
+check(db.RST003.state == 'garaged' and NZ.Phone.pending('RST003') == nil and kvp['nz_phone_claim:RST003'] == nil,
+  'restart: claim of an offline player put back at once')
+
+advance(5000)
+local hints = table.concat(printed.info, '\n')
+check(hints:find('npwd_qbx_garages found', 1, true) and hints:find('okokPhone found', 1, true)
+  and hints:find('Config.Phone.hints = false', 1, true), 'boot hint for phones that never called the exports')
+check(not hints:find('npwd_qb_garage found', 1, true), 'no hint for npwd_qb_garage provided by npwd_qbx_garages')
+check(not hints:find('lb-phone found', 1, true), 'no hint for a phone that already calls the exports')
+
+advance(50000 - (os.time() - claimedAt) * 1000)
+check(db.RST002.state == 'out' and NZ.Phone.pending('RST002') ~= nil, 'restart: resumed claim not put back before its timeout')
+advance(13000)
+check(db.RST002.state == 'garaged' and db.RST002.lastOut == 1000 and NZ.Phone.pending('RST002') == nil
+  and kvp['nz_phone_claim:RST002'] == nil, 'restart: undelivered claim put back after its original timeout')
+check(entities[wearer] ~= nil and stateOf(wearer).nzInit == nil, 'restart: the other model was left alone')
+DeleteEntity(wearer)
+
+Config.Phone = { hints = false }
+printed.info = {}
+NZ.Phone.boot()
+check(#printed.info == 0, 'Config.Phone.hints = false: no hint')
+Config.Phone = nil
+online[2] = 'CID002'
 
 check(#printed.error == 0, 'no lib.print.error: ' .. table.concat(printed.error, ' | '))
 

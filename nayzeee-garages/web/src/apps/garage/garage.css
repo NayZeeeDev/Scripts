@@ -42,8 +42,26 @@
   color: var(--amber);
 }
 
+/* Kit buttons use line-height 1 with an overflow-hidden label: that clips descenders
+   ("Pay", "Make payment"). The height is fixed, so a taller line box changes no layout.
+   Modals portal outside .nz-garage and carry .nz-garage-modal instead. */
+.nz-garage .nz-btn__label,
+.nz-garage-modal .nz-btn__label { line-height: 1.3; }
+
 /* ── header: capacity slot strip, group switcher ── */
-.nz-garage__groupsel { flex: 0 1 auto; width: 176px; min-width: 120px; }
+/* The header controls keep their size; a long garage name ellipsizes instead of the
+   controls spilling over it (the brand block shrinks first). */
+.nz-garage .nz-window__extra { flex: 1 0 auto; }
+.nz-garage__groupsel { flex: 0 1 auto; width: 150px; min-width: 110px; }
+
+@media (max-width: 1440px) {
+  /* busy private-garage header: icon-only buttons (their title explains them) */
+  .nz-garage.is-busyhead .nz-garage__inside .nz-btn__label,
+  .nz-garage.is-busyhead .nz-garage__members .nz-btn__label,
+  .nz-garage.is-busyhead .nz-garage__slots-label { display: none; }
+  .nz-garage.is-busyhead .nz-garage__inside.nz-btn--sm,
+  .nz-garage.is-busyhead .nz-garage__members.nz-btn--sm { width: 28px; padding: 0; }
+}
 
 .nz-garage__slots {
   flex: none;
@@ -190,12 +208,7 @@
   overscroll-behavior: contain;
   padding: 0 8px 12px;
   outline: none;
-}
-
-.nz-garage__rail > .nz-empty {
-  flex: 1 1 auto;
-  justify-content: center;
-  padding: 24px 22px;
+  scroll-padding-top: 40px;
 }
 
 .nz-garage__grouphead {
@@ -205,15 +218,29 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 30px;
+  height: 32px;
   margin: 0 -8px;
-  padding: 4px 16px 0;
-  background: linear-gradient(180deg, var(--side) 78%, rgba(5, 6, 7, 0));
+  padding: 2px 16px 0;
+  /* opaque: rows scrolling underneath never show through */
+  background: var(--side);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--ink-3);
+}
+
+/* a short skirt under the heading: a row scrolled almost out of view fades out instead of
+   leaving a sliver (a health bar, a plate edge) right under the heading */
+.nz-garage__grouphead::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 10px;
+  background: linear-gradient(180deg, var(--side), rgba(5, 6, 7, 0));
+  pointer-events: none;
 }
 
 .nz-garage__grouphead span {
@@ -235,6 +262,48 @@
 }
 
 .nz-garage__group + .nz-garage__group { margin-top: 4px; }
+
+/* the pinned heading of a group with only a sliver left in view (Rail.tsx markTails) */
+.nz-garage__grouphead { transition: opacity var(--fast); }
+.nz-garage__group[data-tail] > .nz-garage__grouphead { opacity: 0; }
+
+/* empty collection: muted count over dashed "free bays" (the showcase explains) */
+.nz-garage__list.is-vacant { padding-top: 12px; overflow: hidden; }
+
+.nz-garage__vacantline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* an empty parking bay: dashed outline, painted bay number, nothing inside */
+.nz-garage__bay {
+  display: grid;
+  place-items: center;
+  height: 56px;
+  margin-top: 6px;
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--line);
+}
+
+.nz-garage__bay > span {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .2em;
+  color: var(--ink-3);
+}
+
+.nz-garage__bay:nth-of-type(2) { opacity: .8; }
+.nz-garage__bay:nth-of-type(3) { opacity: .6; }
+.nz-garage__bay:nth-of-type(4) { opacity: .4; }
+.nz-garage__bay:nth-of-type(5) { opacity: .2; }
 
 /* row */
 .nz-garage__row {
@@ -481,23 +550,26 @@
   bottom: 3px;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, .03);
+  background: var(--line-hair);
   overflow: hidden;
   pointer-events: none;
+  transition: opacity var(--fast);
 }
 
 .nz-garage__health > span {
   display: block;
   height: 100%;
   border-radius: 2px;
-  opacity: .42;
-  transition: width var(--slide), opacity var(--fast);
+  transition: width var(--slide), background var(--fast);
 }
 
-.nz-garage__health > .is-teal { background: var(--teal); }
-.nz-garage__health > .is-amber { background: var(--amber); opacity: .8; }
-.nz-garage__health > .is-red { background: var(--red); opacity: .9; }
-.nz-garage__row.is-selected .nz-garage__health > span { opacity: 1; }
+/* healthy engines stay quiet (hidden unless selected); worn ones stand out */
+.nz-garage__health.is-ok { opacity: 0; }
+.nz-garage__row.is-selected .nz-garage__health.is-ok { opacity: 1; }
+.nz-garage__health > .is-teal { background: rgba(var(--teal-rgb), .4); }
+.nz-garage__health > .is-amber { background: var(--amber); }
+.nz-garage__health > .is-red { background: var(--red); }
+.nz-garage__row.is-selected .nz-garage__health > .is-teal { background: var(--teal); }
 
 /* compact rows */
 .nz-garage__row.is-compact {
@@ -542,17 +614,20 @@
   flex-direction: column;
 }
 
-/* stage: turntable with spotlight, perspective floor and a teal horizon */
+/* stage: turntable with spotlight, perspective floor and a teal horizon. The height is its
+   minimum: when the detail sections are short (spawners, the impound) the stage takes the
+   spare height up to its cap, so the vehicle grows instead of empty space under the blocks. */
 .nz-garage__stage {
   position: relative;
-  flex: none;
-  height: clamp(196px, 29vh, 296px);
+  flex: 1 0 auto;
+  height: clamp(184px, 25vh, 272px);
+  max-height: max(clamp(184px, 25vh, 272px), min(400px, 40vh));
   overflow: hidden;
   border-bottom: 1px solid var(--line-soft);
   background:
     radial-gradient(48% 70% at 50% -6%, rgba(255, 255, 255, .075), rgba(255, 255, 255, 0) 72%),
     radial-gradient(64% 42% at 50% 70%, rgba(var(--teal-rgb), .075), rgba(var(--teal-rgb), 0) 70%),
-    linear-gradient(180deg, #0e1011 0%, #0a0b0c 60%, #060707 100%);
+    linear-gradient(180deg, var(--panel) 0%, var(--inset) 60%, var(--side) 100%);
 }
 
 .nz-garage__stage-light {
@@ -613,12 +688,12 @@
 .nz-garage__stage-car {
   position: absolute;
   left: 50%;
-  top: 6%;
-  height: 76%;
+  top: 3%;
+  height: 80%;
   aspect-ratio: 16 / 9;
-  max-width: 64%;
+  max-width: 66%;
   transform: translateX(-50%);
-  animation: nz-garage-car-in 280ms var(--ease) both;
+  animation: nz-garage-car-in 220ms var(--ease) both;
 }
 
 .nz-garage__stage-shadow {
@@ -651,7 +726,7 @@
   transform: translate(-50%, -50%);
   border-radius: var(--r-pill);
   border: 1px solid var(--line);
-  background: rgba(8, 9, 10, .86);
+  background: var(--hud);
   box-shadow: var(--sh-2);
   font-size: 11.5px;
   font-weight: 500;
@@ -691,7 +766,7 @@
   padding: 0 11px 0 9px;
   border-radius: var(--r-pill);
   border: 1px solid var(--line);
-  background: rgba(8, 9, 10, .78);
+  background: var(--hud);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: .12em;
@@ -702,8 +777,8 @@
 
 .nz-garage__classtag > svg { color: var(--teal); }
 
-.nz-garage__stage-fav.nz-ibtn { background: rgba(8, 9, 10, .78); }
-.nz-garage__stage-fav.is-on.nz-ibtn { color: var(--amber); border-color: var(--amber-edge); background: rgba(8, 9, 10, .78); }
+.nz-garage__stage-fav.nz-ibtn { background: var(--hud); }
+.nz-garage__stage-fav.is-on.nz-ibtn { color: var(--amber); border-color: var(--amber-edge); background: var(--hud); }
 
 .nz-garage__stage-foot {
   position: absolute;
@@ -716,8 +791,8 @@
   justify-content: space-between;
   gap: 18px;
   padding: 34px 18px 14px;
-  background: linear-gradient(180deg, rgba(6, 7, 7, 0), rgba(6, 7, 7, .78) 58%, rgba(6, 7, 7, .92));
-  animation: nz-garage-rise 240ms var(--ease) both;
+  background: linear-gradient(180deg, rgba(5, 6, 7, 0), rgba(5, 6, 7, .78) 58%, rgba(5, 6, 7, .92));
+  animation: nz-garage-rise 220ms var(--ease) both;
 }
 
 .nz-garage__stage-title {
@@ -778,7 +853,7 @@
   padding: 4px 13px 5px;
   border-radius: 5px;
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, #15181a, #0a0b0c);
+  background: linear-gradient(180deg, var(--raise), var(--inset));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, .08),
     inset 0 -1px 0 rgba(var(--teal-rgb), .45),
@@ -837,6 +912,13 @@
   color: var(--ink-3);
 }
 
+.nz-garage__cell-line {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 .nz-garage__cell-value,
 .nz-garage__cell-sub {
   min-width: 0;
@@ -867,6 +949,14 @@
 .nz-garage__cell.is-grey .nz-garage__cell-value { color: var(--ink-2); }
 
 /* detail sections */
+.nz-garage__secwrap {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .nz-garage__sections {
   flex: 1 1 auto;
   min-height: 0;
@@ -876,11 +966,37 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
   gap: 12px;
-  padding: 14px 16px 22px;
-  -webkit-mask-image: linear-gradient(180deg, #000000 calc(100% - 20px), rgba(0, 0, 0, 0));
-  mask-image: linear-gradient(180deg, #000000 calc(100% - 20px), rgba(0, 0, 0, 0));
+  padding: 14px 16px 18px;
   animation: nz-garage-rise 220ms var(--ease) both;
 }
+
+/* sections that do not fit: an in-flow bar under them names what is below the fold (never
+   on top of a value); "Back to top" at the end. Height = MORE_BAR in GarageShowcase.tsx. */
+.nz-garage__more {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 26px;
+  padding: 0 16px;
+  border-top: 1px solid var(--line-hair);
+  background: linear-gradient(180deg, var(--side), var(--base));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  transition: color var(--fast), background var(--fast);
+}
+
+.nz-garage__more > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nz-garage__more > svg { flex: none; color: var(--teal); transition: transform var(--fast); }
+.nz-garage__more:hover { color: var(--white); background: var(--teal-wash); }
+.nz-garage__more:hover > svg { transform: translateY(2px); }
+.nz-garage__more.is-end:hover > svg { transform: translateY(-2px); }
 
 .nz-garage__blk {
   min-width: 0;
@@ -1060,7 +1176,7 @@
 .nz-garage__glyph-line { fill: none; stroke: rgba(255, 255, 255, .22); stroke-width: 1; stroke-linejoin: round; }
 .nz-garage__glyph-part { fill: rgba(255, 255, 255, .035); stroke: rgba(255, 255, 255, .17); stroke-width: 1; }
 .nz-garage__glyph-glass { fill: rgba(255, 255, 255, .075); stroke: rgba(255, 255, 255, .2); stroke-width: .8; }
-.nz-garage__glyph-tyre { fill: #1b1e20; stroke: rgba(255, 255, 255, .3); stroke-width: 1; }
+.nz-garage__glyph-tyre { fill: var(--raise-2); stroke: rgba(255, 255, 255, .3); stroke-width: 1; }
 
 .nz-garage__glyph-part.is-hit,
 .nz-garage__glyph-glass.is-hit,
@@ -1253,29 +1369,31 @@
 .nz-garage__turbo.is-on { color: var(--teal); }
 .nz-garage__turbo.is-on > i { background: var(--teal); opacity: 1; box-shadow: 0 0 7px var(--teal); }
 
-/* finance */
+/* finance: figures and pay buttons on one row, payment pips under it */
 .nz-garage__fin {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.nz-garage__fin-figs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+.nz-garage__fin-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 26px;
+  min-width: 0;
 }
 
-.nz-garage__fin-figs > div {
+.nz-garage__fin-fig {
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.nz-garage__fin-figs span { font-size: 10.5px; font-weight: 300; color: var(--ink-3); }
+.nz-garage__fin-fig span { font-size: 10.5px; font-weight: 300; color: var(--ink-3); white-space: nowrap; }
 
-.nz-garage__fin-figs b {
+.nz-garage__fin-fig b {
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -.02em;
@@ -1285,8 +1403,8 @@
   text-overflow: ellipsis;
 }
 
-.nz-garage__fin-figs b small { font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
-.nz-garage__fin-figs b.is-red { color: var(--red); }
+.nz-garage__fin-fig b small { font-size: 11px; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
+.nz-garage__fin-fig b.is-red { color: var(--red); }
 
 .nz-garage__fin-progress {
   display: flex;
@@ -1305,11 +1423,11 @@
 }
 
 .nz-garage__fin-actions {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-hair);
+  margin-left: auto;
 }
 
 .nz-garage__fin-warn {
@@ -1323,12 +1441,12 @@
 
 .nz-garage__fin-warn > svg { flex: none; }
 
-/* impound */
+/* impound: reason | facts, the release countdown is a pill in the heading */
 .nz-garage__imp {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   align-items: start;
-  gap: 18px;
+  gap: 22px;
 }
 
 .nz-garage__imp-reason {
@@ -1364,39 +1482,27 @@
   gap: 6px;
 }
 
-.nz-garage__clock {
-  display: flex;
+.nz-garage__relpill {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-width: 168px;
-  padding: 10px 13px;
-  border-radius: var(--r-sm);
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line-soft);
   background: var(--inset);
-}
-
-.nz-garage__clock > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.nz-garage__clock b {
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -.02em;
-  color: var(--white);
+  font-size: 11px;
   white-space: nowrap;
 }
 
-.nz-garage__clock span { font-size: 10.5px; font-weight: 300; color: var(--ink-3); white-space: nowrap; }
-.nz-garage__clock.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); }
-.nz-garage__clock.is-amber > svg { color: var(--amber); }
-.nz-garage__clock.is-red { border-color: var(--red-edge); background: var(--red-wash); }
-.nz-garage__clock.is-red > svg { color: var(--red); }
-.nz-garage__clock.is-teal { border-color: var(--teal-edge); background: var(--teal-wash); }
-.nz-garage__clock.is-teal > svg { color: var(--teal); }
+.nz-garage__relpill b { font-weight: 600; color: var(--white); }
+.nz-garage__relpill span { font-weight: 300; color: var(--ink-2); }
+.nz-garage__relpill.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); }
+.nz-garage__relpill.is-amber > svg { color: var(--amber); }
+.nz-garage__relpill.is-red { border-color: var(--red-edge); background: var(--red-wash); }
+.nz-garage__relpill.is-red > svg { color: var(--red); }
+.nz-garage__relpill.is-teal { border-color: var(--teal-edge); background: var(--teal-wash); }
+.nz-garage__relpill.is-teal > svg { color: var(--teal); }
 
 /* facts (details / impound) */
 .nz-garage__facts {
@@ -1461,9 +1567,10 @@
 
 .nz-garage__blk-callout { margin-top: 12px; }
 
-/* action dock */
+/* action dock (pinned to the bottom: any height the stage cannot take stays above it) */
 .nz-garage__dock {
   flex: none;
+  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1546,7 +1653,7 @@
 .nz-garage__tool > svg { color: var(--ink-3); transition: color var(--fast); }
 .nz-garage__tool:hover:not(:disabled) { background: var(--raise-2); color: var(--white); }
 .nz-garage__tool:hover:not(:disabled) > svg { color: var(--teal); }
-.nz-garage__tool:disabled { opacity: .4; }
+.nz-garage__tool:disabled { opacity: .4; pointer-events: none; } /* hover reaches the tooltip wrapper ("why disabled") */
 
 .nz-garage__tool > b {
   display: inline-grid;
@@ -1566,6 +1673,7 @@
 .nz-garage__show.is-empty .nz-garage__stage {
   flex: 1 1 auto;
   height: auto;
+  max-height: none;
   border-bottom: 0;
 }
 
@@ -1580,7 +1688,7 @@
   gap: 8px;
   padding: 0 40px 6%;
   text-align: center;
-  animation: nz-garage-rise 240ms var(--ease) both;
+  animation: nz-garage-rise 220ms var(--ease) both;
 }
 
 .nz-garage__vacant-icon {
@@ -1686,6 +1794,7 @@
   .nz-garage__stage-foot,
   .nz-garage__sections,
   .nz-garage__vacant { animation: none; }
+  .nz-garage__more:hover > svg { transform: none; }
 }
 
 /* ── small screens (720p) ── */
@@ -1693,12 +1802,32 @@
   .nz-garage__railtop { gap: 8px; padding: 12px 12px 10px; }
   .nz-garage__row { padding-top: 7px; padding-bottom: 9px; }
   .nz-garage__thumb { width: 70px; height: 40px; }
-  .nz-garage__cell { padding: 8px 14px 9px; }
+  .nz-garage__bay { height: 50px; }
+  /* a shorter stage and one-line strip cells leave room for the detail sections */
+  .nz-garage__stage { height: 176px; max-height: max(176px, min(400px, 40vh)); }
+  .nz-garage__stage-car { top: 2%; height: 82%; }
+  .nz-garage__stage-top { top: 10px; }
+  .nz-garage__cell { gap: 4px; padding: 7px 14px 8px; }
+  /* value + sub on one line; a sub that does not fit whole wraps onto a clipped 2nd line
+     (so it disappears instead of ending as a stub like "Parke…") */
+  .nz-garage__cell-line {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 7px;
+    row-gap: 0;
+    height: 18px;
+    overflow: hidden;
+  }
+  .nz-garage__cell-value { flex: 0 1 auto; max-width: 100%; line-height: 18px; }
+  .nz-garage__cell-sub { flex: 0 0 auto; line-height: 18px; }
   .nz-garage__sections { gap: 10px; padding: 12px 14px 14px; }
+  .nz-garage__blk-head { min-height: 32px; }
   .nz-garage__blk-body { padding: 10px 12px 12px; }
   .nz-garage__dock { min-height: 56px; padding: 9px 14px; }
   .nz-garage__st-name { font-size: 21px; }
-  .nz-garage__stage-foot { padding: 26px 16px 12px; }
+  .nz-garage__stage-foot { padding: 22px 16px 10px; }
+  .nz-garage__plate { padding: 3px 12px 4px; }
 }
 
 @media (max-width: 1360px) {
@@ -1730,7 +1859,7 @@
   background:
     radial-gradient(60% 60% at 50% 0%, rgba(255, 255, 255, .08), rgba(255, 255, 255, 0) 70%),
     radial-gradient(70% 40% at 50% 100%, rgba(var(--teal-rgb), .18), rgba(var(--teal-rgb), 0) 70%),
-    #0c0e0f;
+    var(--inset);
   overflow: hidden;
 }
 

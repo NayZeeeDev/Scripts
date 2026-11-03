@@ -3,7 +3,7 @@
  * client knows the model), real colour swatches from the GTA palette, lights, wheels, glass,
  * plate, livery, extras and the changed body parts. Editing happens in the PropsEditor.
  */
-import { Bar, Button, EmptyState, Icon, Tooltip, cx } from '@/components/ui';
+import { Badge, Bar, Button, EmptyState, Icon, Tooltip, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { useSettings } from '@/lib/store';
 import type { AdminVehicleDetail } from '@/lib/types';
@@ -66,13 +66,13 @@ export function UpgradesTab({ detail, props, onEdit, onViewAll }: Props) {
   const perf = PERF_MODS.map((m) => ({ m, val: perfModValue(m, props) }));
   const perfCount = perf.filter((p) => p.val.on).length;
 
-  const paints: { key: string; label: string; fallback: number }[] = [
-    { key: 'color1', label: t('Primary'), fallback: 0 },
-    { key: 'color2', label: t('Secondary'), fallback: 0 },
-    { key: 'pearlescentColor', label: t('Pearlescent'), fallback: 0 },
-    { key: 'wheelColor', label: t('Wheels'), fallback: 156 },
-    { key: 'interiorColor', label: t('Interior'), fallback: 0 },
-    { key: 'dashboardColor', label: t('Dashboard'), fallback: 0 },
+  const paints: { key: string; label: string }[] = [
+    { key: 'color1', label: t('Primary') },
+    { key: 'color2', label: t('Secondary') },
+    { key: 'pearlescentColor', label: t('Pearlescent') },
+    { key: 'wheelColor', label: t('Wheels') },
+    { key: 'interiorColor', label: t('Interior') },
+    { key: 'dashboardColor', label: t('Dashboard') },
   ];
 
   const xenonOn = bool(props.modXenon);
@@ -98,13 +98,17 @@ export function UpgradesTab({ detail, props, onEdit, onViewAll }: Props) {
               <button type="button" key={m.key} className={cx('nz-dos-perf__row', val.on && 'is-on')} onClick={() => onEdit('performance')}>
                 <span className="nz-dos-perf__label">{m.label()}</span>
                 {m.max > 0 ? (
-                  <LevelPips levels={m.max} level={val.level} />
+                  <>
+                    <LevelPips levels={m.max} level={val.level} />
+                    <b>{val.text}</b>
+                  </>
                 ) : (
-                  <span className={cx('nz-dos-switch', val.on && 'is-on')} aria-hidden="true">
-                    <i />
+                  <span className="nz-dos-perf__state">
+                    <Badge tone={val.on ? 'teal' : 'neutral'} size="sm">
+                      {val.on ? t('Installed') : t('Stock')}
+                    </Badge>
                   </span>
                 )}
-                <b>{val.text}</b>
               </button>
             ))}
           </div>
@@ -149,14 +153,14 @@ export function UpgradesTab({ detail, props, onEdit, onViewAll }: Props) {
           <Heading>{t('Paint')}</Heading>
           <div className="nz-dos-paint">
             {paints.map((p) => {
-              const sw = swatchOf(props[p.key], p.fallback);
+              const sw = swatchOf(props[p.key]);
               return (
-                <button type="button" key={p.key} className="nz-dos-paint__item" onClick={() => onEdit('colours')}>
+                <button type="button" key={p.key} className={cx('nz-dos-paint__item', sw.missing && 'is-missing')} onClick={() => onEdit('colours')}>
                   <ColourChip hex={sw.hex} size={30} />
                   <span className="nz-dos-paint__text">
                     <span>
                       {p.label}
-                      <em>{sw.code}</em>
+                      {sw.code && <em>{sw.code}</em>}
                     </span>
                     <b className="nz-aveh-ellipsis" title={sw.name}>
                       {sw.name}

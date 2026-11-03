@@ -2,7 +2,7 @@
  * Inspector — details + actions of the selected location, sliding over the bottom of the map.
  *
  *   <Inspector loc kindLabel facts factsTitle stats owners? showOwners? onRetryOwners?
- *              capacity? capacityMeter? spawner? busy
+ *              capacity? capacityMeter? spawner? busy folded? onUnfold?
  *              onClose onEdit onTeleport onPoints(kind) onToggle onDelete />
  *
  * Header: type tile, name + mono #id, "kind · vehicle type · 1 open · 4 spawn", the anchor
@@ -12,6 +12,8 @@
  * capacity meter when the location has a total limit).
  * Action bar: Edit (teal, Enter), Teleport, Points ▾ (in-world manager), Enable/Disable,
  * Delete (red). These replace the old per-row icon buttons.
+ * folded: only the header row shows (the map's Fit all needed the room); a chevron, or a click
+ * on the header, unfolds it (onUnfold).
  */
 import { forwardRef, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -43,6 +45,9 @@ export interface InspectorProps {
   /** Spawner locations: number of vehicle models (their vehicles are never stored here). */
   spawner?: number | null;
   busy: InspectorBusy;
+  /** Header row only (the map needed the room). */
+  folded?: boolean;
+  onUnfold?: () => void;
   onClose: () => void;
   onEdit: () => void;
   onTeleport: () => void;
@@ -67,6 +72,8 @@ export const Inspector = forwardRef<HTMLElement, InspectorProps>(function Inspec
     capacityMeter = true,
     spawner = null,
     busy,
+    folded = false,
+    onUnfold,
     onClose,
     onEdit,
     onTeleport,
@@ -111,8 +118,11 @@ export const Inspector = forwardRef<HTMLElement, InspectorProps>(function Inspec
   ].join(' · ');
 
   return (
-    <section ref={ref} className={cx('nz-admin-cmd__insp', !loc.enabled && 'is-off')} aria-label={t('Selected location')}>
-      <header className="nz-admin-cmd__insp-head">
+    <section ref={ref} className={cx('nz-admin-cmd__insp', !loc.enabled && 'is-off', folded && 'is-folded')} aria-label={t('Selected location')}>
+      <header
+        className="nz-admin-cmd__insp-head"
+        onClick={folded && onUnfold ? (e) => !(e.target as HTMLElement).closest('button') && onUnfold() : undefined}
+      >
         <span className={cx('nz-admin-cmd__type', 'is-lg', `is-${loc.enabled ? loc.vehicleType : 'off'}`)}>
           <Icon name={vehicleTypeIcon(loc.vehicleType)} size={19} strokeWidth={1.6} />
         </span>
@@ -153,165 +163,172 @@ export const Inspector = forwardRef<HTMLElement, InspectorProps>(function Inspec
         <Badge tone={loc.enabled ? 'teal' : 'neutral'} dot size="sm">
           {loc.enabled ? t('Enabled') : t('Disabled')}
         </Badge>
+        {folded && onUnfold && (
+          <IconButton icon="chevronUp" label={t('Show details')} size="sm" onClick={onUnfold} className="nz-admin-cmd__insp-unfold" />
+        )}
         <IconButton icon="close" label={t('Close details')} size="sm" onClick={onClose} className="nz-admin-cmd__insp-x" />
       </header>
 
-      <div className={cx('nz-admin-cmd__insp-body', showOwners && 'has-owners')}>
-        {/* kind facts */}
-        <div className="nz-admin-cmd__insp-sec">
-          <h3>{factsTitle}</h3>
-          <dl className="nz-admin-cmd__facts">
-            {facts.map((f) => (
-              <div key={f.label} className={cx('nz-admin-cmd__fact', f.tone && `is-${f.tone}`)}>
-                <dt>{f.label}</dt>
-                <dd title={f.title ?? (typeof f.value === 'string' ? f.value : undefined)}>{f.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+      {!folded && (
+        <>
+          <div className={cx('nz-admin-cmd__insp-body', showOwners && 'has-owners')}>
+            {/* kind facts */}
+            <div className="nz-admin-cmd__insp-sec">
+              <h3>{factsTitle}</h3>
+              <dl className="nz-admin-cmd__facts">
+                {facts.map((f) => (
+                  <div key={f.label} className={cx('nz-admin-cmd__fact', f.tone && `is-${f.tone}`)}>
+                    <dt>{f.label}</dt>
+                    <dd title={f.title ?? (typeof f.value === 'string' ? f.value : undefined)}>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
 
-        {/* owners (private) */}
-        {showOwners && (
-          <div className="nz-admin-cmd__insp-sec">
-            <h3>
-              {t('Owners')}
-              {Array.isArray(owners) && owners.length > 0 && <em>{owners.length}</em>}
-            </h3>
-            {owners === undefined ? (
-              <div className="nz-admin-cmd__owners">
-                {[0, 1].map((i) => (
-                  <span key={i} className="nz-admin-cmd__owner is-skel">
-                    <Skeleton width={24} height={24} radius={6} />
-                    <Skeleton width={i ? 72 : 104} height={9} />
-                  </span>
-                ))}
-              </div>
-            ) : owners === 'error' ? (
-              <p className="nz-admin-cmd__muted-text">
-                {t('Could not load the owners.')}{' '}
-                {onRetryOwners && (
-                  <button type="button" className="nz-admin-cmd__link" onClick={onRetryOwners}>
-                    {t('Retry')}
-                  </button>
-                )}
-              </p>
-            ) : owners.length === 0 ? (
-              <p className="nz-admin-cmd__muted-text">{t('Nobody owns a copy yet.')}</p>
-            ) : (
-              <div className="nz-admin-cmd__owners">
-                {owners.slice(0, 3).map((g) => (
-                  <span key={g.id} className="nz-admin-cmd__owner" title={`${g.label} · ${g.ownerName}`}>
-                    <Avatar name={g.ownerName || g.owner} size={24} />
-                    <span className="nz-admin-cmd__owner-text">
-                      <b>{g.label}</b>
-                      <small>
-                        {g.ownerName} · {plural(g.members.length, '{count} member', '{count} members')} · {plural(g.vehicles, '{count} vehicle', '{count} vehicles')}
-                      </small>
-                    </span>
-                  </span>
-                ))}
-                {owners.length > 3 && (
-                  <span className="nz-admin-cmd__more is-wide">{t('+{count} more in the editor', { count: owners.length - 3 })}</span>
-                )}
-                {/* Narrow screens list 2 owners: say how many are left. */}
-                {owners.length > 2 && (
-                  <span className="nz-admin-cmd__more is-narrow">{t('+{count} more in the editor', { count: owners.length - 2 })}</span>
+            {/* owners (private) */}
+            {showOwners && (
+              <div className="nz-admin-cmd__insp-sec">
+                <h3>
+                  {t('Owners')}
+                  {Array.isArray(owners) && owners.length > 0 && <em>{owners.length}</em>}
+                </h3>
+                {owners === undefined ? (
+                  <div className="nz-admin-cmd__owners">
+                    {[0, 1].map((i) => (
+                      <span key={i} className="nz-admin-cmd__owner is-skel">
+                        <Skeleton width={24} height={24} radius={6} />
+                        <Skeleton width={i ? 72 : 104} height={9} />
+                      </span>
+                    ))}
+                  </div>
+                ) : owners === 'error' ? (
+                  <p className="nz-admin-cmd__muted-text">
+                    {t('Could not load the owners.')}{' '}
+                    {onRetryOwners && (
+                      <button type="button" className="nz-admin-cmd__link" onClick={onRetryOwners}>
+                        {t('Retry')}
+                      </button>
+                    )}
+                  </p>
+                ) : owners.length === 0 ? (
+                  <p className="nz-admin-cmd__muted-text">{t('Nobody owns a copy yet.')}</p>
+                ) : (
+                  <div className="nz-admin-cmd__owners">
+                    {owners.slice(0, 3).map((g) => (
+                      <span key={g.id} className="nz-admin-cmd__owner" title={`${g.label} · ${g.ownerName}`}>
+                        <Avatar name={g.ownerName || g.owner} size={24} />
+                        <span className="nz-admin-cmd__owner-text">
+                          <b>{g.label}</b>
+                          <small>
+                            {g.ownerName} · {plural(g.members.length, '{count} member', '{count} members')} · {plural(g.vehicles, '{count} vehicle', '{count} vehicles')}
+                          </small>
+                        </span>
+                      </span>
+                    ))}
+                    {owners.length > 3 && (
+                      <span className="nz-admin-cmd__more is-wide">{t('+{count} more in the editor', { count: owners.length - 3 })}</span>
+                    )}
+                    {/* Narrow screens list 2 owners: say how many are left. */}
+                    {owners.length > 2 && (
+                      <span className="nz-admin-cmd__more is-narrow">{t('+{count} more in the editor', { count: owners.length - 2 })}</span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* vehicles */}
-        <div className="nz-admin-cmd__insp-sec">
-          <h3>{t('Vehicles')}</h3>
-          {isImpound ? (
-            <div className="nz-admin-cmd__nums">
-              <span className={cx('is-held', !stats.held && 'is-zero')}>
-                <b>{fmt(stats.held)}</b>
-                <small>{t('held here')}</small>
-              </span>
-            </div>
-          ) : spawner !== null && vehicles === 0 ? (
-            <p className="nz-admin-cmd__note">
-              <Icon name="key" size={13} strokeWidth={1.8} />
-              <span>
-                <b>{plural(spawner, '{count} spawner vehicle', '{count} spawner vehicles')}</b>
-                <small>{t('Taken out on demand, never stored here.')}</small>
-              </span>
-            </p>
-          ) : (
-            <div className="nz-admin-cmd__nums">
-              <span className={cx('is-parked', !stats.parked && 'is-zero')}>
-                <b>{fmt(stats.parked)}</b>
-                <small>{t('parked')}</small>
-              </span>
-              <span className={cx('is-out', !stats.out && 'is-zero')}>
-                <b>{fmt(stats.out)}</b>
-                <small>{t('out now')}</small>
-              </span>
-              <span className={cx('is-impounded', !stats.impounded && 'is-zero')}>
-                <b>{fmt(stats.impounded)}</b>
-                <small>{t('impounded')}</small>
-              </span>
-            </div>
-          )}
-          {!isImpound && capacity && !(spawner !== null && vehicles === 0) && (
-            <div className="nz-admin-cmd__cap">
-              {total !== null ? (
-                <>
-                  <span className="nz-admin-cmd__cap-text">
-                    {t('{used} of {total} spaces used', { used: fmt(used), total: fmt(total) })}
+            {/* vehicles */}
+            <div className="nz-admin-cmd__insp-sec">
+              <h3>{t('Vehicles')}</h3>
+              {isImpound ? (
+                <div className="nz-admin-cmd__nums">
+                  <span className={cx('is-held', !stats.held && 'is-zero')}>
+                    <b>{fmt(stats.held)}</b>
+                    <small>{t('held here')}</small>
                   </span>
-                  <i
-                    className={cx('nz-admin-cmd__cap-bar', used >= total && 'is-full', used / total >= 0.8 && used < total && 'is-high')}
-                    style={{ '--ratio': Math.min(1, total ? used / total : 0) } as CSSProperties}
-                  />
-                </>
+                </div>
+              ) : spawner !== null && vehicles === 0 ? (
+                <p className="nz-admin-cmd__note">
+                  <Icon name="key" size={13} strokeWidth={1.8} />
+                  <span>
+                    <b>{plural(spawner, '{count} spawner vehicle', '{count} spawner vehicles')}</b>
+                    <small>{t('Taken out on demand, never stored here.')}</small>
+                  </span>
+                </p>
               ) : (
-                <span className="nz-admin-cmd__cap-text">
-                  {t('Capacity')}: <b>{capacityLabel(capacity)}</b>
-                </span>
+                <div className="nz-admin-cmd__nums">
+                  <span className={cx('is-parked', !stats.parked && 'is-zero')}>
+                    <b>{fmt(stats.parked)}</b>
+                    <small>{t('parked')}</small>
+                  </span>
+                  <span className={cx('is-out', !stats.out && 'is-zero')}>
+                    <b>{fmt(stats.out)}</b>
+                    <small>{t('out now')}</small>
+                  </span>
+                  <span className={cx('is-impounded', !stats.impounded && 'is-zero')}>
+                    <b>{fmt(stats.impounded)}</b>
+                    <small>{t('impounded')}</small>
+                  </span>
+                </div>
+              )}
+              {!isImpound && capacity && !(spawner !== null && vehicles === 0) && (
+                <div className="nz-admin-cmd__cap">
+                  {total !== null ? (
+                    <>
+                      <span className="nz-admin-cmd__cap-text">
+                        {t('{used} of {total} spaces used', { used: fmt(used), total: fmt(total) })}
+                      </span>
+                      <i
+                        className={cx('nz-admin-cmd__cap-bar', used >= total && 'is-full', used / total >= 0.8 && used < total && 'is-high')}
+                        style={{ '--ratio': Math.min(1, total ? used / total : 0) } as CSSProperties}
+                      />
+                    </>
+                  ) : (
+                    <span className="nz-admin-cmd__cap-text">
+                      {t('Capacity')}: <b>{capacityLabel(capacity)}</b>
+                    </span>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <footer className="nz-admin-cmd__insp-actions">
-        <Button variant="teal" size="sm" icon="edit" onClick={onEdit}>
-          {t('Edit')}
-          <Kbd size="sm" className="nz-admin-cmd__kbd">
-            Enter
-          </Kbd>
-        </Button>
-        <Button
-          size="sm"
-          icon="pin"
-          onClick={onTeleport}
-          disabled={!anchor}
-          loading={busy === 'teleport'}
-          title={anchor ? t('Teleport to the first open interaction') : t('No interaction point to teleport to')}
-        >
-          {t('Teleport')}
-        </Button>
-        <Menu
-          align="left"
-          items={pointItems}
-          trigger={
-            <Button size="sm" icon="route" iconRight="chevronDown" loading={busy === 'points'} title={t('Place points in the world')}>
-              {t('Points')}
+          <footer className="nz-admin-cmd__insp-actions">
+            <Button variant="teal" size="sm" icon="edit" onClick={onEdit}>
+              {t('Edit')}
+              <Kbd size="sm" className="nz-admin-cmd__kbd">
+                Enter
+              </Kbd>
             </Button>
-          }
-        />
-        <span className="nz-admin-cmd__grow" />
-        <Button size="sm" icon={loc.enabled ? 'eyeOff' : 'eye'} onClick={onToggle} loading={busy === 'toggle'}>
-          {loc.enabled ? t('Disable') : t('Enable')}
-        </Button>
-        <Button size="sm" variant="red" icon="trash" onClick={onDelete}>
-          {t('Delete')}
-        </Button>
-      </footer>
+            <Button
+              size="sm"
+              icon="pin"
+              onClick={onTeleport}
+              disabled={!anchor}
+              loading={busy === 'teleport'}
+              title={anchor ? t('Teleport to the first open interaction') : t('No interaction point to teleport to')}
+            >
+              {t('Teleport')}
+            </Button>
+            <Menu
+              align="left"
+              items={pointItems}
+              trigger={
+                <Button size="sm" icon="route" iconRight="chevronDown" loading={busy === 'points'} title={t('Place points in the world')}>
+                  {t('Points')}
+                </Button>
+              }
+            />
+            <span className="nz-admin-cmd__grow" />
+            <Button size="sm" icon={loc.enabled ? 'eyeOff' : 'eye'} onClick={onToggle} loading={busy === 'toggle'}>
+              {loc.enabled ? t('Disable') : t('Enable')}
+            </Button>
+            <Button size="sm" variant="red" icon="trash" onClick={onDelete}>
+              {t('Delete')}
+            </Button>
+          </footer>
+        </>
+      )}
     </section>
   );
 });

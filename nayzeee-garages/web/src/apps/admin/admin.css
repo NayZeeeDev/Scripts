@@ -1130,7 +1130,7 @@ html.nz-admin-away .nz-tip {
 
 /* ───────────────────────── small screens ───────────────────────── */
 
-@media (max-width: 1340px), (max-height: 760px) {
+@media (max-width: 1340px), (max-height: 820px) {
   .nz-admin__head { padding: 13px 20px 11px; }
   .nz-admin__head-icon { width: 34px; height: 34px; }
   .nz-admin__head h1 { font-size: 18px; }

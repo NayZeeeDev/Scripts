@@ -31,6 +31,8 @@ local lastRequestAt = -MIN_INTERVAL_MS
 -- Cleared whenever the house list or the housing garages change.
 local checked = {}
 local hookBusy = false
+local hookBusyAt = 0
+local HOOK_STALE_MS = 15000   -- a hook request older than this no longer blocks new ones
 
 ---------------------------------------------------------------------------------------
 -- State
@@ -323,9 +325,10 @@ local function hookFlow(action, houseId, data)
     NZ.NUI.notify('error', L('You must be driving the vehicle'))
     return false
   end
-  if hookBusy then return false end
+  if hookBusy and GetGameTimer() - hookBusyAt < HOOK_STALE_MS then return false end
 
   hookBusy = true
+  hookBusyAt = GetGameTimer()
   local name = type(data) == 'table' and (data.name or data.label) or nil
   local ok, res = pcall(lib.callback.await, 'nz:housing:hook', false, {
     houseId = id,

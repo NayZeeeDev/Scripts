@@ -241,6 +241,14 @@ export function KitGallery() {
     [],
   );
 
+  // In the browser toast() draws straight into <Toasts /> (in game Lua decides where).
+  const fireToasts = () => {
+    toast({ type: 'success', title: t('Vehicle stored'), message: t('Your Elegy is parked at Legion Square.') });
+    toast({ type: 'info', message: t('Waypoint set to the nearest garage.') });
+    toast({ type: 'warning', title: t('Payment due'), message: t('Next finance payment in 6 hours.') });
+    toast({ type: 'error', title: t('Not enough money'), message: t('You need {amount} in your bank.', { amount: money(4250) }) });
+  };
+
   return (
     <div className="nz-kitgal">
       <style>{GALLERY_CSS}</style>
@@ -825,7 +833,7 @@ export function KitGallery() {
           </Window>
 
           {/* ── Overlays ────────────────────────────────────────────── */}
-          <Window title={t('Overlays')} icon="layers" subtitle={t('Tooltips, menus, modals, HUD')}>
+          <Window title={t('Overlays')} icon="layers" subtitle={t('Tooltips, menus, modals, notifications')}>
             <Section title={t('Tooltips')}>
               <div className="kg-row">
                 {(['top', 'bottom', 'left', 'right'] as const).map((s) => (
@@ -852,8 +860,11 @@ export function KitGallery() {
                 </Button>
               </div>
             </Section>
-            <Section title={t('HUD')}>
+            <Section title={t('Notifications & HUD')}>
               <div className="kg-row">
+                <Button icon="sparkle" onClick={fireToasts}>
+                  {t('Fire 4 notifications')}
+                </Button>
                 <Button
                   icon="key"
                   onClick={() => {

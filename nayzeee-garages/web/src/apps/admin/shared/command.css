@@ -562,6 +562,14 @@
   border-bottom: 1px solid var(--line-hair);
 }
 
+/* Folded (Fit all needed the room): the header row alone, click it to unfold. */
+.nz-admin-cmd__insp.is-folded .nz-admin-cmd__insp-head {
+  border-bottom: 0;
+  cursor: pointer;
+}
+
+.nz-admin-cmd__insp.is-folded .nz-admin-cmd__insp-head:hover { background: var(--raise); }
+
 .nz-admin-cmd__insp-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -840,6 +848,38 @@
   background: var(--dot);
 }
 
+/*
+ * Private (three columns, the owners in the middle): the Vehicles column is narrow but tall,
+ * so the three numbers stack as a compact list ("11 ● parked") that never wraps or truncates.
+ */
+.nz-admin-cmd__insp-body.has-owners .nz-admin-cmd__nums {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.nz-admin-cmd__insp-body.has-owners .nz-admin-cmd__nums span {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+}
+
+.nz-admin-cmd__insp-body.has-owners .nz-admin-cmd__nums b {
+  flex: none;
+  min-width: 1.5em;
+  font-size: 16px;
+  line-height: 1.15;
+  text-align: right;
+}
+
+.nz-admin-cmd__insp-body.has-owners .nz-admin-cmd__nums small {
+  min-width: 0;
+  margin-top: 0;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .nz-admin-cmd__nums .is-out { --dot: var(--amber); }
 .nz-admin-cmd__nums .is-impounded,
 .nz-admin-cmd__nums .is-held { --dot: var(--red); }
@@ -913,7 +953,7 @@
 
 /* ───────────────────────── small screens ───────────────────────── */
 
-@media (max-width: 1340px), (max-height: 760px) {
+@media (max-width: 1340px), (max-height: 820px) {
   .nz-admin-cmd { gap: 10px; }
   .nz-admin-cmd__kpis { gap: 8px; }
   .nz-admin-cmd__kpi { padding: 8px 12px 9px; gap: 10px; }

@@ -140,7 +140,7 @@ export function FinanceTab({ detail, activity, onEdit, onActivity }: Props) {
             <Fact label={t('Interval')} icon="clock" tone={f.intervalHours ? undefined : 'muted'}>
               {f.intervalHours ? t('Every {time}', { time: hoursLabel(f.intervalHours) }) : t('Not set')}
             </Fact>
-            <Fact label={t('Total price')} icon="receipt" tone={total === null ? 'muted' : undefined}>
+            <Fact label={t('Total financed')} icon="receipt" tone={total === null ? 'muted' : undefined}>
               {total !== null ? money(total) : t('Unknown')}
             </Fact>
             <Fact label={t('Projected payoff')} icon="calendar" tone={payoffAt ? undefined : 'muted'}>

@@ -16,6 +16,7 @@ local Housing = NZ.Housing
 local HOUSES = "SELECT `name`, `label`, `garage` FROM `houselocations` WHERE `garage` IS NOT NULL AND `garage` <> '' AND `garage` NOT IN ('[]', '{}', 'null')"
 local HOUSES_ANY = "SELECT * FROM `houselocations` WHERE `garage` IS NOT NULL AND `garage` <> ''"
 local SLOT_MIN_GAP = 2.5 -- metres: a parking slot this far from the garage point is the spawn
+local labelWorks = true  -- false once the build turned out to have no `label` column
 
 Housing.addLoader({
   prefix = 'qs',
@@ -23,14 +24,24 @@ Housing.addLoader({
   hook = 'never',
 
   load = function(ctx)
-    -- Builds differ in the label column: fall back to every column.
-    local houses = ctx.query(HOUSES) or ctx.query(HOUSES_ANY)
+    -- Builds differ in the label column: fall back to every column, and remember it (oxmysql
+    -- prints its own error for every failed query).
+    local houses = labelWorks and ctx.query(HOUSES) or nil
+    if not houses then
+      houses = ctx.query(HOUSES_ANY)
+      -- Only give up on the label query when the simple one works (not a database outage).
+      if houses and labelWorks then
+        labelWorks = false
+        ctx.debug('housing: qs-housing has no label column, using SELECT *')
+      end
+    end
     if not houses then return nil end
     local owners = ctx.query('SELECT * FROM `player_houses`')
     if not owners then return nil end
 
     local access = {}
-    for _, row in ipairs(owners) do
+    for i, row in ipairs(owners) do
+      ctx.yield(i)
       local house = type(row.house) == 'string' and row.house or nil
       if house then
         local set = access[house]
@@ -48,7 +59,8 @@ Housing.addLoader({
     end
 
     local out = {}
-    for _, row in ipairs(houses) do
+    for i, row in ipairs(houses) do
+      ctx.yield(i)
       local garage = type(row.name) == 'string' and ctx.decode(row.garage) or nil
       local coords = garage and ctx.point(garage)
       if coords then
@@ -74,7 +86,9 @@ Housing.addLoader({
     if not src then return nil end
     local license = GetPlayerIdentifierByType(src, 'license')
     if type(license) ~= 'string' then return nil end
-    local has = ctx.export('CheckHasKey', license, identifier, rawId, src)
+    -- CheckHasKey is the newer name; hasKey the older one (a failure of the first is expected
+    -- on older builds and only debug-logged).
+    local has = ctx.tryExport('CheckHasKey', license, identifier, rawId, src)
     if has == nil then has = ctx.export('hasKey', license, identifier, rawId) end
     if has == true then return true end
     return nil

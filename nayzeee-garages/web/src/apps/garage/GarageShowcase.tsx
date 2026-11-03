@@ -10,12 +10,11 @@ import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { dateTime, distance, money } from '@/lib/format';
 import type { GarageOptions, GarageSummary, GarageVehicle, SpawnerVehicleView } from '@/lib/types';
-import { ago, modelName, normDamage, platePreview, primaryKind, vehicleIcon, vehicleStatus } from './model';
+import { ago, countdown, modelName, normDamage, platePreview, primaryKind, vehicleIcon, vehicleKindLabel, vehicleStatus } from './model';
 import { ClassTag, Plate, Stage, StageTitle } from './showroom/Stage';
 import { glyphShape } from './showroom/DamageGlyph';
 import {
   Block,
-  Callout,
   ConditionBlock,
   Fact,
   FinanceBlock,
@@ -23,6 +22,7 @@ import {
   PerformanceBlock,
   StripCell,
   UpgradesBlock,
+  useAvailability,
 } from './showroom/blocks';
 
 /* ── shared layout ───────────────────────────────────────────────────── */
@@ -51,33 +51,45 @@ export function ShowcaseFrame({
   );
 }
 
+/** Height of the "more below" bar (.nz-garage__more), taken from the scroll area while shown. */
+const MORE_BAR = 26;
+
 /**
- * The scrolling detail sections. When blocks sit below the fold, a small pill names them
- * ("Upgrades · Details") and scrolls down on click; the bottom fade only shows then.
+ * The scrolling detail sections. Only when they do not fit, an in-flow bar under them names
+ * the blocks below the fold ("Upgrades · Details ↓", click scrolls down) and turns into
+ * "Back to top ↑" at the end, so it never covers a value and the layout does not jump.
  */
 function Sections({ children }: { children?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [below, setBelow] = useState<string[]>([]);
+  const [below, setBelow] = useState<string[] | null>(null);
+  const shown = useRef(false);
+  shown.current = below !== null;
 
   const measure = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    const more = el.scrollHeight > el.clientHeight + 8 && el.scrollTop + el.clientHeight < el.scrollHeight - 8;
-    if (!more) {
-      setBelow((prev) => (prev.length ? [] : prev));
+    // Count the bar's own height back in: it must not keep itself alive once everything fits.
+    const room = el.clientHeight + (shown.current ? MORE_BAR : 0);
+    if (el.scrollHeight <= room + 2) {
+      setBelow((prev) => (prev === null ? prev : null));
       return;
     }
-    const fold = el.getBoundingClientRect().bottom - 24;
-    const names: string[] = [];
-    el.querySelectorAll<HTMLElement>(':scope > .nz-garage__blk').forEach((blk) => {
-      // A block counts as hidden when less than its heading is in view.
-      if (blk.getBoundingClientRect().top + 30 > fold) {
+    // Name the blocks whose heading is out of view; failing that, the ones cut off at the fold.
+    // At the end nothing is named: the bar offers "Back to top".
+    const fold = el.getBoundingClientRect().bottom - 8;
+    const hidden: string[] = [];
+    const cut: string[] = [];
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 8) {
+      el.querySelectorAll<HTMLElement>(':scope > .nz-garage__blk').forEach((blk) => {
+        const r = blk.getBoundingClientRect();
         const h = blk.querySelector('h4')?.textContent?.trim();
-        if (h && !names.includes(h)) names.push(h);
-      }
-    });
-    if (!names.length) names.push(t('More'));
-    setBelow((prev) => (prev.join('|') === names.join('|') ? prev : names));
+        if (!h || r.bottom <= fold) return;
+        (r.top + 34 > fold ? hidden : cut).push(h);
+      });
+      if (!hidden.length && !cut.length) cut.push(t('More'));
+    }
+    const names = hidden.length ? hidden : cut;
+    setBelow((prev) => (prev !== null && prev.join('|') === names.join('|') ? prev : names));
   }, []);
 
   useEffect(() => {
@@ -104,20 +116,20 @@ function Sections({ children }: { children?: ReactNode }) {
     };
   }, [measure]);
 
-  const more = below.length > 0;
+  const end = below !== null && below.length === 0;
   return (
     <div className="nz-garage__secwrap">
-      <div ref={ref} className={cx('nz-garage__sections', more && 'is-more')}>
+      <div ref={ref} className="nz-garage__sections">
         {children}
       </div>
-      {more && (
+      {below !== null && (
         <button
           type="button"
-          className="nz-garage__more"
-          onClick={() => ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: 'smooth' })}
+          className={cx('nz-garage__more', end && 'is-end')}
+          onClick={() => ref.current?.scrollTo({ top: end ? 0 : ref.current.scrollHeight, behavior: 'smooth' })}
         >
-          <span>{below.slice(0, 3).join(' · ')}</span>
-          <Icon name="chevronDown" size={12} strokeWidth={2.2} />
+          <span>{end ? t('Back to top') : below.slice(0, 3).join(' · ')}</span>
+          <Icon name={end ? 'chevronUp' : 'chevronDown'} size={12} strokeWidth={2.2} />
         </button>
       )}
     </div>
@@ -185,13 +197,27 @@ export interface VehicleShowcaseProps {
   onPay: (full: boolean) => void;
 }
 
-function locationCell(v: GarageVehicle, garage: GarageSummary) {
+/** Impound availability of the selected vehicle (live countdown), see useAvailability. */
+type Availability = ReturnType<typeof useAvailability>;
+
+function locationCell(v: GarageVehicle, garage: GarageSummary, avail: Availability) {
   const st = vehicleStatus(v);
   switch (st.key) {
     case 'blocked':
       return { value: v.garageName ?? t('Unknown'), sub: t('Blocked by staff'), tone: 'grey' as const };
     case 'impounded':
-      return { value: v.impound?.locationName ?? v.garageName ?? t('Impound'), sub: t('Impounded'), tone: 'red' as const };
+      return {
+        value: v.impound?.locationName ?? v.garageName ?? t('Impound'),
+        sub:
+          avail?.state === 'release'
+            ? t('On hold')
+            : avail?.state === 'waiting'
+              ? t('Released in {time}', { time: countdown(avail.seconds) })
+              : avail?.state === 'now'
+                ? t('Ready to collect')
+                : t('Impounded'),
+        tone: 'red' as const,
+      };
     case 'out':
       return { value: t('Out in the city'), sub: t('Not in a garage'), tone: 'amber' as const };
     case 'lost':
@@ -230,7 +256,8 @@ function ghostNote(v: GarageVehicle): string | null {
 export function VehicleShowcase(props: VehicleShowcaseProps) {
   const { v, garage } = props;
   const damage = normDamage(v.damage);
-  const loc = locationCell(v, garage);
+  const avail = useAvailability(v.state === 'impounded' ? v.impound : null);
+  const loc = locationCell(v, garage, avail);
   const share = sharingCell(v, garage);
   // A vehicle that can be driven from here is never drawn as a ghost (retrieveMode 'anywhere').
   const note = v.canDrive ? null : ghostNote(v);
@@ -262,6 +289,11 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
               {v.blocked && (
                 <Badge tone="red" icon="ban" size="sm">
                   {t('Blocked')}
+                </Badge>
+              )}
+              {v.trailer && (
+                <Badge tone="neutral" icon="trailer" size="sm" className="nz-garage__stage-trailer">
+                  {v.trailer.label}
                 </Badge>
               )}
             </>
@@ -296,7 +328,7 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
           <StripCell icon={share.icon} label={share.label} value={share.value} sub={share.sub} />
         </>
       }
-      dock={<GarageDock {...props} isDriving={isDriving} busy={busy} />}
+      dock={<GarageDock {...props} avail={avail} isDriving={isDriving} busy={busy} />}
     >
       {v.state === 'impounded' && v.impound && <ImpoundBlock info={v.impound} />}
       {v.finance && (
@@ -318,22 +350,16 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
       />
       {v.stats && <PerformanceBlock stats={v.stats} />}
       <UpgradesBlock mods={v.mods} />
+      {/* Only what the stage, strip and dock do not show already (make, plate, owner are there). */}
       <Block title={t('Details')} icon="info" wide={!v.stats}>
         <div className={cx('nz-garage__facts', !v.stats && 'is-cols')}>
           <Fact label={t('Model')} mono>
             {v.model}
           </Fact>
-          <Fact label={t('Make')}>{v.make || '—'}</Fact>
-          <Fact label={t('Owner')}>{v.isOwner ? t('You') : v.ownerName || t('Unknown')}</Fact>
-          <Fact label={t('Plate')} mono>
-            {v.plate}
-          </Fact>
+          <Fact label={t('Type')}>{vehicleKindLabel(v)}</Fact>
+          <Fact label={t('Class')}>{v.classLabel || t('Other')}</Fact>
+          {v.trailer && <Fact label={t('Trailer')}>{v.trailer.label}</Fact>}
         </div>
-        {v.trailer && (
-          <Callout tone="teal" icon="trailer" className="nz-garage__blk-callout">
-            {t('Trailer stored with it:')} <b>{v.trailer.label}</b>
-          </Callout>
-        )}
       </Block>
     </ShowcaseFrame>
   );
@@ -356,7 +382,8 @@ function GarageDock({
   onShare,
   onSell,
   onPay,
-}: VehicleShowcaseProps & { isDriving: boolean; busy: boolean }) {
+  avail,
+}: VehicleShowcaseProps & { avail: Availability; isDriving: boolean; busy: boolean }) {
   const parked = v.state === 'garaged';
   const canTransfer = v.isOwner && parked && (options.garageTransfer || options.playerTransfer);
   const canSell = v.isOwner && parked && options.sell;
@@ -381,6 +408,8 @@ function GarageDock({
         <PrimaryLabel keycap={!isDriving}>{isDriving ? t('Loading vehicle...') : t('Drive out')}</PrimaryLabel>
       </Button>
     );
+    // A stored trailer changes what Drive out does (it needs room to unhitch): say so up front.
+    if (v.trailer) reason = { tone: 'neutral', icon: 'trailer', text: t('Comes out with its {trailer}.', { trailer: v.trailer.label }) };
   } else if (kind === 'recover') {
     primary = (
       <Button variant="white" size="lg" icon="refresh" loading={recovering} disabled={busy && !recovering} onClick={onRecover} className="nz-garage__go">
@@ -409,14 +438,28 @@ function GarageDock({
       </Button>
     );
     if (v.state === 'impounded' && v.impound) {
-      reason = {
-        tone: 'red',
-        icon: 'impound',
-        text:
-          v.impound.fee > 0
-            ? t('Pay {fee} at {place} to get it back.', { fee: money(v.impound.fee), place: v.impound.locationName })
-            : t('Collect it at {place}.', { place: v.impound.locationName }),
-      };
+      const place = v.impound.locationName;
+      const fee = v.impound.fee;
+      // Match the impound block: paying does nothing while it is on hold or still waiting.
+      if (avail?.state === 'release') {
+        reason = { tone: 'red', icon: 'lock', text: t('Held at {place} until staff release it.', { place }) };
+      } else if (avail?.state === 'waiting') {
+        const time = countdown(avail.seconds);
+        reason = {
+          tone: 'amber',
+          icon: 'clock',
+          text:
+            fee > 0
+              ? t('Collectable at {place} in {time}, fee {fee}.', { place, time, fee: money(fee) })
+              : t('Collectable at {place} in {time}.', { place, time }),
+        };
+      } else {
+        reason = {
+          tone: 'red',
+          icon: 'impound',
+          text: fee > 0 ? t('Pay {fee} at {place} to get it back.', { fee: money(fee), place }) : t('Collect it at {place}.', { place }),
+        };
+      }
     } else {
       reason = { tone: v.state === 'out' ? 'amber' : 'neutral', icon: v.state === 'out' ? 'route' : 'pin', text: v.reason ?? t('It is not parked here.') };
     }
@@ -447,7 +490,8 @@ function GarageDock({
         )}
         {canShare && <Tool icon="userPlus" label={t('Share')} onClick={onShare} disabled={busy} badge={v.sharedWith > 0 ? v.sharedWith : undefined} />}
         {canSell && <Tool icon="tag" label={t('Sell')} onClick={onSell} disabled={busy || !!sellLock} tip={sellLock ?? undefined} />}
-        {!waypointPrimary && <Tool icon="map" label={t('Track')} onClick={onTrack} tip={t('Set a waypoint to this vehicle')} />}
+        {/* A lost vehicle has no known position to track: Recover is the way back. */}
+        {!waypointPrimary && !v.canRecover && <Tool icon="map" label={t('Track')} onClick={onTrack} tip={t('Set a waypoint to this vehicle')} />}
       </div>
     </>
   );
@@ -469,6 +513,7 @@ export function SpawnerShowcase({
   const loading = spawning === s.index;
   const tpl = platePreview(s.plate);
   const key = `s${s.index}`;
+  const seats = s.stats?.seats ?? 0;
   return (
     <ShowcaseFrame
       id={key}
@@ -515,8 +560,8 @@ export function SpawnerShowcase({
           <StripCell
             icon="users"
             label={t('Seats')}
-            value={s.stats && s.stats.seats > 0 ? String(s.stats.seats) : '—'}
-            sub={s.classLabel ?? t('Vehicle')}
+            value={seats > 0 ? String(seats) : '—'}
+            sub={seats > 1 ? t('Driver + {n}', { n: seats - 1 }) : seats === 1 ? t('Driver only') : t('Unknown')}
           />
         </>
       }
@@ -541,7 +586,7 @@ export function SpawnerShowcase({
       }
     >
       {s.stats ? (
-        <PerformanceBlock stats={s.stats} />
+        <PerformanceBlock stats={s.stats} hideSeats />
       ) : (
         <Block title={t('Performance')} icon="gauge">
           <p className="nz-garage__nodata">
@@ -550,22 +595,15 @@ export function SpawnerShowcase({
           </p>
         </Block>
       )}
+      {/* Make, plate format and seats are on the stage / strip; the dock says to bring it back. */}
       <Block title={t('Details')} icon="info">
         <div className="nz-garage__facts">
           <Fact label={t('Model')} mono>
             {s.model}
           </Fact>
-          <Fact label={t('Make')}>{s.make || '—'}</Fact>
+          <Fact label={t('Type')}>{vehicleKindLabel(s)}</Fact>
           <Fact label={t('Class')}>{s.classLabel || t('Other')}</Fact>
-          <Fact label={t('Plate format')} mono>
-            {tpl ? tpl.text : t('Random')}
-          </Fact>
         </div>
-        <Callout tone="neutral" icon="info" className="nz-garage__blk-callout">
-          {garage.jobLabel
-            ? t('Fleet vehicles are not yours to keep: store them here again when you are done.')
-            : t('This vehicle is lent to you: store it here again when you are done.')}
-        </Callout>
       </Block>
     </ShowcaseFrame>
   );

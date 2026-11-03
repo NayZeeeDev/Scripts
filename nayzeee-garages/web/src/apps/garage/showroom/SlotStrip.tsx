@@ -29,9 +29,14 @@ export function SlotStrip({ capacity, stored, compact = false }: { capacity: Cap
   const full = used >= total;
   const near = !full && used / total >= 0.8;
   const free = Math.max(0, total - used);
-  const tip = full
-    ? t('Full: {used} of {total} spaces used', { used, total })
-    : t('{free} of {total} spaces free', { free, total });
+  // "Your spaces" counts only your own vehicles: others' (shared with you) parked here are free.
+  const guests = capacity.appliesTo === 'player' ? Math.max(0, stored - used) : 0;
+  const tip = [
+    full ? t('Full: {used} of {total} spaces used', { used, total }) : t('{free} of {total} spaces free', { free, total }),
+    guests > 0 ? t('{n} vehicle(s) shared with you are parked here and use no space of yours', { n: guests }) : null,
+  ]
+    .filter(Boolean)
+    .join('. ');
   return (
     <Tooltip content={tip} side="bottom">
       <span className={cx('nz-garage__slots', full && 'is-full', near && 'is-near')} aria-label={tip}>

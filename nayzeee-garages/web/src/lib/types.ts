@@ -384,8 +384,9 @@ export interface SetupData {
 export interface PromptData { key: string; label: string }
 export interface HintData { title?: string; keys: { keys: string[]; label: string }[] }
 
-/** Notification raised by the interface (NUI callback 'notify'); Lua shows it through the
- *  configured notify integration (ox_lib, framework, okokNotify, ...). */
+/** Notification raised by the interface (NUI callback 'notify'). Lua decides where it is drawn:
+ *  back inside the interface while a window holds focus, otherwise through the configured notify
+ *  integration (ox_lib, framework, okokNotify, ...). */
 export type NotifyType = 'success' | 'error' | 'info' | 'warning';
 export interface NotifyRequest {
   type: NotifyType;
@@ -393,6 +394,19 @@ export interface NotifyRequest {
   message: string;
   /** max 60 characters; defaults to Config.Notify.title */
   title?: string;
+}
+
+/** Lua -> NUI 'notify': a notification drawn inside the interface (<Toasts />). Lua sends it only
+ *  while one of our windows holds NUI focus: FiveM then draws our page above every other
+ *  resource's NUI, so the notify resource would be hidden behind the window
+ *  (Config.Notify.inInterface). Text is plain and already capped by Lua. */
+export interface Toast {
+  type: NotifyType;
+  message: string;
+  /** only an explicit title (the generic Config.Notify.title is not repeated inside the window) */
+  title?: string;
+  /** ms, 1000-30000 from Lua (Config.Notify.duration unless the sender chose one); 0 = until clicked */
+  duration?: number;
 }
 
 /* ───────────────────────── interiors & creator ───────────────────────── */
@@ -665,7 +679,8 @@ export type NuiMessage =
   | { action: 'close'; data: { app?: AppName | null } }
   | { action: 'hud'; data: HudVehicle | null }
   | { action: 'prompt'; data: PromptData | null }
-  | { action: 'hint'; data: HintData | null };
+  | { action: 'hint'; data: HintData | null }
+  | { action: 'notify'; data: Toast };
 
 type Cb<Req, Res> = { req: Req; res: Res };
 

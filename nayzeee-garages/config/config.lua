@@ -32,11 +32,18 @@ Config.Integrations = {
   inventory = 'auto',
   fuel = 'auto',    -- ox_fuel | LegacyFuel | cdn-fuel | ps-fuel | lj-fuel | okokGasStation | qs-fuelstations | Renewed-Fuel | ti_fuel | native
   target = 'auto',  -- ox_target | qb-target | none
-  housing = 'auto', -- qb-houses | ps-housing | none  (others can use the RegisterHouseGarage export)
-  -- Notifications: ox_lib | framework (qb / qbx / esx built-in) | qb | qbx | esx (esx_notify, ESX
-  -- Legacy 1.9+) | okokNotify | mythic_notify | pNotify | wasabi_notify | brutal_notify | lation_ui |
-  -- t-notify | custom ('custom': edit NZ.Notify.custom in bridge/client/notify.lua).
-  -- ox_lib is used whenever the configured resource is not started.
+  -- House garages: 'auto' (every supported housing script that is started) | 'none' | one name |
+  -- a list, e.g. { 'ps-housing', 'loaf_housing' }. Names (resource or house id prefix): qb-houses (qb),
+  -- ps-housing (ps), qs-housing (qs), esx_property (esx), loaf_housing (loaf), vms_housing (vms),
+  -- bcs_housing (bcs), tk_housing (tk), rtx_housing (rtx), RxHousing (rx), nolag_properties (nolag).
+  -- Some need a small file copied into the housing script: see install/housing/README.md.
+  -- Any other script can use the RegisterHouseGarage / SetHouseAccess exports.
+  housing = 'auto',
+  -- Notifications: ox_lib | auto (first running okokNotify / wasabi_notify / brutal_notify / lation_ui /
+  -- t-notify / mythic_notify / pNotify, else ox_lib) | framework (qb / qbx / esx built-in) | qb | qbx |
+  -- esx (esx_notify, ESX Legacy 1.9+) | okokNotify | mythic_notify | pNotify | wasabi_notify |
+  -- brutal_notify | lation_ui | t-notify | custom ('custom': edit NZ.Notify.custom in
+  -- bridge/client/notify.lua). ox_lib is used whenever the configured resource is not started.
   notify = 'ox_lib',
 }
 
@@ -46,6 +53,10 @@ Config.Notify = {
   position = nil,            -- nil = each player's own ox_lib setting; or 'top' | 'top-right' | 'top-left' |
                              -- 'bottom' | 'bottom-right' | 'bottom-left' | 'center-right' | 'center-left'
   duration = 5000,           -- milliseconds
+  -- While a garage window has mouse focus FiveM draws it above every other resource's interface,
+  -- so a notification from the integration above would be hidden behind it. true = show it inside
+  -- the open window instead; false = always use Config.Integrations.notify.
+  inInterface = true,
 }
 
 Config.Commands = {

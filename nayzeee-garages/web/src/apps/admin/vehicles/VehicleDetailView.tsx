@@ -4,7 +4,7 @@
  * Condition · Upgrades & paint · Finance · History · Activity · Data; keys 1-7) and every
  * edit modal. Every edit goes through admin:vehicle:update and refreshes the activity log.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button, ConfirmDialog, EmptyState, IconButton, Kbd, Skeleton, Tabs, cx } from '@/components/ui';
 import { request } from '@/lib/nui';
@@ -70,6 +70,8 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
   };
   const [busy, setBusy] = useState<'block' | 'delete' | 'finance' | 'release' | null>(null);
   const activity = useActivity(detail ? detail.vehicle.plate : null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +110,27 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [detail, modal, shell.hidden]);
+
+  // Scroll cue: fade the bottom edge while the tab's sheet runs past the window (1280×720).
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return undefined;
+    const pane = body.querySelector<HTMLElement>(':scope > .nz-dos-pane');
+    if (!pane) {
+      setMore(false);
+      return undefined;
+    }
+    const check = () => setMore(pane.scrollHeight - pane.clientHeight - pane.scrollTop > 4);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(pane);
+    Array.from(pane.children).forEach((c) => ro.observe(c));
+    pane.addEventListener('scroll', check, { passive: true });
+    return () => {
+      ro.disconnect();
+      pane.removeEventListener('scroll', check);
+    };
+  }, [tab, detail]);
 
   /** Apply a patch, refresh the dossier, the activity and the player's list. */
   const patch = useCallback(
@@ -252,7 +275,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
     ),
     condition: (
       <Button size="sm" variant="line" icon="edit" onClick={() => show('details')}>
-        {t('Edit condition')}
+        {t('Edit details & condition')}
       </Button>
     ),
     upgrades: (
@@ -320,7 +343,7 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
         <div className="nz-dos-tabrow__actions">{tabActions[tab]}</div>
       </div>
 
-      <div className={cx('nz-dos-body', `is-${tab}`)} key={tab} role="tabpanel">
+      <div className={cx('nz-dos-body', `is-${tab}`, more && 'has-more')} key={tab} role="tabpanel" ref={bodyRef}>
         {tab === 'overview' && (
           <OverviewTab
             detail={detail}
@@ -331,6 +354,8 @@ export function VehicleDetailView({ data, plate, identifier, initialModal = null
             needsService={needsService}
             onTab={setTab}
             onEditCondition={() => show('details')}
+            onEditDetails={() => show('details')}
+            onEditImpound={() => show('impound')}
             onRelease={() => show('release')}
             onUnblock={toggleBlock}
             busy={busy}

@@ -7,6 +7,7 @@
 import { useEffect, useRef } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 import { Icon, Skeleton, Tooltip, VehicleImage, cx } from '@/components/ui';
+import type { IconName } from '@/components/ui';
 import type { VehicleType } from '@/lib/types';
 import { t } from '@/lib/i18n';
 import type { ItemGroup, StatusTone } from '../model';
@@ -53,16 +54,27 @@ export function RailList<T>({
     const raf = requestAnimationFrame(() => {
       const sr = scroller.getBoundingClientRect();
       const rr = row.getBoundingClientRect();
-      const head = headed ? 32 : 0; // sticky group heading (.nz-garage__grouphead)
+      const head = headed ? 38 : 0; // sticky group heading (32px, .nz-garage__grouphead) + most of its skirt
       let shift = 0;
       if (rr.top < sr.top + head + 6) shift = rr.top - sr.top - head - 6;
       else if (rr.bottom > sr.bottom - 6) shift = rr.bottom - sr.bottom + 6;
-      if (Math.abs(shift) > 1) {
-        scroller.scrollBy({ top: shift, behavior: first || prefersReducedMotion() ? 'auto' : 'smooth' });
-      }
+      if (Math.abs(shift) <= 1) return;
+      if (headed) shift = clearPinnedTail(scroller, sr.top, shift);
+      scroller.scrollBy({ top: shift, behavior: first || prefersReducedMotion() ? 'auto' : 'smooth' });
     });
     return () => cancelAnimationFrame(raf);
   }, [selected, groups, headed]);
+
+  // Wherever the list stops (wheel, end of the list), a pinned heading whose group shows only a
+  // sliver under it fades out, so it never reads as an empty group stacked on the next one.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || !headed) return;
+    const mark = () => markTails(scroller);
+    mark();
+    scroller.addEventListener('scroll', mark, { passive: true });
+    return () => scroller.removeEventListener('scroll', mark);
+  }, [groups, headed, compact]);
 
   return (
     <div ref={scrollRef} className={cx('nz-garage__list', compact && 'is-compact')} role="listbox" aria-label={label}>
@@ -101,6 +113,53 @@ export function RailList<T>({
   );
 }
 
+/** Below this much of a group's last row under its pinned heading, the heading is scrolled away. */
+const MIN_TAIL = 24;
+const HEAD_H = 32;
+
+/** A row showing less than this under the pinned heading (a plate edge, a health bar) is scrolled away. */
+const MIN_SLIVER = 16;
+
+/**
+ * Tidies the scroll target under the sticky headings. The group whose heading would be pinned
+ * at the new position: when only a sliver of its last row would stay visible under the opaque
+ * heading (it reads as an empty group), scroll on to the next group's start so that group's
+ * heading takes the top instead. Moving down, a row cut to a thin strip under the heading is
+ * scrolled away too.
+ */
+function clearPinnedTail(scroller: HTMLElement, top: number, shift: number): number {
+  const at = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    return { top: r.top - top + scroller.scrollTop, bottom: r.bottom - top + scroller.scrollTop };
+  };
+  const next = scroller.scrollTop + shift;
+  const groups = Array.from(scroller.querySelectorAll<HTMLElement>(':scope > .nz-garage__group'));
+  for (let i = 0; i < groups.length; i++) {
+    const g = at(groups[i]);
+    if (next < g.top || next >= g.bottom) continue;
+    if (i < groups.length - 1 && g.bottom - next < HEAD_H + MIN_TAIL) return at(groups[i + 1]).top - scroller.scrollTop;
+    if (shift > 0) {
+      const line = next + HEAD_H;
+      for (const row of Array.from(groups[i].querySelectorAll(':scope > .nz-garage__row'))) {
+        const r = at(row);
+        if (r.top < line && r.bottom > line) return r.bottom - line < MIN_SLIVER ? shift + (r.bottom - line) : shift;
+      }
+    }
+    break;
+  }
+  return shift;
+}
+
+/** Sets data-tail on a group that started above the top edge and has less than a heading + MIN_TAIL left. */
+function markTails(scroller: HTMLElement) {
+  const top = scroller.getBoundingClientRect().top;
+  scroller.querySelectorAll<HTMLElement>(':scope > .nz-garage__group').forEach((g) => {
+    const r = g.getBoundingClientRect();
+    const left = r.bottom - top;
+    g.toggleAttribute('data-tail', r.top < top - 1 && left > 0 && left < HEAD_H + MIN_TAIL);
+  });
+}
+
 /** Loading placeholder for the rail (group switch, refresh). */
 export function RailSkeleton({ count = 6, compact = false }: { count?: number; compact?: boolean }) {
   const widths = [62, 48, 70, 54, 44, 66, 58];
@@ -123,23 +182,20 @@ export function RailSkeleton({ count = 6, compact = false }: { count?: number; c
 }
 
 /**
- * Empty collection: a short muted line over a few dashed "free bay" outlines. The showcase
- * next to it carries the real empty state (title, explanation, steps), so nothing repeats.
+ * Empty collection: a short muted line over a few empty, numbered parking bays (dashed
+ * outlines, nothing inside, so it never reads as loading rows). The showcase next to it
+ * carries the real empty state (title, explanation, steps), so nothing repeats.
  */
-export function RailVacant({ label }: { label: string }) {
+export function RailVacant({ label, icon = 'parking', bays = true }: { label: string; icon?: IconName; bays?: boolean }) {
   return (
     <div className="nz-garage__list is-vacant" role="status">
       <p className="nz-garage__vacantline">
-        <Icon name="parking" size={12} strokeWidth={1.9} />
+        <Icon name={icon} size={12} strokeWidth={1.9} />
         {label}
       </p>
-      {Array.from({ length: 5 }, (_, i) => (
+      {Array.from({ length: bays ? 5 : 0 }, (_, i) => (
         <div key={i} className="nz-garage__bay" aria-hidden="true">
-          <span className="nz-garage__bay-thumb" />
-          <span className="nz-garage__bay-lines">
-            <i />
-            <i />
-          </span>
+          <span>{String(i + 1).padStart(2, '0')}</span>
         </div>
       ))}
     </div>
