@@ -1,2 +1,87 @@
-/* Placeholder — replaced by the UI kit agent. */
-:root{}
+/* ═══════════════════════════════════════════════════════════════════════
+   nayzeee-garages — design tokens (NayZeee UI: v5 frame + design-sheet controls)
+   lib/theme.ts rewrites the --teal family + --on-teal at runtime from settings,
+   so components must only ever reference these variables (never a literal teal).
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  /* surfaces — neutral black, no blue cast */
+  --void: #000000;
+  --base: #08090a;
+  --side: #050607;
+  --panel: #0e1011;
+  --raise: #15181a;
+  --raise-2: #1c2023;
+  --inset: #0b0c0d;
+  --hud: rgba(12, 13, 16, .78);
+  --hud-line: rgba(255, 255, 255, .08);
+
+  /* lines — white at low alpha, three weights + the 1px top highlight */
+  --line: rgba(255, 255, 255, .10);
+  --line-soft: rgba(255, 255, 255, .06);
+  --line-hair: rgba(255, 255, 255, .035);
+  --lift: rgba(255, 255, 255, .055);
+
+  /* ink */
+  --white: #ffffff;
+  --ink: #f2f4f5;
+  --ink-2: #9ea5aa;
+  --ink-3: #63696d;
+  --ink-hud: rgba(243, 245, 239, .72);
+
+  /* accent (defaults — overwritten by applyAccent) */
+  --teal: #08afa2;
+  --teal-hi: #0fd4c4;
+  --teal-lo: #067d74;
+  --teal-rgb: 8, 175, 162;
+  --teal-wash: rgba(8, 175, 162, .11);
+  --teal-edge: rgba(8, 175, 162, .34);
+  --on-teal: #00201d;
+
+  /* status */
+  --red: #e5484d;
+  --red-lo: #b8262b;
+  --red-rgb: 229, 72, 77;
+  --red-wash: rgba(229, 72, 77, .11);
+  --red-edge: rgba(229, 72, 77, .34);
+  --amber: #e5a50a;
+  --amber-rgb: 229, 165, 10;
+  --amber-wash: rgba(229, 165, 10, .12);
+  --amber-edge: rgba(229, 165, 10, .36);
+  --blue: #58a6ff;
+  --blue-rgb: 88, 166, 255;
+  --blue-wash: rgba(88, 166, 255, .11);
+  --blue-edge: rgba(88, 166, 255, .34);
+
+  /* radius */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* depth */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .6);
+  --sh-2: 0 2px 6px rgba(0, 0, 0, .5), 0 10px 28px rgba(0, 0, 0, .45);
+  --sh-3: 0 10px 24px rgba(0, 0, 0, .6), 0 40px 80px rgba(0, 0, 0, .7);
+  --sh-hud: 0 10px 28px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .05);
+
+  /* motion */
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --fast: 130ms cubic-bezier(.4, 0, .2, 1);
+  --slide: 220ms cubic-bezier(.4, 0, .2, 1);
+
+  /* type */
+  --font: 'Lexend', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* shape */
+  --chamfer: 22px;
+
+  /* stacking inside .nz-root */
+  --z-hud: 10;
+  --z-window: 20;
+  --z-modal: 100;
+  --z-pop: 200;
+  --z-tip: 300;
+  --z-toast: 400;
+}

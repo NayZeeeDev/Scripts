@@ -434,7 +434,7 @@ NZ.Logs.add(event, src|nil, data)          -- event names: 'vehicle.retrieve', '
    -- 'impound.release', 'impound.retrieve', 'garage.purchase', 'garage.members',
    -- 'admin.<action>', 'security.<what>' (prefix picks the webhook channel)
 ```
-Callbacks: `nz:keys:give { netId, plate }` (client asks the server to give keys when the key
+Callbacks: `nz:keys:give { netId, plate }` / `nz:keys:remove { netId, plate }` (client asks the server to give or remove keys when the key
 resource is server-side), `nz:housing:refresh {}` → client views of the player's houses.
 
 Bootstrap callback (server-core): `nz:state:bootstrap {}` →
@@ -765,6 +765,7 @@ Server → client:
 - `nz:client:locations (views)` — full list of client views (+ house views for that player).
 - `nz:client:settings (settings)`
 - `nz:client:groups ({ [locationId] = true })` — private locations the player belongs to.
+- `nz:client:houses (views)` — house garages this player can use (integrations; replaces NZ.State.houses).
 - `nz:client:notify (toast)` — `{ type, message, title? }`.
 - `nz:client:sellOffer ({ offerId, plate, label, price, sellerName })` → client
   `lib.alertDialog` → callback `nz:garage:sellRespond { offerId, accept }`.

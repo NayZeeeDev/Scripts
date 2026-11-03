@@ -1,0 +1,1690 @@
+--[[
+  nayzeee-garages — server/vehicles.lua (NZ.Vehicles)
+
+  Everything that moves a vehicle in or out of a garage on the server:
+  garage menu data (GarageOpenData), retrieve ("Drive", §7.1), store (§7.2), track,
+  recover lost vehicles, nearest garage with free space, and the out-vehicle registry
+  (NZ.Vehicles.out) used for duplication protection and restart adoption (§7.5).
+]]
+
+local Vehicles = NZ.Vehicles
+local Utils = NZ.Utils
+
+---@type table<string, table> plate -> { netId, entity, src, identifier, garageKey, at, spawner, job }
+Vehicles.out = Vehicles.out or {}
+
+local SPAWN_GRACE = 60          -- seconds a retrieved vehicle may stay unreported before it counts as lost
+local LOCK_TIMEOUT = 30000      -- ms after which a plate lock is considered stale
+local SPAWN_CLEARANCE = 2.5     -- metres; a spawn point with a vehicle closer than this is occupied
+local TRAILER_RANGE = 20.0      -- metres; max distance of an unattached trailer from its vehicle
+local MAX_PLATE_LENGTH = 16
+local MAX_PROPS_BYTES = 32768
+local MAX_DAMAGE_BYTES = 65536
+
+local ENTITY_TYPES = {
+  automobile = true, bike = true, boat = true, heli = true,
+  plane = true, submarine = true, trailer = true, train = true,
+}
+local ENTITY_CATEGORY = { boat = 'sea', submarine = 'sea', heli = 'air', plane = 'air' }
+
+local entityPlates = {}   -- [entity handle] = plate, for fast clean-up on entityRemoved
+local locks = {}          -- [plate] = GetGameTimer() at lock time
+local blacklist = nil     -- lazily built set of blacklisted model hashes
+local booted = false
+
+---------------------------------------------------------------------------------------
+-- Small helpers
+---------------------------------------------------------------------------------------
+
+local function ok(data) return Utils.ok(data) end
+local function fail(message) return Utils.fail(message) end
+
+local function setting(path, default)
+  local value
+  if NZ.Settings and NZ.Settings.get then value = NZ.Settings.get(path, default) end
+  if value == nil then return default end
+  return value
+end
+
+local function maxDistance()
+  return tonumber(setting('garages.maxDistance', 25.0)) or 25.0
+end
+
+local function log(event, src, data)
+  if not (NZ.Logs and NZ.Logs.add) then return end
+  local success, err = pcall(NZ.Logs.add, event, src, data)
+  if not success then
+    lib.print.warn(('[nayzeee-garages] could not log %s: %s'):format(event, err))
+  end
+end
+
+local function toInt(value, min, max)
+  local n = tonumber(value)
+  if not n or n ~= n or n == math.huge or n == -math.huge then return nil end
+  n = math.floor(n)
+  if min and n < min then return nil end
+  if max and n > max then return nil end
+  return n
+end
+
+local function readPlate(value)
+  local plate = Utils.plate(value)
+  if plate and #plate <= MAX_PLATE_LENGTH then return plate end
+  return nil
+end
+
+local function money(amount)
+  local digits = tostring(math.max(0, math.floor(tonumber(amount) or 0)))
+  local grouped = (digits:reverse():gsub('(%d%d%d)', '%1,')):reverse()
+  grouped = grouped:gsub('^,', '')
+  return tostring(setting('interface.currency', '$') or '$') .. grouped
+end
+
+--- Normalize a model hash to the signed 32-bit form GTA uses.
+local function toSigned(hash)
+  local n = tonumber(hash)
+  if not n or n ~= n then return nil end
+  n = math.floor(n) % 4294967296
+  if n >= 2147483648 then n = n - 4294967296 end
+  return math.tointeger(n) or n
+end
+
+local function rowHash(row)
+  local h = tonumber(row.hash)
+  if h and h ~= 0 then return toSigned(h) end
+  if type(row.model) == 'string' and row.model ~= '' then return toSigned(joaat(row.model)) end
+  return nil
+end
+
+local function isVehicleEntity(entity)
+  return type(entity) == 'number' and entity ~= 0 and DoesEntityExist(entity) and GetEntityType(entity) == 2
+end
+
+local function plateOf(entity)
+  return Utils.plate(GetVehicleNumberPlateText(entity))
+end
+
+local function isOccupied(entity)
+  for seat = -1, 14 do
+    local ped = GetPedInVehicleSeat(entity, seat)
+    if ped and ped ~= 0 then return true end
+  end
+  return false
+end
+
+local function findEntityByPlate(plate)
+  for _, entity in ipairs(GetAllVehicles() or {}) do
+    if isVehicleEntity(entity) and plateOf(entity) == plate then return entity end
+  end
+  return nil
+end
+
+local function pedCoords(src)
+  local ped = GetPlayerPed(src)
+  if not ped or ped == 0 then return nil end
+  return GetEntityCoords(ped)
+end
+
+local function deleteVehicle(entity)
+  if type(entity) == 'number' and entity ~= 0 and DoesEntityExist(entity) then
+    entityPlates[entity] = nil
+    DeleteEntity(entity)
+  end
+end
+
+local function firstOpenPoint(location)
+  local points = type(location) == 'table' and location.openPoints
+  if type(points) ~= 'table' then return nil end
+  for _, point in ipairs(points) do
+    local coords = Utils.v3(type(point) == 'table' and point.coords or point)
+    if coords then return coords end
+  end
+  return nil
+end
+
+--- 'personal' | 'spawner' | 'owned' for any location kind.
+local function sourceOf(location)
+  local kind = location.kind
+  if kind == 'garage' then return location.source == 'spawner' and 'spawner' or 'personal' end
+  if kind == 'job' then return location.source == 'spawner' and 'spawner' or 'owned' end
+  return 'personal'
+end
+
+local function groupIdOf(session)
+  if type(session) ~= 'table' then return nil end
+  local gid = tonumber(session.groupId)
+  if gid then return gid end
+  local kind, id = Utils.key.parse(session.garageKey)
+  if kind == 'G' then return id end
+  return nil
+end
+
+local function keyName(key, cache)
+  if not key then return nil end
+  if cache and cache.keyNames and cache.keyNames[key] ~= nil then
+    return cache.keyNames[key] or nil
+  end
+  local name = NZ.Locations.keyName(key)
+  if cache and cache.keyNames then cache.keyNames[key] = name or false end
+  return name
+end
+
+local function hasSpace(capacity)
+  if type(capacity) ~= 'table' or capacity.mode == 'unlimited' then return true end
+  local total = tonumber(capacity.total)
+  if not total then return true end
+  return (tonumber(capacity.used) or 0) < total
+end
+
+local function sanitize(value, maxBytes)
+  if type(value) ~= 'table' then return nil end
+  local encoded, result = pcall(json.encode, value)
+  if not encoded or type(result) ~= 'string' or #result > maxBytes then return nil end
+  return value
+end
+
+local function sanitizeDamage(value, keepDeformation)
+  local damage = sanitize(value, MAX_DAMAGE_BYTES)
+  if not damage then return nil end
+  if not keepDeformation and damage.deform ~= nil then
+    local copy = {}
+    for k, v in pairs(damage) do
+      if k ~= 'deform' then copy[k] = v end
+    end
+    damage = copy
+  end
+  return damage
+end
+
+local function percent(value)
+  local n = tonumber(value)
+  if not n or n ~= n then return nil end
+  return Utils.round(Utils.clamp(n, 0, 100), 1)
+end
+
+local function isBlacklisted(hash)
+  if not blacklist then
+    blacklist = {}
+    for k, v in pairs(Config.BlacklistedModels or {}) do
+      local model = type(k) == 'string' and v and k or (type(v) == 'string' and v) or nil
+      if model then blacklist[toSigned(joaat(model))] = true end
+    end
+  end
+  return hash ~= nil and blacklist[hash] == true
+end
+
+--- Category of a live vehicle entity from the server-side vehicle type.
+local function categoryOfEntity(entity)
+  local success, vtype = pcall(GetVehicleType, entity)
+  if not success or type(vtype) ~= 'string' then return nil end
+  return ENTITY_CATEGORY[vtype] or 'car'
+end
+
+---------------------------------------------------------------------------------------
+-- Plate locks (one in-flight operation per vehicle)
+---------------------------------------------------------------------------------------
+
+--- Run `fn(...)` while holding an exclusive lock on `plate`. Returns the result of `fn`,
+--- or a failure result when another operation on the same vehicle is still running.
+--- `fn` must return a callback result table.
+---@param plate string
+---@param fn function
+---@return table
+function Vehicles.withLock(plate, fn, ...)
+  local now = GetGameTimer()
+  local held = locks[plate]
+  if held and now - held < LOCK_TIMEOUT then
+    return fail(L('This vehicle is busy, try again in a moment'))
+  end
+  locks[plate] = now
+  local results = table.pack(pcall(fn, ...))
+  if locks[plate] == now then locks[plate] = nil end
+  if not results[1] then error(results[2], 0) end
+  return table.unpack(results, 2, results.n)
+end
+
+---------------------------------------------------------------------------------------
+-- Out-vehicle registry
+---------------------------------------------------------------------------------------
+
+--- Register a vehicle as out in the world (used by retrieve, spawners and adoption).
+---@param plate string
+---@param entry table { netId?, entity?, src?, identifier?, garageKey?, spawner?, job? }
+function Vehicles.setOut(plate, entry)
+  plate = readPlate(plate)
+  if not plate or type(entry) ~= 'table' then return end
+  entry.at = entry.at or os.time()
+  if entry.netId and not entry.entity then
+    local entity = NetworkGetEntityFromNetworkId(entry.netId)
+    if isVehicleEntity(entity) then entry.entity = entity end
+  end
+  if entry.entity then entityPlates[entry.entity] = plate end
+  Vehicles.out[plate] = entry
+end
+
+--- Forget a tracked out vehicle (does not touch the database or the entity).
+---@param plate string
+function Vehicles.clearOut(plate)
+  plate = readPlate(plate)
+  if not plate then return end
+  local entry = Vehicles.out[plate]
+  if entry and entry.entity then entityPlates[entry.entity] = nil end
+  Vehicles.out[plate] = nil
+end
+
+--- Is the vehicle out in the world right now? While a freshly retrieved vehicle has not
+--- reported its entity yet (grace period) this returns true without an entity.
+---@param plate string
+---@return boolean out, number|nil entity
+function Vehicles.isOut(plate)
+  plate = readPlate(plate)
+  if not plate then return false, nil end
+  local entry = Vehicles.out[plate]
+  if not entry then return false, nil end
+  if entry.entity and isVehicleEntity(entry.entity) then
+    return true, entry.entity
+  end
+  if entry.netId then
+    local entity = NetworkGetEntityFromNetworkId(entry.netId)
+    if isVehicleEntity(entity) and plateOf(entity) == plate then
+      entry.entity = entity
+      entityPlates[entity] = plate
+      return true, entity
+    end
+    return false, nil
+  end
+  if os.time() - (tonumber(entry.at) or 0) < SPAWN_GRACE then
+    return true, nil
+  end
+  return false, nil
+end
+
+---------------------------------------------------------------------------------------
+-- Ownership / access
+---------------------------------------------------------------------------------------
+
+--- Vehicle category of a database row ('car' when unknown).
+---@param row table NZVehicleRow
+---@return 'car'|'sea'|'air'
+function Vehicles.vehicleTypeOf(row)
+  local vtype = type(row) == 'table' and row.vehicleType or nil
+  if vtype and Utils.vehicleTypes[vtype] then return vtype end
+  return 'car'
+end
+
+--- Fleet kind and name of a job/gang owned vehicle, or nil for private vehicles.
+---@return 'job'|'gang'|nil kind, string|nil name
+function Vehicles.fleetOf(row)
+  if type(row) ~= 'table' then return nil, nil end
+  if row.ownerType == 'gang' and row.gang then return 'gang', row.gang end
+  if row.ownerType == 'job' and row.job then return 'job', row.job end
+  if row.gang then return 'gang', row.gang end
+  if row.job then return 'job', row.job end
+  return nil, nil
+end
+
+--- True when `location` is a job location that serves the fleet of `row`.
+local function servesFleet(location, row)
+  if type(location) ~= 'table' or location.kind ~= 'job' then return false end
+  local kind, name = Vehicles.fleetOf(row)
+  if not kind then return false end
+  if (location.owner == 'gang' and 'gang' or 'job') ~= kind then return false end
+  for _, rule in ipairs(type(location.jobs) == 'table' and location.jobs or {}) do
+    if type(rule) == 'table' and rule.name == name then return true end
+  end
+  return false
+end
+
+local function fleetAllowed(src, row, session)
+  local kind, name = Vehicles.fleetOf(row)
+  if not kind then return false end
+  local location = type(session) == 'table' and session.location or nil
+  if servesFleet(location, row) then
+    local rules = {}
+    for _, rule in ipairs(location.jobs) do
+      if type(rule) == 'table' and rule.name == name then rules[#rules + 1] = rule end
+    end
+    return NZ.Access.jobAllowed(src, rules, kind) == true
+  end
+  return NZ.Access.jobAllowed(src, { { name = name, minGrade = 0 } }, kind) == true
+end
+
+--- Is `plate` shared with `identifier`?
+---@param plate string
+---@param identifier string
+---@return boolean
+function Vehicles.isSharedWith(plate, identifier)
+  if not plate or not identifier then return false end
+  for _, share in ipairs(NZ.DB.shares.forPlate(plate) or {}) do
+    if type(share) == 'table' and share.identifier == identifier then return true end
+  end
+  return false
+end
+
+--- Set of plates shared with `identifier`: { [plate] = true }.
+local function sharedPlateSet(identifier)
+  local set = {}
+  if not identifier then return set end
+  for _, entry in ipairs(NZ.DB.shares.forIdentifier(identifier) or {}) do
+    local plate = Utils.plate(type(entry) == 'table' and entry.plate or entry)
+    if plate then set[plate] = true end
+  end
+  return set
+end
+
+--- How the player may use a vehicle: 'owner' | 'shared' | 'group' | 'fleet' | nil.
+--- `cache` (optional) may hold `identifier` and `shared` (plate set) to avoid lookups.
+---@param src number
+---@param row table NZVehicleRow
+---@param session table|nil
+---@param cache table|nil
+---@return string|nil
+function Vehicles.accessOf(src, row, session, cache)
+  if type(row) ~= 'table' then return nil end
+  cache = cache or {}
+  local identifier = cache.identifier or NZ.Bridge.getIdentifier(src)
+  if not identifier then return nil end
+  if row.owner and row.owner == identifier then return 'owner' end
+  local shared
+  if cache.shared then
+    shared = cache.shared[row.plate] == true
+  else
+    shared = Vehicles.isSharedWith(row.plate, identifier)
+  end
+  if shared then return 'shared' end
+  if type(session) == 'table' and row.garageKey and row.garageKey == session.garageKey then
+    local location = session.location
+    if type(location) == 'table' and location.kind == 'private' and location.storage == 'shared' then
+      local gid = groupIdOf(session)
+      if gid and NZ.Private.role(gid, identifier) then return 'group' end
+    end
+  end
+  if Vehicles.fleetOf(row) and fleetAllowed(src, row, session) then return 'fleet' end
+  return nil
+end
+
+--- Shared drive check. `access` may be precomputed (false = no access).
+local function evaluate(src, row, session, cache, allowImpounded, access)
+  if row.blocked then return false, L('This vehicle is blocked') end
+  local state = row.state or 'garaged'
+  if state == 'impounded' and not allowImpounded then
+    local where = type(row.impound) == 'table' and row.impound.locationName or nil
+    return false, L('Impounded at {impound}', { impound = where or L('the impound') })
+  end
+  if state == 'out' then return false, L('Vehicle is already out') end
+  if type(row.finance) == 'table' and row.finance.overdue then
+    return false, L('Finance payment overdue')
+  end
+  local location = type(session) == 'table' and session.location or nil
+  if type(location) ~= 'table' then return false, L('The garage is not open') end
+  if Vehicles.vehicleTypeOf(row) ~= (location.vehicleType or 'car') then
+    return false, L('Wrong vehicle type for this garage')
+  end
+  if location.kind == 'impound' then
+    if not (allowImpounded and state == 'impounded') then
+      return false, L('This vehicle cannot be taken out here')
+    end
+    local info = row.impound
+    if type(info) == 'table' and info.locationId and tonumber(info.locationId) ~= tonumber(location.id) then
+      return false, L('Impounded at {impound}', { impound = info.locationName or L('the impound') })
+    end
+  else
+    if sourceOf(location) == 'spawner' then return false, L('This vehicle cannot be taken out here') end
+    if location.kind == 'job' and not servesFleet(location, row) then
+      return false, L('This vehicle cannot be taken out here')
+    end
+    local mode = (cache and cache.retrieveMode) or setting('garages.retrieveMode', 'last')
+    if mode ~= 'anywhere' and row.garageKey and row.garageKey ~= session.garageKey then
+      return false, L('Parked at {garage}', { garage = keyName(row.garageKey, cache) or L('another garage') })
+    end
+  end
+  if access == nil then access = Vehicles.accessOf(src, row, session, cache) end
+  if not access then return false, L('You do not have access to this vehicle') end
+  return true, nil
+end
+
+--- Can `src` drive `row` out of the garage of `session`?
+--- opts (optional): { allowImpounded = boolean } — impound retrieval.
+---@param src number
+---@param row table NZVehicleRow
+---@param session table
+---@param opts table|nil
+---@return boolean allowed, string|nil reason
+function Vehicles.canDrive(src, row, session, opts)
+  if type(row) ~= 'table' then return false, L('Vehicle not found') end
+  opts = type(opts) == 'table' and opts or {}
+  return evaluate(src, row, session, opts.cache or {}, opts.allowImpounded == true, nil)
+end
+
+--- Can this location accept `row` (impounds, spawners and job fleets are restricted)?
+local function storableHere(row, location)
+  if location.kind == 'impound' then return false, L('Vehicles cannot be stored at an impound') end
+  if sourceOf(location) == 'spawner' then return false, L('Only vehicles from this garage can be returned here') end
+  if location.kind == 'job' and not servesFleet(location, row) then
+    return false, L('Only fleet vehicles can be stored here')
+  end
+  return true, nil
+end
+
+--- Can the owner of `row` reach garage `key`? Prevents a shared player from parking the
+--- owner's vehicle in a private group or house garage the owner cannot open.
+local function ownerCanReach(row, key)
+  if not row.owner then return true end
+  local kind, id = Utils.key.parse(key)
+  if kind == 'G' then return NZ.Private.role(id, row.owner) ~= nil end
+  if kind == 'H' and NZ.Housing and NZ.Housing.hasAccess then
+    return NZ.Housing.hasAccess(row.owner, id) == true
+  end
+  return true
+end
+
+---------------------------------------------------------------------------------------
+-- Garage resolution (open / store)
+---------------------------------------------------------------------------------------
+
+local function houseIdOf(value)
+  if type(value) == 'number' then value = tostring(math.floor(value)) end
+  if type(value) ~= 'string' or #value == 0 or #value > 64 then return nil end
+  if value:find('[%c<>]') then return nil end
+  return value
+end
+
+--- Resolve the garage a player is addressing: location, garage key and private group.
+--- Checks the location exists, is enabled, is not an impound and that the player may use
+--- it. Does NOT check distance.
+---@param src number
+---@param payload table { locationId?, groupId?, houseId? }
+---@return table|nil target { location, garageKey, groupId, houseId, identifier }, string|nil error
+function Vehicles.resolveGarage(src, payload)
+  payload = type(payload) == 'table' and payload or {}
+  local identifier = NZ.Bridge.getIdentifier(src)
+  if not identifier then return nil, L('Your character is not loaded') end
+
+  local location, houseId
+  if payload.houseId ~= nil then
+    houseId = houseIdOf(payload.houseId)
+    if not houseId then return nil, L('Garage not found') end
+    location = NZ.Locations.get(Utils.key.house(houseId))
+  elseif type(payload.locationId) == 'string' and payload.locationId:sub(1, 1) == 'H' then
+    houseId = houseIdOf(payload.locationId:sub(2))
+    if not houseId then return nil, L('Garage not found') end
+    location = NZ.Locations.get(Utils.key.house(houseId))
+  else
+    local id = toInt(payload.locationId, 1)
+    location = id and NZ.Locations.get(id) or nil
+  end
+  if type(location) ~= 'table' then return nil, L('Garage not found') end
+  if location.enabled == false then return nil, L('This garage is closed') end
+  if location.kind == 'impound' then return nil, L('This garage is not available') end
+
+  local allowed, reason = NZ.Access.canUse(src, location)
+  if not allowed then return nil, reason or L('You cannot use this garage') end
+
+  local garageKey, groupId
+  if houseId or location.kind == 'house' then
+    if not houseId and type(location.id) == 'string' then houseId = location.id:sub(2) end
+    if not houseId then return nil, L('Garage not found') end
+    garageKey = Utils.key.house(houseId)
+  elseif location.kind == 'private' then
+    local groups = NZ.Private.groupsFor(identifier, location.id) or {}
+    local wanted = toInt(payload.groupId, 1)
+    if wanted then
+      for _, group in ipairs(groups) do
+        if tonumber(group.id) == wanted then groupId = wanted break end
+      end
+      if not groupId then return nil, L('You do not own this garage') end
+    elseif groups[1] then
+      groupId = tonumber(groups[1].id)
+    end
+    if not groupId then return nil, L('You do not own this garage') end
+    garageKey = Utils.key.group(groupId)
+  else
+    garageKey = Utils.key.location(location.id)
+  end
+
+  return {
+    location = location,
+    garageKey = garageKey,
+    groupId = groupId,
+    houseId = houseId,
+    identifier = identifier,
+  }, nil
+end
+
+---------------------------------------------------------------------------------------
+-- Garage menu data
+---------------------------------------------------------------------------------------
+
+--- Build the per-request context used by toGarageVehicle (favourites, shares and name
+--- caches are loaded once per request).
+---@param src number|nil
+---@param session table|nil
+---@param identifier string|nil
+---@return table
+function Vehicles.newContext(src, session, identifier)
+  identifier = identifier or (src and NZ.Bridge.getIdentifier(src)) or nil
+  local favourites, shared = {}, {}
+  if identifier then
+    local stored = NZ.DB.favourites.get(identifier)
+    if type(stored) == 'table' then
+      for k, v in pairs(stored) do
+        local plate = (type(k) == 'string' and Utils.plate(k)) or (type(v) == 'string' and Utils.plate(v)) or nil
+        if plate and v then favourites[plate] = true end
+      end
+    end
+    shared = sharedPlateSet(identifier)
+  end
+  return {
+    _nz = true,
+    src = src,
+    session = session,
+    identifier = identifier,
+    favourites = favourites,
+    shared = shared,
+    names = {},
+    keyNames = {},
+    retrieveMode = setting('garages.retrieveMode', 'last'),
+    recoverFee = math.max(0, toInt(setting('garages.recoverFee', 250)) or 0),
+    needsServiceBelow = tonumber(setting('vehicles.needsServiceBelow', 60)) or 60,
+  }
+end
+
+--- Accept a partial context from other modules and fill whatever is missing.
+---@param ctx table|nil
+---@return table
+function Vehicles.ensureContext(ctx)
+  ctx = type(ctx) == 'table' and ctx or {}
+  if ctx._nz then return ctx end
+  local full = Vehicles.newContext(ctx.src, ctx.session, ctx.identifier)
+  for k, v in pairs(full) do
+    if ctx[k] == nil then ctx[k] = v end
+  end
+  return ctx
+end
+
+local function characterName(identifier, ctx)
+  local cached = ctx.names[identifier]
+  if cached == nil then
+    cached = NZ.Bridge.getCharacterName(identifier) or ''
+    ctx.names[identifier] = cached
+  end
+  return cached
+end
+
+local function ownerNameOf(row, ctx)
+  local kind, name = Vehicles.fleetOf(row)
+  if kind and row.ownerType ~= 'player' then
+    local key = 'viewer' .. kind
+    if ctx[key] == nil then
+      local info = nil
+      if ctx.src then
+        if kind == 'gang' then
+          info = NZ.Bridge.getGang and NZ.Bridge.getGang(ctx.src) or nil
+        else
+          info = NZ.Bridge.getJob(ctx.src)
+        end
+      end
+      ctx[key] = info or false
+    end
+    local info = ctx[key]
+    if info and info.name == name and info.label then return info.label end
+    return name
+  end
+  if row.owner then return characterName(row.owner, ctx) end
+  return name or ''
+end
+
+--- Per-viewer GarageVehicle view of a database row (types.ts GarageVehicle).
+---@param row table NZVehicleRow
+---@param ctx table context from NZ.Vehicles.newContext (partial tables are completed)
+---@return table GarageVehicle
+function Vehicles.toGarageVehicle(row, ctx)
+  ctx = Vehicles.ensureContext(ctx)
+  local plate = row.plate or Utils.plate(row.dbPlate) or ''
+  local identifier = ctx.identifier
+  local session = ctx.session
+  local isOwner = identifier ~= nil and row.owner == identifier
+  local sharedWithViewer = (not isOwner) and ctx.shared[plate] == true
+  local access = Vehicles.accessOf(ctx.src, row, session, ctx)
+  local drivable, reason = evaluate(ctx.src, row, session, ctx, false, access or false)
+  local state = row.state or 'garaged'
+
+  local canRecover = false
+  if state == 'out' and access and not row.blocked then
+    canRecover = not Vehicles.isOut(plate)
+  end
+
+  local ownerName = ownerNameOf(row, ctx)
+  local sharedWith = 0
+  if isOwner and plate ~= '' then
+    sharedWith = #(NZ.DB.shares.forPlate(plate) or {})
+  end
+
+  local trailer = nil
+  if type(row.trailer) == 'table' then
+    trailer = {
+      model = type(row.trailer.model) == 'string' and row.trailer.model or '',
+      label = '',
+      hash = toSigned(row.trailer.hash),
+    }
+  end
+
+  local engine = percent(row.engine) or 100
+  local nickname = (type(row.nickname) == 'string' and row.nickname ~= '') and row.nickname or nil
+
+  return {
+    plate = plate,
+    model = row.model or '',
+    hash = rowHash(row) or 0,
+    vehicleType = Vehicles.vehicleTypeOf(row),
+    nickname = nickname,
+    state = state,
+    garageKey = row.garageKey,
+    garageName = keyName(row.garageKey, ctx),
+    here = session ~= nil and row.garageKey ~= nil and row.garageKey == session.garageKey and state == 'garaged',
+    fuel = percent(row.fuel) or 100,
+    engine = engine,
+    body = percent(row.body) or 100,
+    mileage = Utils.round(tonumber(row.mileage) or 0, 1),
+    favourite = ctx.favourites[plate] == true,
+    isOwner = isOwner,
+    ownerName = ownerName,
+    sharedBy = sharedWithViewer and ownerName or nil,
+    sharedWith = sharedWith,
+    finance = type(row.finance) == 'table' and row.finance or nil,
+    impound = type(row.impound) == 'table' and row.impound or nil,
+    trailer = trailer,
+    canDrive = drivable == true,
+    reason = reason,
+    canRecover = canRecover,
+    recoverFee = ctx.recoverFee,
+    needsService = engine < ctx.needsServiceBelow,
+    blocked = row.blocked == true,
+    lastUsed = tonumber(row.lastOut),
+  }
+end
+
+local function isPersonalRow(row)
+  return row.ownerType == nil or row.ownerType == 'player'
+end
+
+--- Rows listed in the garage menu for this session (see §5.4 / task spec).
+local function collectRows(src, session, identifier, source)
+  local location = session.location
+  local key = session.garageKey
+  local vtype = location.vehicleType or 'car'
+  local rows, seen = {}, {}
+
+  local function add(row, checkType)
+    if type(row) ~= 'table' or not row.plate or seen[row.plate] then return end
+    if checkType and Vehicles.vehicleTypeOf(row) ~= vtype then return end
+    seen[row.plate] = true
+    rows[#rows + 1] = row
+  end
+
+  if source == 'spawner' then return rows end
+
+  if location.kind == 'job' then
+    if NZ.Jobs and NZ.Jobs.ownedVehicles then
+      for _, row in ipairs(NZ.Jobs.ownedVehicles(src, location) or {}) do add(row, false) end
+    end
+    return rows
+  end
+
+  if not identifier then return rows end
+
+  if location.kind == 'private' and location.storage == 'shared' then
+    for _, row in ipairs(NZ.DB.getVehiclesInGarage(key) or {}) do add(row, false) end
+  end
+
+  for _, row in ipairs(NZ.DB.getVehiclesByOwner(identifier) or {}) do
+    if row.garageKey == key then
+      add(row, false)
+    elseif isPersonalRow(row) then
+      add(row, true)
+    end
+  end
+
+  if location.kind ~= 'private' then
+    local plates = {}
+    for plate in pairs(sharedPlateSet(identifier)) do plates[#plates + 1] = plate end
+    if #plates > 0 then
+      for _, row in ipairs(NZ.DB.getVehiclesByPlates(plates) or {}) do add(row, true) end
+    end
+  end
+
+  return rows
+end
+
+local function garageOptions()
+  return {
+    retrieveMode = setting('garages.retrieveMode', 'last') == 'anywhere' and 'anywhere' or 'last',
+    garageTransfer = setting('transfers.garageEnabled', true) == true,
+    playerTransfer = setting('transfers.playerEnabled', true) == true,
+    sell = setting('transfers.sellEnabled', true) == true,
+    share = setting('transfers.shareEnabled', true) == true,
+    garageFee = math.max(0, toInt(setting('transfers.garageFee', 0)) or 0),
+    playerFee = math.max(0, toInt(setting('transfers.playerFee', 0)) or 0),
+  }
+end
+
+--- Full garage menu payload for the session (types.ts GarageOpenData).
+---@param src number
+---@param session table
+---@return table GarageOpenData
+function Vehicles.buildGarageData(src, session)
+  local location = session.location
+  local key = session.garageKey
+  local identifier = NZ.Bridge.getIdentifier(src)
+  local kind = location.kind
+  local source = sourceOf(location)
+  local groupId = kind == 'private' and groupIdOf(session) or nil
+
+  local role = nil
+  if groupId and identifier then role = NZ.Private.role(groupId, identifier) end
+
+  local groups = {}
+  if kind == 'private' and identifier then
+    for _, group in ipairs(NZ.Private.groupsFor(identifier, location.id) or {}) do
+      groups[#groups + 1] = { id = tonumber(group.id), label = group.label or location.name }
+    end
+  end
+
+  local canGoInside = false
+  local access = type(location.access) == 'table' and location.access or nil
+  if access and access.mode ~= 'quick' and access.interiorId and NZ.Interiors and NZ.Interiors.get then
+    local interior = NZ.Interiors.get(access.interiorId)
+    canGoInside = type(interior) == 'table' and interior.enabled ~= false
+  end
+
+  local canManage = role == 'owner'
+  local canSellGarage = false
+  if canManage then canSellGarage = (tonumber(NZ.DB.countInGarage(key, nil)) or 0) == 0 end
+
+  local jobLabel = nil
+  if kind == 'job' then
+    local info
+    if location.owner == 'gang' then
+      info = NZ.Bridge.getGang and NZ.Bridge.getGang(src) or nil
+    else
+      info = NZ.Bridge.getJob(src)
+    end
+    jobLabel = type(info) == 'table' and info.label or nil
+  end
+
+  local ctx = Vehicles.newContext(src, session, identifier)
+  local vehicles = {}
+  for _, row in ipairs(collectRows(src, session, identifier, source)) do
+    vehicles[#vehicles + 1] = Vehicles.toGarageVehicle(row, ctx)
+  end
+  table.sort(vehicles, function(a, b)
+    if a.here ~= b.here then return a.here end
+    return a.plate < b.plate
+  end)
+
+  local spawner = {}
+  if source == 'spawner' and NZ.Jobs and NZ.Jobs.spawnerList then
+    spawner = NZ.Jobs.spawnerList(src, location) or {}
+  end
+
+  return {
+    garage = {
+      key = key,
+      locationId = location.id,
+      kind = kind,
+      name = keyName(key, ctx) or location.name,
+      vehicleType = location.vehicleType or 'car',
+      source = source,
+      isPrivate = kind == 'private',
+      groupId = groupId,
+      groups = groups,
+      role = role,
+      canGoInside = canGoInside,
+      canManage = canManage,
+      canSellGarage = canSellGarage,
+      jobLabel = jobLabel,
+    },
+    capacity = NZ.Locations.capacity(location, key, identifier),
+    vehicles = vehicles,
+    spawner = spawner,
+    options = garageOptions(),
+  }
+end
+
+---------------------------------------------------------------------------------------
+-- Spawning
+---------------------------------------------------------------------------------------
+
+local function vehiclePositions()
+  local list = {}
+  for _, entity in ipairs(GetAllVehicles() or {}) do
+    if DoesEntityExist(entity) then list[#list + 1] = GetEntityCoords(entity) end
+  end
+  return list
+end
+
+local function spotFree(point, positions)
+  for i = 1, #positions do
+    if Utils.dist(point, positions[i]) < SPAWN_CLEARANCE then return false end
+  end
+  return true
+end
+
+--- Requested spawn point when free, else the first free one. nil when all are taken.
+local function pickSpawn(points, wanted)
+  if type(points) ~= 'table' or #points == 0 then return nil, nil end
+  local positions = vehiclePositions()
+  local index = toInt(wanted, 1, #points) or 1
+  local point = Utils.v4(points[index])
+  if point and spotFree(point, positions) then return index, point end
+  for i = 1, #points do
+    local candidate = Utils.v4(points[i])
+    if candidate and spotFree(candidate, positions) then return i, candidate end
+  end
+  return nil, nil
+end
+
+--- Create a vehicle on the server and attach the 'nzInit' (replicated) and 'nzPlate'
+--- state bags the client uses to finish it (props, damage, fuel, trailer ...).
+---@param hash number model hash
+---@param entityType string automobile|bike|boat|heli|plane|submarine|trailer|train
+---@param coords table {x,y,z,w}
+---@param init table { plate, props, damage, fuel, engine, body, mileage, trailer }
+---@param bucket number|nil routing bucket for the entity
+---@return number|nil entity, number|nil netId
+function Vehicles.spawnServer(hash, entityType, coords, init, bucket)
+  local point = Utils.v4(coords)
+  hash = toSigned(hash)
+  if not point or not hash then return nil, nil end
+  if not ENTITY_TYPES[entityType] then entityType = 'automobile' end
+  init = type(init) == 'table' and init or {}
+
+  local entity = CreateVehicleServerSetter(hash, entityType, point.x + 0.0, point.y + 0.0, point.z + 0.0, point.w + 0.0)
+  if not entity or entity == 0 then return nil, nil end
+
+  local deadline = GetGameTimer() + 5000
+  while not DoesEntityExist(entity) do
+    if GetGameTimer() > deadline then return nil, nil end
+    Wait(50)
+  end
+
+  local prepared, err = pcall(function()
+    if bucket then SetEntityRoutingBucket(entity, bucket) end
+    if SetEntityOrphanMode then SetEntityOrphanMode(entity, 2) end
+    if type(init.plate) == 'string' then SetVehicleNumberPlateText(entity, init.plate) end
+    local bag = Entity(entity).state
+    bag:set('nzInit', init, true)
+    local plate = Utils.plate(init.plate)
+    if plate then
+      bag:set('nzPlate', plate, true)
+      entityPlates[entity] = plate
+    end
+  end)
+  if not prepared then
+    lib.print.error(('[nayzeee-garages] server spawn setup failed: %s'):format(err))
+    deleteVehicle(entity)
+    return nil, nil
+  end
+  return entity, NetworkGetNetworkIdFromEntity(entity)
+end
+
+---------------------------------------------------------------------------------------
+-- Retrieve (§7.1)
+---------------------------------------------------------------------------------------
+
+local function charge(src, amount, reason)
+  if amount <= 0 then return true, nil end
+  local paid, account = NZ.Bridge.pay(src, amount, reason)
+  if not paid then return false, nil end
+  return true, account
+end
+
+local function refund(src, amount, account, reason)
+  if amount <= 0 then return end
+  if not NZ.Bridge.addMoney(src, account or 'bank', amount, reason) then
+    log('security.refund', src, { amount = amount, account = account, reason = reason })
+  end
+end
+
+local function doRetrieve(src, plate, session, opts)
+  local identifier = NZ.Bridge.getIdentifier(src)
+  if not identifier then return fail(L('Your character is not loaded')) end
+
+  local row = NZ.DB.getVehicle(plate)
+  if not row then return fail(L('Vehicle not found')) end
+  if opts.fromImpound and row.state ~= 'impounded' then return fail(L('This vehicle is not impounded')) end
+
+  local allowed, reason = evaluate(src, row, session, { identifier = identifier }, opts.fromImpound == true, nil)
+  if not allowed then return fail(reason) end
+
+  if Vehicles.isOut(plate) then return fail(L('Vehicle is already out')) end
+
+  -- An untracked entity with this plate is a duplicate: remove it when nobody uses it.
+  local stray = findEntityByPlate(plate)
+  if stray then
+    if isOccupied(stray) then
+      log('security.dupe', src, { plate = plate, reason = 'retrieve while an occupied copy exists' })
+      return fail(L('Vehicle is already out'))
+    end
+    deleteVehicle(stray)
+    log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before retrieve' })
+  end
+
+  local hash = rowHash(row)
+  if not hash then return fail(L('Unknown vehicle model')) end
+
+  local points = session.location.spawnPoints
+  if type(points) ~= 'table' or #points == 0 then return fail(L('This garage has no parking spots')) end
+  local spawnIndex, spawn = pickSpawn(points, opts.spawnIndex)
+  if not spawnIndex then return fail(L('All parking spots are occupied')) end
+
+  local entityType = ENTITY_TYPES[opts.entityType] and opts.entityType or 'automobile'
+  local fee = math.max(0, toInt(opts.fee) or 0)
+  local paid, account = charge(src, fee, 'nayzeee-garages:retrieve')
+  if not paid then return fail(L('You cannot afford this ({amount})', { amount = money(fee) })) end
+
+  local now = os.time()
+  local fields = { state = 'out', lastOut = now }
+  if opts.fromImpound then fields.impound = false end
+  if not NZ.DB.updateVehicle(plate, fields) then
+    refund(src, fee, account, 'nayzeee-garages:retrieve-refund')
+    return fail(L('Something went wrong'))
+  end
+
+  local function rollback(why)
+    local entry = Vehicles.out[plate]
+    if entry and entry.entity then deleteVehicle(entry.entity) end
+    Vehicles.clearOut(plate)
+    local restore = { state = row.state or 'garaged', lastOut = row.lastOut or false }
+    if opts.fromImpound then restore.impound = row.impound or false end
+    NZ.DB.updateVehicle(plate, restore)
+    refund(src, fee, account, 'nayzeee-garages:retrieve-refund')
+    log('vehicle.retrieve', src, { plate = plate, garage = session.garageKey, rolledBack = true, reason = why })
+  end
+
+  Vehicles.setOut(plate, {
+    src = src,
+    identifier = identifier,
+    garageKey = row.garageKey or session.garageKey,
+    at = now,
+    spawner = false,
+    job = select(2, Vehicles.fleetOf(row)),
+  })
+
+  local built, result = pcall(function()
+    local vehicle = {
+      plate = plate,
+      hash = hash,
+      model = row.model or '',
+      props = type(row.props) == 'table' and row.props or {},
+      damage = setting('vehicles.saveDamage', true) and row.damage or nil,
+      fuel = percent(row.fuel) or 100,
+      engine = percent(row.engine) or 100,
+      body = percent(row.body) or 100,
+      mileage = tonumber(row.mileage) or 0,
+      trailer = setting('vehicles.trailers', true) and type(row.trailer) == 'table' and row.trailer or nil,
+    }
+
+    if setting('vehicles.serverSpawn', false) then
+      local entity, netId = Vehicles.spawnServer(hash, entityType, spawn, vehicle, GetPlayerRoutingBucket(src))
+      if not entity then return nil end
+      local entry = Vehicles.out[plate]
+      if entry then
+        entry.entity = entity
+        entry.netId = netId
+      end
+      return { netId = netId, spawn = spawn, spawnIndex = spawnIndex, vehicle = vehicle }
+    end
+    return { spawn = spawn, spawnIndex = spawnIndex, vehicle = vehicle }
+  end)
+
+  if not built or not result then
+    rollback(built and 'spawn failed' or tostring(result))
+    return fail(L('The vehicle could not be spawned'))
+  end
+
+  log('vehicle.retrieve', src, {
+    plate = plate,
+    garage = session.garageKey,
+    fee = fee,
+    fromImpound = opts.fromImpound == true,
+    fromInterior = opts.fromInterior == true,
+    serverSpawn = result.netId ~= nil,
+  })
+  return ok(result)
+end
+
+--- Take a vehicle out of the garage (§7.1). Re-checks session distance unless
+--- `opts.fromInterior`, rate limits, validates permission and charges `opts.fee`.
+---@param src number
+---@param plate string
+---@param session table|nil session to use (nil = the player's current session)
+---@param opts table|nil { spawnIndex, entityType, fromInterior, fromImpound, fee }
+---@return table result ok({ spawn, vehicle, netId? }) | fail
+function Vehicles.retrieve(src, plate, session, opts)
+  opts = type(opts) == 'table' and opts or {}
+  plate = readPlate(plate)
+  if not plate then return fail(L('Invalid vehicle')) end
+
+  if opts.fromInterior then
+    session = session or NZ.Access.getSession(src)
+    if type(session) ~= 'table' then return fail(L('The garage is not open')) end
+  elseif type(session) == 'table' then
+    local points = type(session.location) == 'table' and session.location.openPoints or {}
+    if not NZ.Access.isNear(src, points, maxDistance()) then return fail(L('You are too far from the garage')) end
+  else
+    local err
+    session, err = NZ.Access.requireSession(src, maxDistance())
+    if not session then return fail(err or L('The garage is not open')) end
+  end
+  if type(session.location) ~= 'table' then return fail(L('The garage is not open')) end
+
+  if not NZ.Access.rateLimit(src, 'vehicles:retrieve', 1500) then
+    return fail(L('Please wait a moment before trying again'))
+  end
+  return Vehicles.withLock(plate, doRetrieve, src, plate, session, opts)
+end
+
+--- Record the entity a client created for a retrieved vehicle (validated server-side).
+---@param src number
+---@param plate string
+---@param netId number
+---@return boolean success, string|nil error
+function Vehicles.markSpawned(src, plate, netId)
+  plate = readPlate(plate)
+  netId = toInt(netId, 1)
+  if not plate or not netId then return false, L('Invalid vehicle') end
+  local entry = Vehicles.out[plate]
+  if not entry or entry.src ~= src then return false, L('This vehicle was not taken out by you') end
+
+  local entity = NetworkGetEntityFromNetworkId(netId)
+  if not isVehicleEntity(entity) then return false, L('Vehicle not found') end
+  if plateOf(entity) ~= plate then
+    log('security.plate', src, { plate = plate, netId = netId, reason = 'spawned entity plate mismatch' })
+    return false, L('Vehicle not found')
+  end
+
+  if not entry.spawner then
+    local row = NZ.DB.getVehicle(plate)
+    if not row or row.state ~= 'out' then return false, L('This vehicle is not out') end
+  end
+
+  if entry.entity and entry.entity ~= entity and isVehicleEntity(entry.entity) then
+    deleteVehicle(entity)
+    log('security.dupe', src, { plate = plate, netId = netId, reason = 'second entity reported for one retrieve' })
+    return false, L('Vehicle is already out')
+  end
+
+  if entry.entity and entry.entity ~= entity then entityPlates[entry.entity] = nil end
+  entry.netId = netId
+  entry.entity = entity
+  entry.spawnedAt = os.time()
+  entityPlates[entity] = plate
+  Entity(entity).state:set('nzPlate', plate, true)
+
+  if setting('vehicles.giveKeys', true) and NZ.KeysServer and NZ.KeysServer.give then
+    local given, err = pcall(NZ.KeysServer.give, src, netId, plate)
+    if not given then lib.print.warn(('[nayzeee-garages] key hand-out failed for %s: %s'):format(plate, err)) end
+  end
+  return true, nil
+end
+
+---------------------------------------------------------------------------------------
+-- Store (§7.2)
+---------------------------------------------------------------------------------------
+
+local function storePointsOf(location)
+  if location.useOpenForStore ~= false or type(location.storePoints) ~= 'table' or #location.storePoints == 0 then
+    return type(location.openPoints) == 'table' and location.openPoints or {}
+  end
+  return location.storePoints
+end
+
+local function nearStorePoint(src, location)
+  local pos = pedCoords(src)
+  if not pos then return false end
+  for _, point in ipairs(storePointsOf(location)) do
+    local coords = Utils.v3(type(point) == 'table' and point.coords or point)
+    if coords then
+      local radius = tonumber(type(point) == 'table' and point.radius) or 4.0
+      if Utils.dist(pos, coords) <= math.max(radius + 4.0, 8.0) then return true end
+    end
+  end
+  return false
+end
+
+local function returnToOf(location)
+  if not location.returnToEntrance then return nil end
+  local point = type(location.openPoints) == 'table' and location.openPoints[1] or nil
+  if type(point) ~= 'table' then return nil end
+  return Utils.v4(point.coords or point)
+end
+
+--- Validate and package the trailer attached to `vehicle`. Returns entity, data or nil.
+local function collectTrailer(vehicle, info, saveDamage, saveDeformation)
+  if type(info) ~= 'table' then return nil, nil end
+  local netId = toInt(info.netId, 1)
+  if not netId then return nil, nil end
+  local trailer = NetworkGetEntityFromNetworkId(netId)
+  if not isVehicleEntity(trailer) or trailer == vehicle or isOccupied(trailer) then return nil, nil end
+
+  local vtype = GetVehicleType(trailer)
+  if type(vtype) == 'string' and vtype ~= 'trailer' then return nil, nil end
+
+  local attached = GetEntityAttachedTo(trailer) == vehicle
+  if not attached and Utils.dist(GetEntityCoords(trailer), GetEntityCoords(vehicle)) > TRAILER_RANGE then
+    return nil, nil
+  end
+
+  -- Never absorb a trailer that is a registered vehicle of its own.
+  local trailerPlate = plateOf(trailer)
+  if trailerPlate and (Vehicles.out[trailerPlate] or NZ.DB.getVehicle(trailerPlate)) then return nil, nil end
+
+  local hash = toSigned(GetEntityModel(trailer))
+  if not hash then return nil, nil end
+  return trailer, {
+    hash = hash,
+    model = Utils.cleanText(info.model, 32),
+    props = sanitize(info.props, MAX_PROPS_BYTES),
+    damage = saveDamage and sanitizeDamage(info.damage, saveDeformation) or nil,
+  }
+end
+
+local function doStore(src, session, entity, plate, payload)
+  local location = session.location
+  local key = session.garageKey
+  local identifier = NZ.Bridge.getIdentifier(src)
+  if not identifier then return fail(L('Your character is not loaded')) end
+  local data = type(payload.data) == 'table' and payload.data or {}
+
+  -- Spawner vehicles (rentals, job spawns): returning = deleting + releasing the slot.
+  if NZ.Jobs and NZ.Jobs.isSpawnerVehicle then
+    local isSpawner, info = NZ.Jobs.isSpawnerVehicle(plate)
+    if isSpawner then
+      deleteVehicle(entity)
+      Vehicles.clearOut(plate)
+      if NZ.Jobs.release then
+        local released, err = pcall(NZ.Jobs.release, plate)
+        if not released then lib.print.warn(('[nayzeee-garages] spawner release failed for %s: %s'):format(plate, err)) end
+      end
+      log('vehicle.store', src, {
+        plate = plate, garage = key, spawner = true,
+        job = type(info) == 'table' and info.job or nil,
+      })
+      return ok({ returnTo = returnToOf(location) })
+    end
+  end
+
+  local row = NZ.DB.getVehicle(plate)
+  if not row then return fail(L('This vehicle is not registered to anyone')) end
+
+  -- Duplication guard: an entity of a vehicle that is already in a garage cannot exist.
+  if row.state == 'garaged' then
+    deleteVehicle(entity)
+    Vehicles.clearOut(plate)
+    log('security.dupe', src, {
+      plate = plate, garage = key, owner = row.owner, storedAt = row.garageKey,
+      reason = 'tried to store a vehicle that is already garaged',
+    })
+    return fail(L('This vehicle is already stored'))
+  end
+  if row.state == 'impounded' then
+    log('security.impounded', src, { plate = plate, garage = key, reason = 'tried to store an impounded vehicle' })
+    return fail(L('This vehicle is impounded'))
+  end
+
+  local storable, notStorable = storableHere(row, location)
+  if not storable then return fail(notStorable) end
+
+  if setting('garages.storeOnlyOwned', true) then
+    if not Vehicles.accessOf(src, row, session, { identifier = identifier }) then
+      return fail(L('You cannot store a vehicle you do not own'))
+    end
+  end
+  if not ownerCanReach(row, key) then return fail(L('The owner of this vehicle cannot use this garage')) end
+
+  local entityHash = toSigned(GetEntityModel(entity))
+  local expected = rowHash(row)
+  if setting('vehicles.checkModel', true) and expected and entityHash and expected ~= entityHash then
+    log('security.model', src, { plate = plate, expected = expected, actual = entityHash })
+    return fail(L('This vehicle does not match its registration'))
+  end
+  if isBlacklisted(expected or entityHash) then return fail(L('This vehicle cannot be stored in a garage')) end
+
+  local category = categoryOfEntity(entity) or Vehicles.vehicleTypeOf(row)
+  if category ~= (location.vehicleType or 'car') then return fail(L('Wrong vehicle type for this garage')) end
+
+  local capacity = NZ.Locations.capacity(location, key, row.owner or identifier)
+  if not hasSpace(capacity) then
+    if setting('garages.suggestWhenFull', true) then
+      return { ok = false, error = L('This garage is full'), data = { full = true } }
+    end
+    return fail(L('This garage is full'))
+  end
+
+  local saveDamage = setting('vehicles.saveDamage', true) == true
+  local saveDeformation = saveDamage and setting('vehicles.saveDeformation', true) == true
+  local plateText = row.dbPlate or plate
+  local fields = {
+    state = 'garaged',
+    garageKey = key,
+    garageName = keyName(key) or location.name,
+  }
+
+  if setting('vehicles.saveMods', true) then
+    local props = sanitize(data.props, MAX_PROPS_BYTES)
+    if props then
+      props.plate = plateText
+      if props.model ~= nil and expected then props.model = expected end
+      fields.props = props
+    end
+  elseif type(row.props) == 'table' and Utils.plate(row.props.plate) ~= plate then
+    local props = Utils.deepCopy(row.props)
+    props.plate = plateText
+    fields.props = props
+  end
+
+  local fuel = percent(data.fuel)
+  if not fuel then fuel = percent(Entity(entity).state.fuel) end
+  if fuel then fields.fuel = fuel end
+  local engine = percent(data.engine)
+  if not engine then engine = percent((tonumber(GetVehicleEngineHealth(entity)) or 1000) / 10) end
+  if engine then fields.engine = engine end
+  local body = percent(data.body)
+  if not body then body = percent((tonumber(GetVehicleBodyHealth(entity)) or 1000) / 10) end
+  if body then fields.body = body end
+
+  local reported = tonumber(data.mileage)
+  if reported and reported == reported then
+    local current = tonumber(row.mileage) or 0
+    local since = os.time() - (tonumber(row.lastOut) or (os.time() - 86400))
+    local maxGain = math.max(10, since / 3600 * 600)
+    fields.mileage = Utils.round(Utils.clamp(reported, current, current + maxGain), 2)
+  end
+
+  if saveDamage then
+    local damage = sanitizeDamage(data.damage, saveDeformation)
+    if damage then fields.damage = damage end
+  end
+
+  local trailerEntity = nil
+  fields.trailer = false
+  if setting('vehicles.trailers', true) and type(data.trailer) == 'table' then
+    local tEntity, tData = collectTrailer(entity, data.trailer, saveDamage, saveDeformation)
+    if tEntity then
+      trailerEntity = tEntity
+      fields.trailer = tData
+    end
+  end
+
+  if row.vehicleType ~= category then fields.vehicleType = category end
+  if not expected and entityHash then fields.hash = entityHash end
+
+  if not NZ.DB.updateVehicle(plate, fields) then return fail(L('Something went wrong')) end
+
+  -- Another live copy of this plate (tracked) is a duplicate once this one is stored.
+  local tracked = Vehicles.out[plate]
+  if tracked and tracked.entity and tracked.entity ~= entity and isVehicleEntity(tracked.entity) then
+    log('security.dupe', src, { plate = plate, reason = 'stored while another tracked copy existed' })
+    if not isOccupied(tracked.entity) then deleteVehicle(tracked.entity) end
+  end
+
+  deleteVehicle(entity)
+  if trailerEntity then deleteVehicle(trailerEntity) end
+  Vehicles.clearOut(plate)
+
+  log('vehicle.store', src, {
+    plate = plate,
+    garage = key,
+    garageName = fields.garageName,
+    owner = row.owner,
+    fuel = fields.fuel,
+    engine = fields.engine,
+    body = fields.body,
+    mileage = fields.mileage,
+    trailer = fields.trailer ~= false,
+  })
+  return ok({ returnTo = returnToOf(location) })
+end
+
+--- Store the vehicle the player is driving into the garage of `session` (§7.2).
+---@param src number
+---@param session table
+---@param payload table { netId, data = NZ.Veh.collect() result }
+---@return table result ok({ returnTo = vec4|nil }) | fail (data.full when the garage is full)
+function Vehicles.store(src, session, payload)
+  payload = type(payload) == 'table' and payload or {}
+  if type(session) ~= 'table' or type(session.location) ~= 'table' or not session.garageKey then
+    return fail(L('The garage is not open'))
+  end
+  if not NZ.Access.rateLimit(src, 'vehicles:store', 1500) then
+    return fail(L('Please wait a moment before trying again'))
+  end
+
+  local netId = toInt(payload.netId, 1)
+  if not netId then return fail(L('Invalid vehicle')) end
+  local entity = NetworkGetEntityFromNetworkId(netId)
+  if not isVehicleEntity(entity) then return fail(L('Vehicle not found')) end
+
+  local ped = GetPlayerPed(src)
+  if not ped or ped == 0 or GetPedInVehicleSeat(entity, -1) ~= ped then
+    return fail(L('You must be the driver to store this vehicle'))
+  end
+  if not nearStorePoint(src, session.location) then return fail(L('You are too far from the garage')) end
+
+  local plate = plateOf(entity)
+  if not plate or #plate > MAX_PLATE_LENGTH then return fail(L('Invalid vehicle')) end
+  return Vehicles.withLock(plate, doStore, src, session, entity, plate, payload)
+end
+
+---------------------------------------------------------------------------------------
+-- Boot, adoption and clean-up (§7.5)
+---------------------------------------------------------------------------------------
+
+local function adoptExisting()
+  local byPlate = {}
+  for _, row in ipairs(NZ.DB.getOutVehicles() or {}) do
+    if type(row) == 'table' and row.plate then byPlate[row.plate] = row end
+  end
+  local adopted = 0
+  for _, entity in ipairs(GetAllVehicles() or {}) do
+    if isVehicleEntity(entity) then
+      local plate = plateOf(entity)
+      local row = plate and byPlate[plate]
+      if row and not Vehicles.out[plate] then
+        local _, fleetName = Vehicles.fleetOf(row)
+        Vehicles.setOut(plate, {
+          netId = NetworkGetNetworkIdFromEntity(entity),
+          entity = entity,
+          src = row.owner and NZ.Bridge.getSourceByIdentifier(row.owner) or nil,
+          identifier = row.owner,
+          garageKey = row.garageKey,
+          at = os.time(),
+          spawner = false,
+          job = fleetName,
+          adopted = true,
+        })
+        Entity(entity).state:set('nzPlate', plate, true)
+        adopted = adopted + 1
+      end
+    end
+  end
+  lib.print.info(('[nayzeee-garages] resource restart: re-adopted %d vehicle(s) still in the world'):format(adopted))
+end
+
+local function applyOutOnRestart()
+  local mode = setting('garages.outOnRestart', 'garage')
+  if mode == 'keep' then return end
+  if mode == 'impound' then
+    local impoundId = toInt(setting('garages.restartImpound', nil), 1)
+    local location = impoundId and NZ.Locations.get(impoundId) or nil
+    if type(location) == 'table' and location.kind == 'impound' then
+      local now = os.time()
+      local info = {
+        locationId = location.id,
+        locationName = location.name,
+        reason = L('Left out during a server restart'),
+        fee = math.max(0, toInt(setting('garages.recoverFee', 250)) or 0),
+        by = nil,
+        byName = L('Server'),
+        at = now,
+        releaseAt = now,
+        retrievable = true,
+      }
+      local count = NZ.DB.resetOutVehicles('impound', info) or 0
+      log('vehicle.restart', nil, { mode = 'impound', impound = location.id, count = count })
+      lib.print.info(('[nayzeee-garages] server start: %d vehicle(s) left out were impounded'):format(count))
+      return
+    end
+    lib.print.warn('[nayzeee-garages] outOnRestart is "impound" but restartImpound is not a valid impound; returning vehicles to their garage instead')
+  end
+  local count = NZ.DB.resetOutVehicles('garage', nil) or 0
+  log('vehicle.restart', nil, { mode = 'garage', count = count })
+  lib.print.info(('[nayzeee-garages] server start: %d vehicle(s) left out were returned to their garage'):format(count))
+end
+
+local function sweep()
+  for plate, entry in pairs(Vehicles.out) do
+    local alive = Vehicles.isOut(plate)
+    if not alive then
+      local adopted = false
+      if not entry.netId then
+        -- The client never reported its entity: adopt it if it exists after all.
+        local entity = findEntityByPlate(plate)
+        if entity then
+          entry.entity = entity
+          entry.netId = NetworkGetNetworkIdFromEntity(entity)
+          entityPlates[entity] = plate
+          adopted = true
+        end
+      end
+      if not adopted then
+        if entry.entity then entityPlates[entry.entity] = nil end
+        Vehicles.out[plate] = nil
+      end
+    end
+  end
+end
+
+--- Boot the vehicle module (§7.5): adopt live vehicles after a resource restart, or apply
+--- garages.outOnRestart on a fresh server start; then start the 60 s clean-up thread.
+function Vehicles.boot()
+  if booted then return end
+  booted = true
+  if #GetPlayers() > 0 then
+    adoptExisting()
+  else
+    applyOutOnRestart()
+  end
+  CreateThread(function()
+    while true do
+      Wait(60000)
+      local success, err = pcall(sweep)
+      if not success then lib.print.error(('[nayzeee-garages] out-vehicle sweep failed: %s'):format(err)) end
+    end
+  end)
+end
+
+AddEventHandler('entityRemoved', function(entity)
+  local plate = entityPlates[entity]
+  if not plate then return end
+  entityPlates[entity] = nil
+  local entry = Vehicles.out[plate]
+  if entry and entry.entity == entity then Vehicles.out[plate] = nil end
+end)
+
+---------------------------------------------------------------------------------------
+-- Callbacks
+---------------------------------------------------------------------------------------
+
+local function register(name, handler)
+  lib.callback.register(name, Utils.safe(function(src, payload)
+    if not NZ.Ready then return fail(L('Garages are still loading')) end
+    if type(payload) ~= 'table' then payload = {} end
+    return handler(src, payload)
+  end))
+end
+
+local function rateLimited(src, bucket, ms)
+  return not NZ.Access.rateLimit(src, bucket, ms)
+end
+
+-- { locationId, groupId?, houseId? } -> GarageOpenData
+register('nz:garage:open', function(src, payload)
+  if rateLimited(src, 'garage:open', 750) then return fail(L('Please wait a moment before trying again')) end
+  local target, err = Vehicles.resolveGarage(src, payload)
+  if not target then return fail(err) end
+  if not NZ.Access.isNear(src, target.location.openPoints or {}, maxDistance()) then
+    return fail(L('You are too far from the garage'))
+  end
+  local session = NZ.Access.openSession(src, target.garageKey, target.location, {
+    groupId = target.groupId,
+    houseId = target.houseId,
+  })
+  if type(session) ~= 'table' then return fail(L('Something went wrong')) end
+  return ok(Vehicles.buildGarageData(src, session))
+end)
+
+-- {} -> GarageOpenData for the open session
+register('nz:garage:refresh', function(src)
+  local session, err = NZ.Access.requireSession(src, maxDistance())
+  if not session then return fail(err or L('The garage is not open')) end
+  if rateLimited(src, 'garage:refresh', 500) then return fail(L('Please wait a moment before trying again')) end
+  return ok(Vehicles.buildGarageData(src, session))
+end)
+
+-- { plate, spawnIndex, entityType } -> { spawn, vehicle, netId? }
+register('nz:garage:retrieve', function(src, payload)
+  local plate = readPlate(payload.plate)
+  if not plate then return fail(L('Invalid vehicle')) end
+  return Vehicles.retrieve(src, plate, nil, {
+    spawnIndex = toInt(payload.spawnIndex, 1),
+    entityType = type(payload.entityType) == 'string' and payload.entityType or nil,
+  })
+end)
+
+-- { plate, netId } -> null
+register('nz:garage:spawned', function(src, payload)
+  if rateLimited(src, 'garage:spawned', 250) then return fail(L('Please wait a moment before trying again')) end
+  local success, err = Vehicles.markSpawned(src, payload.plate, payload.netId)
+  if not success then return fail(err) end
+  return ok(nil)
+end)
+
+-- { locationId|houseId, groupId?, netId, data } -> { returnTo? }
+register('nz:garage:store', function(src, payload)
+  if rateLimited(src, 'garage:store', 500) then return fail(L('Please wait a moment before trying again')) end
+  local target, err = Vehicles.resolveGarage(src, payload)
+  if not target then return fail(err) end
+  local session = NZ.Access.openSession(src, target.garageKey, target.location, {
+    groupId = target.groupId,
+    houseId = target.houseId,
+  })
+  if type(session) ~= 'table' then return fail(L('Something went wrong')) end
+  return Vehicles.store(src, session, payload)
+end)
+
+-- { plate } -> { coords }
+register('nz:garage:track', function(src, payload)
+  local session, err = NZ.Access.requireSession(src, maxDistance())
+  if not session then return fail(err or L('The garage is not open')) end
+  if rateLimited(src, 'garage:track', 1000) then return fail(L('Please wait a moment before trying again')) end
+  local plate = readPlate(payload.plate)
+  if not plate then return fail(L('Invalid vehicle')) end
+  local identifier = NZ.Bridge.getIdentifier(src)
+  local row = NZ.DB.getVehicle(plate)
+  if not row or not identifier then return fail(L('Vehicle not found')) end
+  if row.owner ~= identifier and not Vehicles.isSharedWith(plate, identifier) then
+    return fail(L('You do not have access to this vehicle'))
+  end
+
+  if row.state == 'out' then
+    local out, entity = Vehicles.isOut(plate)
+    if out and entity then return ok({ coords = Utils.v3(GetEntityCoords(entity)) }) end
+  end
+
+  local location = nil
+  if row.state == 'impounded' and type(row.impound) == 'table' and row.impound.locationId then
+    location = NZ.Locations.get(tonumber(row.impound.locationId))
+  end
+  if not location and row.garageKey then
+    local resolved = NZ.Locations.resolveKey(row.garageKey)
+    location = resolved and resolved.location or nil
+  end
+  local coords = firstOpenPoint(location)
+  if not coords then return fail(L('This vehicle could not be located')) end
+  return ok({ coords = coords })
+end)
+
+-- { plate } -> null
+register('nz:garage:recover', function(src, payload)
+  local session, err = NZ.Access.requireSession(src, maxDistance())
+  if not session then return fail(err or L('The garage is not open')) end
+  if rateLimited(src, 'garage:recover', 2000) then return fail(L('Please wait a moment before trying again')) end
+  local plate = readPlate(payload.plate)
+  if not plate then return fail(L('Invalid vehicle')) end
+
+  return Vehicles.withLock(plate, function()
+    local identifier = NZ.Bridge.getIdentifier(src)
+    if not identifier then return fail(L('Your character is not loaded')) end
+    local row = NZ.DB.getVehicle(plate)
+    if not row then return fail(L('Vehicle not found')) end
+    if row.state ~= 'out' then return fail(L('This vehicle is not out')) end
+    if row.blocked then return fail(L('This vehicle is blocked')) end
+    if not Vehicles.accessOf(src, row, session, { identifier = identifier }) then
+      return fail(L('You do not have access to this vehicle'))
+    end
+
+    local location = session.location
+    local storable, reason = storableHere(row, location)
+    if not storable then return fail(reason) end
+    if not ownerCanReach(row, session.garageKey) then
+      return fail(L('The owner of this vehicle cannot use this garage'))
+    end
+    if Vehicles.vehicleTypeOf(row) ~= (location.vehicleType or 'car') then
+      return fail(L('Wrong vehicle type for this garage'))
+    end
+
+    local out, entity = Vehicles.isOut(plate)
+    if out and not entity then return fail(L('Please wait a moment before trying again')) end
+    entity = entity or findEntityByPlate(plate)
+    if entity and isOccupied(entity) then return fail(L('Someone is using this vehicle')) end
+
+    local key = session.garageKey
+    if not hasSpace(NZ.Locations.capacity(location, key, row.owner or identifier)) then
+      return fail(L('This garage is full'))
+    end
+
+    local fee = math.max(0, toInt(setting('garages.recoverFee', 250)) or 0)
+    local paid, account = charge(src, fee, 'nayzeee-garages:recover')
+    if not paid then return fail(L('You cannot afford this ({amount})', { amount = money(fee) })) end
+
+    local garageName = keyName(key) or location.name
+    if not NZ.DB.updateVehicle(plate, { state = 'garaged', garageKey = key, garageName = garageName }) then
+      refund(src, fee, account, 'nayzeee-garages:recover-refund')
+      return fail(L('Something went wrong'))
+    end
+
+    if entity then deleteVehicle(entity) end
+    Vehicles.clearOut(plate)
+    log('vehicle.recover', src, {
+      plate = plate, garage = key, garageName = garageName, fee = fee,
+      owner = row.owner, removedEntity = entity ~= nil,
+    })
+    return ok(nil)
+  end)
+end)
+
+-- {} -> { coords, name } of the nearest usable garage with free space
+register('nz:garage:nearestWithSpace', function(src)
+  if rateLimited(src, 'garage:nearest', 1000) then return fail(L('Please wait a moment before trying again')) end
+  local session = NZ.Access.getSession(src)
+  if type(session) ~= 'table' or type(session.location) ~= 'table' then return fail(L('The garage is not open')) end
+  local identifier = NZ.Bridge.getIdentifier(src)
+  local pos = pedCoords(src)
+  if not identifier or not pos then return fail(L('Your character is not loaded')) end
+
+  local vtype = session.location.vehicleType or 'car'
+  local candidates = {}
+  for _, location in ipairs(NZ.Locations.all('garage') or {}) do
+    if location.enabled ~= false and (location.vehicleType or 'car') == vtype
+      and sourceOf(location) ~= 'spawner' and location.id ~= session.location.id then
+      local coords = firstOpenPoint(location)
+      if coords then
+        candidates[#candidates + 1] = { location = location, coords = coords, distance = Utils.dist(pos, coords) }
+      end
+    end
+  end
+  table.sort(candidates, function(a, b) return a.distance < b.distance end)
+
+  for _, candidate in ipairs(candidates) do
+    local location = candidate.location
+    if NZ.Access.canUse(src, location) then
+      local capacity = NZ.Locations.capacity(location, Utils.key.location(location.id), identifier)
+      if hasSpace(capacity) then
+        return ok({ coords = candidate.coords, name = location.name })
+      end
+    end
+  end
+  return fail(L('No garage with free space was found nearby'))
+end)
