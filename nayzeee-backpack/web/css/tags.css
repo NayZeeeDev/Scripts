@@ -1,129 +1,136 @@
 /* ==========================================================
    NAYZEEE BACKPACK — NAME TAGS
-   One tag renderer for the world (#tagLayer) and the editor
-   preview (#tagEditor). Colours come in as --c1 / --c2.
+   Overhead names: the tag floats over the wearer's head. One
+   renderer for the world (#tagLayer) and the editor preview.
+   Each name is two layers of the same text: .nbt-back draws the
+   outline / depth, .nbt-front the colour on top, so every font
+   gets a clean outside outline. Colours come in as --c1 / --c2
+   (plus --c1d / --c1l, a darker and lighter shade of --c1).
    ========================================================== */
 
 /* ---------- world layer ---------- */
 
 #tagLayer{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
 #tagLayer .nbt-anchor{
-  position:absolute;left:0;top:0;will-change:transform,opacity;
+  position:absolute;left:0;top:0;width:0;height:0;will-change:transform,opacity;
   transform-origin:0 0;transition:opacity .25s ease;
 }
+/* centred on the anchor point, sitting on it */
+#tagLayer .nbt{position:absolute;left:0;bottom:0;transform:translateX(-50%)}
 
-/* ---------- the tag ---------- */
+/* ---------- the name ---------- */
 
 .nbt{
-  --c1:#fff; --c2:var(--c1); --font:'Lexend';
-  position:relative;display:inline-flex;align-items:flex-start;
-  transform-origin:12px -26px;
-  animation:nbt-sway 4.2s ease-in-out infinite;
-}
-@keyframes nbt-sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
-
-/* the string it hangs from */
-.nbt::before{
-  content:'';position:absolute;left:11px;top:-26px;width:2px;height:30px;border-radius:2px;
-  background:linear-gradient(#c9c2b4,#8f877a);opacity:.9;
-}
-
-.nbt-body{
-  position:relative;display:flex;align-items:center;gap:8px;
-  min-height:34px;padding:7px 14px 7px 26px;
-  clip-path:polygon(12px 0,100% 0,100% 100%,12px 100%,0 50%);
-  border-radius:0 6px 6px 0;
-}
-.nbt-hole{
-  position:absolute;left:8px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;
-  background:rgba(0,0,0,.55);box-shadow:inset 0 1px 1px rgba(0,0,0,.6),0 0 0 1.5px rgba(255,255,255,.35);
-}
-.nbt-text{
+  --c1:#fff; --c2:var(--c1); --c1d:#555; --c1l:#fff; --font:'Lexend'; --fw:400; --ink:#0b0b0d;
   position:relative;display:inline-block;white-space:nowrap;
-  font-family:var(--font),'Lexend',sans-serif;font-size:16px;line-height:1.1;
-  color:var(--c1);letter-spacing:.01em;
 }
-.nbt.grad .nbt-text{
+.nbt-row{position:relative;display:flex;align-items:center;gap:6px}
+.nbt-name{
+  position:relative;display:inline-block;
+  font-family:var(--font),'Lexend',sans-serif;font-weight:var(--fw);font-size:32px;line-height:1.15;
+  letter-spacing:.01em;padding:0 2px;
+}
+.nbt-name i{font-style:normal;display:inline-block}
+.nbt-back,.nbt-front{display:block}
+.nbt-back{
+  position:absolute;left:2px;top:0;color:var(--ink);
+  -webkit-text-stroke:7px var(--ink);
+  text-shadow:0 3px 0 var(--ink),0 4px 6px rgba(0,0,0,.45);
+}
+.nbt-front{position:relative;color:var(--c1)}
+.nbt.grad .nbt-front,.nbt.grad .nbt-front i{
   background:linear-gradient(90deg,var(--c1),var(--c2));
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
-.nbt-lock{width:11px;height:11px;flex:none;opacity:.75;color:var(--c1)}
+/* the wave splits the name into letters: they carry the fill, not the word */
+.nbt.e-wave .nbt-front{background:none!important;animation:none!important}
 
-/* tag bodies */
-.nbt.s-leather .nbt-body{
-  background:linear-gradient(160deg,#7a4a2a,#4b2c17 70%);
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);
+.nbt-lock{
+  width:18px;height:18px;flex:none;color:#fff;
+  filter:drop-shadow(0 0 1px var(--ink)) drop-shadow(0 0 1px var(--ink)) drop-shadow(0 1px 1px var(--ink));
 }
-.nbt.s-leather .nbt-body::after{ /* stitching */
-  content:'';position:absolute;inset:4px 5px 4px 16px;border:1px dashed rgba(255,226,190,.45);border-radius:2px;pointer-events:none;
-}
-.nbt.s-metal .nbt-body{
-  background:linear-gradient(160deg,#eef1f4,#b8bec5 45%,#8c939b 55%,#d3d8dd);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.25);
-}
-.nbt.s-dark .nbt-body{
-  background:linear-gradient(#15181a,#0b0c0d);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);
-}
-.nbt.s-dark .nbt-body::after{
-  content:'';position:absolute;left:12px;right:0;top:0;height:2px;background:linear-gradient(90deg,var(--c1),transparent);
-}
-.nbt.s-paper .nbt-body{
-  background:repeating-linear-gradient(#f4ecd9 0 9px,#e9dec6 9px 10px);
-  box-shadow:inset 0 0 0 1px rgba(120,100,70,.25);
-}
-.nbt.s-neon .nbt-body{
-  background:rgba(8,9,10,.88);
-  box-shadow:inset 0 0 0 2px var(--c1),inset 0 0 14px rgba(255,255,255,.05);
-  filter:drop-shadow(0 0 6px var(--c1));
-}
-.nbt.s-clear .nbt-body{background:none;clip-path:none;padding-left:4px}
-.nbt.s-clear .nbt-hole,.nbt.s-clear::before{display:none}
-.nbt.s-clear .nbt-text{filter:drop-shadow(0 1px 1px rgba(0,0,0,.9)) drop-shadow(0 0 3px rgba(0,0,0,.6))}
 
-/* ---------- text effects ---------- */
+/* ---------- styles ---------- */
 
-.nbt.e-glow .nbt-text{filter:drop-shadow(0 0 3px var(--c1)) drop-shadow(0 0 9px var(--c1))}
+/* classic: thick dark outline + a little drop, the default */
+.nbt.s-classic .nbt-back{}
 
-.nbt.e-neon .nbt-text{
-  filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 6px var(--c1)) drop-shadow(0 0 14px var(--c1));
-  animation:nbt-flicker 3.2s linear infinite;
+/* 3D: letters pushed out in a darker shade of the colour */
+.nbt.s-3d .nbt-back{
+  color:var(--c1d);-webkit-text-stroke:5px var(--ink);
+  text-shadow:0 1px 0 var(--c1d),0 2px 0 var(--c1d),0 3px 0 var(--c1d),0 4px 0 var(--c1d),0 5px 0 var(--ink),0 7px 6px rgba(0,0,0,.5);
 }
+
+/* chrome: polished metal fill in the chosen colour */
+.nbt.s-chrome .nbt-front,.nbt.s-chrome .nbt-front i{
+  background:linear-gradient(180deg,#fff 0%,var(--c1l) 28%,var(--c1) 48%,var(--c1d) 52%,var(--c1) 78%,var(--c1l) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.nbt.s-chrome .nbt-back{-webkit-text-stroke:5px var(--ink)}
+
+/* neon: a bright tube with the colour glowing round it */
+.nbt.s-neon .nbt-back{color:transparent;-webkit-text-stroke:2px var(--c1);text-shadow:none;filter:blur(3px);opacity:.9}
+.nbt.s-neon .nbt-front{
+  color:var(--c1l);
+  text-shadow:0 0 2px #fff,0 0 6px var(--c1),0 0 14px var(--c1),0 0 26px var(--c1);
+}
+.nbt.s-neon.grad .nbt-front{text-shadow:none;filter:drop-shadow(0 0 5px var(--c1)) drop-shadow(0 0 12px var(--c2))}
+
+/* sticker: fat white border, like a die-cut sticker */
+.nbt.s-sticker .nbt-back{
+  color:#fff;-webkit-text-stroke:10px #fff;
+  text-shadow:none;filter:drop-shadow(0 2px 0 rgba(0,0,0,.35)) drop-shadow(0 3px 5px rgba(0,0,0,.45));
+}
+
+/* soft: no outline, just a shadow */
+.nbt.s-soft .nbt-back{color:transparent;-webkit-text-stroke:0;text-shadow:0 2px 3px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.6)}
+
+/* ---------- effects (animated) ---------- */
+
+.nbt.e-glow .nbt-name{filter:drop-shadow(0 0 5px var(--c1)) drop-shadow(0 0 12px var(--c1))}
+
+.nbt.e-neon .nbt-name{filter:drop-shadow(0 0 6px var(--c1));animation:nbt-flicker 3.2s linear infinite}
 @keyframes nbt-flicker{
   0%,18%,22%,62%,64%,100%{opacity:1}
   20%,63%{opacity:.35}
 }
 
-.nbt.e-shimmer .nbt-text{
+/* a bright band sweeping across the letters */
+.nbt.e-shimmer .nbt-front,.nbt.e-shimmer .nbt-front i{
   background:linear-gradient(110deg,var(--c1) 35%,#ffffff 50%,var(--c2) 65%);
   background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
-  animation:nbt-shimmer 2.6s linear infinite;
+  animation:nbt-sweep 2.6s linear infinite;
 }
-@keyframes nbt-shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+@keyframes nbt-sweep{from{background-position:120% 0}to{background-position:-120% 0}}
 
-.nbt.e-rainbow .nbt-text{animation:nbt-hue 4s linear infinite}
-@keyframes nbt-hue{from{filter:hue-rotate(0deg) saturate(1.4)}to{filter:hue-rotate(360deg) saturate(1.4)}}
+/* rainbow colours flowing through the name */
+.nbt.e-rainbow .nbt-front,.nbt.e-rainbow .nbt-front i{
+  background:linear-gradient(90deg,#ff3b3b,#ffa43b,#fff23b,#3bff6b,#3bd9ff,#6b5bff,#ff3bd9,#ff3b3b);
+  background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:nbt-flow 4s linear infinite;
+}
+@keyframes nbt-flow{from{background-position:0 0}to{background-position:-300% 0}}
 
-.nbt.e-pulse .nbt-text{animation:nbt-pulse 1.6s ease-in-out infinite}
+.nbt.e-pulse .nbt-name{animation:nbt-pulse 1.6s ease-in-out infinite}
 @keyframes nbt-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 
-.nbt-text i{font-style:normal;display:inline-block}
-.nbt.e-wave .nbt-text i{animation:nbt-wave 1.4s ease-in-out infinite;animation-delay:calc(var(--n) * 80ms)}
-@keyframes nbt-wave{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.nbt.e-wave .nbt-name i{animation:nbt-wave 1.4s ease-in-out infinite;animation-delay:calc(var(--n) * 80ms)}
+@keyframes nbt-wave{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 
-.nbt.e-glitch .nbt-text{animation:nbt-glitch 2.4s steps(1) infinite}
+.nbt.e-glitch .nbt-name{animation:nbt-glitch 2.4s steps(1) infinite}
 @keyframes nbt-glitch{
-  0%,86%,100%{text-shadow:none;transform:none}
-  88%{text-shadow:2px 0 #ff2a6d,-2px 0 #05d9e8;transform:translateX(1px)}
-  91%{text-shadow:-2px 0 #ff2a6d,2px 0 #05d9e8;transform:translateX(-1px) skewX(-6deg)}
-  94%{text-shadow:1px 0 #ff2a6d,-1px 0 #05d9e8;transform:none}
+  0%,86%,100%{filter:none;transform:none}
+  88%{filter:drop-shadow(3px 0 0 #ff2a6d) drop-shadow(-3px 0 0 #05d9e8);transform:translateX(2px)}
+  91%{filter:drop-shadow(-3px 0 0 #ff2a6d) drop-shadow(3px 0 0 #05d9e8);transform:translateX(-2px) skewX(-8deg)}
+  94%{filter:drop-shadow(2px 0 0 #ff2a6d) drop-shadow(-2px 0 0 #05d9e8);transform:none}
 }
 
-.nbt.e-outline .nbt-text{-webkit-text-stroke:1.2px var(--c2);paint-order:stroke fill}
-.nbt.e-outline.grad .nbt-text{-webkit-text-stroke:0;filter:drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000)}
+.nbt.e-float .nbt-row{animation:nbt-float 2.8s ease-in-out infinite}
+@keyframes nbt-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 /* ---------- particles ---------- */
 
-.nbt-fx{position:absolute;left:-10px;right:-10px;top:-30px;bottom:-12px;pointer-events:none;overflow:visible}
+.nbt-fx{position:absolute;left:-14px;right:-14px;top:-26px;bottom:-6px;pointer-events:none;overflow:visible}
 .nbt-fx b{
   position:absolute;bottom:6px;font-weight:400;line-height:1;opacity:0;
   color:var(--c1);font-family:'Segoe UI Symbol','Lexend',sans-serif;
@@ -164,15 +171,24 @@
 @keyframes te-in{from{opacity:0;transform:translate(26px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
 
 .te-preview{
-  position:relative;flex:none;height:150px;margin:12px;border-radius:var(--r-md);
-  display:grid;place-items:center;overflow:hidden;
+  position:relative;flex:none;height:170px;margin:12px;border-radius:var(--r-md);
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;
   background:
-    radial-gradient(120% 90% at 50% 0%,rgba(8,175,162,.08),transparent 60%),
-    repeating-conic-gradient(#121517 0 25%,#0d0f10 0 50%) 0 0/18px 18px;
+    radial-gradient(120% 90% at 50% 0%,rgba(8,175,162,.10),transparent 60%),
+    linear-gradient(#1a2026,#0e1114);
   border:1px solid var(--line-soft);
 }
-.te-preview .nbt{transform-origin:12px -26px;scale:1.35;margin-top:22px}
-.te-preview .te-bag{position:absolute;left:50%;top:-30px;width:56px;height:56px;margin-left:-62px;border-radius:12px;background:#1c2023;border:1px solid var(--line);opacity:.0}
+.te-preview .nbt{scale:1.15;margin-bottom:12px;transform-origin:50% 100%}
+/* who the name floats over */
+.te-who{position:relative;flex:none;width:120px;height:62px}
+.te-who::before{ /* head */
+  content:'';position:absolute;left:50%;top:0;width:38px;height:42px;margin-left:-19px;border-radius:50% 50% 46% 46%;
+  background:linear-gradient(#323a42,#232a30);box-shadow:inset 0 -3px 6px rgba(0,0,0,.3);
+}
+.te-who::after{ /* shoulders */
+  content:'';position:absolute;left:0;right:0;bottom:-30px;height:58px;border-radius:60px 60px 0 0;
+  background:linear-gradient(#2a3138,#1c2227);
+}
 
 .te-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:0 12px 12px;display:flex;flex-direction:column;gap:10px}
 .te-scroll::-webkit-scrollbar{width:8px}

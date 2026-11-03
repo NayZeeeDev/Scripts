@@ -9,9 +9,13 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let CFG = { fonts: [], colors: [], styles: [], effects: [], particles: [], maxLength: 18, customColors: true };
-  const family = (key) => ((CFG.fonts || []).find((f) => f.key === key) || {}).family || 'Lexend';
+  const fontOf = (key) => (CFG.fonts || []).find((f) => f.key === key) || {};
 
-  const LOCK = '<svg class="nbt-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  // tags saved before the overhead look used bag-tag styles: show them in the nearest new one
+  const OLD_STYLES = { leather: 'classic', metal: 'chrome', dark: 'classic', paper: 'sticker', neon: 'neon', clear: 'soft' };
+  const styleOf = (s) => OLD_STYLES[s] || s || 'classic';
+
+  const LOCK = '<svg class="nbt-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 
   /* ---------- renderer ---------- */
 
@@ -20,6 +24,14 @@
     money: ['$'], notes: ['♪', '♫', '♬'], embers: [''], bubbles: [''],
   };
   const rnd = (a, b) => a + Math.random() * (b - a);
+
+  // a darker and a lighter shade of the chosen colour, for 3D / chrome
+  function shade(hex, k) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    const n = m ? parseInt(m[1], 16) : 0xffffff;
+    const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k));
+    return `rgb(${ch.join(',')})`;
+  }
 
   function particles(fx, type) {
     if (fx.dataset.p === type) return;
@@ -31,10 +43,10 @@
     const n = type === 'snow' ? 12 : 10;
     for (let i = 0; i < n; i++) {
       const b = el('b', null, g[i % g.length]);
-      b.style.left = `${rnd(4, 92)}%`;
-      b.style.fontSize = `${rnd(10, 16).toFixed(1)}px`;
+      b.style.left = `${rnd(2, 94)}%`;
+      b.style.fontSize = `${rnd(11, 17).toFixed(1)}px`;
       b.style.setProperty('--x', `${rnd(-14, 14).toFixed(1)}px`);
-      b.style.setProperty('--y', `${rnd(5, 75).toFixed(0)}%`);
+      b.style.setProperty('--y', `${rnd(5, 80).toFixed(0)}%`);
       b.style.setProperty('--s', `${rnd(5, 10).toFixed(1)}px`);
       b.style.setProperty('--d', `${rnd(1.8, 3.4).toFixed(2)}s`);
       b.style.setProperty('--w', `${rnd(0, 3.2).toFixed(2)}s`);
@@ -42,28 +54,35 @@
     }
   }
 
+  // letters as <i> for the wave, so the outline layer and the fill layer move together
+  const letters = (value, wave) => wave
+    ? Array.from(value).map((ch, i) => `<i style="--n:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</i>`).join('')
+    : esc(value);
+
   function apply(root, tag, locked) {
     tag = tag || {};
-    root.className = `nbt s-${tag.s || 'dark'} e-${tag.e || 'none'}${tag.c2 ? ' grad' : ''}`;
-    root.style.setProperty('--c1', tag.c || '#ffffff');
-    root.style.setProperty('--c2', tag.c2 || tag.c || '#ffffff');
-    root.style.setProperty('--font', `'${family(tag.f)}'`);
+    const f = fontOf(tag.f);
+    const c1 = tag.c || '#ffffff', c2 = tag.c2 || c1;
+    root.className = `nbt s-${styleOf(tag.s)} e-${tag.e || 'none'}${tag.c2 ? ' grad' : ''}`;
+    root.style.setProperty('--c1', c1);
+    root.style.setProperty('--c2', c2);
+    root.style.setProperty('--c1d', shade(c1, -0.55));
+    root.style.setProperty('--c1l', shade(c1, 0.6));
+    root.style.setProperty('--font', `'${f.family || 'Lexend'}'`);
+    root.style.setProperty('--fw', String(f.weight || 400));
 
-    const text = root.querySelector('.nbt-text');
     const value = tag.t || '';
     const key = `${value}|${tag.e}`;
-    if (text.dataset.k !== key) {
-      text.dataset.k = key;
-      if (tag.e === 'wave') {
-        text.innerHTML = Array.from(value).map((ch, i) => `<i style="--n:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</i>`).join('');
-      } else {
-        text.textContent = value;
-      }
+    const name = root.querySelector('.nbt-name');
+    if (name.dataset.k !== key) {
+      name.dataset.k = key;
+      const html = letters(value, tag.e === 'wave');
+      name.querySelector('.nbt-back').innerHTML = html;
+      name.querySelector('.nbt-front').innerHTML = html;
     }
 
-    const body = root.querySelector('.nbt-body');
-    const lock = body.querySelector('.nbt-lock');
-    if (locked && !lock) body.insertAdjacentHTML('beforeend', LOCK);
+    const lock = root.querySelector('.nbt-lock');
+    if (locked && !lock) root.querySelector('.nbt-row').insertAdjacentHTML('beforeend', LOCK);
     else if (!locked && lock) lock.remove();
 
     particles(root.querySelector('.nbt-fx'), tag.p || 'none');
@@ -71,9 +90,12 @@
 
   function build(tag, locked) {
     const root = el('div', 'nbt');
-    const body = el('div', 'nbt-body');
-    body.append(el('i', 'nbt-hole'), el('span', 'nbt-text'));
-    root.append(body, el('div', 'nbt-fx'));
+    const row = el('div', 'nbt-row');
+    const name = el('div', 'nbt-name');
+    const back = el('span', 'nbt-back'); back.setAttribute('aria-hidden', 'true');
+    name.append(back, el('span', 'nbt-front'));
+    row.append(name);
+    root.append(el('div', 'nbt-fx'), row);
     apply(root, tag, locked);
     return root;
   }
@@ -94,7 +116,6 @@
         const anchor = el('div', 'nbt-anchor');
         anchor.style.opacity = '0';
         const tag = build(item.tag, item.l);
-        tag.style.marginTop = '26px';
         anchor.appendChild(tag);
         layer.appendChild(anchor);
         s = shown[item.k] = { anchor, tag };
@@ -129,7 +150,7 @@
     container.innerHTML = '';
     for (const it of items) {
       const b = el('button', 'te-opt' + (extra ? ' ' + extra : '') + (it.key === current ? ' on' : ''), esc(it.label));
-      if (extra === 'font') b.style.fontFamily = `'${it.family}',Lexend,sans-serif`;
+      if (extra === 'font') { b.style.fontFamily = `'${it.family}',Lexend,sans-serif`; b.style.fontWeight = it.weight || 400; }
       b.onclick = () => { onPick(it.key); renderEditor(); };
       container.appendChild(b);
     }
@@ -158,7 +179,7 @@
 
   function renderEditor(fromPicker) {
     if (!E) return;
-    if (!preview) { preview = build(E); $('tePreview').appendChild(preview); }
+    if (!preview) { preview = build(E); $('tePreview').insertBefore(preview, $('tePreview').firstChild); }
     apply(preview, E, false);
 
     $('teCount').textContent = `${Array.from(E.t || '').length}/${CFG.maxLength}`;
@@ -182,6 +203,9 @@
       t: '', s: (first.styles[0] || {}).key, f: (first.fonts[0] || {}).key,
       c: '#ffffff', c2: null, e: 'none', p: 'none',
     }, data.tag || {});
+    E.s = styleOf(E.s);
+    if (!(CFG.styles || []).some((x) => x.key === E.s)) E.s = (CFG.styles[0] || {}).key;
+    if (!(CFG.effects || []).some((x) => x.key === E.e)) E.e = 'none';
     gradient = !!E.c2;
     $('teBag').textContent = data.bag || 'Backpack';
     $('teText').maxLength = CFG.maxLength || 18;

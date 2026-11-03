@@ -303,9 +303,11 @@ Config.Sounds = {
     files = {},
 }
 
--- Name tags: a luggage tag on your bag with your own text, font, colours,
--- effect and particles. Everyone close by sees it hanging off the bag.
--- Use the name tag item while wearing a bag (or bag menu > Name tag).
+-- Name tags: your own name in big animated text floating over your bag
+-- while it's on the ground (set down, or put down to open): your text, font,
+-- colours, style, an animated effect and particles. Everyone close by sees
+-- it. Use the name tag item while wearing a bag (or bag menu > Name tag);
+-- the tag stays on that bag wherever it goes.
 --
 -- ox_inventory item (/bagitems prints it):
 --   bag_nametag  server = { export = 'nayzeee-backpack.useNameTag' }
@@ -316,26 +318,31 @@ Config.NameTags = {
     editFree   = true,  -- Changing a tag you already have doesn't use another item
     renameItem = true,  -- The bag shows the tag text as its name in the inventory
 
-    distance   = 5.0,   -- Metres you can read a tag from
-    maxVisible = 4,     -- Tags drawn at once (nearest first)
-    showOwn    = true,  -- See the tag on your own bag
-    showPlaced = true,  -- Tags on bags that are set down
+    distance   = 15.0,  -- Metres you can read a name from (fades over the last 2)
+    maxVisible = 8,     -- Names drawn at once (nearest first)
+    bagHeight  = 0.18,  -- Metres above the bag
+    showPlaced = true,  -- Names over bags that are set down
+    showOwn    = true,  -- See the name on your own bag
+
+    showWorn   = false, -- Also float the name over the wearer's head while they carry the bag
+    height     = 0.32,  -- (showWorn) metres above the head; raise it if another overhead script sits there
 
     blocked = { 'nigger', 'nigga', 'faggot', 'retard' }, -- Never allowed (case-insensitive)
 
-    -- Google Fonts family names. Add any from fonts.google.com.
+    -- Google Fonts family names. Add any from fonts.google.com (and to the
+    -- fonts link in web/index.html). weight = the thickness that link loads.
     fonts = {
-        { key = 'clean',   label = 'Clean',       family = 'Lexend' },
+        { key = 'clean',   label = 'Clean',       family = 'Lexend', weight = 700 },
         { key = 'marker',  label = 'Marker',      family = 'Permanent Marker' },
         { key = 'script',  label = 'Script',      family = 'Pacifico' },
         { key = 'bold',    label = 'Bold',        family = 'Bebas Neue' },
-        { key = 'hand',    label = 'Handwritten', family = 'Caveat' },
+        { key = 'hand',    label = 'Handwritten', family = 'Caveat', weight = 600 },
         { key = 'retro',   label = 'Retro',       family = 'Righteous' },
         { key = 'pixel',   label = 'Pixel',       family = 'Press Start 2P' },
         { key = 'neon',    label = 'Neon',        family = 'Monoton' },
-        { key = 'tech',    label = 'Tech',        family = 'Orbitron' },
+        { key = 'tech',    label = 'Tech',        family = 'Orbitron', weight = 600 },
         { key = 'spooky',  label = 'Spooky',      family = 'Creepster' },
-        { key = 'bubbly',  label = 'Bubbly',      family = 'Fredoka' },
+        { key = 'bubbly',  label = 'Bubbly',      family = 'Fredoka', weight = 500 },
         { key = 'classic', label = 'Classic',     family = 'Lobster' },
     },
 
@@ -345,26 +352,27 @@ Config.NameTags = {
     },
     customColors = true, -- Colour picker for any colour, not just the swatches
 
-    -- The tag itself
+    -- How the letters are drawn
     styles = {
-        { key = 'leather', label = 'Leather' },
-        { key = 'metal',   label = 'Metal' },
-        { key = 'dark',    label = 'Dark' },
-        { key = 'paper',   label = 'Paper' },
-        { key = 'neon',    label = 'Neon sign' },
-        { key = 'clear',   label = 'Text only' },
+        { key = 'classic', label = 'Outline' },  -- thick dark outline (the classic look)
+        { key = '3d',      label = '3D' },
+        { key = 'chrome',  label = 'Chrome' },
+        { key = 'neon',    label = 'Neon' },
+        { key = 'sticker', label = 'Sticker' },
+        { key = 'soft',    label = 'Soft' },
     },
 
+    -- Animation on top
     effects = {
         { key = 'none',    label = 'None' },
         { key = 'glow',    label = 'Glow' },
-        { key = 'neon',    label = 'Flicker' },
         { key = 'shimmer', label = 'Shimmer' },
         { key = 'rainbow', label = 'Rainbow' },
-        { key = 'pulse',   label = 'Pulse' },
         { key = 'wave',    label = 'Wave' },
+        { key = 'float',   label = 'Float' },
+        { key = 'pulse',   label = 'Pulse' },
+        { key = 'neon',    label = 'Flicker' },
         { key = 'glitch',  label = 'Glitch' },
-        { key = 'outline', label = 'Outline' },
     },
 
     particles = {

@@ -186,14 +186,23 @@ function QuietBagAnims(ms)
     quietUntil = GetGameTimer() + (ms or 3000)
 end
 
---- Worn bags that carry a name tag and are on screen-able right now.
+--- Name tags of players' bags. A bag that's set down to open shows its tag
+--- over the bag; a carried bag only shows one (over the wearer's head) when
+--- Config.NameTags.showWorn is on. Never for a stowed bag, and never for a
+--- ped that's invisible (admins etc.).
 function BagTagTargets()
     local list = {}
-    for serverId, p in pairs(props) do
-        local st = wanted[serverId]
-        local e = (p.seat and DoesEntityExist(p.seat)) and p.seat or p.entity   -- on a car seat: the seat prop
-        if st and st.tag and e and DoesEntityExist(e) and IsEntityVisible(e) then
-            list[#list + 1] = { id = serverId, entity = e, tag = st.tag, locked = st.locked }
+    local showWorn = Config.NameTags and Config.NameTags.showWorn
+    for serverId, st in pairs(wanted) do
+        if st and st.bag and st.tag then
+            local p = props[serverId]
+            local ped = pedFor(serverId)
+            local visiblePed = ped ~= 0 and DoesEntityExist(ped) and IsEntityVisible(ped)
+            if p and p.grounded and p.entity and DoesEntityExist(p.entity) and IsEntityVisible(p.entity) then
+                list[#list + 1] = { id = serverId, entity = p.entity, tag = st.tag, locked = st.locked }
+            elseif showWorn and not st.stowed and visiblePed then
+                list[#list + 1] = { id = serverId, ped = ped, tag = st.tag, locked = st.locked }
+            end
         end
     end
     return list

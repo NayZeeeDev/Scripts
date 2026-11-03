@@ -1,34 +1,43 @@
 -----------------------------------------------------------------
 -- Name tags (client)
 --
--- Finds tagged bags close to the camera (a few times a second), then,
--- only while one is in range, places their tags on screen every frame.
--- Nothing runs per frame when no tagged bag is near you.
+-- The name floats over a bag that's on the ground (set down, or put down
+-- to open), and over the wearer's head too when Config.NameTags.showWorn
+-- is on. Finds tags close to the camera a few times a
+-- second, then, only while one is in range, places them on screen every
+-- frame. Nothing runs per frame when no tag is near you.
 -----------------------------------------------------------------
 
 local cfg = Config.NameTags
 if not cfg or not cfg.enabled then return end
 
+local HEAD = 31086    -- SKEL_Head
 local myId = GetPlayerServerId(PlayerId())
-local dims = {}       -- [model] = { c = centre, h = half height }
+local tops = {}       -- [model] = top-centre offset of the model
 local visible = {}    -- what we're drawing
 local drawing = false
 local lastSig = ''
 local editing = false
 
-local function anchorOf(entity)
-    local model = GetEntityModel(entity)
-    local d = dims[model]
-    if not d then
-        local mn, mx = GetModelDimensions(model)
-        d = {
-            c = (mn + mx) * 0.5,
-            h = math.max(mx.x - mn.x, mx.y - mn.y, mx.z - mn.z) * 0.5,
-        }
-        dims[model] = d
+local range = cfg.distance or 15.0
+local height = cfg.height or 0.32       -- above the head bone
+local bagHeight = cfg.bagHeight or 0.18 -- above a set-down bag
+
+--- World point the tag's bottom-centre sits on.
+local function anchorOf(v)
+    if v.ped then
+        local h = GetPedBoneCoords(v.ped, HEAD, 0.0, 0.0, 0.0)
+        return vector3(h.x, h.y, h.z + height)
     end
-    local w = GetOffsetFromEntityInWorldCoords(entity, d.c.x, d.c.y, d.c.z)
-    return vector3(w.x, w.y, w.z + d.h * 0.55)
+    local model = GetEntityModel(v.entity)
+    local t = tops[model]
+    if not t then
+        local mn, mx = GetModelDimensions(model)
+        t = vector3((mn.x + mx.x) * 0.5, (mn.y + mx.y) * 0.5, mx.z)
+        tops[model] = t
+    end
+    local w = GetOffsetFromEntityInWorldCoords(v.entity, t.x, t.y, t.z)
+    return vector3(w.x, w.y, w.z + bagHeight)
 end
 
 local function sigOf(t)
@@ -44,13 +53,14 @@ local function draw()
             if not IsPauseMenuActive() and not editing then
                 local cam = GetFinalRenderedCamCoord()
                 for _, v in ipairs(visible) do
-                    if DoesEntityExist(v.entity) then
-                        local a = anchorOf(v.entity)
+                    if DoesEntityExist(v.ped or v.entity) then
+                        local a = anchorOf(v)
                         local on, x, y = GetScreenCoordFromWorldCoord(a.x, a.y, a.z)
                         if on then
                             local d = #(a - cam)
-                            local scale = math.max(0.42, math.min(1.15, 1.6 / math.max(d, 0.5)))
-                            local alpha = math.max(0.0, math.min(1.0, cfg.distance - d)) -- fades over the last metre
+                            -- full size up close, then a steady readable size, fading over the last 2 m
+                            local scale = math.max(0.55, math.min(1.0, 3.0 / math.max(d, 0.5)))
+                            local alpha = math.max(0.0, math.min(1.0, (range - d) / 2.0))
                             pos[v.k] = { x, y, scale, alpha }
                         end
                     end
@@ -73,24 +83,30 @@ CreateThread(function()
         local cam = GetFinalRenderedCamCoord()
         local me = PlayerPedId()
 
-        local function consider(k, entity, tag, locked, own)
-            local d = #(GetEntityCoords(entity) - cam)
-            if d > cfg.distance + 2.0 then return end
-            -- don't read tags through walls (your own is always in view)
-            if not own and not HasEntityClearLosToEntity(me, entity, 17) then return end
-            list[#list + 1] = { k = k, entity = entity, tag = tag, l = locked or false, d = d }
+        local function consider(v, own)
+            local e = v.ped or v.entity
+            local d = #(GetEntityCoords(e) - cam)
+            if d > range + 1.0 then return end
+            -- no reading names through walls (your own always shows)
+            if not own and not HasEntityClearLosToEntity(me, e, 17) then return end
+            v.d = d
+            list[#list + 1] = v
         end
 
         for _, t in ipairs(BagTagTargets and BagTagTargets() or {}) do
             local own = t.id == myId
-            if not own or cfg.showOwn then consider('p' .. t.id, t.entity, t.tag, t.locked, own) end
+            if not own or cfg.showOwn then
+                consider({ k = 'p' .. t.id, ped = t.ped, entity = t.entity, tag = t.tag, l = t.locked or false }, own)
+            end
         end
         if cfg.showPlaced and PlacedTagTargets then
-            for _, t in ipairs(PlacedTagTargets()) do consider('g' .. t.id, t.entity, t.tag, false, false) end
+            for _, t in ipairs(PlacedTagTargets()) do
+                consider({ k = 'g' .. t.id, entity = t.entity, tag = t.tag, l = false }, false)
+            end
         end
 
         table.sort(list, function(a, b) return a.d < b.d end)
-        for i = #list, (cfg.maxVisible or 4) + 1, -1 do list[i] = nil end
+        for i = #list, (cfg.maxVisible or 8) + 1, -1 do list[i] = nil end
 
         local parts = {}
         for i, v in ipairs(list) do parts[i] = v.k .. '=' .. sigOf(v.tag) .. tostring(v.l) end
