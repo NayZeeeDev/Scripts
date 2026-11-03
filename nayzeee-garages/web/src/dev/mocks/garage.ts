@@ -4,8 +4,8 @@
  * Vehicles carry what the client adds in game (class label, model stats) plus stored
  * upgrades (mods) and damage, so the showroom can be judged with realistic data.
  * Scenario ids: garage-grid, garage-list, garage-empty, garage-full, garage-private,
- * garage-spawner, garage-air, garage-sea, garage-damaged, garage-finance, garage-house,
- * garage-job, garage-rental, garage-big.
+ * garage-private-long, garage-spawner, garage-air, garage-sea, garage-damaged, garage-finance,
+ * garage-house, garage-job, garage-rental, garage-big.
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui, onNuiMessage } from '../../lib/nui';
@@ -314,7 +314,8 @@ export function legionSquare(): GarageOpenData {
   const t = nowS();
   return {
     garage: summary({}),
-    capacity: { mode: 'limited', appliesTo: 'player', used: 9, total: 12 },
+    // "Your spaces": the 16 vehicles you own parked here (the shared Sultan is Marcus's).
+    capacity: { mode: 'limited', appliesTo: 'player', used: 16, total: 20 },
     options: OPTIONS,
     spawner: [],
     vehicles: [
@@ -788,10 +789,28 @@ function rentalLot(): GarageOpenData {
 /* a big collection (40 spaces) to check the compact capacity bar */
 function bigCollection(): GarageOpenData {
   const d = legionSquare();
+  const used = d.vehicles.filter((v) => v.isOwner && v.here && v.state === 'garaged').length;
   return {
     ...d,
     garage: { ...d.garage, key: 'L20', name: 'Vinewood Car Club', canGoInside: true },
-    capacity: { mode: 'limited', appliesTo: 'player', used: 25, total: 40 },
+    capacity: { mode: 'limited', appliesTo: 'player', used, total: 40 },
+  };
+}
+
+/* private garage with a long name, 20 spaces and two copies: the busiest header there is */
+function laMesaLong(): GarageOpenData {
+  const d = laMesa();
+  return {
+    ...d,
+    garage: {
+      ...d.garage,
+      name: 'Vinewood Hills Motor Club & Collectors Lounge — East Wing',
+      groups: [
+        { id: 12, label: 'Vinewood Hills Motor Club & Collectors Lounge — East Wing #1' },
+        { id: 31, label: 'Vinewood Hills Motor Club & Collectors Lounge — East Wing #2' },
+      ],
+    },
+    capacity: { mode: 'limited', appliesTo: 'total', used: 4, total: 20 },
   };
 }
 
@@ -1076,10 +1095,11 @@ registerMock({ id: 'garage-grid', group: 'Garage', label: 'Public garage — com
 registerMock({ id: 'garage-list', group: 'Garage', label: 'Public garage — compact rows', messages: [view('list'), open(legionSquare())] });
 registerMock({ id: 'garage-empty', group: 'Garage', label: 'Empty garage', messages: [view('grid'), open(pillboxEmpty())] });
 registerMock({ id: 'garage-full', group: 'Garage', label: 'Full garage (6/6)', messages: [view('grid'), open(mirrorParkFull())] });
-registerMock({ id: 'garage-big', group: 'Garage', label: 'Big collection (25/40 spaces)', messages: [view('grid'), open(bigCollection())] });
+registerMock({ id: 'garage-big', group: 'Garage', label: 'Big collection (16/40 spaces)', messages: [view('grid'), open(bigCollection())] });
 registerMock({ id: 'garage-damaged', group: 'Garage', label: 'Damaged vehicles (wreck selected)', messages: [km, open(sandyShores())] });
 registerMock({ id: 'garage-finance', group: 'Garage', label: 'Financed vehicles (overdue selected)', messages: [view('grid'), open(financeLot())] });
 registerMock({ id: 'garage-private', group: 'Garage', label: 'Private garage (members, 2 copies)', messages: [view('grid'), open(laMesa())] });
+registerMock({ id: 'garage-private-long', group: 'Garage', label: 'Private garage — long name, 20 spaces', messages: [view('grid'), open(laMesaLong())] });
 registerMock({ id: 'garage-house', group: 'Garage', label: 'House garage (housing integration)', messages: [view('grid'), open(houseGarage())] });
 registerMock({ id: 'garage-job', group: 'Garage', label: 'Job garage — owned fleet (EMS)', messages: [view('grid'), open(emsFleet())] });
 registerMock({ id: 'garage-spawner', group: 'Garage', label: 'Job spawner (LSPD)', messages: [view('list'), open(policeSpawner())] });

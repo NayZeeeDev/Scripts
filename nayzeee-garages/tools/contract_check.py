@@ -22,6 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # NUI callbacks handled on the client (never forwarded to the server).
 CLIENT_ONLY_NUI = {
+    'notify',
     'ready', 'close',
     'garage:drive', 'garage:spawner', 'garage:track', 'garage:goInside', 'garage:directions',
     'forSale:tour', 'forSale:buy',
@@ -43,7 +44,7 @@ CLIENT_TO_SERVER = {
     'creator:save': 'nz:creator:save',
 }
 APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior'}
-ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint', 'notify'}
+ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint'}
 
 
 def read(path):

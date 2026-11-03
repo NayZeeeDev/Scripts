@@ -7,6 +7,7 @@ import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui } from '../../lib/nui';
 import type { ForSaleData, NuiMessage } from '../../lib/types';
 import { boughtGarage } from './garage';
+import { toast } from '../../lib/store';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -25,7 +26,7 @@ const LA_MESA: ForSaleData = {
 
 const open = (data: ForSaleData): NuiMessage => ({ action: 'open', data: { app: 'forSale', data } });
 const notify = (type: 'success' | 'info' | 'error', message: string, title?: string) =>
-  emitNuiMessage({ action: 'notify', data: { type, message, title } });
+  toast({ type, message, title });
 
 mockNui('forSale:tour', async () => {
   await wait(600);

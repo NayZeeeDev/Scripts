@@ -122,7 +122,12 @@ export const Inspector = forwardRef<HTMLElement, InspectorProps>(function Inspec
             {loc.id !== null && <small>#{loc.id}</small>}
           </h2>
           <p title={points}>
-            {kindLabel} <i>·</i> {vehicleTypeLabel(loc.vehicleType)} <i>·</i> {points}
+            {kindLabel} <i>·</i> {vehicleTypeLabel(loc.vehicleType)}
+            {/* Narrow screens drop the point counts (they are in the Points menu too). */}
+            <span className="nz-admin-cmd__insp-points">
+              {' '}
+              <i>·</i> {points}
+            </span>
           </p>
         </div>
         {anchor ? (
@@ -205,7 +210,13 @@ export const Inspector = forwardRef<HTMLElement, InspectorProps>(function Inspec
                     </span>
                   </span>
                 ))}
-                {owners.length > 3 && <span className="nz-admin-cmd__more">{t('+{count} more in the editor', { count: owners.length - 3 })}</span>}
+                {owners.length > 3 && (
+                  <span className="nz-admin-cmd__more is-wide">{t('+{count} more in the editor', { count: owners.length - 3 })}</span>
+                )}
+                {/* Narrow screens list 2 owners: say how many are left. */}
+                {owners.length > 2 && (
+                  <span className="nz-admin-cmd__more is-narrow">{t('+{count} more in the editor', { count: owners.length - 2 })}</span>
+                )}
               </div>
             )}
           </div>

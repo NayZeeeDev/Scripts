@@ -34,6 +34,11 @@ export function useShowroomKeys(active: boolean, keys: ShowroomKeys) {
         k.move(e.key === 'ArrowDown' ? 1 : -1);
         return;
       }
+      // "/" in the (still focused) empty search box after Esc cleared it: keep it out of the query.
+      if (e.key === '/' && typing && target?.closest('.nz-garage__search') && !(target as HTMLInputElement).value) {
+        e.preventDefault();
+        return;
+      }
       if (typing) return;
       if (e.key === 'Enter') {
         if (target && target.closest('button, a, [role="button"], [role="radio"], [role="tab"]')) return;

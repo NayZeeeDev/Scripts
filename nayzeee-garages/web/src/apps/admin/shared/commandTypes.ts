@@ -16,6 +16,8 @@ export type TagTone = 'neutral' | 'teal' | 'amber' | 'blue' | 'red' | 'white';
 export interface CardTag {
   icon?: IconName;
   label: string;
+  /** Shorter label for narrow screens (≤ 1340px), e.g. "8" for "8 per player". */
+  short?: string;
   tone?: TagTone;
   /** Tooltip with the full text (tags are truncated). */
   title?: string;
@@ -49,4 +51,7 @@ export interface LocationPageContext {
   stats: (loc: Location) => LocationStats;
   /** Private locations only: owned copies. undefined while loading. */
   groups: (id: number | null) => GroupInfo[] | 'error' | undefined;
+  /** Private locations only: false when only the selected location's copies are loaded
+   *  (too many locations to load them all), so totals cannot be computed. */
+  groupsComplete: boolean;
 }

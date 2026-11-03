@@ -7,6 +7,12 @@ NZ = {
   ResourceName = GetCurrentResourceName(),
   IsServer = IsDuplicityVersion(),
   Utils = {},
+  CarLock = {},
+  Inventory = {},
+  Dispatch = {},
+  Contracts = {},
+  FakePlates = {},
+  Tow = {},
   Framework = 'standalone',
 }
 

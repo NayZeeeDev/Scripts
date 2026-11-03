@@ -3,13 +3,14 @@
  * detail sections (impound, finance, condition + damage glyph, performance, upgrades,
  * details) and the action dock. Also the spawner showcase and the empty turntable.
  */
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Badge, Button, Icon, IconButton, Kbd, Tooltip, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import { dateTime, distance, money } from '@/lib/format';
 import type { GarageOptions, GarageSummary, GarageVehicle, SpawnerVehicleView } from '@/lib/types';
-import { ago, isHere, modelName, normDamage, platePreview, vehicleIcon, vehicleStatus } from './model';
+import { ago, modelName, normDamage, platePreview, primaryKind, vehicleIcon, vehicleStatus } from './model';
 import { ClassTag, Plate, Stage, StageTitle } from './showroom/Stage';
 import { glyphShape } from './showroom/DamageGlyph';
 import {
@@ -44,10 +45,81 @@ export function ShowcaseFrame({
     <div className="nz-garage__show">
       {stage}
       {strip && <div className="nz-garage__strip">{strip}</div>}
-      <div key={id} className="nz-garage__sections">
+      <Sections key={id}>{children}</Sections>
+      {dock && <div className="nz-garage__dock">{dock}</div>}
+    </div>
+  );
+}
+
+/**
+ * The scrolling detail sections. When blocks sit below the fold, a small pill names them
+ * ("Upgrades · Details") and scrolls down on click; the bottom fade only shows then.
+ */
+function Sections({ children }: { children?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [below, setBelow] = useState<string[]>([]);
+
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const more = el.scrollHeight > el.clientHeight + 8 && el.scrollTop + el.clientHeight < el.scrollHeight - 8;
+    if (!more) {
+      setBelow((prev) => (prev.length ? [] : prev));
+      return;
+    }
+    const fold = el.getBoundingClientRect().bottom - 24;
+    const names: string[] = [];
+    el.querySelectorAll<HTMLElement>(':scope > .nz-garage__blk').forEach((blk) => {
+      // A block counts as hidden when less than its heading is in view.
+      if (blk.getBoundingClientRect().top + 30 > fold) {
+        const h = blk.querySelector('h4')?.textContent?.trim();
+        if (h && !names.includes(h)) names.push(h);
+      }
+    });
+    if (!names.length) names.push(t('More'));
+    setBelow((prev) => (prev.join('|') === names.join('|') ? prev : names));
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Re-measure when the pane or a block changes size, and when blocks come or go.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    const observeAll = () => {
+      if (ro) {
+        ro.disconnect();
+        ro.observe(el);
+        Array.from(el.children).forEach((c) => ro.observe(c));
+      }
+      measure();
+    };
+    observeAll();
+    const mo = typeof MutationObserver !== 'undefined' ? new MutationObserver(observeAll) : null;
+    mo?.observe(el, { childList: true });
+    el.addEventListener('scroll', measure, { passive: true });
+    return () => {
+      ro?.disconnect();
+      mo?.disconnect();
+      el.removeEventListener('scroll', measure);
+    };
+  }, [measure]);
+
+  const more = below.length > 0;
+  return (
+    <div className="nz-garage__secwrap">
+      <div ref={ref} className={cx('nz-garage__sections', more && 'is-more')}>
         {children}
       </div>
-      {dock && <div className="nz-garage__dock">{dock}</div>}
+      {more && (
+        <button
+          type="button"
+          className="nz-garage__more"
+          onClick={() => ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: 'smooth' })}
+        >
+          <span>{below.slice(0, 3).join(' · ')}</span>
+          <Icon name="chevronDown" size={12} strokeWidth={2.2} />
+        </button>
+      )}
     </div>
   );
 }
@@ -186,7 +258,7 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
           }
           topLeft={
             <>
-              <ClassTag icon={<Icon name={vehicleIcon(v)} size={13} strokeWidth={1.8} />} label={v.classLabel || t('Vehicle')} />
+              <ClassTag icon={<Icon name={vehicleIcon(v)} size={13} strokeWidth={1.8} />} label={v.classLabel || t('Other')} />
               {v.blocked && (
                 <Badge tone="red" icon="ban" size="sm">
                   {t('Blocked')}
@@ -227,7 +299,15 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
       dock={<GarageDock {...props} isDriving={isDriving} busy={busy} />}
     >
       {v.state === 'impounded' && v.impound && <ImpoundBlock info={v.impound} />}
-      {v.finance && <FinanceBlock finance={v.finance} onPay={props.onPay} disabled={!v.isOwner || busy} />}
+      {v.finance && (
+        <FinanceBlock
+          finance={v.finance}
+          onPay={props.onPay}
+          disabled={!v.isOwner || busy}
+          // The dock already explains an overdue lock when paying is its primary action.
+          lockNote={primaryKind(v) !== 'pay'}
+        />
+      )}
       <ConditionBlock
         engine={v.engine}
         body={v.body}
@@ -281,37 +361,51 @@ function GarageDock({
   const canTransfer = v.isOwner && parked && (options.garageTransfer || options.playerTransfer);
   const canSell = v.isOwner && parked && options.sell;
   const canShare = v.isOwner && options.share;
-  const financeLock = !v.canDrive && !!v.finance?.overdue && isHere(v) && !v.blocked;
+  // What the server refuses anyway: say so on the button instead of after a filled-in modal.
+  const sellLock = v.blocked ? t('Blocked by staff') : v.finance ? t('Pay off the finance first') : null;
+  // A financed vehicle can still move garages, only giving it to a player is refused (modal tab).
+  const transferLock = v.blocked
+    ? t('Blocked by staff')
+    : v.finance && !options.garageTransfer
+      ? t('Pay off the finance first')
+      : null;
+  const kind = primaryKind(v);
 
   let primary: ReactNode;
   let reason: { tone: 'neutral' | 'amber' | 'red'; icon: IconName; text: ReactNode } | null = null;
   let waypointPrimary = false;
 
-  if (v.canDrive) {
+  if (kind === 'drive') {
     primary = (
       <Button variant="teal" size="lg" icon="arrowRight" loading={isDriving} disabled={busy && !isDriving} onClick={onDrive} className="nz-garage__go">
         <PrimaryLabel keycap={!isDriving}>{isDriving ? t('Loading vehicle...') : t('Drive out')}</PrimaryLabel>
       </Button>
     );
-  } else if (v.canRecover) {
+  } else if (kind === 'recover') {
     primary = (
       <Button variant="white" size="lg" icon="refresh" loading={recovering} disabled={busy && !recovering} onClick={onRecover} className="nz-garage__go">
         <PrimaryLabel>{v.recoverFee > 0 ? t('Recover · {fee}', { fee: money(v.recoverFee) }) : t('Recover')}</PrimaryLabel>
       </Button>
     );
     reason = { tone: 'amber', icon: 'route', text: v.reason ?? t('Its last position is unknown. Recover it to bring it back here.') };
-  } else if (financeLock && v.finance) {
+  } else if (kind === 'pay' && v.finance) {
     primary = (
       <Button variant="red" size="lg" icon="money" disabled={!v.isOwner || busy} onClick={() => onPay(false)} className="nz-garage__go">
-        <PrimaryLabel>{t('Pay {amount}', { amount: money(Math.min(v.finance.payment, v.finance.balance)) })}</PrimaryLabel>
+        <PrimaryLabel keycap={v.isOwner}>{t('Pay {amount}', { amount: money(Math.min(v.finance.payment, v.finance.balance)) })}</PrimaryLabel>
       </Button>
     );
-    reason = { tone: 'red', icon: 'lock', text: v.reason ?? t('A finance payment is overdue.') };
-  } else if (v.state === 'impounded' || v.state === 'out' || !v.here) {
+    reason = {
+      tone: 'red',
+      icon: 'lock',
+      text: v.isOwner
+        ? t('A finance payment is overdue. The vehicle stays locked until it is paid.')
+        : t('A finance payment is overdue. Only the owner can pay it.'),
+    };
+  } else if (kind === 'waypoint') {
     waypointPrimary = true;
     primary = (
       <Button variant="white" size="lg" icon="map" loading={tracking} onClick={onTrack} className="nz-garage__go">
-        {t('Set waypoint')}
+        <PrimaryLabel keycap={!tracking}>{t('Set waypoint')}</PrimaryLabel>
       </Button>
     );
     if (v.state === 'impounded' && v.impound) {
@@ -348,9 +442,11 @@ function GarageDock({
       </div>
       <div className="nz-garage__tools" role="toolbar" aria-label={t('Vehicle actions')}>
         {v.isOwner && <Tool icon="edit" label={t('Rename')} onClick={onRename} disabled={busy} />}
-        {canTransfer && <Tool icon="transfer" label={t('Transfer')} onClick={onTransfer} disabled={busy} />}
+        {canTransfer && (
+          <Tool icon="transfer" label={t('Transfer')} onClick={onTransfer} disabled={busy || !!transferLock} tip={transferLock ?? undefined} />
+        )}
         {canShare && <Tool icon="userPlus" label={t('Share')} onClick={onShare} disabled={busy} badge={v.sharedWith > 0 ? v.sharedWith : undefined} />}
-        {canSell && <Tool icon="tag" label={t('Sell')} onClick={onSell} disabled={busy} />}
+        {canSell && <Tool icon="tag" label={t('Sell')} onClick={onSell} disabled={busy || !!sellLock} tip={sellLock ?? undefined} />}
         {!waypointPrimary && <Tool icon="map" label={t('Track')} onClick={onTrack} tip={t('Set a waypoint to this vehicle')} />}
       </div>
     </>
@@ -382,7 +478,7 @@ export function SpawnerShowcase({
           image={s.image}
           vehicleType={s.vehicleType}
           alt={s.label}
-          topLeft={<ClassTag icon={<Icon name={vehicleIcon(s)} size={13} strokeWidth={1.8} />} label={s.classLabel || t('Vehicle')} />}
+          topLeft={<ClassTag icon={<Icon name={vehicleIcon(s)} size={13} strokeWidth={1.8} />} label={s.classLabel || t('Other')} />}
           topRight={
             garage.jobLabel ? (
               <Badge tone="teal" icon="briefcase" size="sm">
@@ -464,8 +560,6 @@ export function SpawnerShowcase({
           <Fact label={t('Plate format')} mono>
             {tpl ? tpl.text : t('Random')}
           </Fact>
-          <Fact label={t('Price')}>{s.price > 0 ? money(s.price) : t('Free')}</Fact>
-          <Fact label={t('Seats')}>{s.stats && s.stats.seats > 0 ? String(s.stats.seats) : '—'}</Fact>
         </div>
         <Callout tone="neutral" icon="info" className="nz-garage__blk-callout">
           {garage.jobLabel

@@ -447,6 +447,9 @@
   text-overflow: ellipsis;
 }
 
+/* narrow screens swap long tag labels for their short form ("8 per player" → "8") */
+.nz-admin-cmd__tag .nz-admin-cmd__tag-short { display: none; }
+
 .nz-admin-cmd__tag.is-teal { border-color: var(--teal-edge); background: var(--teal-wash); color: var(--teal-hi); }
 .nz-admin-cmd__tag.is-blue { border-color: var(--blue-edge); background: var(--blue-wash); color: var(--blue); }
 .nz-admin-cmd__tag.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); color: var(--amber); }
@@ -652,9 +655,9 @@
   color: var(--ink-2);
 }
 
-/* coordinates chip (header) */
+/* coordinates chip (header): never shrinks, the title takes the ellipsis */
 .nz-admin-cmd__coords {
-  flex: 0 1 auto;
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -792,6 +795,8 @@
   color: var(--ink-3);
 }
 
+.nz-admin-cmd__more.is-narrow { display: none; }
+
 /* vehicle numbers */
 .nz-admin-cmd__nums {
   display: flex;
@@ -895,6 +900,9 @@
 
 .nz-admin-cmd__grow { flex: 1 1 auto; }
 
+/* Button labels: room for descenders ("Create garage", "Import") under the kit's line-height 1. */
+.nz-admin-cmd .nz-btn__label { line-height: 1.3; }
+
 .nz-admin-cmd .nz-admin-cmd__kbd {
   margin-left: 6px;
   border-color: rgba(0, 0, 0, .28);
@@ -926,24 +934,43 @@
   .nz-admin-cmd__type.is-lg { width: 34px; height: 34px; }
   .nz-admin-cmd__tags { margin-top: 6px; }
   .nz-admin-cmd__vline { margin-top: 6px; gap: 10px; }
-  .nz-admin-cmd__insp { left: 8px; right: 8px; bottom: 8px; }
-  .nz-admin-cmd__insp-head { padding: 9px 10px 8px 12px; gap: 10px; }
+  /* Inspector: at most ~half of the map; the body scrolls beyond that. */
+  .nz-admin-cmd__insp { left: 8px; right: 8px; bottom: 8px; max-height: 46%; }
+  .nz-admin-cmd__insp-head { padding: 8px 8px 7px 10px; gap: 9px; }
   .nz-admin-cmd__insp-title h2 { font-size: 14.5px; }
-  .nz-admin-cmd__insp-body { padding: 9px 0 10px; }
+  .nz-admin-cmd__insp-title p { margin-top: 2px; font-size: 11px; }
+  .nz-admin-cmd__insp-points { display: none; }
+  .nz-admin-cmd__coords { height: 28px; padding-left: 8px; gap: 4px; }
+  .nz-admin-cmd__coords:not(.is-missing) > svg { display: none; }
+  .nz-admin-cmd__coords code { font-size: 11px; }
+  .nz-admin-cmd__insp-body { padding: 8px 0 9px; }
   .nz-admin-cmd__insp-sec { padding: 0 11px; }
-  .nz-admin-cmd__insp-sec h3 { margin-bottom: 7px; }
-  .nz-admin-cmd__fact dt { flex-basis: 84px; }
-  .nz-admin-cmd__nums { gap: 6px 12px; }
+  .nz-admin-cmd__insp-sec h3 { margin-bottom: 6px; }
+  /* Facts: a tight 2-column grid of label / value pairs. */
+  .nz-admin-cmd__facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 14px;
+  }
+  .nz-admin-cmd__fact {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1px;
+    font-size: 11px;
+  }
+  .nz-admin-cmd__fact dt { flex: none; font-size: 10.5px; }
+  .nz-admin-cmd__nums { gap: 6px 14px; }
   .nz-admin-cmd__nums b { font-size: 18px; }
-  .nz-admin-cmd__insp-actions { padding: 7px 10px; }
-}
-
-/* Narrow map: the coordinates chip keeps only its copy button, owners show 2 rows. */
-@media (max-width: 1340px) {
-  .nz-admin-cmd__coords code,
-  .nz-admin-cmd__coords > svg { display: none; }
-  .nz-admin-cmd__coords { padding-left: 2px; }
+  .nz-admin-cmd__nums small { margin-top: 3px; }
+  .nz-admin-cmd__cap { margin-top: 8px; gap: 5px; }
+  .nz-admin-cmd__owners { gap: 6px; }
   .nz-admin-cmd__owner:nth-child(3) { display: none; }
+  .nz-admin-cmd__more.is-wide { display: none; }
+  .nz-admin-cmd__more.is-narrow { display: block; }
+  .nz-admin-cmd__insp-actions { padding: 6px 8px; }
+  /* Cards: the capacity tag shows its number only, so it stays on the line. */
+  .nz-admin-cmd__tag .nz-admin-cmd__tag-long { display: none; }
+  .nz-admin-cmd__tag .nz-admin-cmd__tag-short { display: inline; }
 }
 
 @media (prefers-reduced-motion: reduce) {

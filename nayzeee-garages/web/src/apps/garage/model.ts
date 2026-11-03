@@ -195,20 +195,42 @@ export const classGroup = (v: { classLabel?: string; classId?: number }) => {
   return label ? { key: `c:${label.toLowerCase()}`, label } : { key: 'c:other', label: t('Other') };
 };
 
-const STATUS_GROUPS: Record<StatusKey, { key: string; label: () => string; order: number }> = {
+/** Where a vehicle is, ignoring staff blocks (a blocked vehicle parked here is still here). */
+type LocationKey = 'here' | 'elsewhere' | 'out' | 'impounded';
+
+function locationKey(v: GarageVehicle): LocationKey {
+  if (v.state === 'impounded') return 'impounded';
+  if (v.state === 'out') return 'out';
+  if (!v.here) return 'elsewhere';
+  return 'here';
+}
+
+const STATUS_GROUPS: Record<LocationKey, { key: string; label: () => string; order: number }> = {
   here: { key: 's:here', label: () => t('Parked here'), order: 0 },
-  overdue: { key: 's:here', label: () => t('Parked here'), order: 0 },
   elsewhere: { key: 's:elsewhere', label: () => t('Other garages'), order: 1 },
   out: { key: 's:out', label: () => t('Out'), order: 2 },
-  lost: { key: 's:out', label: () => t('Out'), order: 2 },
   impounded: { key: 's:impounded', label: () => t('Impounded'), order: 3 },
-  blocked: { key: 's:blocked', label: () => t('Blocked'), order: 4 },
 };
 
+/** Group by location (Parked here / Other garages / Out / Impounded); the row dot carries the
+ *  rest (blocked, overdue), so the "Parked here" heading always matches the Here chip. */
 export const statusGroup = (v: GarageVehicle) => {
-  const g = STATUS_GROUPS[vehicleStatus(v).key];
+  const g = STATUS_GROUPS[locationKey(v)];
   return { key: g.key, label: g.label(), order: g.order };
 };
+
+/* ── primary action ─────────────────────────────────────────────────── */
+
+export type PrimaryKind = 'drive' | 'recover' | 'pay' | 'waypoint' | null;
+
+/** The dock's primary action for a vehicle (also what Enter does and the footer hint says). */
+export function primaryKind(v: GarageVehicle): PrimaryKind {
+  if (v.canDrive) return 'drive';
+  if (v.canRecover) return 'recover';
+  if (v.finance?.overdue && isHere(v) && !v.blocked) return 'pay';
+  if (v.state === 'impounded' || v.state === 'out' || !v.here) return 'waypoint';
+  return null;
+}
 
 /* ── damage ─────────────────────────────────────────────────────────── */
 
@@ -278,6 +300,14 @@ export function countdown(seconds: number): string {
   if (h > 0) return t('{h}h {m}m', { h, m: String(m).padStart(2, '0') });
   if (m > 0) return t('{m}m {s}s', { m, s: String(sec).padStart(2, '0') });
   return t('{s}s', { s: sec });
+}
+
+/** Payment interval: "week", "3 days", "2 weeks", "day", otherwise hours ("12h"). */
+export function intervalLabel(hours: number): string {
+  const h = Math.max(0, Math.round(Number(hours) || 0));
+  if (h >= 24 && h % 168 === 0) return h === 168 ? t('week') : t('{n} weeks', { n: h / 168 });
+  if (h >= 24 && h % 24 === 0) return h === 24 ? t('day') : t('{n} days', { n: h / 24 });
+  return h === 1 ? t('hour') : t('{n}h', { n: h });
 }
 
 /** "2 days ago" style label for last use. */

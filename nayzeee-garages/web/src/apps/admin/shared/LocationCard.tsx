@@ -154,7 +154,8 @@ export const LocationCard = memo(function LocationCard({
           {tags.map((tag, i) => (
             <span key={i} className={cx('nz-admin-cmd__tag', `is-${tag.tone ?? 'neutral'}`)} title={tag.title ?? tag.label}>
               {tag.icon && <Icon name={tag.icon} size={11} strokeWidth={1.9} />}
-              <span>{tag.label}</span>
+              <span className={cx(tag.short && 'nz-admin-cmd__tag-long')}>{tag.label}</span>
+              {tag.short && <span className="nz-admin-cmd__tag-short">{tag.short}</span>}
             </span>
           ))}
         </span>

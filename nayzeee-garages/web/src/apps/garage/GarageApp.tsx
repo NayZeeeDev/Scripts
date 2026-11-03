@@ -37,14 +37,15 @@ import {
   kindLabel,
   matchesFilter,
   matchesQuery,
+  primaryKind,
   sortVehicles,
   statusGroup,
   useSessionChoice,
   useSessionView,
   vehicleTypeIcon,
 } from './model';
-import type { GarageFilter, GarageSort, GroupBy, ItemGroup } from './model';
-import { RailList, RailSkeleton } from './showroom/Rail';
+import type { GarageFilter, GarageSort, GroupBy, ItemGroup, PrimaryKind } from './model';
+import { RailList, RailSkeleton, RailVacant } from './showroom/Rail';
 import { SlotStrip } from './showroom/SlotStrip';
 import { useShowroomKeys } from './showroom/keys';
 import { GarageRow, RailToolbar, SpawnerRow } from './GarageRail';
@@ -114,6 +115,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   const [modal, setModal] = useState<{ kind: ModalKind; plate: string } | null>(null);
   const [members, setMembers] = useState(false);
   const [pay, setPay] = useState<{ plate: string; full: boolean } | null>(null);
+  const [confirmRecover, setConfirmRecover] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const [sellGarage, setSellGarage] = useState(false);
   const [headerBusy, setHeaderBusy] = useState<HeaderBusy>(null);
@@ -252,6 +254,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     const res = await request('garage:recover', { plate: v.plate });
     setRecovering(null);
     if (!res.ok) return;
+    setConfirmRecover(null);
     toast({
       type: 'success',
       title: t('Vehicle recovered'),
@@ -261,6 +264,13 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
           : t('{vehicle} is back.', { vehicle: displayName(v) }),
     });
     void refreshGarage();
+  };
+
+  /** Recovering costs money: confirm first (the same way a finance payment does). */
+  const askRecover = (v: GarageVehicle) => {
+    if (recovering || !v.canRecover) return;
+    if (v.recoverFee > 0) setConfirmRecover(v.plate);
+    else void recover(v);
   };
 
   const track = async (v: GarageVehicle) => {
@@ -332,7 +342,17 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   };
 
   /* ── keyboard ── */
-  const anyModal = !!modal || members || !!pay || sellGarage;
+  const anyModal = !!modal || members || !!pay || sellGarage || !!confirmRecover;
+  // What Enter does for the selection (the dock's primary action); null → nothing.
+  const primary: PrimaryKind | 'spawn' = ss ? 'spawn' : sv ? primaryKind(sv) : null;
+  const enterKind = primary === 'pay' && !sv?.isOwner ? null : primary;
+  const enterLabel: Record<NonNullable<PrimaryKind> | 'spawn', string> = {
+    spawn: t('Take out'),
+    drive: t('Drive'),
+    recover: t('Recover'),
+    pay: t('Pay'),
+    waypoint: t('Set waypoint'),
+  };
   const focusSearch = () => bodyRef.current?.querySelector<HTMLInputElement>('.nz-garage__search input')?.focus();
   useShowroomKeys(!anyModal, {
     move: (dir) => {
@@ -342,9 +362,11 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
     },
     enter: () => {
       if (ss) void spawn(ss);
-      else if (sv?.canDrive) void drive(sv);
-      else if (sv?.canRecover) void recover(sv);
-      else if (sv?.finance?.overdue && sv.isOwner && isHere(sv) && !sv.blocked) setPay({ plate: sv.plate, full: false });
+      if (!sv) return;
+      if (enterKind === 'drive') void drive(sv);
+      else if (enterKind === 'recover') askRecover(sv);
+      else if (enterKind === 'pay') setPay({ plate: sv.plate, full: false });
+      else if (enterKind === 'waypoint') void track(sv);
     },
     favourite: spawnerMode ? undefined : () => sv && void toggleFavourite(sv),
     rename: spawnerMode ? undefined : () => sv?.isOwner && setModal({ kind: 'rename', plate: sv.plate }),
@@ -398,6 +420,8 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       </span>
     ) : undefined;
 
+  // Private garage controls share the header with the slot strip: keep everything compact.
+  const busyHeader = garage.isPrivate || garage.groups.length > 1;
   const headerExtra = (
     <>
       {garage.groups.length > 1 && (
@@ -412,12 +436,12 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         />
       )}
       {garage.isPrivate && (
-        <Button size="sm" icon="users" onClick={() => setMembers(true)}>
+        <Button size="sm" icon="users" onClick={() => setMembers(true)} className="nz-garage__members" title={t('Members')}>
           {t('Members')}
         </Button>
       )}
       {menuItems.length > 0 && <Menu items={menuItems} label={t('Garage options')} />}
-      {!spawnerMode && <SlotStrip capacity={capacity} stored={vehicles.filter(isHere).length} />}
+      {!spawnerMode && <SlotStrip capacity={capacity} stored={vehicles.filter(isHere).length} compact={busyHeader} />}
       {garage.canGoInside && (
         <Button
           size="sm"
@@ -427,6 +451,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
           disabled={!!headerBusy && headerBusy !== 'inside'}
           onClick={() => void goInside()}
           className="nz-garage__inside"
+          title={t('Enter interior')}
         >
           {t('Enter interior')}
         </Button>
@@ -461,12 +486,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   } else if (spawnerMode) {
     railList =
       spawner.length === 0 ? (
-        <EmptyState
-          compact
-          icon={vehicleTypeIcon(garage.vehicleType)}
-          title={t('No vehicles available')}
-          description={t('There are no vehicles for your rank at this garage. Ask a supervisor if you need access.')}
-        />
+        <RailVacant label={t('0 vehicles for your rank')} />
       ) : shownSpawner.length === 0 ? (
         <NoMatch query={query} onClear={clearAll} />
       ) : (
@@ -485,14 +505,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         />
       );
   } else if (vehicles.length === 0) {
-    railList = (
-      <EmptyState
-        compact
-        icon="garage"
-        title={t('No vehicles here yet')}
-        description={t('Store a {type} you own here and it shows up in this list.', { type: typeWord(garage.vehicleType) })}
-      />
-    );
+    railList = <RailVacant label={t('0 vehicles stored')} />;
   } else if (shown.length === 0) {
     railList = <NoMatch query={query} filter={activeFilter} onClear={clearAll} />;
   } else {
@@ -525,7 +538,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         title={spawner.length === 0 ? t('Nothing to take out') : t('No vehicles match')}
         description={
           spawner.length === 0
-            ? t('This garage has no vehicles for your rank.')
+            ? t('There are no vehicles for your rank at this garage. Ask a supervisor if you need access.')
             : t('Try another name or model.')
         }
       />
@@ -540,7 +553,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         recovering={recovering === sv.plate}
         tracking={tracking === sv.plate}
         onDrive={() => void drive(sv)}
-        onRecover={() => void recover(sv)}
+        onRecover={() => askRecover(sv)}
         onTrack={() => void track(sv)}
         onRename={() => setModal({ kind: 'rename', plate: sv.plate })}
         onTransfer={() => setModal({ kind: 'transfer', plate: sv.plate })}
@@ -581,6 +594,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
 
   const modalVehicle = (kind: ModalKind) => (modal?.kind === kind ? byPlate(modal.plate) : null);
   const payVehicle = byPlate(pay?.plate);
+  const recoverVehicle = byPlate(confirmRecover);
   const hereCount = vehicles.filter(isHere).length;
 
   return (
@@ -623,7 +637,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
             )}
             <span className="nz-garage__spacer" />
             {total > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
-            {total > 0 && <KeyHint keys={['Enter']} label={spawnerMode ? t('Take out') : t('Drive')} />}
+            {enterKind && <KeyHint keys={['Enter']} label={enterLabel[enterKind]} />}
             {!spawnerMode && total > 0 && <KeyHint keys={['F']} label={t('Favourite')} />}
             {!spawnerMode && total > 0 && <KeyHint keys={['R']} label={t('Rename')} />}
             <KeyHint keys={['/']} label={t('Search')} />
@@ -706,6 +720,24 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         busy={paying}
         onConfirm={() => void confirmPay()}
         onCancel={() => setPay(null)}
+      />
+      <ConfirmDialog
+        open={!!recoverVehicle && recoverVehicle.canRecover}
+        tone="teal"
+        icon="refresh"
+        title={t('Recover {vehicle}?', { vehicle: recoverVehicle ? displayName(recoverVehicle) : '' })}
+        message={
+          recoverVehicle ? (
+            <>
+              {t('Its last position is unknown.')} {t('Pay')} <b>{money(recoverVehicle.recoverFee)}</b>{' '}
+              {t('and it is brought back to')} <b>{garage.name}</b>.
+            </>
+          ) : null
+        }
+        confirmLabel={t('Pay {fee}', { fee: money(recoverVehicle?.recoverFee ?? 0) })}
+        busy={!!recovering}
+        onConfirm={() => recoverVehicle && void recover(recoverVehicle)}
+        onCancel={() => setConfirmRecover(null)}
       />
       <ConfirmDialog
         open={sellGarage}

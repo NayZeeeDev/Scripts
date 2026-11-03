@@ -26,12 +26,14 @@ export function TransferModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  // The server refuses giving a financed vehicle to a player: keep that tab, disabled.
+  const financed = !!vehicle?.finance;
   const modes = useMemo(() => {
-    const list: { value: Mode; label: string; icon: 'garage' | 'user' }[] = [];
+    const list: { value: Mode; label: string; icon: 'garage' | 'user'; disabled?: boolean }[] = [];
     if (options.garageTransfer) list.push({ value: 'garage', label: t('Garage'), icon: 'garage' });
-    if (options.playerTransfer) list.push({ value: 'player', label: t('Player'), icon: 'user' });
+    if (options.playerTransfer) list.push({ value: 'player', label: t('Player'), icon: 'user', disabled: financed });
     return list;
-  }, [options.garageTransfer, options.playerTransfer]);
+  }, [options.garageTransfer, options.playerTransfer, financed]);
 
   const [mode, setMode] = useState<Mode>('garage');
   const [data, setData] = useState<TransferOptions | null>(null);
@@ -45,7 +47,7 @@ export function TransferModal({
   useEffect(() => {
     if (!plate) return;
     let alive = true;
-    setMode(modes[0]?.value ?? 'garage');
+    setMode(modes.find((m) => !m.disabled)?.value ?? 'garage');
     setData(null);
     setFailed(false);
     setGarageKey(null);
@@ -150,6 +152,12 @@ export function TransferModal({
             <ModalVehicle v={vehicle} />
             {modes.length > 1 && (
               <Segmented<Mode> value={mode} onChange={setMode} options={modes} full />
+            )}
+            {financed && options.playerTransfer && (
+              <p className="nz-garage__helper">
+                <Icon name="receipt" size={12} strokeWidth={1.9} />
+                {t('Financed vehicles can only change hands once the finance is paid off.')}
+              </p>
             )}
             {loading ? (
               <div className="nz-garage__mstack">

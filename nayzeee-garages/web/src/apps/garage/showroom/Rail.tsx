@@ -53,7 +53,7 @@ export function RailList<T>({
     const raf = requestAnimationFrame(() => {
       const sr = scroller.getBoundingClientRect();
       const rr = row.getBoundingClientRect();
-      const head = headed ? 30 : 0;
+      const head = headed ? 32 : 0; // sticky group heading (.nz-garage__grouphead)
       let shift = 0;
       if (rr.top < sr.top + head + 6) shift = rr.top - sr.top - head - 6;
       else if (rr.bottom > sr.bottom - 6) shift = rr.bottom - sr.bottom + 6;
@@ -122,6 +122,30 @@ export function RailSkeleton({ count = 6, compact = false }: { count?: number; c
   );
 }
 
+/**
+ * Empty collection: a short muted line over a few dashed "free bay" outlines. The showcase
+ * next to it carries the real empty state (title, explanation, steps), so nothing repeats.
+ */
+export function RailVacant({ label }: { label: string }) {
+  return (
+    <div className="nz-garage__list is-vacant" role="status">
+      <p className="nz-garage__vacantline">
+        <Icon name="parking" size={12} strokeWidth={1.9} />
+        {label}
+      </p>
+      {Array.from({ length: 5 }, (_, i) => (
+        <div key={i} className="nz-garage__bay" aria-hidden="true">
+          <span className="nz-garage__bay-thumb" />
+          <span className="nz-garage__bay-lines">
+            <i />
+            <i />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── row building blocks ─────────────────────────────────────────────── */
 
 export function StatusDot({ tone, label, className }: { tone: StatusTone; label: string; className?: string }) {
@@ -166,13 +190,15 @@ export interface RowBodyProps {
   meta: ReactNode;
   /** Right column (star, price, indicators). */
   side?: ReactNode;
-  /** 0–100 → the 3px health bar on the row's bottom edge (omit to hide). */
+  /** 0–100 → the 3px health bar on the row's bottom edge (omit to hide; hidden when healthy unless selected). */
   health?: number;
   /** Compact rows: status dot shown before the title. */
   dot?: StatusTone;
 }
 
 const healthTone = (v: number) => (v >= 50 ? 'teal' : v >= 25 ? 'amber' : 'red');
+/** At or above this the bar stays hidden (except on the selected row): only vehicles that need attention stand out. */
+const HEALTHY = 90;
 
 export function RowBody({ image, vehicleType, alt, compact, title, aside, meta, side, health, dot }: RowBodyProps) {
   return (
@@ -193,7 +219,7 @@ export function RowBody({ image, vehicleType, alt, compact, title, aside, meta, 
       {compact && <span className="nz-garage__rowmeta is-compact">{meta}</span>}
       {side && <span className="nz-garage__rowside">{side}</span>}
       {health !== undefined && (
-        <span className="nz-garage__health" aria-hidden="true">
+        <span className={cx('nz-garage__health', health >= HEALTHY && 'is-ok')} aria-hidden="true">
           <span className={`is-${healthTone(health)}`} style={{ width: `${Math.max(0, Math.min(100, health))}%` }} />
         </span>
       )}

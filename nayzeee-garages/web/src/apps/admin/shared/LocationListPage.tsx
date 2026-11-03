@@ -17,8 +17,9 @@
  * Interaction
  *   Card hover ↔ pin highlight; card click selects + flies to its pin; pin click selects +
  *   scrolls its card into view; click on empty map deselects; double-click card / pin edits.
- *   Keyboard: "/" search, ↑/↓ move through the cards, Enter edits, Delete asks to delete,
- *   Esc closes the inspector (then the panel).
+ *   Keyboard: "/" search, ↑/↓ move through the cards (list focused), Enter edits and Delete
+ *   asks to delete the selected location from anywhere on the page (list, map, pin), Esc
+ *   closes the inspector (then the panel). Filter changes refit the map (MapView fitKey).
  *
  * Flows kept from the table version: create / edit (LocationEditor, opened exactly as before),
  * delete (ConfirmDialog), enable toggle, teleport (admin:location:teleport), import
@@ -146,8 +147,8 @@ export function LocationListPage<L extends Location>({
   });
 
   const ctx = useMemo<LocationPageContext>(
-    () => ({ data, stats: (l) => statsOf(data, l), groups: groups.get }),
-    [data, groups.get],
+    () => ({ data, stats: (l) => statsOf(data, l), groups: groups.get, groupsComplete: groups.complete }),
+    [data, groups.get, groups.complete],
   );
 
   /* ── filter + sort ── */
@@ -169,6 +170,14 @@ export function LocationListPage<L extends Location>({
   }, [all, query, vehicle, status, sort, searchText, data, kind]);
 
   const selected = useMemo(() => (selectedId === null ? null : all.find((l) => l.id === selectedId) ?? null), [all, selectedId]);
+
+  // The map brings off-screen matches into view when the filters change (search: once typing pauses).
+  const [fitQuery, setFitQuery] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setFitQuery(query.trim().toLowerCase()), 250);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+  const fitKey = `${vehicle}|${status}|${fitQuery}`;
 
   // A selection hidden by the filters (or deleted elsewhere) closes the inspector.
   useEffect(() => {
@@ -372,6 +381,31 @@ export function LocationListPage<L extends Location>({
     return () => window.removeEventListener('keydown', onKey);
   }, [anyModal]);
 
+  // Enter edits / Delete asks to delete the selected location wherever the focus is on the page
+  // (list, map, a map pin…), except in fields, on other buttons and while a dialog or menu is open.
+  const keyState = useRef({ selected, anyModal, openEditor });
+  keyState.current = { selected, anyModal, openEditor };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== 'Delete') return;
+      const { selected: sel, anyModal: modal, openEditor: edit } = keyState.current;
+      if (!sel || modal || isAdminHidden() || e.defaultPrevented || e.repeat) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      if (document.querySelector('.nz-menu')) return;
+      const pin = el?.closest<HTMLElement>('[data-pin]');
+      // A focused pin of another location: Enter selects it (its own click), not an edit.
+      if (pin && pin.dataset.pin !== String(sel.id)) return;
+      if (!pin && el?.closest('button, a, [role="button"], [role="menuitem"], [role="switch"], .nz-toggle')) return;
+      e.preventDefault();
+      if (e.key === 'Enter') edit(sel);
+      else setConfirm(sel);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const focusCard = (id: Id) =>
     requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-loc="${String(id)}"]`)?.focus({ preventScroll: true }));
 
@@ -387,12 +421,9 @@ export function LocationListPage<L extends Location>({
       setSelectedId(l.id);
       setFocusTick((n) => n + 1);
       focusCard(l.id);
-    } else if ((e.key === 'Enter' || e.key === ' ') && selected) {
+    } else if (e.key === ' ' && selected) {
+      // Enter / Delete: the page-wide handler above.
       e.preventDefault();
-      if (e.key === 'Enter') openEditor(selected);
-    } else if (e.key === 'Delete' && selected) {
-      e.preventDefault();
-      setConfirm(selected);
     }
   };
 
@@ -605,6 +636,7 @@ export function LocationListPage<L extends Location>({
               if (l) openEditor(l);
             }}
             focusTick={focusTick}
+            fitKey={fitKey}
             bottomInset={selected ? inset : 0}
             distanceUnit={data.settings?.interface?.distanceUnit === 'mi' ? 'mi' : 'km'}
             emptyText={

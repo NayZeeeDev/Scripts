@@ -15,6 +15,7 @@
  * - gradeOptions(info)                 Select options for a job's grades.
  * - plural(n, one, many)               t(one|many, { count: n }).
  * - capacityLabel(cap)                 "Unlimited" / "8 per player" / "20 in total".
+ * - capacityTag(cap)                   directory card tag: { icon, label, short ("8" / "∞"), title }.
  * - restrictionSummary(r, data)        { type, detail } e.g. { 'Job', 'LSPD 2+, Mechanic' }.
  * - statsOf(data, loc)                 LocationStats (zeros when absent).
  * - vehicleTotal(stats, kind)          parked + out + impounded (impounds: held).
@@ -163,6 +164,17 @@ export function plural(n: number, one: string, many: string): string {
 export function capacityLabel(cap: CapacityConfig): string {
   if (cap.mode !== 'limited') return t('Unlimited');
   return cap.appliesTo === 'total' ? t('{count} in total', { count: cap.spaces }) : t('{count} per player', { count: cap.spaces });
+}
+
+/** Capacity tag of a directory card; narrow screens show `short` (the number, or ∞). */
+export function capacityTag(cap: CapacityConfig): { icon: IconName; label: string; short: string; title: string } {
+  const label = capacityLabel(cap);
+  return {
+    icon: 'parking',
+    label,
+    short: cap.mode !== 'limited' ? '∞' : String(cap.spaces),
+    title: t('Capacity: {value}', { value: label }),
+  };
 }
 
 /** Who may use a public garage: type label + the rules / player count. */

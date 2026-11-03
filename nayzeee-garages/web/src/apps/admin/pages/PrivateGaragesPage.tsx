@@ -63,20 +63,31 @@ export function PrivateGaragesPage(props: AdminPageProps) {
     let out = 0;
     let copies = 0;
     let members = 0;
-    let loading = false;
+    let loaded = 0;
     let failed = false;
     for (const l of all) {
       const s = ctx.stats(l);
       parked += s.parked;
       out += s.out;
       const g = ctx.groups(l.id);
-      if (g === undefined) loading = true;
-      else if (g === 'error') failed = true;
-      else {
+      if (g === 'error') failed = true;
+      else if (g !== undefined) {
+        loaded += 1;
         copies += g.length;
         members += g.reduce((n, x) => n + x.members.length, 0);
       }
     }
+    const loading = !failed && loaded < all.length;
+    // Too many locations to load every owner list: no total (the inspector shows each one's).
+    const copiesKpi: Pick<Kpi, 'value' | 'sub'> = !ctx.groupsComplete
+      ? { value: '—', sub: t('select a garage to see its owners') }
+      : failed
+        ? { value: '—', sub: t('could not load') }
+        : loading && loaded === 0
+          ? { value: null, sub: t('loading…') }
+          : loading
+            ? { value: fmt(copies), sub: t('counting… {done} of {total}', { done: loaded, total: all.length }) }
+            : { value: fmt(copies), sub: plural(members, '{count} member', '{count} members') };
     const enabled = all.filter((l) => l.enabled).length;
     const forSale = all.filter((l) => l.purchasable);
     const prices = forSale.map((l) => l.price);
@@ -96,8 +107,7 @@ export function PrivateGaragesPage(props: AdminPageProps) {
         key: 'copies',
         icon: 'key',
         label: t('Owned copies'),
-        value: failed ? '—' : loading && all.length ? null : fmt(copies),
-        sub: failed ? t('could not load') : loading && all.length ? t('loading…') : plural(members, '{count} member', '{count} members'),
+        ...copiesKpi,
         tone: 'blue',
       },
       {

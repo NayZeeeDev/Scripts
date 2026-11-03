@@ -3,7 +3,7 @@
  *
  * API
  *   <MapView pins selectedId? hoverId? onSelect?(id|null) onHover?(id|null) onActivate?(id)
- *            focusTick? bottomInset? distanceUnit? emptyText? className? />
+ *            focusTick? fitKey? bottomInset? distanceUnit? emptyText? className? />
  *   MapPin { id, x, y (world), label, type: VehicleType, muted?, meta?, stat? }
  *
  * - Built on the three calibrated images in web/public/maps (see mapGeo.ts). Style switcher
@@ -22,8 +22,14 @@
  * - bottomInset: px covered by an overlay at the bottom (the inspector). Bottom overlays
  *   (legend, scale, cursor coordinates) sit above it and focusing centres in the visible part.
  * - focusTick: change it to fly to the selected pin (zooming in to a moderate level).
+ * - fitKey: change it when the filters change. With nothing selected, the map refits when a
+ *   matching pin is off-screen (a single match: flies to it).
+ * - Fit all with the inspector open: when the pins cannot fit above it, the selection is
+ *   cleared (onSelect(null)) and the whole set is fitted.
+ * - The image edges melt into the sea colour (.nz-admin-map__edge); pins are clipped above
+ *   the inset so nothing shows between the bottom overlays and the inspector.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Icon, IconButton, Segmented, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
@@ -58,6 +64,8 @@ export interface MapViewProps {
   onActivate?: (id: Id) => void;
   /** Change this number to fly to the selected pin. */
   focusTick?: number;
+  /** Change this string when the filters change: off-screen matches bring the map to them. */
+  fitKey?: string;
   /** Height in px covered by an overlay along the bottom edge (the inspector). */
   bottomInset?: number;
   distanceUnit?: 'km' | 'mi';
@@ -83,6 +91,14 @@ const FIT_MAX_K = 0.62;
 /** Flying to a selected location zooms in to at least this. */
 const FOCUS_K = 0.72;
 const CLUSTER_PX = 30;
+/** Free space kept around fitted pins: the top band holds the style / zoom controls. */
+const PAD_X = 70;
+const PAD_TOP = 96;
+const PAD_BOTTOM = 62;
+/** A pin anchor is "on screen" inside this box (the pin head is ~40px above the anchor). */
+const SAFE_X = 60;
+const SAFE_TOP = 92;
+const SAFE_BOTTOM = 56;
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const lerp = (a: number, b: number, p: number) => a + (b - a) * p;
@@ -110,6 +126,34 @@ interface Cluster {
   members: PlacedPin[];
 }
 
+/** Pin contents: memoised, so a pan / zoom frame only moves the buttons. */
+const PinBody = memo(function PinBody({
+  type,
+  muted,
+  selected,
+  label,
+  labelLeft,
+}: {
+  type: VehicleType;
+  muted: boolean;
+  selected: boolean;
+  /** Name label (selected pin, not hovered). */
+  label: string | null;
+  labelLeft: boolean;
+}) {
+  return (
+    <>
+      <span className="nz-admin-map__ground" />
+      {selected && <span className="nz-admin-map__pulse" />}
+      <span className="nz-admin-map__stem" />
+      <span className="nz-admin-map__tile">
+        <Icon name={muted ? 'ban' : vehicleTypeIcon(type)} size={selected ? 15 : 13} strokeWidth={2} />
+      </span>
+      {label !== null && <span className={cx('nz-admin-map__name', labelLeft && 'is-left')}>{label}</span>}
+    </>
+  );
+});
+
 export function MapView({
   pins,
   selectedId = null,
@@ -118,6 +162,7 @@ export function MapView({
   onHover,
   onActivate,
   focusTick,
+  fitKey,
   bottomInset = 0,
   distanceUnit = 'km',
   emptyText,
@@ -272,9 +317,8 @@ export function MapView({
 
   /** View that fits the pins (or the whole map) into the area above the inset. */
   const fitView = useCallback(
-    (list: PlacedPin[], maxK = FIT_MAX_K): View => {
+    (list: PlacedPin[], maxK = FIT_MAX_K, inset = insetRef.current): View => {
       const { w, h } = sizeRef.current;
-      const inset = insetRef.current;
       const vh = Math.max(120, h - inset);
       if (!list.length) return { k: Math.min(w / MAP_W, h / MAP_H), cx: MAP_W / 2, cy: MAP_H / 2 };
       let x0 = Infinity;
@@ -287,21 +331,41 @@ export function MapView({
         x1 = Math.max(x1, p.ix);
         y1 = Math.max(y1, p.iy);
       }
-      const padX = 70;
-      const padTop = 74;
-      const padBottom = 46;
       const bw = Math.max(x1 - x0, 1);
       const bh = Math.max(y1 - y0, 1);
       const lo = Math.min(w / MAP_W, h / MAP_H) * 0.9;
-      const k = clamp(Math.min((w - padX * 2) / bw, (vh - padTop - padBottom) / bh), lo, maxK);
+      const k = clamp(Math.min((w - PAD_X * 2) / bw, (vh - PAD_TOP - PAD_BOTTOM) / bh), lo, maxK);
       // Centre of the box sits at the centre of the visible area (shifted for asymmetric padding).
       const cxImg = (x0 + x1) / 2;
       const cyImg = (y0 + y1) / 2;
-      const visibleCentre = (padTop + (vh - padBottom)) / 2;
+      const visibleCentre = (PAD_TOP + (vh - PAD_BOTTOM)) / 2;
       return { k, cx: cxImg, cy: cyImg + (h / 2 - visibleCentre) / k };
     },
     [],
   );
+
+  /** Is this image point inside the comfortable part of the map (above the inset, clear of the overlays)? */
+  const inSafeArea = useCallback((p: { ix: number; iy: number }, v: View, inset = insetRef.current) => {
+    const { w, h } = sizeRef.current;
+    const sx = w / 2 + (p.ix - v.cx) * v.k;
+    const sy = h / 2 + (p.iy - v.cy) * v.k;
+    return sx >= SAFE_X && sx <= w - SAFE_X && sy >= SAFE_TOP && sy <= h - inset - SAFE_BOTTOM;
+  }, []);
+
+  /** The view the map is heading to (the running fly's destination) or is at. */
+  const destination = () => {
+    const a = anim.current;
+    return a && a.kind === 'fly' ? a.to : viewRef.current;
+  };
+
+  /** View that puts this image point at the centre of the visible part (above the inset). */
+  const centreOn = useCallback((p: { ix: number; iy: number }, k: number, inset = insetRef.current): View => {
+    const { h } = sizeRef.current;
+    const vh = h - inset;
+    // The pin head stands ~40px above its anchor: drop the anchor a little below the middle.
+    const anchorY = (vh + 44) / 2;
+    return { k, cx: p.ix, cy: p.iy + (h / 2 - anchorY) / k };
+  }, []);
 
   const fullView = useCallback((): View => {
     const { w, h } = sizeRef.current;
@@ -328,9 +392,10 @@ export function MapView({
       e.preventDefault();
       const { w, h } = sizeRef.current;
       if (!w || !h) return;
+      // Pins and the layer live in the padding box: skip the 1px border.
       const rect = el.getBoundingClientRect();
-      const sx = e.clientX - rect.left;
-      const sy = e.clientY - rect.top;
+      const sx = e.clientX - rect.left - el.clientLeft;
+      const sy = e.clientY - rect.top - el.clientTop;
       const unit = e.deltaMode === 1 ? 0.06 : e.deltaMode === 2 ? 1 : 0.0024;
       const factor = clamp(Math.exp(-e.deltaY * unit), 0.5, 2);
       const v = viewRef.current;
@@ -367,24 +432,74 @@ export function MapView({
 
   /* ── focus the selected pin ── */
   const selected = useMemo(() => placed.find((p) => p.pin.id === selectedId) ?? null, [placed, selectedId]);
+  const placedRef = useRef(placed);
+  placedRef.current = placed;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
   const lastFocus = useRef(focusTick);
+  const lastInset = useRef(bottomInset);
+  /** When the last forced focus started: an inset arriving right after it re-centres. */
+  const pendingFocus = useRef(-Infinity);
   useEffect(() => {
+    const insetChanged = bottomInset !== lastInset.current;
+    lastInset.current = bottomInset;
     if (!selected || !size.w || !viewRef.current.k) return;
-    const force = focusTick !== lastFocus.current;
+    let force = focusTick !== lastFocus.current;
     lastFocus.current = focusTick;
-    // Mid-flight (e.g. the inspector's height arrived during the fly): judge the destination.
-    const running = anim.current;
-    const v = running && running.kind === 'fly' ? running.to : viewRef.current;
-    const { w, h } = size;
-    const sx = w / 2 + (selected.ix - v.cx) * v.k;
-    const sy = h / 2 + (selected.iy - v.cy) * v.k;
-    const vh = h - bottomInset;
-    const outside = sx < 60 || sx > w - 60 || sy < 70 || sy > vh - 40;
-    if (!force && !outside) return;
+    // The inspector opens with the selection, and its height is measured one render later:
+    // aim again at the centre of the area that is really visible.
+    if (!force && insetChanged && performance.now() - pendingFocus.current < 700) force = true;
+    // Mid-flight: judge the destination.
+    const v = destination();
+    if (!force && inSafeArea(selected, v, bottomInset)) return;
     const k = force ? Math.max(v.k, Math.min(FOCUS_K, MAX_K)) : v.k;
-    // Centre in the visible area (above the inspector).
-    flyTo({ k, cx: selected.ix, cy: selected.iy + (h / 2 - vh / 2) / k }, force ? 560 : 380);
+    const to = centreOn(selected, k, bottomInset);
+    if (force) pendingFocus.current = performance.now();
+    const running = anim.current;
+    if (running && running.kind === 'fly' && !running.anchor && !reducedMotion()) {
+      // Retarget the running fly (same start and timing): no restart, no jolt.
+      running.to = clampView(to);
+      return;
+    }
+    flyTo(to, force ? 560 : 380);
   }, [selected?.pin.id, focusTick, bottomInset, size.w, size.h]);
+
+  /* ── filters changed → bring the matches into view ── */
+  const lastFitKey = useRef(fitKey);
+  useEffect(() => {
+    if (fitKey === lastFitKey.current) return;
+    lastFitKey.current = fitKey;
+    // Let the selection / inspector settle first (a hidden selection closes the inspector).
+    const timer = window.setTimeout(() => {
+      const list = placedRef.current;
+      if (!list.length || !sizeRef.current.w || !viewRef.current.k || selectedRef.current) return;
+      const v = destination();
+      if (list.length === 1) {
+        const only = list[0];
+        if (inSafeArea(only, v) && v.k >= FOCUS_K) return;
+        flyTo(centreOn(only, Math.min(MAX_K, Math.max(v.k, FOCUS_K))), 520);
+        return;
+      }
+      if (list.every((p) => inSafeArea(p, v))) return;
+      flyTo(fitView(list), 520);
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [fitKey]);
+
+  /** Fit all; with the inspector open and too little room above it, close it first. */
+  const fitAll = () => {
+    if (!placed.length) return;
+    const inset = insetRef.current;
+    if (inset > 0 && selectedRef.current) {
+      const v = clampView(fitView(placed));
+      if (!placed.every((p) => inSafeArea(p, v, inset))) {
+        onSelect?.(null);
+        flyTo(fitView(placed, FIT_MAX_K, 0));
+        return;
+      }
+    }
+    flyTo(fitView(placed));
+  };
 
   /* ── pointer: drag to pan, click to deselect ── */
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -408,8 +523,8 @@ export function MapView({
     if (el && w) {
       const rect = el.getBoundingClientRect();
       const v = viewRef.current;
-      const ix = v.cx + (e.clientX - rect.left - w / 2) / v.k;
-      const iy = v.cy + (e.clientY - rect.top - h / 2) / v.k;
+      const ix = v.cx + (e.clientX - rect.left - el.clientLeft - w / 2) / v.k;
+      const iy = v.cy + (e.clientY - rect.top - el.clientTop - h / 2) / v.k;
       setCursor(ix >= 0 && iy >= 0 && ix <= MAP_W && iy <= MAP_H ? imageToWorld(ix, iy) : null);
     }
     const d = drag.current;
@@ -466,8 +581,10 @@ export function MapView({
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('.nz-admin-map__pin, .nz-admin-map__cluster, .nz-admin-map__ui')) return;
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (rect) zoomBy(2, e.clientX - rect.left, e.clientY - rect.top);
+    const el = wrapRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    zoomBy(2, e.clientX - rect.left - el.clientLeft, e.clientY - rect.top - el.clientTop);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -488,7 +605,7 @@ export function MapView({
         break;
       case 'f':
       case 'F':
-        flyTo(fitView(placed));
+        fitAll();
         break;
       case 'ArrowLeft':
         flyTo({ ...v, cx: v.cx - step }, 180);
@@ -514,9 +631,13 @@ export function MapView({
     writeMapStyle(s);
     setMounted((m) => (m.includes(s) ? m : [...m, s]));
   };
+  // The new style fades in over the old one, which stays opaque underneath until the fade ends
+  // (transitionend, or this timer when transitions are off).
   useEffect(() => {
-    if (loaded[style]) setShown(style);
-  }, [loaded, style]);
+    if (loaded[style] !== 'ok' || shown === style) return;
+    const timer = window.setTimeout(() => setShown(style), 420);
+    return () => window.clearTimeout(timer);
+  }, [loaded, style, shown]);
 
   /* ── clusters (image space, depends on zoom only) ── */
   const k = view.k;
@@ -557,6 +678,33 @@ export function MapView({
     ? { transform: `translate3d(${w / 2 - view.cx * k}px, ${h / 2 - view.cy * k}px, 0) scale(${k})` }
     : undefined;
 
+  const clusterPos = new Map(clusters.groups.map((g) => [g.key, toScreen(g.ix, g.iy)] as const));
+
+  /** The selected pin's name label goes left when it would cover another pin (or leave the map). */
+  const nameLeft = (() => {
+    if (!selected || !k) return false;
+    const s = toScreen(selected.ix, selected.iy);
+    const width = Math.min(220, 24 + selected.pin.label.length * 7);
+    const top = s.y - 46;
+    const bottom = s.y - 16;
+    const right = { x0: s.x + 20, x1: s.x + 22 + width };
+    const left = { x0: s.x - 22 - width, x1: s.x - 20 };
+    const heads: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    for (const p of clusters.singles) {
+      if (p.pin.id === selected.pin.id) continue;
+      const o = toScreen(p.ix, p.iy);
+      heads.push({ x0: o.x - 15, x1: o.x + 15, y0: o.y - 40, y1: o.y + 4 });
+    }
+    for (const o of clusterPos.values()) heads.push({ x0: o.x - 22, x1: o.x + 22, y0: o.y - 22, y1: o.y + 22 });
+    const blocked = (b: { x0: number; x1: number }) =>
+      heads.some((r) => r.x0 < b.x1 && r.x1 > b.x0 && r.y0 < bottom && r.y1 > top);
+    const rightOut = right.x1 > w - 8;
+    const leftOut = left.x0 < 8;
+    if (leftOut) return false;
+    if (rightOut) return true;
+    return blocked(right) && !blocked(left);
+  })();
+
   const hovered = hoverId !== null ? placed.find((p) => p.pin.id === hoverId) ?? null : null;
   const hoverPos = hovered ? toScreen(hovered.ix, hovered.iy) : null;
   /** Cards sit beside the pin head (right, or left near the right edge), kept inside the map. */
@@ -582,7 +730,7 @@ export function MapView({
   return (
     <div
       ref={wrapRef}
-      className={cx('nz-admin-map', `is-${style}`, dragging && 'is-dragging', className)}
+      className={cx('nz-admin-map', `is-${style}`, dragging && 'is-dragging', bottomInset > 0 && 'is-inset', className)}
       style={{ '--map-inset': `${bottomInset}px` } as CSSProperties}
       tabIndex={0}
       role="application"
@@ -598,7 +746,7 @@ export function MapView({
       <div className="nz-admin-map__layer" style={layerStyle} aria-hidden="true">
         {mounted.map((s) => {
           const info = MAP_STYLES.find((m) => m.value === s)!;
-          const on = loaded[s] === 'ok' && (s === style || (s === shown && loaded[style] !== 'ok'));
+          const on = loaded[s] === 'ok' && (s === style || s === shown);
           return (
             <img
               key={s}
@@ -611,16 +759,21 @@ export function MapView({
               decoding="async"
               onLoad={() => setLoaded((l) => ({ ...l, [s]: 'ok' }))}
               onError={() => setLoaded((l) => ({ ...l, [s]: 'error' }))}
+              onTransitionEnd={(e) => {
+                if (s === style && e.propertyName === 'opacity') setShown(s);
+              }}
             />
           );
         })}
+        <i className="nz-admin-map__edge" />
       </div>
       <div className="nz-admin-map__shade" aria-hidden="true" />
 
-      {/* clusters */}
+      {/* pins + clusters, clipped above the inset (nothing peeks out between the overlays and the inspector) */}
+      <div className="nz-admin-map__pins">
       {k > 0 &&
         clusters.groups.map((g) => {
-          const s = toScreen(g.ix, g.iy);
+          const s = clusterPos.get(g.key)!;
           if (!onScreen(s)) return null;
           const live = g.members.filter((m) => !m.pin.muted);
           const types = new Set(live.map((m) => m.pin.type));
@@ -665,6 +818,7 @@ export function MapView({
             <button
               key={pin.id}
               type="button"
+              data-pin={String(pin.id)}
               className={cx(
                 'nz-admin-map__pin',
                 `is-${pin.type}`,
@@ -685,16 +839,17 @@ export function MapView({
               onFocus={() => onHover?.(pin.id)}
               onBlur={() => onHover?.(null)}
             >
-              <span className="nz-admin-map__ground" />
-              {isSel && <span className="nz-admin-map__pulse" />}
-              <span className="nz-admin-map__stem" />
-              <span className="nz-admin-map__tile">
-                <Icon name={pin.muted ? 'ban' : vehicleTypeIcon(pin.type)} size={isSel ? 15 : 13} strokeWidth={2} />
-              </span>
-              {isSel && !isHover && <span className="nz-admin-map__name">{pin.label}</span>}
+              <PinBody
+                type={pin.type}
+                muted={!!pin.muted}
+                selected={isSel}
+                label={isSel && !isHover ? pin.label : null}
+                labelLeft={isSel && nameLeft}
+              />
             </button>
           );
         })}
+      </div>
 
       {/* hover card */}
       {hovered && hoverPos && onScreen(hoverPos, 0) && !dragging && (
@@ -757,7 +912,7 @@ export function MapView({
       </div>
 
       <div className="nz-admin-map__ui nz-admin-map__controls">
-        <button type="button" className="nz-admin-map__ctl" onClick={() => flyTo(fitView(placed))} disabled={!pins.length}>
+        <button type="button" className="nz-admin-map__ctl" onClick={fitAll} disabled={!pins.length}>
           <Icon name="pin" size={13} strokeWidth={1.8} />
           <span>{t('Fit all')}</span>
         </button>
@@ -799,7 +954,7 @@ export function MapView({
         <span className={cx('nz-admin-map__coords', !cursor && 'is-idle')}>
           {cursor ? (
             <>
-              <span>X</span> {formatCoord(cursor.x)} <span className="nz-admin-map__dot">·</span> <span>Y</span> {formatCoord(cursor.y)}
+              <span>{t('X')}</span> {formatCoord(cursor.x)} <span className="nz-admin-map__dot">·</span> <span>{t('Y')}</span> {formatCoord(cursor.y)}
             </>
           ) : (
             t('Drag to pan · Scroll to zoom')

@@ -82,14 +82,17 @@ const MI = 1609.344;
 export function scaleBar(pxPerWorld: number, unit: 'km' | 'mi'): { px: number; label: string } {
   const target = 96;
   if (unit === 'mi') {
-    const options = [...IMPERIAL_FT.map((f) => ({ m: f * FT, label: `${f} ft` })), ...IMPERIAL_MI.map((m) => ({ m: m * MI, label: `${m} mi` }))];
+    const options = [
+      ...IMPERIAL_FT.map((n) => ({ m: n * FT, label: t('{n} ft', { n }) })),
+      ...IMPERIAL_MI.map((n) => ({ m: n * MI, label: t('{n} mi', { n }) })),
+    ];
     let best = options[0];
     for (const o of options) if (Math.abs(o.m * pxPerWorld - target) < Math.abs(best.m * pxPerWorld - target)) best = o;
     return { px: best.m * pxPerWorld, label: best.label };
   }
   let best = METRIC[0];
   for (const m of METRIC) if (Math.abs(m * pxPerWorld - target) < Math.abs(best * pxPerWorld - target)) best = m;
-  return { px: best * pxPerWorld, label: best >= 1000 ? `${best / 1000} km` : `${best} m` };
+  return { px: best * pxPerWorld, label: best >= 1000 ? t('{n} km', { n: best / 1000 }) : t('{n} m', { n: best }) };
 }
 
 export function formatCoord(n: number): string {

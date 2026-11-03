@@ -55,24 +55,57 @@
 .nz-admin-map__img.is-active { z-index: 1; }
 .nz-admin-map__img.is-on { opacity: 1; }
 
-/* Edge vignette + darker top / bottom bands so the overlays stay legible on every style. */
+/* Feathered image edges: the picture melts into the sea colour at any zoom (the last rows of
+   the dark / atlas images carry a light coastal halo that would read as a hard line). */
+.nz-admin-map__edge {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: inset 0 0 70px 50px var(--map-sea);
+}
+
+/* Edge vignette + darker top / bottom bands so the overlays stay legible on every style.
+   The bottom band follows the inspector (--map-inset) and stays dark underneath it. */
 .nz-admin-map__shade {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, .42) 0, rgba(0, 0, 0, 0) 74px, rgba(0, 0, 0, 0) calc(100% - 74px), rgba(0, 0, 0, .42) 100%),
+    linear-gradient(180deg,
+      rgba(0, 0, 0, .42) 0,
+      rgba(0, 0, 0, 0) 74px,
+      rgba(0, 0, 0, 0) calc(100% - var(--map-inset, 0px) - 74px),
+      rgba(0, 0, 0, .42) calc(100% - var(--map-inset, 0px)),
+      rgba(0, 0, 0, .5) 100%),
     radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, .32) 100%);
 }
 
 .nz-admin-map.is-atlas .nz-admin-map__shade {
   background:
-    linear-gradient(180deg, rgba(0, 0, 0, .5) 0, rgba(0, 0, 0, 0) 80px, rgba(0, 0, 0, 0) calc(100% - 80px), rgba(0, 0, 0, .5) 100%),
+    linear-gradient(180deg,
+      rgba(0, 0, 0, .5) 0,
+      rgba(0, 0, 0, 0) 80px,
+      rgba(0, 0, 0, 0) calc(100% - var(--map-inset, 0px) - 80px),
+      rgba(0, 0, 0, .5) calc(100% - var(--map-inset, 0px)),
+      rgba(0, 0, 0, .56) 100%),
     radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, .06) 50%, rgba(0, 0, 0, .36) 100%);
 }
 
 /* ───────────────────────── pins ───────────────────────── */
+
+/* Pins live in screen space, clipped to the part of the map above the inspector. */
+.nz-admin-map__pins {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: var(--map-inset, 0px);
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
 
 .nz-admin-map__pin,
 .nz-admin-map__cluster,
@@ -106,7 +139,10 @@
   border: 0;
   background: none;
   cursor: pointer;
+  pointer-events: auto;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .6));
+  /* Own layer: the shadow is rasterised once, moving the pin is a compositor move. */
+  will-change: transform;
 }
 
 .nz-admin-map__pin.is-muted { z-index: 2; }
@@ -226,6 +262,15 @@
   animation: nz-admin-map-fade 160ms var(--ease) both;
 }
 
+/* Flipped to the left of the pin when a neighbour (or the map edge) is on the right. */
+.nz-admin-map__name.is-left {
+  left: auto;
+  right: 22px;
+  border-left: 1px solid var(--line);
+  border-right: 2px solid var(--pin);
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+
 /* clusters */
 .nz-admin-map__cluster {
   position: absolute;
@@ -238,7 +283,9 @@
   border: 0;
   background: none;
   cursor: pointer;
+  pointer-events: auto;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .6));
+  will-change: transform;
 }
 
 .nz-admin-map__cluster b {
@@ -553,6 +600,8 @@
   .nz-admin-map__legend { left: 8px; gap: 9px; }
   .nz-admin-map__readout { right: 8px; gap: 9px; }
   .nz-admin-map__coords { min-width: 140px; font-size: 10.5px; }
+  /* The inspector takes the bottom: only the scale / cursor readout stays above it. */
+  .nz-admin-map.is-inset .nz-admin-map__legend { display: none; }
 }
 
 /* Narrow map: Fit all / Reset show their icons only; the legend drops "Disabled". */

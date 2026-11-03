@@ -11,7 +11,7 @@ import { t } from '@/lib/i18n';
 import { dateTime, hoursLabel, money } from '@/lib/format';
 import { useSettings } from '@/lib/store';
 import type { DamageSummary, Finance, ImpoundInfo, ModSummary, VehicleStats } from '@/lib/types';
-import { countdown, damageCaption, speedIn, useNow } from '../model';
+import { countdown, damageCaption, intervalLabel, speedIn, useNow } from '../model';
 import { DamageGlyph } from './DamageGlyph';
 import type { GlyphShape } from './DamageGlyph';
 
@@ -72,8 +72,10 @@ export function StripCell({
         <Icon name={icon} size={11} strokeWidth={2} />
         {label}
       </span>
-      <span className="nz-garage__cell-value">{value}</span>
-      {sub && <span className="nz-garage__cell-sub">{sub}</span>}
+      <span className="nz-garage__cell-line">
+        <span className="nz-garage__cell-value">{value}</span>
+        {sub && <span className="nz-garage__cell-sub">{sub}</span>}
+      </span>
     </div>
   );
 }
@@ -277,14 +279,21 @@ export function UpgradesBlock({ mods }: { mods: ModSummary | null }) {
   );
 }
 
+/**
+ * Finance: one compact row (balance · recurring payment · next payment · pay buttons) over
+ * the payment pips. `lockNote` adds the "stays locked" line when the dock does not already
+ * explain it (overdue vehicle that is not parked here).
+ */
 export function FinanceBlock({
   finance,
   onPay,
   disabled,
+  lockNote = false,
 }: {
   finance: Finance;
   onPay: (full: boolean) => void;
   disabled?: boolean;
+  lockNote?: boolean;
 }) {
   const total = finance.paymentsTotal;
   const done = total ? Math.max(0, total - finance.paymentsLeft) : 0;
@@ -295,6 +304,7 @@ export function FinanceBlock({
       icon="receipt"
       wide
       tone={finance.overdue ? 'red' : undefined}
+      className="nz-garage__blk--fin"
       aside={
         finance.overdue ? (
           <Badge tone="red" icon="warning" size="sm">
@@ -308,19 +318,19 @@ export function FinanceBlock({
       }
     >
       <div className="nz-garage__fin">
-        <div className="nz-garage__fin-figs">
-          <div>
+        <div className="nz-garage__fin-row">
+          <div className="nz-garage__fin-fig">
             <span>{t('Remaining balance')}</span>
             <b>{money(finance.balance)}</b>
           </div>
-          <div>
+          <div className="nz-garage__fin-fig">
             <span>{t('Recurring payment')}</span>
             <b>
               {money(finance.payment)}
-              {finance.intervalHours ? <small> / {hoursLabel(finance.intervalHours)}</small> : null}
+              {finance.intervalHours ? <small> / {intervalLabel(finance.intervalHours)}</small> : null}
             </b>
           </div>
-          <div>
+          <div className="nz-garage__fin-fig">
             <span>{t('Next payment')}</span>
             {finance.overdue ? (
               <b className="is-red">{t('Overdue')}</b>
@@ -329,6 +339,21 @@ export function FinanceBlock({
             ) : (
               <b>—</b>
             )}
+          </div>
+          <div className="nz-garage__fin-actions">
+            <Button size="sm" variant="line" disabled={disabled} onClick={() => onPay(true)}>
+              {t('Pay in full')}
+            </Button>
+            <Button
+              size="sm"
+              variant={finance.overdue ? 'red' : 'white'}
+              icon="money"
+              badge={money(nextPayment)}
+              disabled={disabled}
+              onClick={() => onPay(false)}
+            >
+              {t('Make payment')}
+            </Button>
           </div>
         </div>
         <div className="nz-garage__fin-progress">
@@ -341,28 +366,12 @@ export function FinanceBlock({
             <span>{t('{n} payment(s) left', { n: finance.paymentsLeft })}</span>
           )}
         </div>
-        <div className="nz-garage__fin-actions">
-          {finance.overdue && (
-            <span className="nz-garage__fin-warn">
-              <Icon name="lock" size={12} strokeWidth={1.9} />
-              {t('The vehicle stays locked until the overdue payment is made.')}
-            </span>
-          )}
-          <span className="nz-garage__spacer" />
-          <Button size="sm" variant="line" disabled={disabled} onClick={() => onPay(true)}>
-            {t('Pay in full')}
-          </Button>
-          <Button
-            size="sm"
-            variant={finance.overdue ? 'red' : 'white'}
-            icon="money"
-            badge={money(nextPayment)}
-            disabled={disabled}
-            onClick={() => onPay(false)}
-          >
-            {t('Make payment')}
-          </Button>
-        </div>
+        {finance.overdue && lockNote && (
+          <span className="nz-garage__fin-warn">
+            <Icon name="lock" size={12} strokeWidth={1.9} />
+            {t('The vehicle stays locked until the overdue payment is made.')}
+          </span>
+        )}
       </div>
     </Block>
   );
@@ -380,59 +389,62 @@ export function useAvailability(info: ImpoundInfo | null) {
   return { state: 'now' as const, seconds: 0 };
 }
 
-/** Big release countdown used by the impound block. */
-function ReleaseClock({ info }: { info: ImpoundInfo }) {
+/** Release countdown pill for the impound block's heading. */
+function ReleasePill({ info }: { info: ImpoundInfo }) {
   const a = useAvailability(info);
   if (!a) return null;
   if (a.state === 'release') {
     return (
-      <div className="nz-garage__clock is-red">
-        <Icon name="lock" size={16} strokeWidth={1.8} />
-        <div>
-          <b>{t('On hold')}</b>
-          <span>{t('Staff have to release it first')}</span>
-        </div>
-      </div>
+      <span className="nz-garage__relpill is-red" title={t('Staff have to release it first')}>
+        <Icon name="lock" size={12} strokeWidth={1.9} />
+        <b>{t('On hold')}</b>
+        <span>{t('staff release')}</span>
+      </span>
     );
   }
   if (a.state === 'waiting') {
     return (
-      <div className="nz-garage__clock is-amber">
-        <Icon name="clock" size={16} strokeWidth={1.8} />
-        <div>
-          <b>{countdown(a.seconds)}</b>
-          <span>{t('Released {date}', { date: dateTime(info.releaseAt) })}</span>
-        </div>
-      </div>
+      <span className="nz-garage__relpill is-amber" title={t('Released {date}', { date: dateTime(info.releaseAt) })}>
+        <Icon name="clock" size={12} strokeWidth={1.9} />
+        <b>{countdown(a.seconds)}</b>
+        <span>{t('until release')}</span>
+      </span>
     );
   }
   return (
-    <div className="nz-garage__clock is-teal">
-      <Icon name="checkCircle" size={16} strokeWidth={1.8} />
-      <div>
-        <b>{t('Available now')}</b>
-        <span>{t('Since {date}', { date: dateTime(info.releaseAt) })}</span>
-      </div>
-    </div>
+    <span className="nz-garage__relpill is-teal" title={t('Since {date}', { date: dateTime(info.releaseAt) })}>
+      <Icon name="checkCircle" size={12} strokeWidth={1.9} />
+      <b>{t('Available now')}</b>
+    </span>
   );
 }
 
-export function ImpoundBlock({ info, fee, owner }: { info: ImpoundInfo; fee?: number; owner?: string | null }) {
-  const shownFee = fee ?? info.fee;
+/**
+ * Impound details. `lot`: inside the impound app, where the status strip already shows the
+ * date, fee and availability; only the reason, who impounded it and the owner remain.
+ */
+export function ImpoundBlock({
+  info,
+  owner,
+  lot = false,
+}: {
+  info: ImpoundInfo;
+  owner?: string | null;
+  lot?: boolean;
+}) {
   return (
-    <Block title={t('Impound')} icon="impound" wide tone="red" aside={<span className="nz-garage__blk-note">{info.locationName}</span>}>
-      <div className="nz-garage__imp">
+    <Block title={t('Impound')} icon="impound" wide tone="red" className="nz-garage__blk--imp" aside={lot ? undefined : <ReleasePill info={info} />}>
+      <div className={cx('nz-garage__imp', lot && 'is-lot')}>
         <div className="nz-garage__imp-reason">
           <span>{t('Reason')}</span>
           <p title={info.reason}>{info.reason || t('No reason given')}</p>
         </div>
         <div className="nz-garage__imp-facts">
           <Fact label={t('Impounded by')}>{info.byName || t('Unknown')}</Fact>
-          <Fact label={t('Impounded on')}>{dateTime(info.at)}</Fact>
           {owner && <Fact label={t('Owner')}>{owner}</Fact>}
-          <Fact label={t('Retrieval fee')}>{shownFee > 0 ? money(shownFee) : t('Free')}</Fact>
+          {!lot && <Fact label={t('Impounded on')}>{dateTime(info.at)}</Fact>}
+          {!lot && <Fact label={t('Retrieval fee')}>{info.fee > 0 ? money(info.fee) : t('No charge')}</Fact>}
         </div>
-        <ReleaseClock info={info} />
       </div>
     </Block>
   );

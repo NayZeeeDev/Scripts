@@ -22,20 +22,29 @@ Config.Debug = false
 
 -- Integrations: 'auto' picks the first running resource it knows. See bridge/client/*.lua
 Config.Integrations = {
-  keys = 'auto',    -- qbx_vehiclekeys | qb-vehiclekeys | wasabi_carlock | MrNewbVehicleKeys | qs-vehiclekeys | Renewed-Vehiclekeys | vehicles_keys | none
+  -- Keys: 'auto' = the built-in car lock (config/carlock.lua) when Config.CarLock.enabled, else the
+  -- first running resource of: qbx_vehiclekeys | qb-vehiclekeys | wasabi_carlock | MrNewbVehicleKeys |
+  -- qs-vehiclekeys | Renewed-Vehiclekeys | vehicles_keys. Or force one of those, 'nayzeee' or 'none'.
+  keys = 'auto',
+  -- Inventory (car lock key items, tools, contracts, fake plates): ox_inventory | qb-inventory |
+  -- qs-inventory | codem-inventory | tgiann-inventory | origen_inventory | core_inventory |
+  -- ps-inventory | lj-inventory | framework (items without metadata) | custom | none
+  inventory = 'auto',
   fuel = 'auto',    -- ox_fuel | LegacyFuel | cdn-fuel | ps-fuel | lj-fuel | okokGasStation | qs-fuelstations | Renewed-Fuel | ti_fuel | native
   target = 'auto',  -- ox_target | qb-target | none
   housing = 'auto', -- qb-houses | ps-housing | none  (others can use the RegisterHouseGarage export)
-  -- Notifications: ox_lib | framework (qb / qbx / esx built-in) | qb | qbx | esx | okokNotify |
-  -- mythic_notify | pNotify | wasabi_notify | brutal_notify | lation_ui | t-notify | custom
-  -- ('custom': edit NZ.Notify.custom in bridge/client/notify.lua)
+  -- Notifications: ox_lib | framework (qb / qbx / esx built-in) | qb | qbx | esx (esx_notify, ESX
+  -- Legacy 1.9+) | okokNotify | mythic_notify | pNotify | wasabi_notify | brutal_notify | lation_ui |
+  -- t-notify | custom ('custom': edit NZ.Notify.custom in bridge/client/notify.lua).
+  -- ox_lib is used whenever the configured resource is not started.
   notify = 'ox_lib',
 }
 
 -- Notification look (used by every notify integration that supports it).
 Config.Notify = {
   title = 'Garage',          -- title shown by integrations that have one ('' = none)
-  position = 'top-right',    -- ox_lib / lation_ui positions
+  position = nil,            -- nil = each player's own ox_lib setting; or 'top' | 'top-right' | 'top-left' |
+                             -- 'bottom' | 'bottom-right' | 'bottom-left' | 'center-right' | 'center-left'
   duration = 5000,           -- milliseconds
 }
 

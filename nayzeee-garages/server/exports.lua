@@ -383,7 +383,9 @@ local function houseIdArg(value)
   return s
 end
 
---- RegisterHouseGarage(houseId, { name, coords = vec4, spawn = vec4|nil }) -> ok, error
+--- RegisterHouseGarage(houseId, { name, coords = vec4, spawn = vec4|nil, hidden = boolean|nil })
+--- -> ok, error. hidden = true: the housing script draws the garage interaction itself and
+--- calls the OpenHouseGarage / StoreHouseGarage client exports (no marker / target from us).
 export('RegisterHouseGarage', function(houseId, data)
   houseId = houseIdArg(houseId)
   if not houseId then return false, L('Invalid house id') end
@@ -393,6 +395,7 @@ export('RegisterHouseGarage', function(houseId, data)
     name = safeText(data.name or data.label, 60),
     coords = Utils.v4(data.coords),
     spawn = data.spawn ~= nil and Utils.v4(data.spawn) or nil,
+    hidden = data.hidden == true,
   }
   if type(NZ.Housing.register) == 'function' then
     local res, err = NZ.Housing.register(houseId, clean)
@@ -433,5 +436,21 @@ export('SetHouseAccess', function(houseId, identifiers)
   if type(NZ.Housing.setAccess) ~= 'function' then return false, L('House garages are not available') end
   local res, err = NZ.Housing.setAccess(houseId, list)
   if res == false then return false, err end
+  return true
+end)
+
+--- RefreshHousing(resource|nil) -> ok. Re-reads the housing data (throttled, asynchronous):
+--- one supported housing script (resource name or house id prefix such as 'qs') or all (nil).
+--- For housing scripts' garage add / update / remove hooks (install/housing/*).
+export('RefreshHousing', function(resource)
+  if type(NZ.Housing.refresh) ~= 'function' then return false, L('House garages are not available') end
+  if resource ~= nil then
+    resource = safeText(resource, 64)
+    if not resource then return false, L('Invalid request') end
+  end
+  if NZ.Housing.refresh(resource) == false then
+    if resource ~= nil then return false, L('Unknown housing resource') end
+    return false, L('Garages are still loading')
+  end
   return true
 end)

@@ -8,6 +8,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button, ConfirmDialog, EmptyState, Icon, KeyHint, PlateTag, Window, cx } from '@/components/ui';
+import type { IconName } from '@/components/ui';
 import type { SelectOption } from '@/components/ui';
 import { useApp, useUi, toast } from '@/lib/store';
 import { useEscape } from '@/lib/escape';
@@ -31,7 +32,7 @@ import {
   vehicleIcon,
 } from '../garage/model';
 import type { GroupBy, ItemGroup } from '../garage/model';
-import { RailList, RowBody, StatusDot } from '../garage/showroom/Rail';
+import { RailList, RailVacant, RowBody, StatusDot } from '../garage/showroom/Rail';
 import { ClassTag, Plate, Stage, StageTitle } from '../garage/showroom/Stage';
 import { ConditionBlock, ImpoundBlock, PerformanceBlock, StripCell, useAvailability } from '../garage/showroom/blocks';
 import { useShowroomKeys } from '../garage/showroom/keys';
@@ -151,7 +152,9 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
     if (res.data && isAppOpen('impound')) useUi.getState().openApp('impound', res.data);
   };
 
-  const canCollect = (v: ImpoundedVehicle) => !staff || v.isOwner;
+  // What Enter does: collect (owner, or staff with their own vehicle) or release (staff).
+  const nowS = Math.floor(Date.now() / 1000);
+  const primary = sv ? impoundPrimary(sv, staff, nowS) : null;
 
   useShowroomKeys(!confirmGarage, {
     move: (dir) => {
@@ -160,10 +163,10 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
       setSelected(flatKeys[Math.max(0, Math.min(flatKeys.length - 1, i + dir))]);
     },
     enter: () => {
-      if (!sv || !canCollect(sv)) return;
-      const now = Math.floor(Date.now() / 1000);
-      const available = sv.impound.retrievable && sv.impound.releaseAt <= now;
-      if (sv.canDrive !== false && (available || staff)) void retrieve(sv);
+      if (!sv || retrieving || releasing) return;
+      const p = impoundPrimary(sv, staff, Math.floor(Date.now() / 1000));
+      if (p === 'collect') void retrieve(sv);
+      else if (p === 'release') void release(sv, 'owner');
     },
     focusSearch: () => bodyRef.current?.querySelector<HTMLInputElement>('.nz-garage__search input')?.focus(),
   });
@@ -177,18 +180,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
 
   let railList: JSX.Element;
   if (vehicles.length === 0) {
-    railList = (
-      <EmptyState
-        compact
-        icon="impound"
-        title={t('No impounded vehicles')}
-        description={
-          staff
-            ? t('Nothing is being held at {place} right now.', { place: impound.name })
-            : t('None of your vehicles are being held at {place}.', { place: impound.name })
-        }
-      />
-    );
+    railList = <RailVacant label={t('0 vehicles held')} />;
   } else if (shown.length === 0) {
     railList = (
       <EmptyState
@@ -212,7 +204,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
         onSelect={setSelected}
         compact={compact}
         label={t('Impounded vehicles')}
-        renderRow={(v) => <ImpoundRow v={v} staff={staff} compact={compact} />}
+        renderRow={(v) => <ImpoundRow v={v} staff={staff} feeWaived={!!data.feeWaived} compact={compact} />}
       />
     );
   }
@@ -300,7 +292,12 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
             </span>
             <span className="nz-garage__spacer" />
             {vehicles.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
-            {vehicles.length > 0 && <KeyHint keys={['Enter']} label={staff ? t('Drive out') : t('Pay & drive')} />}
+            {primary && (
+              <KeyHint
+                keys={['Enter']}
+                label={primary === 'release' ? t('Release') : staff || !(sv && sv.impound.fee > 0) ? t('Drive out') : t('Pay & drive')}
+              />
+            )}
             <KeyHint keys={['/']} label={t('Search')} />
             <KeyHint keys={['Esc']} label={t('Close')} />
           </>
@@ -351,7 +348,14 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
 
 /* ── row ─────────────────────────────────────────────────────────────── */
 
-function ImpoundRow({ v, staff, compact }: { v: ImpoundedVehicle; staff: boolean; compact: boolean }) {
+/** Dock primary for a vehicle: 'collect' (pay & drive), 'release' (staff, to its owner) or none. */
+function impoundPrimary(v: ImpoundedVehicle, staff: boolean, now: number): 'collect' | 'release' | null {
+  const available = v.impound.retrievable && v.impound.releaseAt <= now;
+  if (!staff || v.isOwner) return v.canDrive !== false && (available || staff) ? 'collect' : null;
+  return available ? null : 'release';
+}
+
+function ImpoundRow({ v, staff, feeWaived, compact }: { v: ImpoundedVehicle; staff: boolean; feeWaived: boolean; compact: boolean }) {
   const a = useAvailability(v.impound);
   const nick = (v.nickname ?? '').trim();
   const tone = a?.state === 'now' ? 'teal' : a?.state === 'waiting' ? 'amber' : 'red';
@@ -376,8 +380,8 @@ function ImpoundRow({ v, staff, compact }: { v: ImpoundedVehicle; staff: boolean
         )
       }
       side={
-        <span className={cx('nz-garage__price', v.impound.fee <= 0 && 'is-free')}>
-          {v.impound.fee > 0 ? money(v.impound.fee) : t('Free')}
+        <span className={cx('nz-garage__price', (v.impound.fee <= 0 || (staff && feeWaived)) && 'is-free')}>
+          {v.impound.fee <= 0 ? t('No fee') : staff && feeWaived ? t('Waived') : money(v.impound.fee)}
         </span>
       }
       health={v.body}
@@ -418,7 +422,7 @@ function ImpoundShowcase({
   const busy = retrieving !== null || releasing !== null;
   const owner = v.isOwner ? t('You') : v.ownerName;
 
-  let reason: { tone: 'neutral' | 'amber' | 'red'; icon: 'lock' | 'clock' | 'ban' | 'info'; text: string } | null = null;
+  let reason: { tone: 'neutral' | 'amber' | 'red'; icon: IconName; text: string } | null = null;
   if (collect && a && !available && !staff) {
     reason =
       a.state === 'release'
@@ -427,12 +431,18 @@ function ImpoundShowcase({
   } else if (collect && !serverAllows && v.reason) {
     reason = { tone: 'red', icon: 'ban', text: v.reason };
   } else if (!collect) {
-    reason = {
-      tone: 'neutral',
-      icon: 'info',
-      text: available ? t('The owner can collect it now.') : t('Releasing makes it available to the owner right away.'),
-    };
+    reason = available
+      ? { tone: 'neutral', icon: 'checkCircle', text: t('Already released: the owner can collect it now.') }
+      : {
+          tone: a?.state === 'release' ? 'red' : 'neutral',
+          icon: a?.state === 'release' ? 'lock' : 'info',
+          text:
+            a?.state === 'release'
+              ? t('On hold until staff release it. Releasing makes it collectable right away.')
+              : t('Releasing makes it collectable right away, without waiting.'),
+        };
   }
+  const isReleasing = releasing?.plate === v.plate && releasing.mode === 'owner';
 
   const availValue = !a ? '—' : a.state === 'now' ? t('Now') : a.state === 'waiting' ? countdown(a.seconds) : t('On hold');
   const availTone = !a ? undefined : a.state === 'now' ? ('teal' as const) : a.state === 'waiting' ? ('amber' as const) : ('red' as const);
@@ -472,8 +482,8 @@ function ImpoundShowcase({
           <StripCell
             icon="money"
             label={t('Fee')}
-            value={fee > 0 ? money(fee) : info.fee > 0 ? t('Waived') : t('Free')}
-            sub={info.fee > 0 && fee === 0 ? t('Normally {fee}', { fee: money(info.fee) }) : t('Paid on collection')}
+            value={fee > 0 ? money(fee) : info.fee > 0 ? t('Waived') : t('No charge')}
+            sub={info.fee > 0 && fee === 0 ? t('Normally {fee}', { fee: money(info.fee) }) : fee > 0 ? t('Paid on collection') : t('Nothing to pay')}
             tone={fee > 0 ? undefined : 'teal'}
           />
           <StripCell
@@ -493,6 +503,19 @@ function ImpoundShowcase({
       dock={
         <>
           <div className="nz-garage__dock-main">
+            {!collect && (
+              <Button
+                variant="white"
+                size="lg"
+                icon="unlock"
+                loading={isReleasing}
+                disabled={available || (busy && !isReleasing)}
+                onClick={onReleaseOwner}
+                className="nz-garage__go"
+              >
+                <PrimaryLabel keycap={!available && !isReleasing}>{isReleasing ? t('Releasing...') : t('Release to owner')}</PrimaryLabel>
+              </Button>
+            )}
             {collect && (
               <Button
                 variant="teal"
@@ -521,20 +544,22 @@ function ImpoundShowcase({
           </div>
           {staff && (
             <div className="nz-garage__tools" role="toolbar" aria-label={t('Staff actions')}>
-              <Tool
-                icon="unlock"
-                label={releasing?.plate === v.plate && releasing.mode === 'owner' ? t('Releasing...') : t('Release to owner')}
-                onClick={onReleaseOwner}
-                disabled={available || busy}
-                tip={available ? t('Already available to the owner') : t('Make it collectable right away')}
-              />
+              {collect && (
+                <Tool
+                  icon="unlock"
+                  label={isReleasing ? t('Releasing...') : t('Release')}
+                  onClick={onReleaseOwner}
+                  disabled={available || busy}
+                  tip={available ? t('Already available') : t('Make it collectable right away')}
+                />
+              )}
               <Tool icon="garage" label={t('Return to garage')} onClick={onReturnGarage} disabled={busy} tip={t('Send it back to its last garage, free')} />
             </div>
           )}
         </>
       }
     >
-      <ImpoundBlock info={info} fee={fee} owner={staff ? owner : null} />
+      <ImpoundBlock info={info} owner={staff ? owner : null} lot />
       <ConditionBlock
         engine={v.engine}
         body={v.body}

@@ -8,7 +8,7 @@ import { t } from '@/lib/i18n';
 import type { AdminPageProps, GarageLocation } from '@/lib/types';
 import { LocationListPage } from '../shared/LocationListPage';
 import type { CardTag, Fact, Kpi, LocationPageContext } from '../shared/LocationListPage';
-import { accessModeLabel, accessModeShort, capacityLabel, plural, restrictionSummary } from '../shared/labels';
+import { accessModeLabel, accessModeShort, capacityLabel, capacityTag, plural, restrictionSummary } from '../shared/labels';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -43,7 +43,7 @@ export function GaragesPage(props: AdminPageProps) {
         label: accessModeShort(l.access.mode),
         title: l.access.mode !== 'quick' ? `${accessModeLabel(l.access.mode)} · ${interiorName(l.access.interiorId) ?? t('no interior chosen')}` : undefined,
       });
-      list.push({ icon: 'parking', label: capacityLabel(l.capacity) });
+      list.push(capacityTag(l.capacity));
       return list;
     },
     [restrictionTag, interiorName],

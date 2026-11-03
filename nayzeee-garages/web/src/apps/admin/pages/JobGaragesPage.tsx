@@ -8,7 +8,7 @@ import { t } from '@/lib/i18n';
 import type { AdminPageProps, JobLocation } from '@/lib/types';
 import { LocationListPage } from '../shared/LocationListPage';
 import type { CardTag, Fact, Kpi, LocationPageContext } from '../shared/LocationListPage';
-import { accessModeLabel, accessModeShort, capacityLabel, findGroupInfo, plural, rulesSummary } from '../shared/labels';
+import { accessModeLabel, accessModeShort, capacityLabel, capacityTag, findGroupInfo, plural, rulesSummary } from '../shared/labels';
 
 const fmt = (n: number) => n.toLocaleString('en-US');
 
@@ -27,7 +27,7 @@ export function JobGaragesPage(props: AdminPageProps) {
         l.source === 'spawner'
           ? { icon: 'key', label: t('Spawner · {count}', { count: l.spawner.length }), tone: 'teal', title: plural(l.spawner.length, '{count} vehicle to take out', '{count} vehicles to take out') }
           : { icon: 'garage', label: t('Shared fleet') },
-        { icon: 'parking', label: capacityLabel(l.capacity) },
+        capacityTag(l.capacity),
       ];
       if (l.access.mode !== 'quick') list.push({ icon: l.access.mode === 'interior' ? 'door' : 'building', label: accessModeShort(l.access.mode) });
       return list;
