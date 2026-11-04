@@ -1,8 +1,8 @@
 --[[
     NAYZEEE AMBULANCE - NPC calls (server): generator, scenes, lifecycle
 
-    While Config.Calls.generation.minMedics medics are on duty with NPC calls switched on
-    (Player(src).state.nzaNpcCalls, owned by the dispatch module; nil = optInDefault), a call
+    While Config.Calls.generation.minMedics medics are on duty with NPC calls switched on AND the
+    pager in their pockets (NZA.Dispatch.NpcMedics: the dispatch module decides, server side), a call
     is created every interval from a weighted template (config/modules/calls.lua):
       NZA.Dispatch.Create{ npc = true, voice = 'audio/calls/<line>[_full].ogg', meta.scene }
     The scene itself is built when a medic comes within scene.spawnRadius: the nearest medic's
@@ -18,7 +18,7 @@
             opts = { coords = vector4 (exact place), src = admin (for messages), force = bool }
       NZA.Calls.Get(sceneId) → scene | nil          NZA.Calls.All() → { [id] = scene }
       NZA.Calls.SceneOf(pid) → scene, victim | nil  NZA.Calls.Remove(sceneId, reason) → bool
-      NZA.Calls.OptedMedics() → { { src, coords } }  NZA.Calls.Templates() → { key, ... }
+      NZA.Calls.OptedMedics() → { { src, coords } } (medics who receive NPC calls)  NZA.Calls.Templates() → { key, ... }
     Net events
       C→S nza:calls:built (sceneId, token, result)   nza:calls:buildFailed (sceneId, token, reason)
       S→C nza:calls:build (plan)  nza:calls:scenes (list)  nza:calls:scene (public)
@@ -92,8 +92,20 @@ local function onDuty()
 end
 I.OnDuty = onDuty
 
+-- medics who receive NPC calls: switched on AND carrying the pager. The dispatch module decides
+-- (NZA.Dispatch.NpcEligible); medics without a pager never count, so no call is made for nobody.
 function C.OptedMedics()
     local out = {}
+    local D = NZA.Dispatch
+    if D and type(D.NpcMedics) == 'function' then
+        local ok, list = pcall(D.NpcMedics)
+        for _, src in ipairs(ok and type(list) == 'table' and list or {}) do
+            local c = srcCoords(src)
+            if c then out[#out + 1] = { src = src, coords = c } end
+        end
+        return out
+    end
+    -- no dispatch module: the player state bag it would own (nil = optInDefault)
     local default = cfg('generation').optInDefault == true
     for _, src in ipairs(onDuty()) do
         src = tonumber(src)

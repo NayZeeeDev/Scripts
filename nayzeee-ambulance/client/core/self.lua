@@ -251,23 +251,94 @@ local function overrideClipset()
     return false, nil
 end
 
+-- The walk clipset stays loaded (our request is held) for as long as it is the walk, and is only
+-- released when the walk changes (releasing it straight after SetPedMovementClipset leaves the game
+-- free to stream it out, and the ped can fall back to the normal walk). A walk can also be reset behind our back (another
+-- walk-style script, a ped model / task reset), while applied.clipset still says it is on: once a
+-- second the ped's real clipset is read back (FiveM GET_PED_MOVEMENT_CLIPSET) and put back when it
+-- differs twice in a row. If putting it back never sticks the read-back is not trusted any more.
+local clipHeld = nil                       -- clipset whose load request we hold
+local clipBad = {}                         -- [clip] = no new load attempt before this time (ms)
+local clipCheck = { at = 0, miss = 0, fixes = {}, trust = true }
+local CLIP_CHECK_MS = 1000
+
+local function u32(v)
+    v = math.tointeger(v)
+    return v and (v & 0xFFFFFFFF) or nil
+end
+
+local function loadClipset(clip)
+    if clipHeld == clip and HasAnimSetLoaded(clip) then return true end
+    if (clipBad[clip] or 0) > GetGameTimer() then return false end
+    local ok = pcall(lib.requestAnimSet, clip, 3000)
+    if not ok then
+        clipBad[clip] = GetGameTimer() + 30000
+        return false
+    end
+    if clipHeld and clipHeld ~= clip then RemoveAnimSet(clipHeld) end
+    clipHeld = clip
+    return true
+end
+
+local function releaseClipset()
+    if clipHeld then RemoveAnimSet(clipHeld) end
+    clipHeld = nil
+end
+
+-- true when the clipset we applied is no longer the ped's walk (checked at most once a second)
+local function clipsetDropped(ped, clip)
+    if not clipCheck.trust or not GetPedMovementClipset then return false end
+    local now = GetGameTimer()
+    if now < clipCheck.at then return false end
+    clipCheck.at = now + CLIP_CHECK_MS
+    if IsPedInAnyVehicle(ped, true) or IsPedRagdoll(ped) or IsPedFalling(ped) or IsPedSwimming(ped)
+        or IsPedClimbing(ped) then
+        return false
+    end
+    local ok, cur = pcall(GetPedMovementClipset, ped)
+    cur = ok and u32(cur) or nil
+    -- 0 / -1 (0xFFFFFFFF): this build or this moment can not tell (the native returns -1 without a motion task)
+    if not cur or cur == 0 or cur == 0xFFFFFFFF then return false end
+    if cur == u32(joaat(clip)) then clipCheck.miss = 0 return false end
+    clipCheck.miss = clipCheck.miss + 1
+    if clipCheck.miss < 2 then return false end              -- a transition can read different for a moment
+    clipCheck.miss = 0
+    local recent = {}
+    for _, t in ipairs(clipCheck.fixes) do if now - t < 20000 then recent[#recent + 1] = t end end
+    recent[#recent + 1] = now
+    clipCheck.fixes = recent
+    if #recent > 4 then
+        -- put back 5 times in 20 s and it still reads different: the read-back is not what we think
+        clipCheck.trust = false
+        NZA.Debug('self: movement clipset read-back does not match ' .. tostring(clip) .. ', check turned off')
+        return false
+    end
+    return true
+end
+
 local function setClipset(ped, clip)
-    if applied.clipset == clip and applied.clipPed == ped then return end
+    if applied.clipset == clip and applied.clipPed == ped then
+        if not clip or not clipsetDropped(ped, clip) then return end
+        NZA.Debug('self: walk ' .. clip .. ' was reset by something else, putting it back')
+        if not loadClipset(clip) then return end
+        SetPedMovementClipset(ped, clip, 0.35)
+        return
+    end
     if clip then
-        local ok = pcall(lib.requestAnimSet, clip, 3000)
-        if not ok then
-            if clip == CLIP_LIMP then
-                clip = IsPedMale(ped) and CLIP_INJURED_M or CLIP_INJURED_F
-                ok = pcall(lib.requestAnimSet, clip, 3000)
-            end
-            if not ok then return end
+        if not loadClipset(clip) then
+            if clip ~= CLIP_LIMP then return end
+            clip = IsPedMale(ped) and CLIP_INJURED_M or CLIP_INJURED_F
+            if applied.clipset == clip and applied.clipPed == ped then return end   -- fallback already on
+            if not loadClipset(clip) then return end
         end
         SetPedMovementClipset(ped, clip, 0.35)
-        RemoveAnimSet(clip)
         applied.clipset, applied.clipPed = clip, ped
+        -- a new walk gets a fresh check (one fight with another script does not end it for the session)
+        clipCheck.at, clipCheck.miss, clipCheck.fixes, clipCheck.trust = GetGameTimer() + CLIP_CHECK_MS, 0, {}, true
     elseif applied.clipset then
         ResetPedMovementClipset(ped, 0.35)
         applied.clipset, applied.clipPed = nil, 0
+        releaseClipset()
     end
 end
 

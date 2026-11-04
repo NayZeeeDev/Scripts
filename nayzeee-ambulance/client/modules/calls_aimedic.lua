@@ -97,7 +97,8 @@ end
 
 local function say(job, key)
     if not isSelf(job) or not (NZA.UI and NZA.UI.Speech) then return end
-    NZA.UI.Speech(L(job, 'calls.ai_name'), L(job, key), 3600)
+    -- crew voice, not a patient: staff lines are not muted by Config.PatientVoice
+    NZA.UI.Speech(L(job, 'calls.ai_name'), L(job, key), 3600, { staff = true, role = L(job, 'calls.ai_unit') })
 end
 
 -- road node at roughly minD..maxD metres from c

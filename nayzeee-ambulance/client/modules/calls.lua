@@ -577,7 +577,7 @@ end
 
 local function onGround(ped)
     if IsPedInAnyVehicle(ped, false) or IsEntityAttached(ped) then return false end
-    local tr = Entity(ped).state.nzaTr
+    local tr = NZA.Scan.State(ped, 'nzaTr')   -- cached read (NZA.Scan)
     if type(tr) == 'table' and HELD_TR[tr.m] then return false end
     return GetEntitySpeed(ped) < 0.6
 end
@@ -598,8 +598,9 @@ local function decalScene(id, s, dc)
         local ped = entOf(v.n)
         if ped ~= 0 and onGround(ped) then
             local c = GetEntityCoords(ped)
-            local bag = Entity(ped).state.nza
-            local level = type(bag) == 'table' and math.floor(tonumber(bag.bleed) or 0) or 0
+            local bag = NZA.Scan.State(ped, 'nza')   -- cached read (NZA.Scan)
+            -- ext: only bleeding you can see (no pool under an internal bleed / closed fracture)
+            local level = type(bag) == 'table' and math.floor(tonumber(bag.ext or bag.bleed) or 0) or 0
             local vs = d.vict[v.n] or { level = 0, count = 0 }
             d.vict[v.n] = vs
             if type(blood) == 'table' and level >= 1 then
@@ -797,10 +798,21 @@ end
 C.Extricate = extricate
 
 -- extinguisher spray detection (local player)
+local sprayName, sprayHash = nil, nil
+local function sprayWeapon()
+    local name = (cfg('fx').spray or {}).weapon or 'WEAPON_FIREEXTINGUISHER'
+    if name ~= sprayName then sprayName, sprayHash = name, GetHashKey(name) end
+    return sprayHash
+end
+
+local function extinguisherOut()
+    return GetSelectedPedWeapon(PlayerPedId()) == sprayWeapon()
+end
+
 local function sprayTick(me, dt)
     local sp = cfg('fx').spray or {}
     local ped = PlayerPedId()
-    local weapon = GetHashKey(sp.weapon or 'WEAPON_FIREEXTINGUISHER')
+    local weapon = sprayWeapon()
     if GetSelectedPedWeapon(ped) ~= weapon or not IsPedShooting(ped) then return false end
     local camRot = GetGameplayCamRot(2)
     local pitch, yaw = math.rad(camRot.x), math.rad(camRot.z)
@@ -907,10 +919,15 @@ CreateThread(function()
     local shown = nil
     local sprayShown = false
     local zonesAt = 0
+    local fxAt = 0
     while true do
         local me = GetEntityCoords(PlayerPedId())
-        local ok, err = pcall(effectsTick, me)
-        if not ok then NZA.Debug('calls fx', err) end
+        local ok, err = true, nil
+        if GetGameTimer() - fxAt >= 500 then
+            fxAt = GetGameTimer()
+            ok, err = pcall(effectsTick, me)
+            if not ok then NZA.Debug('calls fx', err) end
+        end
         ok, err = pcall(decalsTick, me)
         if not ok then NZA.Debug('calls decals', err) end
         -- anything to do within reach?
@@ -932,9 +949,13 @@ CreateThread(function()
             if sprayShown then NZA.UI.HidePrompt('calls_spray') sprayShown = false lastSprayQ = -1 end
             Wait(300)
         else
+            -- every frame only while something has to be caught every frame: an [E] prompt on screen
+            -- or the extinguisher in the hands (spraying). Otherwise the look for something in reach
+            -- runs every 250 ms instead of every frame (same prompts, far less work at a scene).
             local frames = 0
             local last = GetGameTimer()
-            while frames < 30 do
+            local watch = true
+            while frames < 30 and watch do
                 Wait(0)
                 frames = frames + 1
                 local now = GetGameTimer()
@@ -980,7 +1001,9 @@ CreateThread(function()
                     NZA.UI.HidePrompt('calls_act')
                     shown = nil
                 end
+                watch = shown ~= nil or sprayShown or extinguisherOut()
             end
+            if not watch then Wait(250) end
         end
     end
 end)

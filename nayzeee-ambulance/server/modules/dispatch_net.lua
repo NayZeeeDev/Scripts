@@ -15,7 +15,7 @@
       nza:dispatch:priority  (callId, 1..3)      assignPerm
       nza:dispatch:unitStatus ('10-8'|'10-7')    available / out of service
       nza:dispatch:pair      (bool)              pair the pager with your phone (needs the pager item)
-      nza:dispatch:npc       (bool)              receive NPC calls (Player(src).state.nzaNpcCalls)
+      nza:dispatch:npc       (bool)              NPC calls on / off (no pager needed to switch; calls need one)
       nza:dispatch:duty      (bool)              go on / off duty from the job menu (medic job only)
       nza:dispatch:street    (callId, street, zone)  first medic client resolves street names
     CALLBACKS
@@ -178,10 +178,7 @@ RegisterNetEvent('nza:dispatch:unitStatus', function(code)
 end)
 
 local function hasPager(src)
-    if not D().Cfg('pager', 'requireItem', true) then return true end
-    local item = Config.Items and Config.Items.pager
-    if not item then return true end
-    return NZA.Core.B('Inv.HasItem', src, item, 1) == true
+    return D().HasPager(src, true)
 end
 
 RegisterNetEvent('nza:dispatch:pair', function(on)
@@ -202,13 +199,19 @@ RegisterNetEvent('nza:dispatch:pair', function(on)
     end
 end)
 
+-- the switch itself never needs the pager; the calls only reach medics who carry one
 RegisterNetEvent('nza:dispatch:npc', function(on)
     local src = valid(source)
     if not src or not rate(src, 'npc', 4, 3000) then return end
     if not unitOf(src) then return fail(src, 'not_unit') end
-    D().SetNpcCalls(src, on == true)
+    on = on == true
+    D().SetNpcCalls(src, on)
     D().SendMe(src)
-    notify(src, on and 'success' or 'info', on and 'dispatch.npc_on' or 'dispatch.npc_off')
+    if on and not hasPager(src) then
+        D().PagerNotice(src, 'dispatch.npc_on_no_pager', true)
+    else
+        notify(src, on and 'success' or 'info', on and 'dispatch.npc_on' or 'dispatch.npc_off')
+    end
 end)
 
 local function nearDutyPoint(src, maxDist)

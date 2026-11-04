@@ -555,7 +555,7 @@ local function wornTick()
         consider(ped, ply and ply.state and ply.state.nza)
     end
     for _, ped in ipairs(NZA.Scan.Peds()) do
-        local bag = Entity(ped).state.nza
+        local bag = NZA.Scan.State(ped, 'nza')   -- cached read (NZA.Scan)
         if bag then consider(ped, bag) end
     end
     for ped in pairs(worn) do

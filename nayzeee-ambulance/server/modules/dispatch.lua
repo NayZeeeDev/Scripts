@@ -35,10 +35,16 @@
       NZA.Dispatch.Hospitals() → { { id, label, coords } }   NZA.Dispatch.NearestHospital(coords) → h, dist
       NZA.Dispatch.Public(call) → serializable table   NZA.Dispatch.Me(src) → own unit record for the client
       NZA.Dispatch.Board(src) → board payload           NZA.Dispatch.Paired(src) / SetPaired(src, bool)
-      NZA.Dispatch.NpcCalls(src) / SetNpcCalls(src, bool)   (Player(src).state.nzaNpcCalls, read by the calls module)
+      NZA.Dispatch.NpcCalls(src) / SetNpcCalls(src, bool)   NPC calls switch (off on every new duty shift;
+                                                      mirrored to Player(src).state.nzaNpcCalls)
+      NZA.Dispatch.NpcEligible(src) → bool, reason      NPC calls switched on AND the pager carried
+      NZA.Dispatch.NpcMedics() → { src, … }            medics who receive NPC calls (calls module generator)
+      NZA.Dispatch.HasPager(src, fresh?) → bool         server inventory check (Config.Items.pager)
+      NZA.Dispatch.Sees(src, call) → bool               NPC calls: eligible medics + units on the call only
 
     NET EVENTS SENT (S→C, on-duty medics)
-      nza:dispatch:call   (call, { alert, realert })      new call (alert = show the card / beep)
+      nza:dispatch:call   (call, { alert, realert, pager }) new call (alert = show the card / beep;
+                                                      pager = the server saw the pager item: pop it up)
       nza:dispatch:update (call)                          call changed (status, units, patients…)
       nza:dispatch:close  (callId, reason)
       nza:dispatch:me     (me)                            own unit record changed
@@ -162,25 +168,107 @@ local function callsignFor(src, ident)
     return ok and out or ('Unit ' .. src)
 end
 
+-- ════════════════════════════════════════════════════════════════════════
+-- NPC CALLS: WHO GETS THEM (decided here, never by the client)
+--   A medic receives NPC calls (call event, pager, captions, blip, board) only while
+--     1. NPC calls are switched on for them (job menu → Dispatch → NPC calls, pager menu, board;
+--        the switch itself needs no pager), and
+--     2. they carry the pager item (Config.Items.pager; not needed with pager.requireItem = false
+--        or pager.enabled = false).
+--   The switch starts OFF on every new duty shift: after a server / resource restart, a rejoin or
+--   going on duty again (Config.Dispatch.npcCalls.remember = true keeps the choice per character).
+--   An opted-in medic without the pager gets one short "carry a pager" notice now and then
+--   (Config.Dispatch.npcCalls.noPagerNotice), never the calls.
+-- ════════════════════════════════════════════════════════════════════════
+
+local PAGER_TTL = 3000     -- ms a pager check is reused (alerts, updates, board refreshes)
+local PAGER_WATCH = 4000   -- ms between pager checks of every unit (pager picked up / put away)
+local pagerSeen = {}       -- src → { has = bool, at = GetGameTimer() }
+local noticeAt = {}        -- src → os.time() of the last "carry a pager" notice
+
+-- true when NPC calls need the pager item in the medic's inventory
+function D.PagerRequired()
+    if cfg('pager', 'enabled', true) == false or cfg('pager', 'requireItem', true) == false then return false end
+    local item = Config.Items and Config.Items.pager
+    return type(item) == 'string' and item ~= ''
+end
+
+-- does this player carry the pager? Server inventory (ox / qb / esx / … through the bridge);
+-- fresh = true skips the short cache
+function D.HasPager(src, fresh)
+    src = tonumber(src)
+    if not src then return false end
+    if not D.PagerRequired() then return true end
+    local t = GetGameTimer()
+    local e = pagerSeen[src]
+    if e and not fresh and t - e.at < PAGER_TTL then return e.has end
+    local has = NZA.Core.B('Inv.HasItem', src, Config.Items.pager, 1) == true
+    pagerSeen[src] = { has = has, at = t }
+    return has
+end
+
 function D.NpcCalls(src)
     local u = units[tonumber(src)]
-    if u then return u.npc == true end
-    local st = Player(src) and Player(src).state
-    return st and st.nzaNpcCalls == true or false
+    return u ~= nil and u.npc == true
 end
+
+-- may this medic receive NPC calls right now? → true | false, reason ('not_unit' | 'off' | 'no_pager')
+function D.NpcEligible(src)
+    src = tonumber(src)
+    local u = src and units[src]
+    if not u then return false, 'not_unit' end
+    if u.npc ~= true then return false, 'off' end
+    if not D.HasPager(src) then return false, 'no_pager' end
+    return true
+end
+
+-- on-duty medics who receive NPC calls (the calls module generates calls for them)
+function D.NpcMedics()
+    local out = {}
+    for _, src in ipairs(NZA.Staff.OnDuty()) do
+        src = tonumber(src)
+        if src and online(src) and units[src] and D.NpcEligible(src) then out[#out + 1] = src end
+    end
+    return out
+end
+
+-- one short "carry a pager" notice, at most every Config.Dispatch.npcCalls.noPagerNotice seconds
+-- (force = the medic just switched NPC calls on: always tell them)
+local function pagerNotice(src, key, force)
+    src = tonumber(src)
+    if not src or not online(src) then return end
+    local every = cfg('npcCalls', 'noPagerNotice', 600)
+    if every == false and not force then return end
+    every = tonumber(every) or 600
+    local t = now()
+    if not force and noticeAt[src] and t - noticeAt[src] < every then return end
+    noticeAt[src] = t
+    NZA.Core.Notify(src, NZA.L(key or 'dispatch.npc_need_pager'), 'warning', NZA.L('dispatch.title'))
+end
+D.PagerNotice = pagerNotice
 
 local function applyNpcState(src, on)
     local p = Player(src)
     if p and p.state then p.state:set('nzaNpcCalls', on == true, true) end
 end
 
+-- the client's call list / blips / pager follow what this medic may see (NPC calls on / off, pager)
+local function resync(src)
+    if src and online(src) and D.SyncPayload then TriggerClientEvent('nza:dispatch:sync', src, D.SyncPayload(src)) end
+end
+
 function D.SetNpcCalls(src, on)
     src = tonumber(src)
     local u = units[src]
     if not u then return false end
-    u.npc = on == true
-    if u.ident then SetResourceKvp(kvpKey('npccalls', u.ident), u.npc and '1' or '0') end
-    applyNpcState(src, u.npc)
+    on = on == true
+    local changed = u.npc ~= on
+    u.npc = on
+    if u.ident and cfg('npcCalls', 'remember', false) == true then
+        SetResourceKvp(kvpKey('npccalls', u.ident), on and '1' or '0')
+    end
+    applyNpcState(src, on)
+    if changed then resync(src) end
     return true
 end
 
@@ -208,15 +296,23 @@ local function ensureUnit(src)
         grade = rec.gradeLabel, dept = rec.deptLabel or rec.dept, hospital = rec.hospital,
         oos = false, call = nil, since = now(),
     }
-    -- NPC call preference (read by the calls module from the player state bag)
-    local npc = cfg('npcCalls', 'defaultOn', false) == true
+    -- NPC calls start off on every new duty shift (restart, rejoin, back on duty), unless the owner
+    -- turned them on by default or wants each medic's choice remembered (Config.Dispatch.npcCalls)
+    local gen = Config.Calls and Config.Calls.generation
+    local npc = cfg('npcCalls', 'defaultOn', false) == true or (type(gen) == 'table' and gen.optInDefault == true)
     if ident then
-        local saved = GetResourceKvpString(kvpKey('npccalls', ident))
-        if saved == '1' then npc = true elseif saved == '0' then npc = false end
+        local key = kvpKey('npccalls', ident)
+        local saved = GetResourceKvpString(key)
+        if cfg('npcCalls', 'remember', false) == true then
+            if saved == '1' then npc = true elseif saved == '0' then npc = false end
+        elseif saved then
+            DeleteResourceKvp(key)   -- saved by an older version, which brought NPC calls back on after every restart
+        end
         paired[src] = GetResourceKvpInt(kvpKey('pager_pair', ident)) == 1 or nil
     end
-    u.npc = npc
-    applyNpcState(src, npc)
+    u.npc = npc == true
+    u.pager = D.HasPager(src, true)
+    applyNpcState(src, u.npc)
     units[src] = u
     return u
 end
@@ -279,7 +375,8 @@ function D.Me(src)
     local me = {
         src = src, medic = rec and rec.medic == true or false, onDuty = rec and rec.onDuty == true or false,
         name = NZA.Core.Name(src), status = D.UnitStatus(src), call = u and u.call or nil,
-        oos = u and u.oos == true or false, paired = paired[src] == true, npc = u and u.npc == true or D.NpcCalls(src),
+        oos = u and u.oos == true or false, paired = paired[src] == true, npc = u ~= nil and u.npc == true,
+        pager = src ~= nil and D.HasPager(src) or false,   -- the server's pager check (the client's pager UI trusts it)
         callsign = u and u.callsign or callsignFor(src, NZA.Core.Identifier(src)), grade = rec and rec.gradeLabel or nil,
         canAssign = src and NZA.Staff.Can(src, cfg('board', 'assignPerm', 'manage')) or false,
     }
@@ -454,12 +551,25 @@ local function broadcast(event, ...)
     for _, src in ipairs(medics()) do TriggerClientEvent(event, src, ...) end
 end
 
+-- may this medic see the call? NPC calls: only medics who receive NPC calls (NpcEligible) and the
+-- units already on the call; every other call: every on-duty medic
+local function sees(src, c)
+    if not c.npc or c.units[src] then return true end
+    return (D.NpcEligible(src))
+end
+D.Sees = sees
+
 local function flush()
     flushQueued = false
     for id in pairs(dirty) do
         dirty[id] = nil
         local c = calls[id]
-        if c then broadcast('nza:dispatch:update', D.Public(c)) end
+        if c then
+            local pub = D.Public(c)
+            for _, src in ipairs(medics()) do
+                if sees(src, c) then TriggerClientEvent('nza:dispatch:update', src, pub) end
+            end
+        end
     end
 end
 
@@ -592,12 +702,21 @@ local function alert(c, opts)
     local pub = D.Public(c)
     local oosAlerts = cfg('units', 'outOfServiceAlerts', false) == true
     local phone = D.PhoneMode()
+    local realert = opts and opts.realert or nil
     for _, src in ipairs(medics()) do
         local u = ensureUnit(src)
-        local wants = u ~= nil and (not u.oos or oosAlerts) and c.priority <= minPriority()
-        if opts and opts.realert then wants = wants and (u.call == nil) end
-        TriggerClientEvent('nza:dispatch:call', src, pub, { alert = wants, realert = opts and opts.realert or nil })
-        if wants and (phone == 'always' or (phone == 'paired' and paired[src])) then phoneNotify(src, c) end
+        -- NPC calls only reach medics with NPC calls on who carry the pager (see NPC CALLS above)
+        local gets, why = true, nil
+        if c.npc and not c.units[src] then gets, why = D.NpcEligible(src) end
+        if gets then
+            local wants = u ~= nil and (not u.oos or oosAlerts) and c.priority <= minPriority()
+            if realert then wants = wants and (u.call == nil) end
+            -- pager = the server saw the pager in this medic's inventory: the client pops it up and beeps
+            TriggerClientEvent('nza:dispatch:call', src, pub, { alert = wants, realert = realert, pager = D.HasPager(src) })
+            if wants and (phone == 'always' or (phone == 'paired' and paired[src])) then phoneNotify(src, c) end
+        elseif why == 'no_pager' and not realert then
+            pagerNotice(src)
+        end
     end
 end
 
@@ -705,7 +824,8 @@ function D.Create(call)
     logCall('Insert', c)
     alert(c)
     policeMirror(c)
-    externalMirror(c)
+    -- an external dispatch / MDT shows calls to every EMS: NPC calls only go there when the owner wants it
+    if not c.npc or cfg('npcCalls', 'external', false) == true then externalMirror(c) end
     NZA.Bus.Emit('dispatch:created', c)
     NZA.Debug('dispatch: new call', id, c.code, c.title, 'P' .. c.priority, #c.patients .. ' patients')
     return id
@@ -917,16 +1037,19 @@ function D.Clear(src, id, reason)
     if next(c.units) == nil then
         if c.arrivedAt then
             D.Close(id, reason == 'status' and 'cleared' or (reason or 'cleared'))
-            return true
+        else
+            c.status = 'DSP'
+            c.respondedAt = nil
+            helpAll(c, { status = 'cancelled' })
+            markDirty(id)
+            if cfg('calls', 'realertOnDrop', true) then alert(c, { realert = true }) end
         end
-        c.status = 'DSP'
-        c.respondedAt = nil
-        helpAll(c, { status = 'cancelled' })
+    else
         markDirty(id)
-        if cfg('calls', 'realertOnDrop', true) then alert(c, { realert = true }) end
-        return true
     end
-    markDirty(id)
+    -- still open: an NPC call this medic only saw while on it (NPC calls off / no pager now) leaves
+    -- their list, so no stale blip / pager line is left behind
+    if calls[id] and c.npc and not D.NpcEligible(src) then resync(src) end
     return true
 end
 
@@ -1013,7 +1136,11 @@ end
 
 function D.Board(src)
     local list = {}
-    for _, c in ipairs(D.Active()) do list[#list + 1] = D.Public(c, true) end
+    -- dispatchers (assignPerm) see every call; other medics see NPC calls only while they receive them
+    local all = NZA.Staff.Can(src, cfg('board', 'assignPerm', 'manage')) == true
+    for _, c in ipairs(D.Active()) do
+        if all or sees(src, c) then list[#list + 1] = D.Public(c, true) end
+    end
     local hosp = {}
     for _, h in ipairs(D.Hospitals()) do hosp[#hosp + 1] = { id = h.id, label = h.label, x = h.coords.x, y = h.coords.y } end
     local unitsList = D.Units(true)
@@ -1200,6 +1327,41 @@ CreateThread(function()
     end
 end)
 
+-- Pager picked up / put away: every few seconds the server checks each unit's inventory. The
+-- client's pager follows (me.pager) and NPC calls come and go with it.
+CreateThread(function()
+    while true do
+        Wait(PAGER_WATCH)
+        if next(units) ~= nil and D.PagerRequired() then
+            local changed = {}
+            for src, u in pairs(units) do
+                local has = D.HasPager(src, true)
+                if has ~= u.pager then
+                    u.pager = has
+                    changed[#changed + 1] = src
+                end
+            end
+            for _, src in ipairs(changed) do
+                local u = units[src]
+                if u and u.npc then
+                    resync(src)                       -- NPC calls appear / leave the list, blips and pager
+                    if not u.pager then pagerNotice(src) end
+                elseif u then
+                    sendMe(src)
+                end
+            end
+        end
+    end
+end)
+
+-- Restart: state bags outlive the resource, so nobody keeps NPC calls on from before it
+CreateThread(function()
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        if src and not units[src] then applyNpcState(src, false) end
+    end
+end)
+
 function D.RemoveUnit(src, reason)
     src = tonumber(src)
     local u = units[src]
@@ -1219,7 +1381,9 @@ function D.SyncPayload(src)
     if not (me.medic and me.onDuty) then return { calls = {}, units = {}, me = me } end
     ensureUnit(src)
     local list = {}
-    for _, c in ipairs(D.Active()) do list[#list + 1] = D.Public(c) end
+    for _, c in ipairs(D.Active()) do
+        if sees(src, c) then list[#list + 1] = D.Public(c) end
+    end
     return { calls = list, units = D.Units(false), me = D.Me(src), recent = recent }
 end
 
@@ -1346,6 +1510,8 @@ local function dropped(src)
         queueUnits()
     end
     paired[src] = nil
+    pagerSeen[src] = nil
+    noticeAt[src] = nil
 end
 
 NZA.Bus.On('player:unloaded', function(src) dropped(src) end)

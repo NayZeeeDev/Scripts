@@ -120,6 +120,15 @@ local function hasValue(list, v)
 end
 FA.Has = hasValue
 
+-- a wound bleed control (pressure / packing / a dressing) can work on: the StopBleed types, and an OPEN
+-- fracture (the bone is through the skin: it bleeds like a wound and needs covering under pressure)
+function FA.BleedTreats(inj, sb)
+    if type(inj) ~= 'table' then return false end
+    sb = sb or FA.Cfg('StopBleed')
+    if hasValue(sb.types, inj.type) then return true end
+    return inj.type == 'fracture' and type(inj.fracture) == 'table' and inj.fracture.kind == 'open'
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- STOP BLEEDING PLAN (shared by the procedure, the exam route and the items)
 -- ════════════════════════════════════════════════════════════════════════
@@ -139,7 +148,7 @@ end
 function FA.Plan(p, inj)
     if not inj then return nil, 'no_wound' end
     local sb = FA.Cfg('StopBleed')
-    if not hasValue(sb.types, inj.type) then return nil, 'wrong_type' end
+    if not FA.BleedTreats(inj, sb) then return nil, 'wrong_type' end
     local t = inj.treat or {}
     local deep = FA.NeedsPack(inj)
     local R = NZA.Const.Region[inj.region]

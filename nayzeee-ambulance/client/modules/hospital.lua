@@ -505,6 +505,7 @@ local function nearDeptVehicle(point, radius)
 end
 
 -- driving a department vehicle up to a garage / helipad: [E] Store vehicle
+-- (only without a third eye: with one, 'Store vehicle' is the garage point's own option)
 CreateThread(function()
     local shown = false
     while true do
@@ -512,7 +513,8 @@ CreateThread(function()
         local ped = PlayerPedId()
         local veh = GetVehiclePedIsIn(ped, false)
         local target = nil
-        if veh ~= 0 and next(myVehicles) and GetPedInVehicleSeat(veh, -1) == ped and NetworkGetEntityIsNetworked(veh) and myVehicles[VehToNet(veh)] then
+        if veh ~= 0 and next(myVehicles) and GetPedInVehicleSeat(veh, -1) == ped and NetworkGetEntityIsNetworked(veh) and myVehicles[VehToNet(veh)]
+            and NZA.UI.WorldPrompts() then
             local r = (hc('garage', {}).storeRadius) or 12.0
             for _, kind in ipairs({ 'garage', 'heli' }) do
                 local pt, dist = NZA.Points.Nearest(kind, GetEntityCoords(veh), r)

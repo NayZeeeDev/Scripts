@@ -125,7 +125,7 @@
   }
   function say(text) {
     if (!text || !S.ses) return;
-    NZA.speech({ name: S.ses.doctor || tr('ai_name', 'Dr. Hale (AI)'), role: tr('ai_role', 'AI doctor'), text, ms: Math.max(4200, text.length * 80) });
+    NZA.speech({ name: S.ses.doctor || tr('ai_name', 'Dr. Hale (AI)'), role: tr('ai_role', 'AI doctor'), text, ms: Math.max(4200, text.length * 80), staff: true });   // staff voice
   }
   function frameAI() {
     if (S.mode !== 'ai' || !S.ses) return;

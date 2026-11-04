@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE AMBULANCE · Head-to-toe check (app 'exam')
    HUD language: corner brackets, status rings, instrument lists with tone notches,
-   holographic body map, diamond markers, edge dock. Teal = done/active, red = danger,
-   amber = warning, white = selected.
+   diamond markers with callout labels on every body group, edge dock. Teal = done/active,
+   red = danger, amber = warning, white = selected.
    ═══════════════════════════════════════════════════════════ */
 
 /* preview-only body (browser) */
@@ -15,12 +15,12 @@
              radial-gradient(70% 60% at 50% 45%,rgba(0,0,0,0) 60%,rgba(0,0,0,.25) 100%)}
 
 /* ═══════════ shared card look ═══════════ */
-#app-exam .ex-pt,#app-exam .ex-find,#app-exam .ex-care{position:relative;border-radius:14px;
+#app-exam .ex-pt,#app-exam .ex-find,#app-exam .ex-todo{position:relative;border-radius:14px;
   background:linear-gradient(180deg,rgba(21,24,27,.95),rgba(10,11,13,.95));border:1px solid rgba(255,255,255,.07);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(0,0,0,.35),0 20px 46px rgba(0,0,0,.45),0 3px 10px rgba(0,0,0,.35)}
-#app-exam .ex-pt::before,#app-exam .ex-find::before,#app-exam .ex-care::before{content:'';position:absolute;left:-1px;top:-1px;width:46px;height:46px;pointer-events:none;
+#app-exam .ex-pt::before,#app-exam .ex-find::before,#app-exam .ex-todo::before{content:'';position:absolute;left:-1px;top:-1px;width:46px;height:46px;pointer-events:none;
   border-left:2px solid var(--teal);border-top:2px solid var(--teal);border-top-left-radius:14px;opacity:.95}
-#app-exam .ex-pt::after,#app-exam .ex-find::after,#app-exam .ex-care::after{content:'';position:absolute;right:10px;bottom:10px;width:10px;height:10px;pointer-events:none;
+#app-exam .ex-pt::after,#app-exam .ex-find::after,#app-exam .ex-todo::after{content:'';position:absolute;right:10px;bottom:10px;width:10px;height:10px;pointer-events:none;
   border-right:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.18);border-bottom-right-radius:3px}
 #app-exam .kick{display:inline-flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--teal-hi);white-space:nowrap}
 #app-exam .kick .nz-ic{width:13px;height:13px}
@@ -35,8 +35,9 @@
 #app-exam .sx.t-clear{color:var(--ink-2)}
 
 /* ═══════════ left column ═══════════ */
-#app-exam .ex-colL{position:absolute;left:28px;top:28px;width:340px;display:flex;flex-direction:column;gap:12px;pointer-events:none}
+#app-exam .ex-colL{position:absolute;left:28px;top:28px;bottom:70px;width:340px;display:flex;flex-direction:column;gap:12px;pointer-events:none}
 #app-exam .ex-colL > *{pointer-events:auto}
+#app-exam .ex-pt{flex:none}
 
 /* patient card */
 #app-exam .ex-pt{padding:16px 16px 12px 18px}
@@ -84,14 +85,22 @@
 #app-exam .pc-dev .dv{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px 0 7px;border-radius:6px;font-size:10.5px;font-weight:600;color:var(--teal-hi);background:var(--teal-wash);border:1px solid var(--teal-edge)}
 #app-exam .pc-dev .dv .nz-ic{width:11px;height:11px}
 
-/* ═══════════ diamond markers on the 3D body ═══════════ */
+/* ═══════════ every body group: diamond on the body + callout label beside it ═══════════ */
 #app-exam .ex-marks{position:absolute;inset:0;pointer-events:none}
+#app-exam .ex-links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#app-exam .ex-links .lk{fill:none;stroke:var(--mc);stroke-width:1.2;opacity:.5;stroke-linejoin:round;--mc:rgba(255,255,255,.4);transition:opacity 160ms}
+#app-exam .ex-links .lk.t-clear{stroke-dasharray:3 3;opacity:.38}
+#app-exam .ex-links .lk.t-amber{--mc:var(--ex-amber)} #app-exam .ex-links .lk.t-red{--mc:var(--ex-red)} #app-exam .ex-links .lk.t-crit{--mc:var(--ex-crit)} #app-exam .ex-links .lk.t-teal{--mc:var(--ex-teal)}
+#app-exam .ex-links .lk.on,#app-exam .ex-links .lk.hov{opacity:.95;stroke-width:1.6;stroke-dasharray:none}
+#app-exam .ex-links .lk.on{stroke:#fff}
 #app-exam .exm{position:absolute;left:0;top:0;width:0;height:0;padding:0;border:0;background:none;cursor:pointer;--mc:var(--ex-clear)}
-#app-exam .exm.t-amber{--mc:var(--ex-amber)} #app-exam .exm.t-red{--mc:var(--ex-red)} #app-exam .exm.t-crit{--mc:var(--ex-crit)} #app-exam .exm.t-teal{--mc:var(--ex-teal)}
+#app-exam .exm.t-amber,#app-exam .exl.t-amber{--mc:var(--ex-amber)} #app-exam .exm.t-red,#app-exam .exl.t-red{--mc:var(--ex-red)}
+#app-exam .exm.t-crit,#app-exam .exl.t-crit{--mc:var(--ex-crit)} #app-exam .exm.t-teal,#app-exam .exl.t-teal{--mc:var(--ex-teal)}
 #app-exam .exm .dm{position:absolute;left:-9px;top:-9px;width:18px;height:18px;transform:rotate(45deg);border-radius:3px;
   background:rgba(10,12,14,.78);border:2px solid var(--mc);box-shadow:0 0 0 3px rgba(0,0,0,.32),0 4px 10px rgba(0,0,0,.4);transition:transform 160ms,border-color 160ms,background 160ms}
 #app-exam .exm .dm i{position:absolute;left:4px;top:4px;width:6px;height:6px;border-radius:1px;background:var(--mc)}
 #app-exam .exm.t-clear .dm i{opacity:.6}
+#app-exam .exm.gh .dm{border-style:dashed;opacity:.75}
 #app-exam .exm.t-crit .dm{background:rgba(70,10,12,.85);animation:ex-dm 1.3s ease-in-out infinite}
 @keyframes ex-dm{50%{box-shadow:0 0 0 3px rgba(0,0,0,.32),0 0 16px 4px rgba(229,72,77,.6)}}
 #app-exam .exm .halo{position:absolute;left:-17px;top:-17px;width:34px;height:34px;transform:rotate(45deg);border-radius:5px;border:1px dashed var(--mc);opacity:0;transition:opacity 160ms}
@@ -100,54 +109,89 @@
 #app-exam .exm.on .dm i{background:#fff}
 #app-exam .exm.on .halo{opacity:.9;animation:ex-halo 1.8s ease-in-out infinite}
 @keyframes ex-halo{50%{transform:rotate(45deg) scale(1.22);opacity:.35}}
-#app-exam .exm .chip{position:absolute;left:24px;top:-15px;height:30px;display:flex;align-items:center;gap:8px;padding:0 11px 0 10px;border-radius:8px;white-space:nowrap;
-  background:rgba(8,9,11,.94);border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 22px rgba(0,0,0,.45);opacity:0;transform:translateX(-6px);transition:opacity 150ms,transform 150ms;pointer-events:none}
-#app-exam .exm.flipL .chip{left:auto;right:24px;transform:translateX(6px)}
-#app-exam .exm .chip::before{content:'';width:3px;height:14px;border-radius:2px;background:var(--mc);box-shadow:0 0 8px var(--mc)}
-#app-exam .exm .chip b{font-size:12.5px;font-weight:600;color:var(--white)}
-#app-exam .exm .chip em{font-style:normal;font:500 10.5px var(--mono);color:var(--ink-2)}
-#app-exam .exm.on .chip,#app-exam .exm.hov .chip,#app-exam .exm:hover .chip{opacity:1;transform:none}
+/* the label: always shown for all 8 groups (name · status), laid out by app.js */
+#app-exam .exl{position:absolute;left:0;top:0;height:30px;display:flex;align-items:center;gap:8px;padding:0 11px 0 10px;border-radius:8px;white-space:nowrap;cursor:pointer;
+  background:rgba(8,9,11,.9);border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 22px rgba(0,0,0,.45);--mc:var(--ex-clear);
+  transition:transform 110ms linear,border-color 140ms,background 140ms}
+#app-exam .exl.s-L{padding:0 10px 0 11px}
+#app-exam .exl.s-L .bar{order:3}
+#app-exam .exl .bar{width:3px;height:14px;border-radius:2px;background:var(--mc);box-shadow:0 0 8px var(--mc);flex:none}
+#app-exam .exl.t-clear .bar{box-shadow:none;opacity:.7}
+#app-exam .exl b{font-size:12.5px;font-weight:600;color:var(--white)}
+#app-exam .exl em{font-style:normal;font:500 10.5px var(--mono);color:var(--ink-2)}
+#app-exam .exl.t-clear em{color:var(--ink-3)}
+#app-exam .exl.t-amber em{color:var(--ex-amber)} #app-exam .exl.t-red em,#app-exam .exl.t-crit em{color:#ff8a8d} #app-exam .exl.t-teal em{color:var(--teal-hi)}
+#app-exam .exl:hover,#app-exam .exl.hov{border-color:rgba(255,255,255,.24);background:rgba(16,18,21,.96)}
+#app-exam .exl.on{border-color:#fff;background:rgba(20,23,27,.98);box-shadow:0 0 0 3px rgba(255,255,255,.08),0 10px 26px rgba(0,0,0,.5)}
 
 /* ═══════════ findings stack (right) ═══════════ */
 #app-exam .ex-colR{position:absolute;right:120px;top:28px;bottom:28px;width:392px;display:flex;flex-direction:column;gap:12px;pointer-events:none}
 #app-exam .ex-find{pointer-events:auto;display:flex;flex-direction:column;max-height:100%;min-height:0;flex:0 1 auto;overflow:hidden}
 
-/* ═══════════ care steps (top right): the whole patient, in order ═══════════ */
-#app-exam .ex-care{pointer-events:auto;flex:none;padding:13px 14px 12px 16px;display:flex;flex-direction:column;gap:9px;max-height:46%;overflow:hidden}
-#app-exam .ex-care .ch{display:flex;align-items:center;justify-content:space-between;gap:10px}
-#app-exam .ex-care .ch .cnt{font:600 10.5px var(--mono);color:var(--ink-3)}
-#app-exam .ex-care .cl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;position:relative;overflow-y:auto;min-height:0}
-#app-exam .ex-care .cl::before{content:'';position:absolute;left:12px;top:12px;bottom:12px;width:2px;border-radius:2px;background:rgba(255,255,255,.07)}
-#app-exam .ex-care .cr{position:relative;display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:10px;padding:5px 4px 5px 0;border-radius:8px}
-#app-exam .ex-care .cr .nd{position:relative;z-index:1;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
-  font:700 10.5px/1 var(--mono);color:var(--ink-2);background:#0e1113;border:2px solid rgba(255,255,255,.14)}
-#app-exam .ex-care .cr .nd .nz-ic{width:13px;height:13px}
-#app-exam .ex-care .cr .tx{min-width:0;display:flex;flex-direction:column;gap:1px}
-#app-exam .ex-care .cr .tx b{font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.25}
-#app-exam .ex-care .cr .tx small{font-size:10.5px;font-weight:300;color:var(--ink-2);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app-exam .ex-care .cr .go{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:7px;cursor:pointer;
-  font:600 11px var(--font);color:var(--ink);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);transition:background 120ms,border-color 120ms}
-#app-exam .ex-care .cr .go:hover{background:var(--teal-wash);border-color:var(--teal-edge);color:var(--teal-hi)}
-#app-exam .ex-care .cr .go kbd{height:16px;min-width:16px;padding:0 4px;font-size:9px}
-#app-exam .ex-care .cr.next{background:linear-gradient(90deg,rgba(8,175,162,.12),rgba(8,175,162,0) 80%)}
-#app-exam .ex-care .cr.next .nd{color:var(--on-teal);background:linear-gradient(var(--teal-hi),var(--teal));border-color:transparent;box-shadow:0 0 0 4px var(--teal-wash);animation:ex-cnext 1.8s ease-in-out infinite}
-#app-exam .ex-care .cr.next .tx b{color:var(--white);font-size:13px}
-#app-exam .ex-care .cr.next .go{color:var(--on-teal);background:linear-gradient(var(--teal-hi),var(--teal));border-color:transparent}
-#app-exam .ex-care .cr.next .go kbd{background:rgba(0,0,0,.18);border-color:rgba(0,0,0,.25);color:var(--on-teal)}
-#app-exam .ex-care .cr.urgent .nd{border-color:var(--red-edge);color:#ff9a9d}
-#app-exam .ex-care .cr.urgent.next{background:linear-gradient(90deg,rgba(229,72,77,.14),rgba(229,72,77,0) 80%)}
-#app-exam .ex-care .cr.urgent.next .nd{background:linear-gradient(#ff6b70,var(--red));color:#fff;box-shadow:0 0 0 4px var(--red-wash);animation-name:ex-cnext-r}
-#app-exam .ex-care .cr.urgent.next .go{background:linear-gradient(#ff6b70,var(--red));color:#fff}
-#app-exam .ex-care .cr.urgent.next .go kbd{color:#fff}
-#app-exam .ex-care .cr.hosp .tx b{color:var(--ink-2)}
-#app-exam .ex-care .cr .why-not{display:inline-flex;align-items:center;gap:5px;max-width:120px;font-size:9.5px;font-weight:600;color:var(--ink-3);text-align:right;line-height:1.2}
-#app-exam .ex-care .cr.hosp .why-not{color:#9fc4ff}
-#app-exam .ex-care .cr .why-not.hp{text-transform:uppercase;letter-spacing:.1em;font-size:9px;padding:3px 7px;border-radius:5px;border:1px solid rgba(88,166,255,.3);background:rgba(88,166,255,.08)}
-#app-exam .ex-care .cr .why-not .nz-ic{width:12px;height:12px;flex:none}
-#app-exam .ex-care .cdone{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal-hi);font-size:12px}
-#app-exam .ex-care .cdone .nz-ic{width:15px;height:15px;flex:none}
-@keyframes ex-cnext{50%{box-shadow:0 0 0 7px rgba(8,175,162,.08)}}
+/* ═══════════ what to do (left card: whole body; findings card: this body part) ═══════════ */
+#app-exam .ex-todo{flex:0 1 auto;min-height:0;padding:13px 14px 12px 16px;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+#app-exam .ex-todo .ch{display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none}
+#app-exam .ex-todo .ch .cnt{font:600 9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+#app-exam .cl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;position:relative;min-height:0}
+#app-exam .ex-todo .cl{overflow-y:auto;flex:0 1 auto;padding-right:2px}
+#app-exam .cr{position:relative;display:grid;grid-template-columns:26px 1fr auto;align-items:start;gap:10px;padding:6px 4px 6px 4px;border-radius:9px;
+  background:rgba(255,255,255,.022);border:1px solid rgba(255,255,255,.045)}
+#app-exam .cr .nd{position:relative;z-index:1;width:26px;height:26px;margin-top:1px;border-radius:50%;display:grid;place-items:center;
+  color:var(--teal-hi);background:#0e1113;border:2px solid var(--teal-edge)}
+#app-exam .cr .nd .nz-ic{width:13px;height:13px}
+#app-exam .cr .tx{min-width:0;display:flex;flex-direction:column;gap:2px;padding-top:2px}
+#app-exam .cr .tx b{font-size:12.5px;font-weight:600;color:var(--white);line-height:1.25}
+#app-exam .cr .tx small{font-size:10.5px;font-weight:300;color:var(--ink-2);line-height:1.35}
+#app-exam .cr .ac{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:10.5px;font-weight:600;color:var(--teal-hi)}
+#app-exam .cr .ac > .nz-ic{width:11px;height:11px}
+#app-exam .cr .ac .al{margin-right:3px}
+#app-exam .cr .wn{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:10.5px;font-weight:600;color:var(--ex-amber);line-height:1.3}
+#app-exam .cr .wn .nz-ic{width:11px;height:11px;flex:none}
+#app-exam .cr .wn.hp{color:#9fc4ff}
+#app-exam .cr .go{align-self:center;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 13px;border-radius:7px;cursor:pointer;
+  font:700 11px var(--font);color:var(--on-teal);background:linear-gradient(var(--teal-hi),var(--teal));border:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 14px rgba(8,175,162,.2);transition:filter 120ms}
+#app-exam .cr .go:hover{filter:brightness(1.1)}
+#app-exam .cr .tag{align-self:center;display:inline-flex;align-items:center;gap:5px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+#app-exam .cr .tag .nz-ic{width:12px;height:12px;flex:none}
+#app-exam .cr .tag.hp{color:#9fc4ff;padding:4px 7px;border-radius:5px;border:1px solid rgba(88,166,255,.3);background:rgba(88,166,255,.08)}
+#app-exam .cr.urgent{background:linear-gradient(90deg,rgba(229,72,77,.13),rgba(229,72,77,.02) 85%);border-color:rgba(229,72,77,.22)}
+#app-exam .cr.urgent .nd{color:#fff;background:linear-gradient(#ff6b70,var(--red));border-color:transparent;box-shadow:0 0 0 4px var(--red-wash);animation:ex-cnext-r 1.8s ease-in-out infinite}
+#app-exam .cr.urgent .go{background:linear-gradient(#ff6b70,var(--red));color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 6px 14px rgba(229,72,77,.25)}
+#app-exam .cr.off .nd{color:var(--ink-3);border-color:rgba(255,255,255,.12)}
+#app-exam .cr.hosp .nd{color:#9fc4ff;border-color:rgba(88,166,255,.35)}
+#app-exam .cr.off .tx b{color:var(--ink)}
 @keyframes ex-cnext-r{50%{box-shadow:0 0 0 7px rgba(229,72,77,.1)}}
+/* supplies a treatment takes (have / need) */
+#app-exam .ic{display:inline-flex;align-items:center;gap:4px;height:19px;padding:0 6px 0 5px;border-radius:5px;font-size:10px;font-weight:600;white-space:nowrap;
+  color:var(--ink);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+#app-exam .ic i{width:5px;height:5px;border-radius:50%;flex:none;background:var(--teal-hi)}
+#app-exam .ic b{font:700 10px var(--mono)}
+#app-exam .ic em{font:500 9px var(--mono);font-style:normal;color:var(--ink-3)}
+#app-exam .ic.short{color:#ff9a9d;background:rgba(229,72,77,.1);border-color:rgba(229,72,77,.4)}
+#app-exam .ic.short i{background:var(--red);box-shadow:0 0 6px rgba(229,72,77,.7)}
+#app-exam .ex-todo .cdone{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;background:var(--teal-wash);border:1px solid var(--teal-edge);color:var(--teal-hi);font-size:12px;line-height:1.35}
+#app-exam .ex-todo .cdone.part{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.08);color:var(--ink-2)}
+#app-exam .ex-todo .cdone .nz-ic{width:15px;height:15px;flex:none}
+/* more tools drawer */
+#app-exam .tl{flex:none;border-top:1px solid rgba(255,255,255,.06);padding-top:8px}
+#app-exam .tl-h{display:flex;align-items:center;gap:8px;width:100%;height:28px;padding:0 4px;border-radius:7px;cursor:pointer;color:var(--ink-2);font-size:11.5px;font-weight:600;text-align:left}
+#app-exam .tl-h > .nz-ic{width:14px;height:14px;color:var(--teal-hi)}
+#app-exam .tl-h span{flex:1}
+#app-exam .tl-h em{font:600 10px var(--mono);font-style:normal;color:var(--ink-3);padding:1px 6px;border-radius:5px;border:1px solid rgba(255,255,255,.1)}
+#app-exam .tl-h:hover{color:var(--white);background:rgba(255,255,255,.03)}
+#app-exam .tl-h .nz-ic:last-child{width:13px;height:13px;transition:transform var(--fast)}
+#app-exam .tl.open .tl-h .nz-ic:last-child{transform:rotate(180deg)}
+#app-exam .tl-b{display:none;flex-wrap:wrap;gap:5px;padding:6px 2px 2px;max-height:170px;overflow-y:auto}
+#app-exam .tl.open .tl-b{display:flex}
+#app-exam .tl-i{display:inline-flex;align-items:center;gap:6px;height:27px;padding:0 10px 0 8px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;color:var(--ink);
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.09);transition:background 120ms,border-color 120ms,color 120ms}
+#app-exam .tl-i .nz-ic{width:13px;height:13px;color:var(--teal)}
+#app-exam .tl-i:hover{background:var(--teal-wash);border-color:var(--teal-edge);color:var(--white)}
+/* this body part */
+#app-exam .fd-todo{display:flex;flex-direction:column;gap:7px}
+#app-exam .fd-todo .ck,#app-exam .ij-care .ck{display:flex;align-items:center;gap:10px;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+#app-exam .fd-todo .ck::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,0))}
 #app-exam .ex-find.swap .fd-stack,#app-exam .ex-find.swap .fd-head{animation:ex-swap 240ms cubic-bezier(.2,.7,.2,1) both}
 @keyframes ex-swap{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 #app-exam .fd-head{display:grid;grid-template-columns:52px 1fr auto;align-items:center;gap:13px;padding:16px 16px 13px 18px;border-bottom:1px solid rgba(255,255,255,.06);
@@ -222,8 +266,16 @@
 #app-exam .ij-care{margin-top:12px}
 #app-exam .ij-care.none{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3)}
 #app-exam .ij-care.none .nz-ic{width:14px;height:14px}
-#app-exam .ij-care .ck{display:flex;align-items:center;gap:10px;font-size:8.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
 #app-exam .ij-care .ck::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.1),rgba(255,255,255,0))}
+#app-exam .ij-step{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:9px;padding-left:14px;font-size:12.5px;line-height:1.3}
+#app-exam .ij-step > i{position:absolute;left:0;top:4px;width:7px;height:7px;transform:rotate(45deg);border-radius:1px;background:var(--teal-hi)}
+#app-exam .ij-step b{font-weight:700;color:var(--white)}
+#app-exam .ij-step.urgent > i{background:var(--red);box-shadow:0 0 8px rgba(229,72,77,.7)}
+#app-exam .ij-step.urgent b{color:#ff9a9d}
+#app-exam .ij-step.hosp > i{background:#9fc4ff}
+#app-exam .ij-step .wn{flex-basis:100%;display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--ex-amber)}
+#app-exam .ij-step .wn.hp{color:#9fc4ff}
+#app-exam .ij-step .wn .nz-ic{width:11px;height:11px;flex:none}
 #app-exam .why{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;color:var(--ex-amber)}
 #app-exam .why .nz-ic{width:13px;height:13px;flex:none}
 #app-exam .ij-go{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:10px;row-gap:6px;width:100%;min-height:44px;margin-top:10px;padding:6px 8px 6px 6px;border-radius:11px;overflow:hidden;
@@ -261,6 +313,8 @@
 #app-exam .ij-alt:disabled{opacity:.5;cursor:not-allowed}
 #app-exam .fd-empty{display:flex;align-items:center;gap:13px;padding:16px 14px;border-radius:12px;background:rgba(255,255,255,.025);border:1px dashed rgba(255,255,255,.08)}
 #app-exam .fd-empty b{display:block;font-size:13px;color:var(--white)}
+#app-exam .fd-empty.ok{border-color:var(--teal-edge);background:var(--teal-wash)}
+#app-exam .fd-empty.ok b{color:var(--teal-hi)}
 #app-exam .fd-empty span{display:block;margin-top:3px;font-size:11.5px;color:var(--ink-3);line-height:1.4}
 
 /* ═══════════ check dock (right edge) ═══════════ */
@@ -305,7 +359,8 @@
 #app-exam .ex-keys em{font-style:normal;margin-left:4px}
 
 /* ═══════════ entrance ═══════════ */
-#app-exam.ex-in .ex-pt{animation:ex-inl 320ms cubic-bezier(.2,.7,.2,1) both}
+#app-exam.ex-in .ex-pt,#app-exam.ex-in .ex-todo{animation:ex-inl 320ms cubic-bezier(.2,.7,.2,1) both}
+#app-exam.ex-in .ex-links{animation:nza-in 400ms 160ms both}
 #app-exam.ex-in .ex-map{animation:ex-inl 360ms 70ms cubic-bezier(.2,.7,.2,1) both}
 #app-exam.ex-in .ex-colR{animation:ex-inr 340ms 60ms cubic-bezier(.2,.7,.2,1) both}
 #app-exam.ex-in .ex-dock{animation:ex-ind 340ms 120ms cubic-bezier(.2,.7,.2,1) both}

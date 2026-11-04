@@ -66,8 +66,11 @@ recorded voices, billing and insurance. One resource, every framework.
 - Screen effects that match your state: limp, shaking, blur, tunnel vision, cold, breathlessness.
 
 ### Field care
-- **Head-to-toe check** with a holographic body map and a findings stack. Hidden problems show
-  up as you find them.
+- **Head-to-toe check**: the third eye on a patient offers this check (plus moving the patient),
+  and every treatment starts from inside it. All eight body regions are labelled on the patient,
+  each with its findings and what to do there (Start buttons, the items you need), and a
+  "What to do" list covers the whole body (CPR, fluids, warmth, hospital). Hidden problems show up
+  as you find them. `Config.Care.thirdEye` brings back the older third-eye styles.
 - **Pulse check**, **breathing check** with a stethoscope and synthesised breath sounds.
 - **Bleed control** (pressure, packing, dressing), **tourniquet** (time written on the strap),
   **cervical collar**, **oxygen mask**, **foil blanket**, medication with doses.
@@ -361,6 +364,7 @@ turned off in `config/config.lua` and the module configs.
 | `/callsign <name>` | Set your unit callsign |
 | `/nzainteract` | Patient menu without a target script (key `nza_interact`, unbound) |
 | `/crutches` | Use or put away crutches (key unbound) |
+| `/crutchfit` | While on crutches: line the crutch up in your hand and print the config line to F8 |
 | `/nzamonitor` | Take the mouse on the patient monitor |
 | **Backspace** · **F1–F4** | Treatment bay: leave · check · supplies · IV stand · monitor |
 | **X** | Stand up from the blood donation chair while waiting |
@@ -483,9 +487,11 @@ folder. Clear your client cache after an update. The
 fallback models in `Config.PropFallbacks` are used when a custom model cannot load.
 
 **No NPC calls come in.**
-NPC calls need at least `Config.Calls.generation.minMedics` medics on duty who take NPC calls
-(F6 → Dispatch → NPC calls), and the first call comes 45–120 s after that
-(`Config.Calls.generation.firstDelay`). Admins can test with `/nzacall`.
+NPC calls start off for every medic after a restart, a rejoin or a new duty shift: switch them on
+in F6 → Dispatch → NPC calls. They only reach medics who carry the pager item
+(`Config.Items.pager`, `ems_pager` by default): when a call comes in, the pager pops up and beeps.
+At least `Config.Calls.generation.minMedics` such medics must be on duty, and the first call comes
+45–120 s after that (`Config.Calls.generation.firstDelay`). Admins can test with `/nzacall`.
 
 **Players respawn at the wrong place.**
 Place a **Recovery Point** in each hospital (`/nzadmin` → Sites → Wards). Until then the

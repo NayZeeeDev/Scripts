@@ -2,17 +2,24 @@
     NAYZEEE AMBULANCE - Examine Patient (client)                       NUI app 'exam'
 
     The medic kneels, the camera goes above the patient (Config.Assess.Exam.camera) and the
-    8 body groups (NZA.Const.Groups) get labels anchored to bones. A live medic snapshot
-    (NZA.Patient.Watch) is turned into what a medic can actually see:
+    8 body groups (NZA.Const.Groups) ALL get a label on the body, whatever the pose (a group with
+    nothing wrong reads Healthy). A live medic snapshot (NZA.Patient.Watch) is turned into what a
+    medic can actually see:
       * per group: status Healthy / Minor / Serious / Critical / Treated
       * per injury: type, severity and plain findings (bleeding word, retained projectile
         suspected, contamination, deformity / open fracture, burn depth & area, X-ray results,
         treatments already done)
       * hidden problems (internal bleeding, haemothorax, pneumothorax, tamponade, airway) only
         appear once a check found them (patient.meta.findings, server NZA.Findings)
-      * the next treatment(s) from NZA.ExamRoutes with the items you carry (have / need)
-      * a General card: consciousness, skin, lips, last pulse / breathing result, devices
-    Patient speech subtitles on open and when you touch a painful region (Config.Assess.Speech).
+      * WHAT TO DO, where the medic looks for it - this is how treatments start (the third eye only
+        has the check, Config.Care.thirdEye):
+          - on an injury: the care step(s) the server plan lists for it (NZA.Care, snap.care) and the
+            treatments from NZA.ExamRoutes with the items you carry (have / need) and a Start button
+          - on a group: steps for that body part that belong to no single wound (collar, pelvic binder)
+          - on the patient card: whole-body needs (CPR, airway, oxygen, fluids, warmth, pain relief,
+            help up, take to hospital, scans and drains at the hospital ...)
+          - 'More tools': every other option for this patient (remove a device, monitor, crutches ...)
+      * a General card: consciousness, skin, lips, visible bleeding, last pulse / breathing, devices
 
     NZA.ExamRoutes (any client module appends at file top level)
         { id, label, icon, perm, order,
@@ -25,9 +32,11 @@
           run = function(target, inj, snap) end }
         Suspected conditions are passed as inj = { id = 'c:<finding key>', type = <condition>,
         condition = true, region = 'chest'|'neck', side = 'left'|'right'|nil, severity, finding }.
-        The route with id 'stopbleed' is used by the "Stop bleeding" button.
+        The route with id 'stopbleed' is used by the "Bleed control" button.
 
-    NUI callbacks: exam:touch { group }, exam:treat { id, route }, exam:action { action, group }, exam:close
+    NUI callbacks: exam:touch { group }, exam:treat { id, route }, exam:step { index } (a care step
+                   from the plan), exam:tool { name } (an interaction option), exam:action
+                   { action, group }, exam:close
     Callbacks used: nza:assess:exam (target)
 ]]
 
@@ -129,7 +138,10 @@ local function injuryFindings(inj, snap, fs)
     local controlled = treat.tourniquet or treat.packed or treat.bandaged or treat.sutured
     local word, tone = bleedInfo(inj.bleed, controlled)
     local settled = (inj.status == 'treated' or inj.status == 'healing') and (tonumber(inj.bleed) or 0) < 1
-    if t ~= 'contusion' and t ~= 'internal' and not settled then add(word, tone) end
+    -- no bleeding word where nothing runs out: a closed fracture bleeds into the tissue (swelling),
+    -- a burn weeps (server rule: NZA.Patients.VisibleBleed)
+    local inside = t == 'burn' or (t == 'fracture' and not (type(inj.fracture) == 'table' and inj.fracture.kind == 'open'))
+    if t ~= 'contusion' and t ~= 'internal' and not inside and not settled then add(word, tone) end
 
     if t == 'gunshot' then
         if treat.extracted then add(L('f_extracted'), 'teal')
@@ -283,12 +295,112 @@ local function painFactor(snap)
     return f
 end
 
-local function buildView(snap)
+-- bleeding you can see: internal bleeding and a closed fracture bleed inside (the plan's rule)
+local function externalBleed(inj)
+    -- same rule as the server's NZA.Patients.VisibleBleed: a burn weeps, a bruise bleeds under the skin
+    if inj.type == 'internal' or inj.type == 'burn' or inj.type == 'contusion' then return false end
+    if inj.type == 'fracture' and not (type(inj.fracture) == 'table' and inj.fracture.kind == 'open') then return false end
+    return true
+end
+
+local function visibleBleed(snap)
+    local total = 0
+    for _, inj in ipairs(snap.injuries or {}) do
+        if externalBleed(inj) then total = total + math.max(0, tonumber(inj.bleed) or 0) end
+    end
+    return total
+end
+
+-- the wound "Bleed control" would treat: the worst one the 'stopbleed' route can actually do
+-- (in the selected group first). nil = nothing to control, so the button stays dark.
+local function stopTarget(snap, group)
+    local route = A.FindRoute('stopbleed')
+    if not route then return nil end
+    local best, bestBleed = nil, 0
+    for pass = group and 1 or 2, 2 do
+        for _, inj in ipairs(snap.injuries or {}) do
+            local R = NZA.Const.Region[inj.region]
+            local b = tonumber(inj.bleed) or 0
+            if externalBleed(inj) and b > bestBleed and (pass == 2 or (R and R.group == group)) then
+                local ok, avail = true, true
+                if type(route.available) == 'function' then ok, avail = pcall(route.available, inj, snap) end
+                if ok and avail then best, bestBleed = inj, b end
+            end
+        end
+        if best then break end
+    end
+    return best, route
+end
+
+-- The server plan (snap.care, NZA.Care) placed where the medic looks for it: a step with a wound
+-- goes on that wound's card, a step with a body part on that group's card, the rest on the
+-- patient card. Each row says what would run (route / option, supplies) or why not here.
+local function placePlan(s, snap, groups, ivById, counts)
+    local general = {}
+    local Care = NZA.Care
+    if not (Care and Care.Describe and Care.Action) or type(snap.care) ~= 'table' or not s then return general end
+    for idx, step in ipairs(snap.care) do
+        if type(step) == 'table' and step.c then
+            local d = Care.Describe(step)
+            local a = Care.Action(s.entity, s.target, step, snap, counts) or {}
+            local row = {
+                idx = idx, code = d.code, inj = step.i, title = d.title, why = d.why, where = d.where, urgent = d.urgent,
+                icon = d.icon or a.icon, can = a.can == true, kind = a.kind, id = a.id, label = a.label,
+                items = a.items or {}, reason = (not a.can) and a.reason or nil,
+            }
+            -- the Hospital tag already says it
+            if row.where == 'hospital' and row.reason == NZA.L('care.at_hospital') then row.reason = nil end
+            local iv = step.i and ivById[step.i]
+            local R = step.r and NZA.Const.Region[step.r]
+            local g = R and groups[R.group]
+            if iv then
+                iv.steps[#iv.steps + 1] = row
+                iv.planned = true
+                -- the treatment the step picked goes first on the card
+                if row.kind == 'route' and row.id then
+                    for k, r in ipairs(iv.routes) do
+                        if r.id == row.id then
+                            if k > 1 then table.remove(iv.routes, k) table.insert(iv.routes, 1, r) end
+                            row.onCard = true
+                            break
+                        end
+                    end
+                end
+            elseif g then
+                g.todo[#g.todo + 1] = row
+            else
+                general[#general + 1] = row
+            end
+        end
+    end
+    return general
+end
+
+-- Every other option for this patient ('More tools'): what used to be on the third eye and is
+-- not a care step right now - removing a device, the monitor, blood typing, crutches ... Moving
+-- the patient stays on the third eye; pulse and breathing are on the check's dock.
+local TOOL_SKIP = { nza_examine = true, nza_pulse = true, nza_breathing = true }
+local function toolsFor(s)
+    local out = {}
+    if not s or not s.entity or s.entity == 0 or not DoesEntityExist(s.entity) then return out end
+    if not (NZA.Interact and NZA.Interact.Options) then return out end
+    local Care = NZA.Care
+    for _, opt in ipairs(NZA.Interact.Options(s.entity, true)) do
+        local n = opt.name
+        if not TOOL_SKIP[n] and not opt.guided and not (Care and Care.Handling and Care.Handling(n)) then
+            out[#out + 1] = { name = n, label = opt.label, icon = opt.icon }
+        end
+    end
+    return out
+end
+
+local function buildView(s, snap)
     local fs = findingsFor(snap)
     local counts = {}
     local groups = {}
+    local ivById = {}
     for _, g in ipairs(NZA.Const.Groups) do
-        groups[g.name] = { status = 'healthy', worst = 0, injuries = {}, notes = {}, pain = 0, treated = 0 }
+        groups[g.name] = { status = 'healthy', worst = 0, injuries = {}, notes = {}, pain = 0, treated = 0, todo = {} }
     end
     local toTreat = 0
     local pf = painFactor(snap)
@@ -319,8 +431,10 @@ local function buildView(snap)
                 findings = injuryFindings(inj, snap, fs),
                 done = doneList(inj),
                 routes = active and routesFor(inj, snap, counts) or {},
+                steps = {},
                 heal = inj.heal and math.floor(inj.heal) or 0,
             }
+            ivById[inj.id] = iv
             push(R.group, iv, inj.severity or 1, active, inj.pain)
         end
     end
@@ -339,7 +453,9 @@ local function buildView(snap)
             status = 'open', statusLabel = L('suspected'),
             findings = findings, done = {},
             routes = routesFor(ci, snap, counts),
+            steps = {},
         }
+        ivById[ci.id] = iv
         push(ci.group, iv, ci.severity, true, 50)
     end
 
@@ -375,16 +491,21 @@ local function buildView(snap)
         end
     end
 
+    local todo = placePlan(s, snap, groups, ivById, counts)
+
     local out = {}
     for name, g in pairs(groups) do
         local status = sevStatus(g.worst)
         if g.worst == 0 and g.treated > 0 then status = 'treated' end
+        -- something still to do here but nothing serious: at least 'minor', never 'healthy'
+        if status == 'healthy' and #g.todo > 0 then status = 'minor' end
+        local function busy(iv) return #iv.steps > 0 or #iv.routes > 0 end
         table.sort(g.injuries, function(a, b)
-            if (#a.routes > 0) ~= (#b.routes > 0) then return #a.routes > 0 end
+            if busy(a) ~= busy(b) then return busy(a) end
             if a.severity ~= b.severity then return a.severity > b.severity end
             return tostring(a.id) < tostring(b.id)
         end)
-        out[name] = { status = status, statusLabel = L('gs_' .. status), injuries = g.injuries, notes = g.notes, pain = g.pain }
+        out[name] = { status = status, statusLabel = L('gs_' .. status), injuries = g.injuries, notes = g.notes, pain = g.pain, todo = g.todo }
     end
 
     -- general observations
@@ -426,7 +547,7 @@ local function buildView(snap)
     if d.intubated then devices[#devices + 1] = L('dev_intubated') end
     if d.foil then devices[#devices + 1] = L('dev_foil') end
 
-    local bleedWord = totalBleedWord(snap.bleedTotal)
+    local bleedWord = totalBleedWord(visibleBleed(snap))
     return {
         name = snap.name, sex = snap.sex, age = snap.age, state = snap.state, stateLabel = L('state_' .. tostring(snap.state)),
         triage = snap.triage, avpu = avpu,
@@ -437,7 +558,9 @@ local function buildView(snap)
         groups = out,
         general = general,
         devices = devices,
-        canStop = A.FindRoute('stopbleed') ~= nil and (tonumber(snap.bleedTotal) or 0) >= 1,
+        todo = todo,
+        tools = toolsFor(s),
+        canStop = stopTarget(snap) ~= nil,
     }
 end
 
@@ -450,40 +573,6 @@ function A.FindRoute(id)
         if type(r) == 'table' and r.id == id then return r end
     end
     return nil
-end
-
-local function say(level, force)
-    local s = exam
-    if not s or not s.snap then return end
-    local sc = A.Cfg('Speech')
-    if sc.enabled == false then return end
-    local snap = s.snap
-    if snap.kind == 'player' and not sc.players then return end
-    if snap.state == 'arrest' or snap.state == 'dead' then return end
-    local avpu = (snap.vitals and snap.vitals.avpu) or 'A'
-    if avpu == 'U' then return end
-    local now = GetGameTimer()
-    if not force and now - (s.spoke or 0) < (sc.cooldown or 4) * 1000 then return end
-    local lines = (sc.lines or {})[snap.sex == 'f' and 'f' or 'm'] or (sc.lines or {}).m
-    if type(lines) ~= 'table' then return end
-    local lv = sc.levels or {}
-    local group
-    if avpu == 'P' then
-        group = 'groan'
-    elseif level >= (lv.severe or 70) then
-        group = 'severe'
-    elseif level >= (lv.moderate or 45) then
-        group = 'moderate'
-    elseif level >= (lv.mild or 20) then
-        group = 'mild'
-    else
-        group = 'none'
-    end
-    if avpu == 'V' and math.random() < 0.5 then group = 'groan' end
-    local list = lines[group]
-    if type(list) ~= 'table' or #list == 0 then return end
-    s.spoke = now
-    NZA.UI.Speech(snap.name, list[math.random(#list)], sc.duration or 3800)
 end
 
 local function cleanup(reason, fromJs)
@@ -508,27 +597,8 @@ local function anchors(ped)
     return defs
 end
 
--- Care steps (core/care.lua): what the whole patient still needs, in order, each with a Start
-local function careFor(s, snap)
-    local Care = NZA.Care
-    if not Care or type(snap.care) ~= 'table' then return nil end
-    local out = {}
-    for i, step in ipairs(snap.care) do
-        local d = Care.Describe(step)
-        local act, why = Care.Resolve(s.entity, s.target, step, snap)
-        d.index = i
-        d.can = act ~= nil
-        d.reason = (not act) and why or nil
-        out[#out + 1] = d
-        if #out >= 8 then break end
-    end
-    return out
-end
-
 local function viewFor(s, snap)
-    local v = buildView(snap)
-    v.care = careFor(s, snap)
-    return v
+    return buildView(s, snap)
 end
 
 local function openUi(s, snap)
@@ -571,9 +641,6 @@ local function begin(entity, target, quiet)
     A.Cam(ec.camera or 'topdown', entity, { height = ec.height or 2.6 })
     A.Track(APP, anchors(entity))
     openUi(s, snap)
-    if A.Cfg('Speech').onOpen ~= false and not quiet then
-        SetTimeout(700, function() if exam == s then say(tonumber(snap.pain) or 0, true) end end)
-    end
 
     s.stop = NZA.Patient.Watch(target, function(fresh, reason)
         if exam ~= s then return end
@@ -635,6 +702,9 @@ local function reopenLater(entity, target)
         end
         Wait(300)
         if exam or A.Busy() or NZA.UI.Top() ~= nil then return end
+        -- carrying someone or pushing a stretcher meanwhile: no kneeling check on top of that
+        local moving = NZA.Transport and NZA.Transport.Busy and NZA.Transport.Busy()
+        if moving == 'carry' or moving == 'push' then return end
         local ok = ec.reopenAfterTreat ~= false and DoesEntityExist(entity)
             and not (NZA.Self and NZA.Self.IsDown and NZA.Self.IsDown())
             and #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(entity)) <= 3.0
@@ -669,6 +739,42 @@ local function runRoute(route, inj)
     end)
 end
 
+-- Start buttons that move or hand over the patient (the 'hospital', 'standup', 'release' and
+-- 'bodybag' steps): the medic stands up and the check does not come back on top of the carry,
+-- the stretcher or the walk
+local MOVES = {
+    nza_tr_carry = true, nza_tr_onstretcher = true, nza_tr_tobed = true, nza_askwalk = true,
+    nza_tr_helpup = true, nza_calls_release = true, nza_bodybag = true,
+}
+
+-- a module's own interaction option (the check closes, the option runs like a third-eye click)
+local function runOption(opt)
+    local s = exam
+    if not s then return end
+    local entity, target = s.entity, s.target
+    local moves = MOVES[opt.name] == true
+    s.keepPose = not moves
+    cleanup('treat')
+    CreateThread(function()
+        NZA.Interact.Run(opt, entity)
+        if not moves then reopenLater(entity, target) end
+    end)
+end
+
+-- the plan step behind a Start button: by index, checked against code / wound (the plan may have
+-- moved on since the view was sent)
+local function stepFrom(s, data)
+    local plan = type(s.snap.care) == 'table' and s.snap.care or {}
+    local idx, code, inj = tonumber(data.index), data.code, data.inj
+    local function same(st) return type(st) == 'table' and (code == nil or st.c == code) and (inj == nil or st.i == inj) end
+    if idx and same(plan[idx]) then return plan[idx] end
+    if code == nil then return nil end
+    for _, st in ipairs(plan) do
+        if same(st) then return st end
+    end
+    return nil
+end
+
 -- ════════════════════════════════════════════════════════════════════════
 -- NUI
 -- ════════════════════════════════════════════════════════════════════════
@@ -679,14 +785,11 @@ NZA.UI.On(APP, 'touch', function(data, cb)
     if not s or type(data) ~= 'table' then return end
     local g = data.group
     if not GROUP_BONE[g] then return end
-    local view = buildView(s.snap)
-    local pain = view.groups[g] and view.groups[g].pain or 0
     local idle = A.Cfg('Exam').idle
     if idle and idle.dict then
         A.Anim(PlayerPedId(), idle, 1)
         s.idleUntil = GetGameTimer() + 2500
     end
-    if A.Cfg('Speech').onTouch ~= false and pain >= ((A.Cfg('Speech').levels or {}).mild or 20) then say(pain) end
 end)
 
 NZA.UI.On(APP, 'treat', function(data, cb)
@@ -732,21 +835,9 @@ NZA.UI.On(APP, 'action', function(data, cb)
             reopenLater(entity, target)
         end)
     elseif data.action == 'stopbleed' then
-        local route = A.FindRoute('stopbleed')
-        if not route then return end
-        -- worst bleeding injury, in the selected group first
-        local best, bestBleed = nil, 0
-        for pass = 1, 2 do
-            for _, inj in ipairs(s.snap.injuries or {}) do
-                local R = NZA.Const.Region[inj.region]
-                local inGroup = pass == 2 or (R and R.group == data.group)
-                if inGroup and inj.type ~= 'internal' and (tonumber(inj.bleed) or 0) > bestBleed then
-                    best, bestBleed = inj, tonumber(inj.bleed) or 0
-                end
-            end
-            if best then break end
-        end
-        if not best or bestBleed < 0.5 then
+        -- the worst wound the bleed-control route can really treat, in the selected group first
+        local best, route = stopTarget(s.snap, GROUP_BONE[data.group] and data.group or nil)
+        if not best then
             A.Toast('assess.no_bleeding', 'info')
             return
         end
@@ -754,26 +845,36 @@ NZA.UI.On(APP, 'action', function(data, cb)
     end
 end)
 
--- a Care steps 'Start' button: an exam route for that wound, else the module's own option
+-- a 'what to do' Start button: the care step's exam route for that wound, else the module's option
 NZA.UI.On(APP, 'step', function(data, cb)
     cb({ ok = true })
     local s = exam
     if not s or type(data) ~= 'table' or not NZA.Care then return end
-    local step = type(s.snap.care) == 'table' and s.snap.care[tonumber(data.index) or 0]
-    if not step then return end
+    local step = stepFrom(s, data)
+    if not step then
+        A.Toast('care.done_already', 'info')
+        return
+    end
     local act, why = NZA.Care.Resolve(s.entity, s.target, step, s.snap)
     if not act then
-        NZA.UI.Toast({ title = NZA.L('care.title'), message = why or NZA.L('care.no_action'), type = 'error' })
+        NZA.UI.Toast({ title = L('title'), message = why or NZA.L('care.no_action'), type = 'error' })
         return
     end
     if act.kind == 'route' then return runRoute(act.route, act.inj) end
-    local entity, target = s.entity, s.target
-    s.keepPose = true
-    cleanup('treat')
-    CreateThread(function()
-        NZA.Interact.Run(act.opt, entity)
-        reopenLater(entity, target)
-    end)
+    runOption(act.opt)
+end)
+
+-- 'More tools': any interaction option this patient has (also the ones the short third eye hides)
+NZA.UI.On(APP, 'tool', function(data, cb)
+    cb({ ok = true })
+    local s = exam
+    if not s or type(data) ~= 'table' or type(data.name) ~= 'string' then return end
+    local opt = NZA.Interact.Get(data.name)
+    if not opt or TOOL_SKIP[data.name] or not NZA.Interact.Allowed(opt, s.entity, true) then
+        NZA.UI.Toast({ title = L('title'), message = L('route_unavailable'), type = 'error' })
+        return
+    end
+    runOption(opt)
 end)
 
 NZA.UI.On(APP, 'close', function(_, cb)

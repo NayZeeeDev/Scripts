@@ -156,7 +156,9 @@ do
             if not f.displaced or (tonumber(f.angle) or 0) <= (tonumber(c.tolerance) or 3) then return false, fail('not_displaced') end
             local easy = type(info) == 'table' and info.easy == true
             if not easy then
-                if c.requireXray ~= false and not (treat.xray or treat.xrayMarked) then return false, fail('need_xray') end
+                -- NPC patients need no film (Config.Care.xrayNpc, core/care.lua)
+                local noFilm = NZA.Care and NZA.Care.XrayFree and NZA.Care.XrayFree(p)
+                if c.requireXray ~= false and not noFilm and not (treat.xray or treat.xrayMarked) then return false, fail('need_xray') end
                 if c.requireHospital ~= false and not atHospital(p) then return false, fail('hospital') end
             end
             local seed = hashSeed(p.pid .. ':' .. tostring(inj.id))

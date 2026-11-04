@@ -107,6 +107,10 @@ Config.WoundedUI = {
     -- ═══════════════════════════════════════════════════════════════════════
 
     ragdollMs = 1800,              -- you fall over for this long before settling into a pose
+                                   -- (a fall that ends face down is turned onto the back)
+    lockRagdoll = true,            -- true = once you lie in your pose, shots / cars / explosions cannot knock
+                                   -- the body over again (it stays on its back). false = GTA may throw the
+                                   -- body around; it is laid back on its back once it stops
 
     -- Every lying pose is face up, so medics can see the patient.
     poses = {

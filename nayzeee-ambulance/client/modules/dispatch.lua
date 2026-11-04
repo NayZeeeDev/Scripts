@@ -587,11 +587,18 @@ D.IsOnDuty = onDuty
 
 local function applySync(payload)
     if type(payload) ~= 'table' then return end
-    clearAllBlips()
+    local me = type(payload.me) == 'table' and payload.me or S.me
+    -- a re-sync while still on the same call (NPC calls switched, pager picked up / put away)
+    -- keeps the GPS route to the hospital; anything else starts clean
+    if S.hospBlip and me.call ~= nil and me.call == S.me.call then
+        for id in pairs(S.blips) do removeBlip(id) end
+    else
+        clearAllBlips()
+    end
     S.calls = {}
     S.queue = {}
     S.card = nil
-    S.me = type(payload.me) == 'table' and payload.me or S.me
+    S.me = me
     S.units = type(payload.units) == 'table' and payload.units or {}
     S.recent = type(payload.recent) == 'table' and payload.recent or S.recent
     for _, c in ipairs(payload.calls or {}) do
@@ -622,13 +629,17 @@ RegisterNetEvent('nza:dispatch:call', function(c, flags)
     store(c)
     syncBlip(c, true)
     flags = type(flags) == 'table' and flags or {}
+    -- the server checked the pager item in its inventory (it decides who gets NPC calls): the pager
+    -- on screen follows that check, so it pops up even when the local inventory read lags behind
+    if flags.pager ~= nil then S.me.pager = flags.pager == true end
     if flags.realert then S.dismissed[c.id] = nil end
     if flags.alert and cardAllowed() and not S.dismissed[c.id] then
         if cardPopups() then
             enqueue(c.id, c.priority == 1)
         else
             playCaptions(c)
-            if not (D.HasPager and D.HasPager()) then
+            -- player 911 calls still reach a medic without a pager (as a notice); NPC calls never do
+            if not c.npc and not (D.HasPager and D.HasPager()) then
                 resolveStreet(c)
                 toast('info', 'dispatch.call_no_pager', c.title or '', c.street or c.zone or L('dispatch.unknown_location'))
             end

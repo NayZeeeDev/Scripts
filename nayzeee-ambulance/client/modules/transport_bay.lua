@@ -557,7 +557,8 @@ function Bay.Exit(kicked, at)
             FreezeEntityPosition(npc, false)
             local p = GetEntityCoords(me)
             SetEntityCoordsNoOffset(npc, p.x + 0.8, p.y, Tr.Ground(p, p.z), false, false, false)
-            SetPedToRagdoll(npc, 1500, 1500, 0, false, false, false)
+            Tr.StopAnim(npc, lyingAnim())
+            Tr.SettleNpc(npc)   -- on its back on the ground (no ragdoll that can land face down)
         end
     end
     NZA.Bus.Emit('bay:left', b.veh)
@@ -640,7 +641,10 @@ function Bay.ReturnFromBay(ped, cmd, isSelf)
         local gz = Tr.Ground(vector3(at.x, at.y, at.z), at.z)
         SetEntityCoordsNoOffset(ped, at.x, at.y, gz + 0.1, false, false, false)
         Tr.StopAnim(ped, lyingAnim())
-        if not isSelf then SetPedToRagdoll(ped, 1500, 1500, 0, false, false, false) end
+        if not isSelf then
+            -- an NPC that can stand gets up, a downed one lies straight on its back
+            if cmd.stand then Tr.NpcGetUp(ped) else Tr.SettleNpc(ped) end
+        end
     end
     if isSelf then
         local t = GetGameTimer() + 1500

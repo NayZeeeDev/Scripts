@@ -477,7 +477,7 @@ CreateThread(function()
         end
         for _, ped in ipairs(NZA.Scan.Peds()) do
             if #(GetEntityCoords(ped) - me) < 45.0 then
-                local v = Entity(ped).state.nzaStand
+                local v = NZA.Scan.State(ped, 'nzaStand')   -- cached read (NZA.Scan)
                 if type(v) == 'table' then found['n' .. NetworkGetNetworkIdFromEntity(ped)] = v end
             end
         end

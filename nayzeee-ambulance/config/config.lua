@@ -211,24 +211,38 @@ Config.Death = {
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- GUIDED CARE (what to do next)
--- Every patient gets a list of the steps they still need (stop the bleeding, CPR,
--- splint, fluids, help them up, take them to hospital ...). The head-to-toe check
--- shows the list with a Start button on each step, and the third eye stays short.
+-- Every patient gets a list of what they still need (stop the bleeding, CPR, splint,
+-- fluids, help them up, take them to hospital ...). The head-to-toe check shows it on the
+-- body: every body part says what is wrong there and what to do, with a Start button;
+-- whole-body needs (CPR, oxygen, fluids, hospital ...) are on the patient card.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 Config.Care = {
-    guided    = true,    -- short third eye: Check patient, the next step, moving the patient, More...
-                         -- false = every treatment option on the third eye (old style)
+    -- What a medic's third eye shows on a patient:
+    --   'check'  = only "Head-to-toe check" + moving the patient (carry, stretcher, bed, help up,
+    --              walk with me, vehicle, cut free, release, body bag, bill). Treatments start
+    --              from the check.
+    --   'guided' = the check, the next step by name ("Stop the bleeding"), moving, More... (v1.0 style)
+    --   'full'   = every treatment option straight on the third eye (old style)
+    -- ('check' and 'guided' need the check itself: with Config.Assess.Interact.examine = false,
+    --  or for players without its permission, every option stays on the third eye)
+    thirdEye  = 'check',
+    -- 'guided' only:
     needCheck = true,    -- steps show after you checked the patient (CPR and heavy bleeding always show)
     nextSteps = 1,       -- how many of the next steps get their own third-eye option
     more      = true,    -- 'More...' option: every other tool for this patient in one list
-    card      = true,    -- small steps card on screen while you stand near a patient you checked
-    cardRange = 4.0,     -- metres
-    maxSteps  = 8,       -- steps sent per patient
+    -- the plan itself:
+    maxSteps  = 8,       -- steps sent per patient on its state bag
     loss      = 0.20,    -- blood loss (share of all blood) that adds 'Give fluids'
     pain      = 60,      -- pain (0-100) that adds 'Pain relief'
     cold      = 35.0,    -- body temperature (°C) that adds 'Keep them warm'
     spo2      = 90,      -- oxygen saturation (%) below this adds 'Help them breathe'
+    -- X-rays:
+    xrayOnlyLimbs = true,  -- true = players get 'Take an X-ray' only for a broken arm or leg that still
+                           -- has to be set / cast (once: a film that showed it is enough).
+                           -- false = also ribs, skull, face, pelvis ... (v1.0)
+    xrayNpc   = false,     -- false = NPC patients never need an X-ray: their broken bones are set and
+                           -- cast without a film. true = NPCs go through the X-ray like players (v1.0)
     alwaysShow = {},     -- extra option names the short third eye keeps, e.g. { 'nza_field_monitor' }
 }
 
@@ -249,6 +263,24 @@ Config.ProcPause = {
     enabled  = true,
     keep     = 600,      -- seconds a paused procedure waits for you (then it starts over)
     maxBytes = 24000,    -- largest saved game state a client may send (JSON bytes)
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PATIENT VOICE (patients stay quiet while you treat them)
+-- Off by default. This is the master switch: when it is off, the per-module speech
+-- options (Config.Assess.Speech, Config.Angio.speech, Config.Ultrasound.speech,
+-- Config.Blood.Reaction.speech, Config.Calls.npc.speech ...) show nothing either.
+-- Staff voices are never muted: the check-in receptionist, the AI doctor, the AI medic,
+-- the supply officer, the 911 call recordings and their captions, and every device sound.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+Config.PatientVoice = {
+    speech  = false,   -- true = patients talk in speech bubbles (top centre): complaints during
+                       -- procedures and checks, "Ouch!", answers to the CMS check, NPC call
+                       -- patients and bystanders
+    screams = false,   -- true = GTA pain yells, groans and shouts from NPC patients (NPC calls,
+                       -- naloxone wake-up) and call bystanders; false also mutes GTA's own pain
+                       -- audio on NPC patients
 }
 
 -- ═══════════════════════════════════════════════════════════════════════════

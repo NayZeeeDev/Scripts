@@ -9,9 +9,10 @@
     AMBULANCE SYSTEM - DISPATCH, PAGER & EMS JOB MENU
     Discord: discord.gg/nayzeeedev
 
-    Calls reach on-duty medics as a call card (top right), on the pager (needs the
-    pager item) and on the paired phone. A call moves along by itself, and players see
-    four phases on a progress ring:
+    Calls reach on-duty medics on the pager (needs the pager item; it pops up and beeps),
+    as a call card (top right, only with card.popup = true) and on the paired phone.
+    NPC calls only reach medics who switched them on AND carry the pager (npcCalls below).
+    A call moves along by itself, and players see four phases on a progress ring:
       Paged         the call is waiting for a crew
       Rolling       a crew took it; GPS route to the call
       With patient  the crew got close to the call, then treats the patient
@@ -171,8 +172,17 @@ Config.Dispatch = {
         maxLength = 200,
     },
 
+    -- NPC calls reach a medic only while they switched them on (job menu F6 → Dispatch → NPC calls,
+    -- the pager menu or the board; switching needs no pager) AND carry the pager item
+    -- (Config.Items.pager; not needed with pager.requireItem = false). The server checks both.
     npcCalls = {
-        defaultOn = false,         -- new medics receive NPC calls (off: they switch it on in the job menu → Dispatch → NPC calls)
+        defaultOn = false,         -- false = NPC calls start OFF for every medic on every duty shift (after a server /
+                                   -- resource restart, a rejoin or going on duty again); true = they start on
+        remember  = false,         -- true = keep each medic's last choice across restarts and rejoins (saved per character)
+        noPagerNotice = 600,       -- seconds between "carry a pager" notices for a medic with NPC calls on but no pager
+                                   -- (false = never; they always get one when they switch NPC calls on without a pager)
+        external  = false,         -- true = NPC calls are mirrored to the external dispatch / MDT too (Config.Bridge.externalDispatch);
+                                   -- every EMS there sees them, pager or not
     },
 
     -- ═══════════════════════════════════════════════════════════════════════

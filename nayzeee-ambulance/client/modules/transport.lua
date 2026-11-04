@@ -411,6 +411,26 @@ function Tr.BedSpot(at, bt, ped)
     return vector4(x, y, z + lift, h % 360.0), lift
 end
 
+-- an NPC patient that was let go of on the ground lies on its BACK: the NPC module puts it straight
+-- into its lying pose (a ragdoll can land face down). Only a ped that module does not pose (no
+-- patient state) falls over as before.
+function Tr.SettleNpc(ped)
+    if NZA.CallsNpc and NZA.CallsNpc.Settle and NZA.CallsNpc.Settle(ped) then return true end
+    ClearPedTasksImmediately(ped)
+    SetPedToRagdoll(ped, 1500, 1500, 0, false, false, false)
+    return false
+end
+
+-- an NPC patient a medic stood up (help up, off a bed / cot, out of a vehicle): get-up clip, and the
+-- NPC module keeps it standing (instead of laying it on its back again)
+local function npcGetUp(ped)
+    ClearPedTasks(ped)
+    local gu = Tr.Cfg('HelpUp').npcGetUp
+    if gu then Tr.Play(ped, gu, { flag = 0 }) end
+    if NZA.CallsNpc and NZA.CallsNpc.Stood then NZA.CallsNpc.Stood(ped, gu and (gu.ms or 1500) or nil) end
+end
+Tr.NpcGetUp = npcGetUp
+
 -- Apply a command to a patient ped we control. isSelf = our own player ped.
 function Tr.Apply(ped, cmd, isSelf, prevMode)
     if not ped or ped == 0 or not DoesEntityExist(ped) or type(cmd) ~= 'table' then return false end
@@ -488,18 +508,13 @@ function Tr.Apply(ped, cmd, isSelf, prevMode)
             stopBedAnims(ped)
             if at then placeAt(ped, at) end
             if not isSelf and cmd.stand then
-                ClearPedTasks(ped)
-                local gu = Tr.Cfg('HelpUp').npcGetUp
-                if gu then Tr.Play(ped, gu, { flag = 0 }) end
+                npcGetUp(ped)
             elseif not isSelf then
-                -- downed NPC: let it settle on the ground
-                ClearPedTasksImmediately(ped)
-                SetPedToRagdoll(ped, 1500, 1500, 0, false, false, false)
+                -- downed NPC: straight onto its back on the ground
+                Tr.SettleNpc(ped)
             end
         elseif not isSelf and cmd.stand then
-            ClearPedTasks(ped)
-            local gu = Tr.Cfg('HelpUp').npcGetUp
-            if gu then Tr.Play(ped, gu, { flag = 0 }) end
+            npcGetUp(ped)
         end
         return true
     end
@@ -656,7 +671,7 @@ CreateThread(function()
         local pos = GetEntityCoords(PlayerPedId())
         for _, ped in ipairs(NZA.Scan.Peds()) do
             if NetworkHasControlOfEntity(ped) and #(pos - GetEntityCoords(ped)) < 80.0 then
-                local bag = Entity(ped).state.nzaTr
+                local bag = NZA.Scan.State(ped, 'nzaTr')   -- cached read (NZA.Scan)
                 if type(bag) == 'table' and heldModes[bag.m] then
                     if applied[ped] ~= bag.n then
                         applied[ped] = bag.n

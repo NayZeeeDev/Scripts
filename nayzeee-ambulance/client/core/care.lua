@@ -2,21 +2,32 @@
     NAYZEEE AMBULANCE - Client core: guided care (NZA.Care)
 
     The server lists what every patient still needs (server/core/care.lua → state bag
-    summary.plan). This file turns that list into something a medic can follow:
+    summary.plan, medic snapshot .care). This file turns that list into something a medic
+    can act on:
 
-      · a short third eye (Config.Care.guided): Check patient, the next step by name
-        ("Stop the bleeding"), moving the patient, and 'More...' for every other tool
+      · the third eye on a patient (Config.Care.thirdEye):
+          'check'  (default) only "Head-to-toe check" plus the options that move or hand over
+                   the patient (carry, stretcher, bed, help up / walk, vehicle, cut free, release,
+                   body bag, bill). Every treatment starts from the check: each body group shows
+                   what to do there with a Start button (client/modules/assess_exam.lua)
+          'guided' check, the next step by name ("Stop the bleeding"), moving, 'More...'
+          'full'   every treatment option straight on the third eye (old style)
       · NZA.Care.Run(entity, target, step): runs the right treatment for a step — an exam
         route when the step belongs to one wound, else the module's interaction option
-      · a small steps card on the HUD while you stand near a patient you checked
-      · the step list for the head-to-toe check ('Care steps' card, assess_exam.lua)
+      · NZA.Care.Action(...): the same choice, described for the check (label, supplies)
 
+      NZA.Care.Mode()                      → 'check' | 'guided' | 'full'
+      NZA.Care.Hidden(opt)                 → bool (kept off the third eye on other people)
+      NZA.Care.Handling(optionName)        → bool (moves / hands over the patient: stays on the third eye)
       NZA.Care.Steps(entity)               → plan from the state bag ({ c, r, i, w, u }, ...)
-      NZA.Care.Visible(entity, steps)      → the steps this medic may see (check gating)
+      NZA.Care.Visible(entity, steps)      → the steps this medic may see (guided mode: check gating)
       NZA.Care.MarkChecked(target, pid)    → called by the head-to-toe check
       NZA.Care.IsChecked(entityOrTarget)   → bool
-      NZA.Care.Describe(step)              → { code, title, why, where, urgent, region }
+      NZA.Care.Describe(step)              → { code, title, why, where, urgent, region, icon }
       NZA.Care.Resolve(entity, target, step, snap) → action | nil, reason
+      NZA.Care.Action(entity, target, step, snap, counts)
+                                           → { can, kind = 'route'|'option'|nil, id, label, icon,
+                                               items = { { label, have, need, ok } }, reason }
       NZA.Care.Run(entity, target, step, snap)     → bool
       NZA.Care.AlwaysShow(optionName)      → bool (guided third eye keeps it)
       NZA.Care.Actions[code]               = { routes = { exam route ids }, options = { option names } }
@@ -70,32 +81,73 @@ Care.Actions = {
     reduce    = { routes = { 'xray_reduce' },                       options = { 'nza_xray_reduce' },                        icon = 'bone' },
     cast      = { routes = { 'xray_cast' },                         options = { 'nza_xray_cast' },                          icon = 'splint' },
     graft     = { routes = { 'graft' },                             options = { 'nza_graft' },                              icon = 'flame' },
-    hospital  = { routes = {},                                      options = { 'nza_tr_tobed', 'nza_tr_onstretcher', 'nza_tr_carry' }, icon = 'ambulance' },
+    hospital  = { routes = {},                                      options = { 'nza_tr_tobed', 'nza_tr_onstretcher', 'nza_tr_carry', 'nza_askwalk' }, icon = 'ambulance' },
     bodybag   = { routes = {},                                      options = { 'nza_bodybag' },                            icon = 'bag' },
 }
 
 -- steps a medic sees without a check (you can see someone has no pulse or is bleeding out)
 local OBVIOUS = { cpr = true, bodybag = true }
 
--- options the guided third eye keeps: checking, moving and handing over the patient
-local ALWAYS = {
-    nza_examine = true,
+-- ════════════════════════════════════════════════════════════════════════
+-- THIRD-EYE MODE
+-- ════════════════════════════════════════════════════════════════════════
+
+-- 'check' (default): the head-to-toe check and the options below are all the third eye shows
+-- on another person; treatments start from the check. Moving / handing over the patient is
+-- not a treatment, so it stays one click away.
+local HANDLING = {
+    nza_examine = true,                                                   -- the check itself
     nza_tr_carry = true, nza_tr_helpup = true, nza_tr_onstretcher = true, nza_tr_offstretcher = true,
-    nza_tr_tobed = true, nza_tr_bedleave = true, nza_tr_outveh = true,
-    nza_chair_seat = true, nza_chair_unseat = true,
-    nza_calls_extricate = true, nza_calls_release = true,
-    nza_askwalk = true, nza_stopwalk = true,
-    nza_cpr_join = true, nza_bodybag = true, nza_xray_table = true, nza_pharmacy_bill = true,
+    nza_tr_tobed = true, nza_tr_bedleave = true, nza_tr_outveh = true, nza_xray_off = true,
+    nza_chair_seat = true, nza_chair_unseat = true,                       -- wheelchair
+    nza_askwalk = true, nza_stopwalk = true,                              -- walk with me / wait here
+    nza_calls_extricate = true, nza_calls_release = true,                 -- call scenes
+    nza_bodybag = true, nza_pharmacy_bill = true,
 }
-local extraAlways = nil
+
+-- 'guided' (round 1): the same, plus the next step by name, joining CPR, the X-ray table and 'More...'
+local ALWAYS = {
+    nza_cpr_join = true, nza_xray_table = true,
+}
+for name in pairs(HANDLING) do ALWAYS[name] = true end
+
+local extraKeep = nil
+local function extra(name)
+    if extraKeep == nil then
+        extraKeep = {}
+        for _, n in ipairs(cfg('alwaysShow', {}) or {}) do extraKeep[n] = true end
+    end
+    return extraKeep[name] == true
+end
+
+function Care.Mode()
+    local m = cfg('thirdEye', nil)
+    if m == 'check' or m == 'guided' or m == 'full' then return m end
+    if cfg('guided', true) == false then return 'full' end      -- configs from before thirdEye existed
+    return 'check'
+end
+
+function Care.Handling(name)
+    return HANDLING[name] == true or extra(name)
+end
 
 function Care.AlwaysShow(name)
-    if ALWAYS[name] then return true end
-    if extraAlways == nil then
-        extraAlways = {}
-        for _, n in ipairs(cfg('alwaysShow', {}) or {}) do extraAlways[n] = true end
-    end
-    return extraAlways[name] == true
+    return ALWAYS[name] == true or extra(name)
+end
+
+-- Is this option kept off the third eye on another person? (target.lua asks; the self menu,
+-- body bag props and 'all' listings - the check's tools, Care.Resolve - never hide anything)
+function Care.Hidden(opt)
+    if type(opt) ~= 'table' or opt.guided then return false end   -- step options hide themselves
+    local mode = Care.Mode()
+    if mode == 'full' then return false end
+    -- only medics who can open the head-to-toe check get the short version (treatments start
+    -- there): civilians, or a server with the check turned off (Config.Assess.Interact.examine
+    -- = false), keep every option on the third eye
+    local ex = NZA.Interact and NZA.Interact.Get and NZA.Interact.Get('nza_examine')
+    if not ex or not (NZA.Perm and NZA.Perm(ex.perm or 'assess')) then return false end
+    if mode == 'check' then return not Care.Handling(opt.name) end
+    return not Care.AlwaysShow(opt.name)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
@@ -214,30 +266,51 @@ local function findInjury(snap, id)
     return nil
 end
 
--- → { kind = 'route', route, inj } | { kind = 'option', opt } | nil, reason
-function Care.Resolve(entity, target, step, snap)
+-- the supplies a route needs: { { label, have, need, ok } }, all there?, first missing label
+local function routeItems(r, counts)
+    local items, all, missing = {}, true, nil
+    for name, need in pairs(type(r.items) == 'table' and r.items or {}) do
+        if counts[name] == nil then counts[name] = itemCount(name) end
+        local haveN, needN = counts[name], tonumber(need) or 1
+        local label = itemLabel(name)
+        items[#items + 1] = { label = label, have = haveN, need = needN, ok = haveN >= needN }
+        if haveN < needN then
+            all = false
+            missing = missing or label
+        end
+    end
+    table.sort(items, function(a, b) return a.label < b.label end)
+    return items, all, missing
+end
+
+-- One pass over the step's exam routes (they know the wound), then its interaction options.
+-- → act ({ kind = 'route', route, inj } | { kind = 'option', opt } | nil), info (what the check shows)
+local function resolve(entity, step, snap, counts)
     local A = Care.Actions[step.c]
-    if not A then return nil, L('no_action') end
-    local missing = nil
+    if not A then return nil, { can = false, items = {}, reason = L('no_action') } end
+    counts = counts or {}
     local inj = findInjury(snap, step.i)
     local pseudo = inj or { id = 'care:' .. step.c, region = step.r or 'chest', type = 'care', severity = 2, treat = {} }
+    local short, blocked = nil, nil
     for _, rid in ipairs(A.routes or {}) do
         local r = findRoute(rid)
         if r and r.run and (r.perm == nil or NZA.Perm(r.perm)) and snap then
             local fits = (r.types == nil or (inj and has(r.types, inj.type))) and (r.regions == nil or (inj and has(r.regions, inj.region)))
             if fits then
-                local avail = true
+                local avail, why = true, nil
                 if type(r.available) == 'function' then
-                    local ok, a = pcall(r.available, pseudo, snap)
+                    local ok, a, b = pcall(r.available, pseudo, snap)
                     avail = ok and a and true or false
+                    if ok and not a and type(b) == 'string' then why = b end
                 end
                 if avail then
-                    local lacking = nil
-                    for name, need in pairs(type(r.items) == 'table' and r.items or {}) do
-                        if itemCount(name) < (tonumber(need) or 1) then lacking = itemLabel(name) break end
-                    end
-                    if not lacking then return { kind = 'route', route = r, inj = pseudo } end
-                    missing = missing or L('need_item', lacking)
+                    local items, all, missing = routeItems(r, counts)
+                    local info = { can = all, kind = 'route', id = r.id, label = r.label or L('do_' .. step.c), icon = r.icon or A.icon, items = items }
+                    if all then return { kind = 'route', route = r, inj = pseudo }, info end
+                    info.reason = L('need_item', missing)
+                    short = short or info
+                elseif why then
+                    blocked = blocked or why       -- e.g. "Put them on the X-ray table first"
                 end
             end
         end
@@ -245,11 +318,32 @@ function Care.Resolve(entity, target, step, snap)
     for _, name in ipairs(A.options or {}) do
         local opt = NZA.Interact.Get(name)
         if opt and entity and entity ~= 0 and NZA.Interact.Allowed(opt, entity, true) then
-            return { kind = 'option', opt = opt }
+            return { kind = 'option', opt = opt }, { can = true, kind = 'option', id = name, label = opt.label, icon = opt.icon or A.icon, items = {} }
         end
     end
-    if step.w == 'hospital' then return nil, missing or L('at_hospital') end
-    return nil, missing or L('no_action')
+    if short then return nil, short end
+    -- "bring a stretcher" only while they still lie free (not on a stretcher, bed, seat or in the bay)
+    local tb = step.c == 'hospital' and entity and entity ~= 0 and NZA.Transport and NZA.Transport.Bag and NZA.Transport.Bag(entity)
+    local st = step.c == 'hospital' and entity and entity ~= 0 and NZA.Target.State(entity)
+    local placed = (type(tb) == 'table' and tb.m ~= nil and tb.m ~= 'free')
+        or (type(st) == 'table' and (st.stretcher ~= nil or st.carried == true))
+    local reason = blocked or (step.c == 'hospital' and not placed and L('hospital_how')) or (step.w == 'hospital' and L('at_hospital')) or L('no_action')
+    return nil, { can = false, items = {}, reason = reason }
+end
+
+-- → { kind = 'route', route, inj } | { kind = 'option', opt } | nil, reason
+function Care.Resolve(entity, target, step, snap)
+    local act, info = resolve(entity, step, snap)
+    if act then return act end
+    return nil, info and info.reason or L('no_action')
+end
+
+-- What the head-to-toe check shows for one step (also when it cannot run: the supplies you lack,
+-- or why not here). counts = shared item count cache for one view.
+function Care.Action(entity, target, step, snap, counts)
+    if type(step) ~= 'table' or not step.c then return { can = false, items = {}, reason = L('no_action') } end
+    local _, info = resolve(entity, step, snap, counts)
+    return info
 end
 
 function Care.Run(entity, target, step, snap)
@@ -274,14 +368,15 @@ function Care.Run(entity, target, step, snap)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
--- GUIDED THIRD EYE: one option per step code, shown only when it is the next step
+-- GUIDED THIRD EYE (Config.Care.thirdEye = 'guided' only): one option per step code, shown
+-- only when it is the next step, and 'More...' for every other tool
 -- ════════════════════════════════════════════════════════════════════════
 
 -- the step codes whose own option is already on the third eye (help up, stretcher, body bag)
 -- (xray_read happens at the lightbox with the film, not on the patient)
 local NO_STEP_OPTION = { standup = true, hospital = true, bodybag = true, extricate = true, release = true, xray_read = true }
 
-local function guided() return cfg('guided', true) ~= false end
+local function guided() return Care.Mode() == 'guided' end
 
 local function nextSteps(entity, st)
     local plan = (type(st) == 'table' and type(st.plan) == 'table') and st.plan or {}
@@ -290,7 +385,7 @@ local function nextSteps(entity, st)
     local n = math.max(1, math.floor(tonumber(cfg('nextSteps', 1)) or 1))
     local out = {}
     for _, s in ipairs(vis) do
-        -- hospital work starts from the hospital equipment (and the check's Care steps card)
+        -- hospital work starts from the hospital equipment (and the check)
         if not NO_STEP_OPTION[s.c] and s.w ~= 'hospital' then
             out[#out + 1] = s
             if #out >= n then break end
@@ -328,108 +423,15 @@ local function registerOptions()
             })
         end
     end
-    if cfg('more', true) ~= false then
-        NZA.Interact.Add({
-            name = 'nza_care_more', label = L('more'), icon = 'menu', order = 95, guided = true,
-            perm = 'assess', npc = true, player = true, distance = 2.5,
-            canInteract = function() return guided() end,
-            onSelect = function(entity) NZA.Interact.Open(entity, true) end,
-        })
-    end
+    NZA.Interact.Add({
+        name = 'nza_care_more', label = L('more'), icon = 'menu', order = 95, guided = true,
+        perm = 'assess', npc = true, player = true, distance = 2.5,
+        canInteract = function() return guided() and cfg('more', true) ~= false end,
+        onSelect = function(entity) NZA.Interact.Open(entity, true) end,
+    })
 end
 
 CreateThread(function()
     Wait(0)
     if NZA.Interact and NZA.Interact.Add then registerOptions() end
-end)
-
--- ════════════════════════════════════════════════════════════════════════
--- STEPS CARD (HUD, no focus)
--- ════════════════════════════════════════════════════════════════════════
-
-local APP = 'care'
-local card = { shown = false, key = nil, sig = nil, done = {} }
-
-local function hideCard()
-    if card.shown then NZA.UI.Close(APP) end
-    card.shown, card.key, card.sig = false, nil, nil
-end
-
-local function nearestChecked(range)
-    local me = PlayerPedId()
-    local pos = GetEntityCoords(me)
-    local best, bestD = nil, range
-    for key, c in pairs(checked) do
-        local kind, id = key:match('^(%a+):(.+)$')
-        local target = kind == 'player' and { kind = 'player', sid = tonumber(id) } or { kind = 'npc', net = tonumber(id) }
-        local ent = NZA.Target.Entity(target)
-        if ent ~= 0 and ent ~= me then
-            local d = #(pos - GetEntityCoords(ent))
-            if d < bestD and Care.IsChecked(target) then best, bestD = { target = target, entity = ent, key = key }, d end
-        end
-    end
-    return best
-end
-
-local function cardData(n)
-    local st = NZA.Target.State(n.entity)
-    if type(st) ~= 'table' then return nil end
-    local steps = st.plan or {}
-    local list, codes = {}, {}
-    for i, s in ipairs(steps) do
-        if i > 6 then break end
-        local d = Care.Describe(s)
-        list[#list + 1] = d
-        codes[s.c .. ':' .. tostring(s.i or '')] = d
-    end
-    -- steps that just went away were done: keep them ticked for a little while
-    local now = GetGameTimer()
-    local prev = card.done[n.key] or { last = {}, ticks = {} }
-    for k, d in pairs(prev.last) do
-        if not codes[k] then prev.ticks[k] = { d = d, at = now } end
-    end
-    prev.last = codes
-    local doneList = {}
-    for k, t in pairs(prev.ticks) do
-        if now - t.at > 20000 or codes[k] then prev.ticks[k] = nil else doneList[#doneList + 1] = t.d end
-    end
-    card.done[n.key] = prev
-    return {
-        name = st.name, state = st.st, tri = st.tri, steps = list, done = doneList,
-        locale = { title = L('title'), next = L('next'), field = L('field'), hospital = L('hospital'),
-            hint = L('hint'), all_done = L('all_done'), done = L('done') },
-    }
-end
-
-CreateThread(function()
-    Wait(2500)
-    while true do
-        local wait = 600
-        if cfg('card', true) ~= false and next(checked) ~= nil and NZA.Perm and NZA.Perm('assess') then
-            local blocked = NZA.UI.Top() ~= nil or IsPauseMenuActive() or (NZA.Self and NZA.Self.IsDown and NZA.Self.IsDown())
-            local n = not blocked and nearestChecked(tonumber(cfg('cardRange', 4.0)) or 4.0) or nil
-            if n then
-                local data = cardData(n)
-                if data then
-                    local sig = json.encode(data)
-                    if not card.shown or card.key ~= n.key then
-                        NZA.UI.Open(APP, data, { focus = false })
-                        card.shown, card.key, card.sig = true, n.key, sig
-                    elseif sig ~= card.sig then
-                        NZA.UI.Send(APP, 'update', data)
-                        card.sig = sig
-                    end
-                else
-                    hideCard()
-                end
-                wait = 400
-            else
-                hideCard()
-            end
-        else
-            hideCard()
-            wait = 1500
-        end
-        Wait(wait)
-    end
 end)

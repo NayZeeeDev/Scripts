@@ -112,7 +112,9 @@ local function builtins()
               desc = m.call and L('dispatch.r_board_call') or L('dispatch.r_board_d'), onSelect = openBoard },
             { id = 'd_npc', label = L('dispatch.r_npc'), icon = 'call', order = 60, keepOpen = true,
               active = function() return me().npc == true end,
-              desc = m.npc and L('dispatch.r_npc_on') or L('dispatch.r_npc_off'),
+              -- switching never needs the pager; the calls only reach a medic who carries one
+              desc = m.npc and ((cfg('pager', 'enabled', true) == false or D.HasPager()) and L('dispatch.r_npc_on')
+                  or L('dispatch.r_npc_on_nopager')) or L('dispatch.r_npc_off'),
               onSelect = function()
                   local on = not (me().npc == true)
                   me().npc = on

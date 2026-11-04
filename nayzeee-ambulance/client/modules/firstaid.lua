@@ -159,9 +159,15 @@ function FA.NeedsPack(inj)
     return false
 end
 
+-- a wound bleed control can work on: the StopBleed types and an open fracture (server FA.BleedTreats)
+local function bleedTreats(inj, sb)
+    if has(sb.types, inj.type) then return true end
+    return inj.type == 'fracture' and type(inj.fracture) == 'table' and inj.fracture.kind == 'open'
+end
+
 function FA.Plan(inj)
     local sb = FA.Cfg('StopBleed')
-    if not has(sb.types, inj.type) then return nil end
+    if not bleedTreats(inj, sb) then return nil end
     local t = inj.treat or {}
     local steps = 0
     local pack = FA.NeedsPack(inj) and not t.packed
@@ -297,7 +303,8 @@ RegisterNetEvent('nza:firstaid:agitated', function(net)
             TaskPlayAnim(ped, a.dict, a.clip, 4.0, -4.0, tonumber(a.duration) or 6000, 49, 0.0, false, false, false)
             RemoveAnimDict(a.dict)
         end
-        PlayPedAmbientSpeechNative(ped, 'GENERIC_SHOCKED_HIGH', 'SPEECH_PARAMS_FORCE_SHOUTED')
+        -- the shout is a patient yell: only with Config.PatientVoice.screams on (default off)
+        if NZA.UI.PatientVoice('screams') then PlayPedAmbientSpeechNative(ped, 'GENERIC_SHOCKED_HIGH', 'SPEECH_PARAMS_FORCE_SHOUTED') end
     end)
 end)
 
@@ -416,9 +423,8 @@ CreateThread(function()
             if bag or fa then consider(ped, bag, fa) end
         end
         for _, ped in ipairs(NZA.Scan.Peds()) do
-            local st = Entity(ped).state
-            local bag = st.nza
-            if bag then consider(ped, bag, st.nzaFa) end
+            local bag = NZA.Scan.State(ped, 'nza')   -- cached reads (NZA.Scan)
+            if bag then consider(ped, bag, NZA.Scan.State(ped, 'nzaFa')) end
         end
         -- the tourniquet being placed in our own minigame has its own temporary prop
         local skip = FA.TqPlacing and FA.TqPlacing() or nil
@@ -469,7 +475,9 @@ do
         NZA.Interact.Add({
             name = 'nza_fa_stopbleed', label = L('opt_stopbleed'), icon = icons.stopBleed or 'drop', order = 40,
             perm = sb.perm or 'basic', states = LIVE, distance = dist,
-            canInteract = function(_, _, st) return notPlaced(st) and type(st) == 'table' and (tonumber(st.bleed) or 0) >= (ic.minBleed or 1) end,
+            -- st.sb: bleeding the procedure can take (server core/care.lua OptionBleed: not internal
+            -- bleeding, a fracture, a small graze or a wound already packed and wrapped)
+            canInteract = function(_, _, st) return notPlaced(st) and type(st) == 'table' and (tonumber(st.sb or st.ext or st.bleed) or 0) >= (ic.minBleed or 1) end,
             onSelect = start('bleed'),
         })
     end
@@ -477,7 +485,8 @@ do
         NZA.Interact.Add({
             name = 'nza_fa_tq', label = L('opt_tq'), icon = icons.tourniquet or 'clamp', order = 41,
             perm = tc.perm or 'basic', states = LIVE, distance = dist,
-            canInteract = function(_, _, st) return notPlaced(st) and type(st) == 'table' and (tonumber(st.bleed) or 0) >= (ic.tqBleed or 2) end,
+            -- st.tb: bleeding you can see on an arm or leg without a tourniquet yet
+            canInteract = function(_, _, st) return notPlaced(st) and type(st) == 'table' and (tonumber(st.tb or st.ext or st.bleed) or 0) >= (ic.tqBleed or 2) end,
             onSelect = start('tq'),
         })
         NZA.Interact.Add({
@@ -591,8 +600,10 @@ do
 
     table.insert(NZA.ExamRoutes, {
         id = 'stopbleed', label = L('route_stopbleed'), icon = 'drop', perm = sb.perm or 'basic', order = 10,
-        types = sb.types, items = itemsOf(((sb.items or {}).wrap) or { bandage = 1 }),
+        types = (function() local t = { 'fracture' } for _, v in ipairs(sb.types or {}) do t[#t + 1] = v end return t end)(),
+        items = itemsOf(((sb.items or {}).wrap) or { bandage = 1 }),
         available = function(inj, snap)
+            if not bleedTreats(inj, sb) then return false end      -- a closed fracture: nothing to press on
             local bleed = tonumber(inj.bleed) or 0
             if bleed < 0.5 and FA.TqCovers(snap, inj.region) then bleed = tonumber(inj.bleedBase) or 0 end
             if inj.type == 'abrasion' and bleed < (sb.abrasionMin or 2) then return false end

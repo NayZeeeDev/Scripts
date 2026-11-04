@@ -15,7 +15,9 @@
       NZA.UI.Off(app, event, fn)
       NZA.UI.IsOpen(app) / Top() / OpenApps() / CloseAll() / Ready()
       NZA.UI.Toast({ title, message, type, duration })      '_core' action 'toast'
-      NZA.UI.Speech(name, text, ms, extra)                  '_core' action 'speech'
+      NZA.UI.Speech(name, text, ms, extra)                  '_core' action 'speech' (patient lines only while
+                                                            Config.PatientVoice.speech; extra.staff = true always shows)
+      NZA.UI.PatientVoice('speech' | 'screams') → bool      Config.PatientVoice switch (missing = off)
       NZA.UI.Captions(parts, volume) / CaptionsStop()      '_core' 'captions' (bottom centre, plays the recordings)
       NZA.UI.Prompt(id, { key = 'E', label, sub, hold, progress, tone = 'red' | danger })
                                                             '_core' action 'prompt'
@@ -389,8 +391,20 @@ function UI.Captions(parts, volume)
 end
 function UI.CaptionsStop() UI.Send(CORE, 'captionsStop', {}) end
 
+-- Config.PatientVoice switch: kind = 'speech' (speech bubbles) | 'screams' (GTA pain yells,
+-- groans and voice lines from patients). A missing block or key counts as off.
+function UI.PatientVoice(kind)
+    local c = Config.PatientVoice
+    return type(c) == 'table' and c[kind or 'speech'] == true
+end
+
+-- Every line is a patient line unless extra.staff = true (receptionist, doctor, AI medic):
+-- patient lines only show while Config.PatientVoice.speech is on. Server Core.Speech
+-- ('nza:ui:speech') lands here too.
 function UI.Speech(name, text, ms, extra)
     if type(text) ~= 'string' or text == '' then return end
+    local staff = type(extra) == 'table' and extra.staff == true
+    if not staff and not UI.PatientVoice('speech') then return end
     local d = { name = name, text = text, ms = tonumber(ms) or 4000 }
     if type(extra) == 'table' then
         for k, v in pairs(extra) do if d[k] == nil then d[k] = v end end
@@ -427,13 +441,18 @@ function UI.PromptsBlocked() return promptsOff end
 -- [E] prompts for world interactions (desks, counters, scene actions) only exist when there is
 -- no third eye: with ox_target / qb-target / ... those actions are third-eye options instead.
 -- (Action keys while carrying / pushing / seated are not world interactions and always show.)
+-- The rule itself lives with the target bridge: Bridge.Target.WorldPrompts().
 local worldPromptsAt, worldPromptsOn = 0, true
 function UI.WorldPrompts()
     local now = GetGameTimer()
-    if now - worldPromptsAt > 2000 then
+    if now - worldPromptsAt > 1000 then
         worldPromptsAt = now
-        local ok, res = pcall(function() return Bridge and Bridge.Target and Bridge.Target.Resource and Bridge.Target.Resource() end)
-        worldPromptsOn = not ok or res == nil or res == 'builtin'
+        local T = Bridge and Bridge.Target
+        local ok, on = pcall(function()
+            if T and T.WorldPrompts then return T.WorldPrompts() end
+            return not (T and T.Resource) or T.Resource() == 'builtin'
+        end)
+        worldPromptsOn = not ok or on == true
     end
     return worldPromptsOn
 end
@@ -531,6 +550,7 @@ function UI.PushConfig()
         sounds = c.sounds,
         signature = c.signature,
         quality3d = c.quality3d, renderScale = c.renderScale, adaptive = c.adaptive, fps3d = c.fps3d,
+        patientSpeech = UI.PatientVoice('speech'),   -- nza.js speech(): patient bubbles only when true
         locale = uiLocale(),
         lang = Config.Locale or 'en',
         resource = NZA.Resource,

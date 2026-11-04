@@ -191,10 +191,8 @@ local function speechGroup(p, v, sceneKey)
             if not worst or (inj.severity or 0) > (worst.severity or 0) then worst = inj end
         end
     end
-    local bleed = tonumber(p.bleedTotal) or 0
-    if bleed <= 0 then
-        for _, inj in pairs(p.injuries or {}) do bleed = bleed + (tonumber(inj.bleed) or 0) end
-    end
+    -- "It won't stop bleeding!" only for blood they can see (not an internal bleed / closed fracture)
+    local bleed = NZA.Patients.VisibleBleed and NZA.Patients.VisibleBleed(p) or (tonumber(p.bleedTotal) or 0)
     if bleed >= 25 and math.random() < 0.6 then return 'bleed', 'pain' end
     if worst then
         if worst.type == 'burn' then return 'burn', 'pain' end

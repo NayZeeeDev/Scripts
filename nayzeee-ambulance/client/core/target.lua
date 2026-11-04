@@ -181,12 +181,20 @@ local function normaliseStates(states)
     return out
 end
 
+-- with the short third eye (Config.Care.thirdEye = 'check') the head-to-toe check leads the
+-- list, so the built-in [E] prompt names it too
+local function orderOf(opt)
+    if opt.name == 'nza_examine' and NZA.Care and NZA.Care.Mode and NZA.Care.Mode() == 'check' then return 0 end
+    return opt.order
+end
+
 local function sorted()
     if sortedCache then return sortedCache end
     local list = {}
     for _, opt in pairs(registry) do list[#list + 1] = opt end
     table.sort(list, function(a, b)
-        if a.order ~= b.order then return a.order < b.order end
+        local oa, ob = orderOf(a), orderOf(b)
+        if oa ~= ob then return oa < ob end
         return a.name < b.name
     end)
     sortedCache = list
@@ -208,20 +216,14 @@ local function selfDown()
     return NZA.Self and NZA.Self.State and NZA.Self.State() ~= 'alive'
 end
 
--- Guided care (Config.Care.guided): on other people the third eye only keeps the care
--- options (opt.guided, client/core/care.lua) and the moving / utility options listed in
--- NZA.Care.AlwaysShow. Every other option is still in 'More...' (I.Open(entity, true)).
+-- Short third eye (Config.Care.thirdEye, client/core/care.lua): on other people a medic's third
+-- eye keeps the head-to-toe check and the options that move / hand over the patient; every
+-- treatment starts from the check. all = true (the check's tool list, NZA.Care.Resolve) skips this.
 local function guidedHidden(opt, entity, me)
-    if opt.guided then return false end
     if entity == me then return false end
     if not IsEntityAPed(entity) then return false end      -- body bag props keep their options
-    local C = Config.Care
-    if type(C) ~= 'table' or C.guided == false then return false end
-    -- only medics get the short version (civilians keep their few first-aid options)
-    if not (NZA.Perm and NZA.Perm('assess')) then return false end
     local Care = NZA.Care
-    if Care and Care.AlwaysShow and Care.AlwaysShow(opt.name) then return false end
-    return true
+    return Care ~= nil and Care.Hidden ~= nil and Care.Hidden(opt) == true
 end
 
 local function allowed(opt, entity, distance, all)
@@ -279,7 +281,7 @@ local function bridgeOption(opt, kind)
         name = opt.name,
         label = opt.label,
         icon = opt.icon,
-        order = opt.order,
+        order = orderOf(opt),
         distance = opt.distance or DEFAULT_DISTANCE,
         canInteract = function(entity, distance)
             if type(entity) == 'table' then entity = entity.entity end
@@ -404,7 +406,7 @@ function I.All()
     return sorted()
 end
 
--- all = true: every option that applies, also the ones guided care keeps off the third eye
+-- all = true: every option that applies, also the ones the short third eye keeps off (Config.Care.thirdEye)
 function I.Options(entity, all)
     local out = {}
     if not entity or entity == 0 or not DoesEntityExist(entity) then return out end
@@ -417,7 +419,7 @@ function I.Options(entity, all)
     return out
 end
 
--- one option's rules for one entity (all = ignore guided care), and running it like a target click
+-- one option's rules for one entity (all = ignore the short third eye), and running it like a target click
 function I.Allowed(opt, entity, all)
     if type(opt) == 'string' then opt = registry[opt] end
     if type(opt) ~= 'table' then return false end

@@ -314,9 +314,16 @@
     if (cfg.sounds) audio.click(type === 'error' ? 260 : 660);
   }
 
-  /* ─────────────── speech (patient voice card, top centre) ─────────────── */
+  /* ─────────────── speech (voice card, top centre) ───────────────
+     Every line is a PATIENT line unless staff: true (receptionist, doctor, AI medic). Patient lines
+     only show while Config.PatientVoice.speech is on (Lua pushes it as cfg.patientSpeech); in the
+     game a missing value counts as off. Browser previews show them unless ?speech=0 or a config
+     push says patientSpeech: false. */
   let speechTimer = null;
-  function speech({ name, text, ms, role } = {}) {
+  const patientSpeech = () => (inGame ? cfg.patientSpeech === true
+    : cfg.patientSpeech !== false && new URLSearchParams(location.search).get('speech') !== '0');
+  function speech({ name, text, ms, role, staff } = {}) {
+    if (!staff && !patientSpeech()) return;
     const layer = document.getElementById('nza-layer-speech');
     if (!layer || !text) return;
     layer.innerHTML = '';

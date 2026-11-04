@@ -13,7 +13,9 @@
     Codes, in priority order (locales/en/care.lua has the texts):
       extricate  NPC trapped in a wreck (cut free first)         field
       cpr        cardiac arrest                                  field
-      bleed      a wound that is still bleeding (per wound)      field
+      bleed      a bleed a medic can stop right here: pressure / packing / dressing
+                 (Config.Firstaid.StopBleed) or a tourniquet on the arm or leg
+                 (per wound). Never internal bleeding, a closed fracture or a burn  field
       airway     airway swelling / closed, tube in the gullet    field
       breathing  low oxygen, water or smoke in the lungs         field
       recovery   unconscious and snoring: on their side          field
@@ -35,10 +37,12 @@
       drain      blood in the chest (chest drain)                hospital
       tamponade  blood around the heart                          hospital
       bullet     bullet / fragment still inside                  hospital
-      xray       fracture that needs an X-ray                    hospital
+      xray       broken arm / leg that must be imaged before it
+                 is set / cast (players only, once)              hospital
       xray_read  the X-ray is taken: read the film on a lightbox hospital
       reduce     read, displaced: set the bone                   hospital
       cast       read and aligned: put on a cast                 hospital
+                 (NPC patients skip the X-ray: set → cast; Config.Care.xrayNpc)
       graft      deep burn (skin graft)                          hospital
       hospital   take them to hospital (when any hospital step)  -
       release    NPC from a call with nothing left: release      field
@@ -46,7 +50,18 @@
 
     Findings decide what a medic can know: internal bleeding and chest conditions only
     become their own step once something found them (p.meta.findings, same rules as the
-    head-to-toe check); before that the plan says 'scan'.
+    head-to-toe check); before that the plan says 'scan'. Bleeding nobody can press on
+    (inside the belly / pelvis / chest, a closed fracture) never becomes 'bleed': it shows
+    as binder (pelvis), splint (the fracture), fluids (blood loss) and the hospital steps.
+
+    X-rays (Config.Care.xrayOnlyLimbs / xrayNpc): a player gets 'xray' only for a broken arm
+    or leg that still has to be set or cast, and only until a film showed it. NPC patients
+    never get one: their fractures go splint → set the bone → cast (xray_ortho skips the film).
+
+      NZA.Care.BleedHere(p, inj)   → bool   the 'bleed' rule for one wound
+      NZA.Care.OptionBleed(p)      → press, limb (mL/min) what 'Control bleeding' / 'Tourniquet' can
+                                     take (summary sb / tb gate those two options)
+      NZA.Care.XrayFree(p)         → bool   this patient's bones are set / cast without a film
 ]]
 
 if not NAYZEEE_LOCK_OK then return end
@@ -115,6 +130,96 @@ local function loss(p)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
+-- BLEEDING A MEDIC CAN STOP
+-- ════════════════════════════════════════════════════════════════════════
+
+-- wound types the tourniquet route takes (client/modules/firstaid.lua 'tourniquet' exam route)
+local TQ_TYPES = { gunshot = true, shrapnel = true, stab = true, laceration = true, fracture = true }
+
+local function listHas(list, v)
+    if type(list) ~= 'table' then return false end
+    for _, x in ipairs(list) do if x == v then return true end end
+    return false
+end
+
+-- 'bleed' only when the bleeding comes out of a wound AND one of the bleed-control procedures
+-- would take it now, with the procedures' own limits:
+--   · pressure / packing / a dressing (NZA.Proc 'stopbleed'): Config.Firstaid.StopBleed.types,
+--     minBleed (abrasions abrasionMin), and FA.Plan still has a step left (not packed + dressed)
+--   · a tourniquet: an arm or leg, the tourniquet route's wound types (an open fracture too),
+--     at least Config.Firstaid.Tourniquet.minBleed, no tourniquet on it yet
+-- Internal bleeding and a closed fracture bleed inside (binder / splint / fluids / hospital);
+-- a burn weeps (burn care); a wound under a tourniquet, packed or bandaged is 'controlled'.
+-- An abrasion oozing under abrasionMin or a dressed wound still seeping gets 'wound' instead.
+local function bleedHere(p, inj)
+    local kind = inj.type
+    if kind == 'internal' or kind == 'burn' or kind == 'contusion' then return false end
+    if kind == 'fracture' and not (type(inj.fracture) == 'table' and inj.fracture.kind == 'open') then return false end
+    local b = tonumber(inj.bleed) or 0
+    if b < 0.5 or status(p, inj) ~= 'open' then return false end
+    local FA = NZA.Firstaid
+    if not (FA and type(FA.Cfg) == 'function') then return true end      -- no first aid module: any open bleed
+    local sb = FA.Cfg('StopBleed')
+    local types = type(sb.types) == 'table' and sb.types or { 'gunshot', 'shrapnel', 'stab', 'laceration', 'abrasion' }
+    local treats = type(FA.BleedTreats) == 'function' and FA.BleedTreats(inj, sb) or listHas(types, kind)
+    if treats and b >= (tonumber(sb.minBleed) or 0.5)
+        and (kind ~= 'abrasion' or b >= (tonumber(sb.abrasionMin) or 2.0)) then
+        local plan = true
+        if type(FA.Plan) == 'function' then
+            local ok, res = pcall(FA.Plan, p, inj)
+            plan = ok and res ~= nil
+        end
+        if plan then return true end
+    end
+    local R = NZA.Const.Region[inj.region]
+    if R and R.tourniquet and TQ_TYPES[kind] then
+        local tc = FA.Cfg('Tourniquet')
+        local covered = type(FA.TqCovers) == 'function' and FA.TqCovers(p, inj.region)
+        if not covered and b >= (tonumber(tc.minBleed) or 15) then return true end
+    end
+    return false
+end
+Care.BleedHere = bleedHere
+
+-- mL/min each bleed-control OPTION on the patient (third eye, the check's 'More tools') can work on,
+-- so 'Control bleeding' / 'Tourniquet' only show when their procedure has a wound to take (else
+-- they answer "Nothing is bleeding." / "No bleeding arm or leg for a tourniquet."). Summary sb / tb.
+--   press  the 'stopbleed' procedure's own pick (server/modules/firstaid_procs.lua bleedFilter)
+--   limb   bleeding you can see on an arm or leg that has no tourniquet on it yet (the tourniquet pick)
+-- → press, limb  (nil, nil without the first aid module)
+function Care.OptionBleed(p)
+    local FA = NZA.Firstaid
+    if type(p) ~= 'table' or not (FA and type(FA.Cfg) == 'function') then return nil, nil end
+    local sb = FA.Cfg('StopBleed')
+    local press, limb = 0, 0
+    for _, inj in pairs(p.injuries or {}) do
+        local kind = inj.type
+        local shown = type(FA.ShownBleed) == 'function' and FA.ShownBleed(p, inj) or (tonumber(inj.bleed) or 0)
+        local treats = type(FA.BleedTreats) == 'function' and FA.BleedTreats(inj, sb) or listHas(sb.types, kind)
+        if treats and shown >= (tonumber(sb.minBleed) or 0.5)
+            and (kind ~= 'abrasion' or shown >= (tonumber(sb.abrasionMin) or 2.0))
+            and (type(FA.Plan) ~= 'function' or FA.Plan(p, inj) ~= nil) then
+            press = press + shown
+        end
+        local b = tonumber(inj.bleed) or 0
+        local inside = kind == 'internal' or kind == 'burn' or kind == 'contusion'
+            or (kind == 'fracture' and not (type(inj.fracture) == 'table' and inj.fracture.kind == 'open'))
+        local R = NZA.Const.Region[inj.region]
+        if not inside and b >= 0.5 and R and R.tourniquet
+            and not (type(FA.TqCovers) == 'function' and FA.TqCovers(p, inj.region)) then
+            limb = limb + b
+        end
+    end
+    return press, limb
+end
+
+-- broken bones of this patient are set / cast without an X-ray film first
+local function xrayFree(p)
+    return p.kind == 'npc' and cfg('xrayNpc', false) ~= true
+end
+Care.XrayFree = xrayFree
+
+-- ════════════════════════════════════════════════════════════════════════
 -- PLAN
 -- ════════════════════════════════════════════════════════════════════════
 
@@ -162,15 +267,14 @@ function Care.Plan(p)
     -- 1. no pulse
     if p.state == 'arrest' then add('cpr', { u = true }) end
 
-    -- 2. bleeding you can see (a closed fracture bleeds inside: the splint / binder holds it;
-    --    burns get burn care)
-    local function externalBleed(inj)
-        if inj.type == 'internal' or inj.type == 'burn' then return false end
-        if inj.type == 'fracture' and not (inj.fracture and inj.fracture.kind == 'open') then return false end
-        return (inj.bleed or 0) >= 0.5 and status(p, inj) == 'open'
-    end
+    -- 2. bleeding a medic can stop here (bleedHere: internal bleeding and a closed fracture
+    --    bleed inside - binder / splint / fluids / hospital; burns get burn care)
+    local bleeding = {}
     for _, inj in ipairs(injuries) do
-        if externalBleed(inj) then add('bleed', { r = inj.region, i = inj.id, u = (inj.bleed or 0) >= 5 }) end
+        if bleedHere(p, inj) then
+            bleeding[inj.id] = true
+            add('bleed', { r = inj.region, i = inj.id, u = (inj.bleed or 0) >= 5 })
+        end
     end
     local arrest = p.state == 'arrest'
 
@@ -226,20 +330,33 @@ function Care.Plan(p)
         if extra then for k, v in pairs(extra) do s[k] = v end end
         hospital[#hospital + 1] = s
     end
-    local internalHidden = false
+    local internalHidden, hiddenHeavy = false, false
+    local noFilm = xrayFree(p)
+    local onlyLimbs = cfg('xrayOnlyLimbs', true) ~= false
     for _, inj in ipairs(injuries) do
         local t, kind, st = inj.treat or {}, inj.type, status(p, inj)
         local R = NZA.Const.Region[inj.region]
-        if kind == 'fracture' and not spineBone(inj) then
+        if kind == 'fracture' and spineBone(inj) then
+            -- broken neck / back: the collar step above (not a wound to close)
+        elseif kind == 'fracture' then
             local f = inj.fracture or {}
-            if not (t.splinted or t.cast) and R and R.splint and R.splint ~= 'collar' and R.splint ~= 'binder' then
+            local limbSplint = R and R.splint and R.splint ~= 'collar' and R.splint ~= 'binder'
+            if not (t.splinted or t.cast) and limbSplint then
                 add('splint', { r = inj.region, i = inj.id, u = (inj.bleed or 0) >= 5 })
             end
-            -- limbs: X-ray, set the bone, cast. Ribs, pelvis, skull ...: no cast, the X-ray itself is the step
+            -- an open fracture still bleeding where no splint / binder / tourniquet holds it (head,
+            -- face, chest ...): cover it (a dressing from the kit), never 'Stop the bleeding'
+            if f.kind == 'open' and not bleeding[inj.id] and st == 'open' and not limbSplint
+                and not (R and R.splint == 'binder') then
+                add('wound', { r = inj.region, i = inj.id })
+            end
+            -- limbs: X-ray, set the bone, cast. Ribs, pelvis, skull ...: nothing to set or cast, so
+            -- no X-ray step either (Config.Care.xrayOnlyLimbs = false brings it back for players)
             local castable = R and R.limb and true or false
             local cc = Config.Xray and Config.Xray.Cast and Config.Xray.Cast.regions
             if type(cc) == 'table' then castable = cc[inj.region] and true or false end
-            -- one step at a time: take the X-ray → read the film → set the bone (displaced) → cast
+            -- one step at a time: take the X-ray → read the film → set the bone (displaced) → cast.
+            -- Imaged once (treat.xray / xrayMarked) is enough; NPC patients need no film at all.
             local X = NZA.Xray
             local function filmStep()
                 local pending = X and X.PendingFilm and X.PendingFilm(p.pid, inj.id)
@@ -247,11 +364,11 @@ function Care.Plan(p)
             end
             if castable then
                 if not t.cast and ((inj.severity or 1) >= 2 or f.displaced) then
-                    if not (t.xray or t.xrayMarked) then filmStep()
+                    if not (t.xray or t.xrayMarked or noFilm) then filmStep()
                     elseif f.displaced and not t.reduced then hosp('reduce', { r = inj.region, i = inj.id })
                     else hosp('cast', { r = inj.region, i = inj.id }) end
                 end
-            elseif R and R.xray and not t.xrayMarked and (inj.severity or 1) >= 2 then
+            elseif not onlyLimbs and not noFilm and R and R.xray and not t.xrayMarked and (inj.severity or 1) >= 2 then
                 filmStep()
             end
         elseif kind == 'burn' then
@@ -268,15 +385,20 @@ function Care.Plan(p)
             local organ = inj.internal and inj.internal.organ
             local coilable = type(organs) ~= 'table' or (organ ~= nil and organs[organ] == true)
             if coilable and not (t.coiled or t.sutured) and (inj.severity or 1) >= 2 and ((inj.bleed or 0) > 0 or (inj.bleedBase or 0) > 0) then
-                if internalKnown(inj, fs) then hosp('internal', { r = inj.region, i = inj.id })
-                else internalHidden = true end
+                local heavy = (inj.bleed or 0) >= 5
+                if internalKnown(inj, fs) then hosp('internal', { r = inj.region, i = inj.id, u = heavy or nil })
+                else
+                    internalHidden = true
+                    hiddenHeavy = hiddenHeavy or heavy
+                end
             end
         elseif kind == 'contusion' then
             if not t.cooled and (inj.severity or 1) >= 2 then add('cool', { r = inj.region, i = inj.id }) end
         elseif kind == 'abrasion' and (inj.severity or 1) <= 1 then
             -- grazes heal by themselves
-        elseif st ~= 'treated' and st ~= 'healing' and not ((inj.bleed or 0) >= 0.5 and st == 'open') then
-            -- gunshot, shrapnel, stab, laceration, abrasion: covered but not closed yet
+        elseif st ~= 'treated' and st ~= 'healing' and not bleeding[inj.id] then
+            -- gunshot, shrapnel, stab, laceration, abrasion: covered but not closed yet (or seeping
+            -- a little where pressure / a dressing has nothing left to do: dress or stitch it)
             add('wound', { r = inj.region, i = inj.id })
         end
         if (inj.retained or 0) > 0 and not t.extracted then hosp('bullet', { r = inj.region, i = inj.id }) end
@@ -311,7 +433,7 @@ function Care.Plan(p)
     -- a scan in the last 15 minutes counts, even when it could not see a small bleed yet
     local efast = type(p.meta) == 'table' and p.meta.efast
     local scanned = type(efast) == 'table' and (os.time() - (tonumber(efast.at) or 0)) < cfg('rescan', 900)
-    if internalHidden and not scanned then table.insert(hospital, 1, { c = 'scan', w = 'hospital' }) end
+    if internalHidden and not scanned then table.insert(hospital, 1, { c = 'scan', w = 'hospital', u = hiddenHeavy or nil }) end
 
     -- 7. stable: back on their feet
     if p.state == 'wounded' then
@@ -324,7 +446,10 @@ function Care.Plan(p)
     -- ordinary steps to do here
     local here = #hospital > 0 and atHospital(p)
     if #hospital > 0 and not here then
-        add('hospital', { w = 'hospital', n = #hospital })
+        -- urgent when something there cannot wait (heavy internal bleed, blood around the heart)
+        local urgent = nil
+        for _, s in ipairs(hospital) do if s.u then urgent = true break end end
+        add('hospital', { w = 'hospital', n = #hospital, u = urgent })
         for _, s in ipairs(hospital) do out[#out + 1] = s end
     elseif here then
         for _, s in ipairs(hospital) do s.w = 'field'; out[#out + 1] = s end

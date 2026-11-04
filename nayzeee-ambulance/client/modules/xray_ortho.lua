@@ -201,6 +201,9 @@ table.insert(NZA.ExamRoutes, {
         if not R or not R.xray then return false end
         local ent = snapEntity(snap)
         if X().TablePoint and X().TablePoint(ent) then return true end
+        -- NPC patients need no X-ray (Config.Care.xrayNpc): no "put them on the X-ray table" hint on
+        -- their wound cards; the button still shows once someone put the NPC on the table anyway
+        if type(snap) == 'table' and snap.kind == 'npc' and not (Config.Care and Config.Care.xrayNpc == true) then return false end
         if cfg('Take').easyAnywhere ~= false and NZA.Easy(cfg('Take').perm or 'xray') then return true end
         if t.xray then return false, L('route_read_again') end
         return false, L('route_need_table')
@@ -216,10 +219,12 @@ table.insert(NZA.ExamRoutes, {
     id = 'xray_reduce', label = L('route_reduce'), icon = 'bone', perm = cfg('Reduce').perm or 'splint', order = 30,
     types = { 'fracture' },
     items = itemsFrom(cfg('Reduce').items),
-    available = function(inj)
+    available = function(inj, snap)
         if not eligible('reduce', inj) then return false end
         local t = inj.treat or {}
-        if cfg('Reduce').requireXray ~= false and not (t.xray or t.xrayMarked) and not NZA.Easy(cfg('Reduce').perm or 'splint') then
+        -- NPC patients need no film (Config.Care.xrayNpc; the server skips it the same way)
+        local noFilm = type(snap) == 'table' and snap.kind == 'npc' and not (Config.Care and Config.Care.xrayNpc == true)
+        if cfg('Reduce').requireXray ~= false and not noFilm and not (t.xray or t.xrayMarked) and not NZA.Easy(cfg('Reduce').perm or 'splint') then
             return false, L('route_need_xray')
         end
         return true

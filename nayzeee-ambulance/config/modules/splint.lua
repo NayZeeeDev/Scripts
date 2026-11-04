@@ -148,17 +148,45 @@ Config.Splint = {
         enabled   = true,
         item      = 'crutches',
         prop      = 'crutch',      -- Config.Props key (fallback: Config.PropFallbacks.crutch)
-        clipset   = 'move_lester_CaneUp',   -- walk style on crutches (a planted, weight-bearing step)
-        upper     = false,         -- optional upper-body loop { dict, clip } played while walking (false = none)
+        clipset   = 'move_lester_CaneUp',   -- walk on crutches: GTA's cane walk, the right hand plants the crutch.
+                                   -- It stays loaded while you are on crutches and is put back if another
+                                   -- script (walk styles, outfit / ped changes) resets your walk.
+        upper     = false,         -- optional upper-body loop { dict, clip } played while walking
+                                   -- (false = none: the cane walk has its own standing pose)
         moveRate  = 0.86,          -- walk animation speed
         maxMoveBlend = 1.0,        -- 1.0 = no jogging / sprinting on crutches
         key       = '',            -- default key to pick up / put away (players can rebind; '' = unbound)
         command   = 'crutches',    -- chat command that does the same (false = none)
-        -- Upright at your sides: attached to the body (bone 0 = root, +X right, +Y forward, +Z up) so the
-        -- crutch never turns sideways with the arm. The crutch's origin is its hand grip; the tip is 0.86 m
-        -- below it. pos.z puts the tip on the ground, rot.y leans the tip out a little.
-        right = { bone = 0, pos = vec3(0.30, 0.10, -0.13), rot = vec3(0.0, -5.0, 0.0) },
-        left  = { bone = 0, pos = vec3(-0.30, 0.10, -0.13), rot = vec3(0.0, 5.0, 0.0) },
+
+        -- ── How the crutch is held ──────────────────────────────────────────
+        count = 1,                 -- 1 = one crutch in the right hand (the hand the cane walk plants)
+                                   -- 2 = a crutch in each hand (the left arm is not animated by the cane walk)
+        hold  = 'follow',          -- 'follow': the grip stays in your hand every frame and the crutch stays
+                                   --           upright, leaning towards its tip. Works on any ped.
+                                   -- 'attach': fixed to the hand bone with attach.pos / rot (turns with the hand)
+        swing = 0.5,               -- 'follow': 0 = the tip stays on its spot and the crutch pivots under the
+                                   --           hand, 1 = the whole crutch moves with the hand
+        -- 'follow' uses the ped's axes, from its centre at hip height: +X right, +Y forward, +Z up (the ground
+        -- is about z = -0.99). bone = the hand bone that holds the grip (28422 = PH_R_Hand, 60309 = PH_L_Hand),
+        -- grip = shift of the grip from that bone, tip = the spot the rubber tip aims for, rot = extra turn (degrees).
+        follow = {
+            right = { bone = 28422, grip = vec3(0.000, 0.000, 0.000), tip = vec3(0.340, 0.140, -0.990), rot = vec3(0.0, 0.0, 0.0) },
+            left  = { bone = 60309, grip = vec3(0.000, 0.000, 0.000), tip = vec3(-0.340, 0.140, -0.990), rot = vec3(0.0, 0.0, 0.0) },
+        },
+        -- 'attach' uses the hand bone's own axes. The crutch's origin is the centre of its hand grip, the tube
+        -- runs down its -Z to the tip 0.86 m below, the grip points +Y.
+        attach = {
+            right = { bone = 28422, pos = vec3(0.000, 0.000, 0.000), rot = vec3(0.0, 0.0, 0.0) },
+            left  = { bone = 60309, pos = vec3(0.000, 0.000, 0.000), rot = vec3(0.0, 0.0, 0.0) },
+        },
+        -- In-game fitting: walk on crutches and type /crutchfit. Arrow keys move X / Y, Page Up / Down move Z,
+        -- Space picks what you move (grip, tip, turn; or position, rotation with 'attach'), Shift = fine steps,
+        -- Tab = the other hand (count = 2), Delete = back to the values above, Backspace = done.
+        -- The crutch card shows the values. Enter copies the finished line(s) to the clipboard and prints them
+        -- in F8: paste over the matching line above and restart the resource. The tool only changes your own
+        -- screen (until a restart), so every player may use it.
+        fitCommand = 'crutchfit',  -- false = no fitting command
+
         blockControls = { 21, 22, 24, 25, 36, 37, 44, 140, 141, 142, 143, 257, 263, 264 }, -- sprint, jump, attack, aim, duck, weapon wheel, cover, melee
         hideInVehicle = true,      -- crutches disappear while seated in a vehicle
         checkEvery    = 15,        -- seconds between server checks that you still carry the item

@@ -1,7 +1,8 @@
 --[[
     NAYZEEE AMBULANCE - Client core: world anchors for in-world minigames (NZA.Anchors)
 
-    Projects world points to the screen ~30 times a second and streams them to an app as
+    Projects world points to the screen ~30 times a second (only while an app has anchors; the
+    camera position is read once per pass) and streams them to an app as
     NUI action 'anchors' → { [id] = { x = 0..1, y = 0..1, visible = bool, d = metres from
     the camera } }. JS side: NZA.ui.Anchors(app).
 
@@ -54,21 +55,26 @@ local function worldPos(def)
     return nil
 end
 
-function A.Project(def)
+-- cam = the rendered camera position when the caller already has it (one read per tick)
+local function project(def, cam)
     local p = worldPos(def)
     if not p then return 0.0, 0.0, false, 0.0 end
     local onScreen, x, y = GetScreenCoordFromWorldCoord(p.x, p.y, p.z)
-    local cam = GetFinalRenderedCamCoord()
     local visible = (onScreen == true or onScreen == 1) and x >= 0.0 and x <= 1.0 and y >= 0.0 and y <= 1.0
-    return x, y, visible, #(cam - p)
+    return x, y, visible, #((cam or GetFinalRenderedCamCoord()) - p)
+end
+
+function A.Project(def)
+    return project(def, nil)
 end
 
 local function tick()
+    local cam = GetFinalRenderedCamCoord()
     for app, map in pairs(tracked) do
         local prev = lastSent[app] or {}
         local out, changed = {}, false
         for id, def in pairs(map) do
-            local x, y, visible, d = A.Project(def)
+            local x, y, visible, d = project(def, cam)
             x = math.floor(x * 10000 + 0.5) / 10000
             y = math.floor(y * 10000 + 0.5) / 10000
             local p = prev[id]
@@ -87,14 +93,23 @@ local function tick()
     end
 end
 
+-- something left to project? (an app whose anchors were all removed keeps no loop running)
+local function anyAnchor()
+    for _, map in pairs(tracked) do
+        if next(map) ~= nil then return true end
+    end
+    return false
+end
+
 local function ensureLoop()
     if running then return end
     running = true
     CreateThread(function()
-        while next(tracked) do
+        while anyAnchor() do
             tick()
             Wait(INTERVAL)
         end
+        tick()   -- flush: an app whose last anchor was removed gets its (empty) map once
         running = false
     end)
 end

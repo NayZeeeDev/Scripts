@@ -10,8 +10,10 @@
     Discord: discord.gg/nayzeeedev
 
     While enough medics are on duty with "NPC calls" switched on (EMS job menu →
-    Dispatch → NPC calls, the pager menu or the dispatch board), the city phones in
-    emergencies. Each call is built from a template below:
+    Dispatch → NPC calls, the pager menu or the dispatch board; off after every restart,
+    rejoin and new duty shift) and the pager item in their pockets, the city phones in
+    emergencies. The call pops up on their pager (beep) with the 911 recording as captions.
+    Each call is built from a template below:
 
         template  → title, 10-code, priority, where it can happen, who is hurt and how,
                     crashed cars / props / smoke & fire, the 911 caller's voice line
@@ -43,8 +45,9 @@ Config.Calls = {
 
     generation = {
         enabled          = true,
-        minMedics        = 1,              -- opted-in medics on duty needed before NPC calls are generated
-        optInDefault     = false,          -- a medic who never toggled "NPC calls" counts as opted in (off: they switch it on in the job menu)
+        minMedics        = 1,              -- medics on duty with NPC calls on AND a pager needed before NPC calls are generated
+        optInDefault     = false,          -- true = NPC calls start on for every medic (same as Config.Dispatch.npcCalls.defaultOn);
+                                           -- false = they switch it on in the job menu (F6 → Dispatch → NPC calls)
         tick             = 5,              -- seconds between generator checks
         firstDelay       = { 45, 120 },    -- seconds before the first call after enough medics came on duty
         interval         = { 240, 540 },   -- seconds between calls (random in this range)
@@ -126,6 +129,12 @@ Config.Calls = {
         tick         = 600,                -- ms between behaviour checks
         invincible   = true,               -- GTA damage can't kill an NPC patient (the injury system decides)
         keepBodies   = true,               -- dead NPC patients stay as bodies until the scene is cleaned up
+        -- Every NPC patient on the ground lies ON THE BACK (face up, still) so the head-to-toe check
+        -- sees the whole body: conscious ones use the 'awake' pose below, and a knocked-over patient
+        -- is turned onto its back once it lies still. Only an alive patient a medic stood up (Help up,
+        -- Ask to Walk, out of a vehicle) stands. false = the old poses: writhing, sitting up with a
+        -- fracture / after an overdose, standing when alive.
+        supine       = true,
         speech = {
             enabled     = true,
             medicOnly   = true,            -- only talk while an on-duty medic is close
@@ -155,7 +164,10 @@ Config.Calls = {
             walkTime = 25,                 -- seconds they walk away before they are removed
         },
         -- Animations per pose. The first entry that exists is used (dict + clip, or a scenario).
+        -- With supine = true only the face-up lying poses (awake, unconscious, overdose, cold, arrest,
+        -- dead), trapped and - for patients a medic stood up - hurt / stand are used.
         poses = {
+            awake       = { { dict = 'amb@world_human_bum_slumped@male@laying_on_back@base', clip = 'base' }, { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' } },
             writhe      = { { dict = 'combat@damage@writhe', clip = 'writhe_loop' }, { dict = 'combat@damage@writheidle_a', clip = 'writhe_idle_a' } },
             unconscious = { { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' }, { dict = 'amb@world_human_bum_slumped@male@laying_on_back@base', clip = 'base' } },
             overdose    = { { dict = 'amb@world_human_bum_slumped@male@laying_on_back@base', clip = 'base' }, { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' } },
@@ -163,7 +175,7 @@ Config.Calls = {
             dead        = { { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' }, { dict = 'missarmenian2', clip = 'corpse_search_exit_ped' } },
             sit         = { { dict = 'amb@world_human_picnic@male@base', clip = 'base' }, { dict = 'anim@heists@fleeca_bank@ig_7_jetski_owner', clip = 'owner_idle' } },
             sit_f       = { { dict = 'amb@world_human_picnic@female@base', clip = 'base' }, { dict = 'amb@world_human_picnic@male@base', clip = 'base' } },
-            cold        = { { dict = 'amb@world_human_bum_slumped@male@laying_on_back@base', clip = 'base' }, { dict = 'combat@damage@writhe', clip = 'writhe_loop' } },
+            cold        = { { dict = 'amb@world_human_bum_slumped@male@laying_on_back@base', clip = 'base' }, { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' } },
             hurt        = { { dict = 'amb@world_human_bum_standing@depressed@idle_a', clip = 'idle_a' }, { scenario = 'WORLD_HUMAN_STAND_IMPATIENT' } },
             stand       = { { scenario = 'WORLD_HUMAN_STAND_IMPATIENT' } },
             trapped     = { { dict = 'random@crash_rescue@car_death@std_car', clip = 'loop' }, { dict = 'veh@std@ds@base', clip = 'sit' } },

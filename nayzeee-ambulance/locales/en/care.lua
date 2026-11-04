@@ -1,8 +1,9 @@
 --[[
     NAYZEEE AMBULANCE - Guided care strings (English)
 
-    Keys 'care.*'. A care step (server/core/care.lua) has three texts:
-      care.do_<code>    the third-eye option and the Start button ("Stop the bleeding")
+    Keys 'care.*'. A care step (server/core/care.lua) has two texts, shown as 'what to do' in the
+    head-to-toe check (and as the third-eye option when Config.Care.thirdEye = 'guided'):
+      care.do_<code>    what to do ("Stop the bleeding")
       care.why_<code>   one short line under it: why the patient needs it
     '%s' is a body part (region label) when the step belongs to one wound.
 ]]
@@ -76,19 +77,13 @@ NZA.AddLocale('en', {
     ['care.do_bodybag']    = 'Body bag',
     ['care.why_bodybag']   = 'They did not make it.',
 
-    -- ── cards & menus ─────────────────────────────────────────────────────
-    ['care.title']         = 'Care steps',
+    -- ── menus & messages ──────────────────────────────────────────────────
+    ['care.title']         = 'What to do',
     ['care.wound_generic'] = 'A wound',
-    ['care.next']          = 'Next',
-    ['care.field']         = 'Here',
-    ['care.hospital']      = 'Hospital',
-    ['care.start']         = 'Start',
-    ['care.done']          = 'Done',
-    ['care.check_first']   = 'Check the patient first: third eye → Check patient.',
-    ['care.all_done']      = 'Nothing left to do. Help them up or let them go.',
-    ['care.hint']          = 'Third eye on the patient → the next step',
     ['care.more']          = 'More…',
-    ['care.no_action']     = 'You cannot do this step here.',
+    ['care.no_action']     = 'You cannot do this here.',
     ['care.need_item']     = 'You need: %s',
     ['care.at_hospital']   = 'This is done at the hospital.',
+    ['care.hospital_how']  = 'Bring a stretcher, or help them walk with you.',
+    ['care.done_already']  = 'That is already done.',
 })

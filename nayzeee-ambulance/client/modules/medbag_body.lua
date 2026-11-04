@@ -778,14 +778,15 @@ CreateThread(function()
     if not ok then NZA.Warn('medbag: ped target failed: ' .. tostring(e)) end
 end)
 
--- [E] take a body bag out of the vehicle you stand behind
+-- [E] take a body bag out of the vehicle you stand behind (only without a third eye; with one
+-- it is 'Take body bag out' in the EMS job menu, radial item bb_unload below)
 CreateThread(function()
     local shown = false
     while true do
         local sleep = 800
         local veh = nil
         if B().enabled ~= false and B('Vehicle').enabled ~= false and not handsFull() and not down() and NZA.Perm(perm())
-            and not IsPedInAnyVehicle(PlayerPedId(), false) then
+            and not IsPedInAnyVehicle(PlayerPedId(), false) and NZA.UI.WorldPrompts() then
             veh = rearVehicle(GetEntityCoords(PlayerPedId()), tonumber(B('Vehicle').range) or 3.0, true)
         end
         if veh then

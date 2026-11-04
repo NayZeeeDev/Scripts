@@ -711,13 +711,12 @@ local function startBuiltin()
     end)
 end
 
+-- switching to a third eye: the [E] pill on screen goes too (it is an NZA prompt, not ox_lib's
+-- text UI, so lib.hideTextUI alone left it standing)
 local function stopBuiltin()
     BI.running = false
     BI.current = nil
-    if BI.shown then
-        lib.hideTextUI()
-        BI.shown = nil
-    end
+    hidePrompt()
 end
 
 T['builtin'] = {
@@ -761,6 +760,16 @@ end
 
 function Bridge.Target.Resource()
     return resolve()
+end
+
+-- THE rule for [E] prompts in the world (patients, desks, counters, beds, props, scene actions):
+-- they exist only when there is no third eye, i.e. our built-in target is the interaction system.
+-- With ox_target / qb-target / qtarget every world action is a third-eye option instead, and
+-- 'interact' / sleepless_interact draw their own prompts. Every module that would draw its own
+-- world [E] asks this (through NZA.UI.WorldPrompts). Action keys while you carry, push, drive
+-- or sit (put down, open the bag, get up ...) are not world prompts and do not ask.
+function Bridge.Target.WorldPrompts()
+    return resolve() == 'builtin'
 end
 
 local function run(method, ...)
@@ -912,6 +921,26 @@ end
 AddEventHandler('onClientResourceStart', onResource)
 AddEventHandler('onClientResourceStop', onResource)
 
+-- A third eye that was still loading when we looked (no start event reached us): while we are on
+-- the built-in [E] prompt, look again a few times. Finding one switches everything over to it -
+-- options, zones, and no more [E] prompts.
+CreateThread(function()
+    for _, ms in ipairs({ 3000, 10000, 30000 }) do
+        Wait(ms)
+        if resolvedOnce and resolved == 'builtin' then
+            local again = Bridge.Pick('target', Bridge.Cfg('target', 'auto'), {
+                has = function(name) return T[name] ~= nil end,
+            }) or 'builtin'
+            if again ~= 'builtin' then
+                Bridge.Debug('target found late:', again)
+                pcall(T['builtin'].reset)
+                resolved = again
+                reapply()
+            end
+        end
+    end
+end)
+
 -- drop deleted entities from the registry
 CreateThread(function()
     while true do
@@ -924,5 +953,5 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
-    if BI.shown then lib.hideTextUI() end
+    if BI.shown then hidePrompt() end
 end)

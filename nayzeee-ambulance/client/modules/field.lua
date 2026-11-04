@@ -173,7 +173,7 @@ CreateThread(function()
         end
         for _, ped in ipairs(NZA.Scan.Peds()) do
             if #(GetEntityCoords(ped) - pos) < range then
-                local bag = Entity(ped).state.nza
+                local bag = NZA.Scan.State(ped, 'nza')   -- cached read (NZA.Scan)
                 if type(bag) == 'table' and bag.binder and not bag.bag then want[ped] = true end
             end
         end

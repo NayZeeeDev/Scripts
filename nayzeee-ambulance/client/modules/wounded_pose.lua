@@ -19,6 +19,10 @@
     entity, carried / on a stretcher / in a body bag (state bag), in a vehicle, swimming,
     or while any module suspended it. When dropped from a carry above the ground the body
     falls naturally (short ragdoll) before settling again.
+    Always on the back: every lying pose is face up, and a GTA ragdoll (falling over, a drop)
+    can settle face down, so once it has stopped the body is taken back and laid on its back
+    straight away. While the pose holds, GTA cannot knock the body over again (shots, cars:
+    Config.WoundedUI.lockRagdoll); our own falls unlock it for their length.
     Poses are picked from Config.WoundedUI.poseRules (worst injury) when conscious and
     'still' when unconscious, in arrest or dead. Crawling uses the animation's root motion
     and moves the ped itself (with a forward obstacle probe) when the clip has none.
@@ -56,6 +60,13 @@ local getUpGen = 0
 
 local FALLBACK_STILL = { dict = 'mini@cpr@char_b@cpr_def', clip = 'cpr_pumpchest_idle' }   -- face up
 local ARM_REGIONS = { l_upper_arm = true, l_lower_arm = true, r_upper_arm = true, r_lower_arm = true }
+
+-- A ped's origin stands ~1 m above the ground, lying or standing: a body put down by a carry /
+-- stretcher sits there too. Only a body clearly higher than that is falling.
+local DROP_HEIGHT = 1.45
+
+local ragdollLocked = false   -- SetPedCanRagdoll(false) set by us (Config.WoundedUI.lockRagdoll)
+local ragSeen = nil           -- GetGameTimer() when the current ragdoll was first seen settling
 
 -- ════════════════════════════════════════════════════════════════════════
 -- CONFIG / ANIM LOADING
@@ -182,6 +193,25 @@ local function heightAboveGround(ped)
 end
 
 -- ════════════════════════════════════════════════════════════════════════
+-- RAGDOLL (our own falls only; the rest of the time the body keeps its pose)
+-- ════════════════════════════════════════════════════════════════════════
+
+local function lockRagdoll(ped, on)
+    if on and uiCfg().lockRagdoll == false then on = false end
+    if on == ragdollLocked then return end
+    ragdollLocked = on and true or false
+    SetPedCanRagdoll(ped, not on)
+end
+
+-- a natural fall for ms, then the pose takes the body back (on its back)
+local function fall(ped, ms)
+    ragdollLocked = false
+    SetPedCanRagdoll(ped, true)
+    if not IsPedRagdoll(ped) then SetPedToRagdoll(ped, ms, ms, 0, false, false, false) end
+    ragdollUntil = GetGameTimer() + ms
+end
+
+-- ════════════════════════════════════════════════════════════════════════
 -- APPLY
 -- ════════════════════════════════════════════════════════════════════════
 
@@ -201,26 +231,41 @@ function P.Ensure(ped, force)
     end
     if wasHeld then
         wasHeld = false
-        -- dropped from a shoulder / stretcher: let the body fall naturally first
-        if heightAboveGround(ped) > 0.9 then
-            SetPedToRagdoll(ped, 1200, 1200, 0, false, false, false)
-            ragdollUntil = now + 1300
+        -- dropped from a shoulder / stretcher above the ground: let the body fall naturally first
+        -- (a body put down on the ground stands ~1 m high like any ped: no flop for that)
+        if heightAboveGround(ped) > DROP_HEIGHT or IsEntityInAir(ped) then
+            fall(ped, 1200)
             return
         end
         force = true
     end
     if now < ragdollUntil then return end
-    if IsPedFalling(ped) or (IsPedRagdoll(ped) and GetEntitySpeed(ped) > 0.6 and now < ragdollUntil + 4000) then return end
+    if IsPedFalling(ped) then return end
+    local rag = IsPedRagdoll(ped)
+    if rag then
+        ragSeen = ragSeen or math.max(now, ragdollUntil)
+        if GetEntitySpeed(ped) > 0.6 and now < ragSeen + 4000 then return end   -- still tumbling
+    else
+        ragSeen = nil
+    end
 
     local kind = chooseKind()
     local e = entryFor(kind)
-    local playing = IsEntityPlayingAnim(ped, e.dict, e.clip, 3)
-    if force or not current or current.dict ~= e.dict or current.clip ~= e.clip or not playing then
-        local blend = (current and playing) and 1.5 or 2.0
+    local playing = not rag and IsEntityPlayingAnim(ped, e.dict, e.clip, 3)
+    if rag or force or not current or current.dict ~= e.dict or current.clip ~= e.clip or not playing then
+        if rag then
+            -- the fall has stopped but GTA still holds the ragdoll, maybe face down: take the
+            -- body back and lay it on its back now (the pose below is face up)
+            if not P.Load(e.dict) then return end
+            ClearPedTasksImmediately(ped)
+        end
+        local blend = rag and 8.0 or ((current and playing) and 1.5 or 2.0)
         if play(ped, e, blend, 1) then
             current = { kind = kind, dict = e.dict, clip = e.clip }
         end
     end
+    -- settled: nothing in GTA knocks the body over again until a fall of ours
+    if current and not IsPedRagdoll(ped) then lockRagdoll(ped, true) end
 end
 
 local function startLoop()
@@ -379,10 +424,7 @@ function P.Enter(m, fromAlive)
     if crawling and m ~= 'wounded' then stopCrawl(ped) end
     if fromAlive and not IsPedInAnyVehicle(ped, false) and not blocked(ped) then
         local ms = math.floor(tonumber(uiCfg().ragdollMs) or 1800)
-        if ms > 0 then
-            if not IsPedRagdoll(ped) then SetPedToRagdoll(ped, ms, ms, 0, false, false, false) end
-            ragdollUntil = GetGameTimer() + ms
-        end
+        if ms > 0 then fall(ped, ms) end
     end
     if not wasActive then
         stamina = 1.0
@@ -410,6 +452,9 @@ function P.Reapply(now)
     if not active then return end
     if now then ragdollUntil = 0 end
     current = nil
+    -- a core resurrect gives the ped fresh flags: lock it again once the pose holds
+    ragdollLocked = false
+    ragSeen = nil
     P.Ensure(PlayerPedId(), true)
 end
 
@@ -457,9 +502,14 @@ function P.Exit(how)
     current = nil
     wasHeld = false
     ragdollUntil = 0
+    ragSeen = nil
     stamina, restUntil = 1.0, 0
     suspended = {}
     SetPedCanRagdollFromPlayerImpact(ped, true)
+    if ragdollLocked or uiCfg().lockRagdoll ~= false then
+        ragdollLocked = false
+        SetPedCanRagdoll(ped, true)
+    end
     if wasCrawling and crawlEntry then StopAnimTask(ped, crawlEntry.dict, crawlEntry.clip, 2.0) end
     if how == 'getup' then
         P.GetUp(false)

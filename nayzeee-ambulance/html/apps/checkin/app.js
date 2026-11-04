@@ -219,7 +219,7 @@
   function showSay(s) {
     if (!s || !s.text) return;
     const ms = Math.max(3200, s.text.length * 70);
-    NZA.speech({ name: s.name || tr('reception', 'Reception'), role: s.role || tr('reception', 'Reception'), text: s.text, ms });
+    NZA.speech({ name: s.name || tr('reception', 'Reception'), role: s.role || tr('reception', 'Reception'), text: s.text, ms, staff: true });   // staff voice: not muted by Config.PatientVoice
     S.sayUntil = performance.now() + ms;
     clearTimeout(S.sayTimer);
     S.sayTimer = setTimeout(sync, ms + 250);

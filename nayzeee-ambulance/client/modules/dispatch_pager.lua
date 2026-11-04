@@ -50,6 +50,10 @@ function D.HasPager()
     if not cfg('pager', 'requireItem', true) then return true end
     local item = Config.Items and Config.Items.pager
     if not item then return true end
+    -- the server reads the inventory too (me.pager: with every call and every few seconds) and decides
+    -- who gets NPC calls; its yes is enough, so a slow or unsupported local read never hides the pager
+    local me = S().me
+    if me and me.pager == true then return true end
     if Bridge and Bridge.Inv and Bridge.Inv.Has then
         local ok, has = pcall(Bridge.Inv.Has, item, 1)
         return ok and has == true
@@ -304,18 +308,18 @@ CreateThread(function()
     while true do
         Wait(500)
         if cfg('pager', 'enabled', true) ~= false then
-            local has = D.HasPager()
             if P.visible and not NZA.UI.IsOpen(APP) then
                 P.visible = false
                 P.focused = false
             end
+            -- the inventory is only read while the pager is up or would come up (idle = no read)
             if P.visible then
-                if not has or not onDuty() then
+                if not onDuty() or not D.HasPager() then
                     hide()
                 elseif not P.focused and not wantPassive() then
                     hide()
                 end
-            elseif has and onDuty() and cfg('pager', 'showWhileOnCall', true) and (S().me or {}).call and not IsPauseMenuActive() then
+            elseif onDuty() and cfg('pager', 'showWhileOnCall', true) and (S().me or {}).call and not IsPauseMenuActive() and D.HasPager() then
                 show(false)
             end
         end

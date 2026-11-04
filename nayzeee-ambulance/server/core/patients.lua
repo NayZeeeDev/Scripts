@@ -20,6 +20,7 @@
       CanStand(pid)                → ok, reason  (wounded → alive rules of §6)
       RegisterMed(name, fn)        add a medication: fn(p, opts) → ok, info
       Loss(p)                      → loss fraction 0..1 (blood + 0.35 × fluid)
+      VisibleBleed(p)              → mL/min from wounds you can see (no internal / closed fracture / burn)
       Ped(p) / Coords(p)           server-side ped entity / coords
       LoadPlayer(src) UnloadPlayer(src)
       Touch(p, deep)               mark changed (state bag, self push, save); deep = recompute bleeding now
@@ -820,6 +821,22 @@ local function bleedLevel(total)
     return 3
 end
 
+-- mL/min running out of wounds you can see and press on: not internal bleeding, not a closed
+-- fracture bleeding into the tissue, not a burn weeping. bleedTotal (and summary.bleed) keep the
+-- whole loss: the bleed-out clock and the downed player's HUD run on that.
+function P.VisibleBleed(p)
+    p = get(p)
+    if not p then return 0 end
+    local total = 0
+    for _, inj in pairs(p.injuries) do
+        local k = inj.type
+        local inside = k == 'internal' or k == 'burn' or k == 'contusion'
+            or (k == 'fracture' and not (type(inj.fracture) == 'table' and inj.fracture.kind == 'open'))
+        if not inside then total = total + math.max(0, tonumber(inj.bleed) or 0) end
+    end
+    return total
+end
+
 local function shortName(name)
     if type(name) ~= 'string' then return '?' end
     local first, rest = name:match('^(%S+)%s+(.+)$')
@@ -854,11 +871,17 @@ local function summary(p)
     if p.state == 'wounded' then clock = math.floor(p.clock or 0)
     elseif p.state == 'arrest' then clock = math.floor(p.arrestLeft or 0) end
     local m = p.meta
+    -- what the 'Control bleeding' / 'Tourniquet' options can work on (core/care.lua OptionBleed)
+    local press, limb = nil, nil
+    if NZA.Care and NZA.Care.OptionBleed then press, limb = NZA.Care.OptionBleed(p) end
     return {
         pid = p.pid,
         st = p.state,
         avpu = (p.vitals and p.vitals.avpu) or 'A',
         bleed = bleedLevel(p.bleedTotal or 0),
+        ext = bleedLevel(P.VisibleBleed(p)),   -- 0..3 like bleed, only bleeding you can see (blood on the ground)
+        sb = press and bleedLevel(press) or nil,   -- 0..3: bleeding the bleed-control procedure can take
+        tb = limb and bleedLevel(limb) or nil,     -- 0..3: bleeding on a limb with no tourniquet yet
         stab = p.stabilized == true,
         clock = clock,
         inj = NZA.Util.tableCount(p.injuries),

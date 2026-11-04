@@ -88,7 +88,7 @@ FA.Vitals = vitalsOf
 local function bleedFilter(p)
     local sb = FA.Cfg('StopBleed')
     return function(inj)
-        if not FA.Has(sb.types, inj.type) then return false end
+        if not FA.BleedTreats(inj, sb) then return false end
         if inj.type == 'abrasion' and FA.ShownBleed(p, inj) < (sb.abrasionMin or 2) then return false end
         if FA.ShownBleed(p, inj) < (sb.minBleed or 0.5) then return false end
         return FA.Plan(p, inj) ~= nil
