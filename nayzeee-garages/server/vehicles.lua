@@ -1420,6 +1420,7 @@ local function doRetrieve(src, plate, session, opts)
   log('vehicle.retrieve', src, {
     plate = plate,
     garage = session.garageKey,
+    garageName = NZ.Locations.keyName(session.garageKey),
     fee = fee,
     fromImpound = opts.fromImpound == true,
     fromInterior = opts.fromInterior == true,

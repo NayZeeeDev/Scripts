@@ -176,11 +176,14 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
   const latest = activity.latest ? collapseActivity(activity.latest.rows).slice(0, 5) : null;
   const names = nameIndex(activity.latest?.rows ?? [], detail);
   const typeLabel = shapeLabel(shape);
+  // Three or four callouts take two rows: the snapshot strip goes and the facts the hero
+  // already shows are dropped (short screens also clamp the callouts and drop the glyph).
+  const crowded = callouts.length > 2;
 
   return (
-    <div className="nz-dos-pane nz-dos-ov">
+    <div className={cx('nz-dos-pane nz-dos-ov', crowded && 'is-crowded', imp && 'is-imp')}>
       {callouts.length > 0 ? (
-        <div className={cx('nz-dos-ov__callouts', callouts.length > 2 && 'is-many')}>{callouts}</div>
+        <div className={cx('nz-dos-ov__callouts', crowded && 'is-many')}>{callouts}</div>
       ) : (
         <div className="nz-dos-ov__clear">
           <i aria-hidden="true" />
@@ -199,7 +202,8 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
           >
             {t('Facts')}
           </Heading>
-          <div className={cx('nz-dos-facts', imp && 'is-dense', callouts.length > 2 && 'is-crowded')}>
+          {/* is-dense (impounded): six impound facts replace the optional ones; is-crowded drops them on short screens */}
+          <div className={cx('nz-dos-facts', imp && 'is-dense', crowded && 'is-crowded')}>
             {imp ? (
               <>
                 {/* the impound row carries the state: a separate "State: Impounded" would repeat it */}
@@ -238,7 +242,7 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
                 </Fact>
               </>
             )}
-            {/* last driven and mileage are in the hero too: the first rows to go on short screens */}
+            {/* last driven, mileage and the type are in the hero too: the first rows to go */}
             <Fact label={t('Last driven')} icon="clock" tone={!detail.lastUsed ? 'muted' : undefined} optional>
               {detail.lastUsed ? (
                 <Tooltip content={dateTime(detail.lastUsed)}>
@@ -251,7 +255,7 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
             <Fact label={t('Mileage')} icon="route" optional>
               {distance(v.mileage)}
             </Fact>
-            <Fact label={t('Vehicle type')} icon={shapeIcon(shape)}>
+            <Fact label={t('Vehicle type')} icon={shapeIcon(shape)} optional>
               {v.classLabel ? `${typeLabel} · ${v.classLabel}` : typeLabel}
             </Fact>
             <Fact label={t('Owner type')} icon="user">
@@ -332,8 +336,8 @@ export function OverviewTab({ detail, data, damage, props, activity, needsServic
           )}
         </section>
 
-        {/* impounded vehicles list three more facts: the strip would only be cut off */}
-        {!imp && <Snapshot detail={detail} props={props} onTab={onTab} />}
+        {/* two rows of callouts leave no room for the strip (short screens hide it in CSS) */}
+        {!crowded && <Snapshot detail={detail} props={props} onTab={onTab} />}
       </div>
     </div>
   );

@@ -295,6 +295,8 @@ local function frameworkUsable(name)
   return false
 end
 
+local oxExportItems = {}  -- items whose ox definition uses the export (their usedItem event is skipped)
+
 -- ox_inventory item definitions: server = { export = 'nayzeee-garages.useNzItem' }, consume = 0.
 -- ox calls (event, item, inventory, slot); only 'usingItem' is acted on (consume = 0 never
 -- reaches 'usedItem'). Returning nothing lets the use go on (nothing is consumed).
@@ -303,6 +305,7 @@ exports('useNzItem', function(event, item, inventory, slot)
   local name = type(item) == 'table' and item.name or nil
   local src = type(inventory) == 'table' and (inventory.id or inventory.player and inventory.player.source) or nil
   if type(name) ~= 'string' or not handlers[name] then return false end
+  oxExportItems[name] = true
   local md
   local entry = type(inventory) == 'table' and type(inventory.items) == 'table' and inventory.items[slot] or nil
   if type(entry) == 'table' and entry.name == name then md = entry.metadata end
@@ -314,10 +317,11 @@ exports('useNzItem', function(event, item, inventory, slot)
 end)
 
 -- ox_inventory raises this (locally) after every confirmed use, also for definitions with
--- consume = 0 and no export: the de-duplication above drops the second call.
+-- consume = 0 and no export. Items already handled by the export above are skipped (the
+-- export always runs first); the de-duplication drops a framework-path double.
 AddEventHandler('ox_inventory:usedItem', function(playerId, name, slot, metadata)
   if type(source) == 'number' and source > 0 then return end -- never from the network
-  if type(name) ~= 'string' or not handlers[name] then return end
+  if type(name) ~= 'string' or not handlers[name] or oxExportItems[name] then return end
   dispatch(playerId, name, slot, metadata, 'ox event')
 end)
 

@@ -1,6 +1,12 @@
 --[[
   nayzeee-garages — vehicle keys integration (server): NZ.KeysServer.
 
+  Built-in car lock (Config.CarLock.enabled and Config.Integrations.keys 'auto' or 'nayzeee',
+  docs/CARLOCK.md §3): the garage code calls NZ.KeysServer.give after it validated a spawned
+  vehicle (NZ.Vehicles.markSpawned) and the built-in key store hands out the key (key item in
+  physical mode, temporary key otherwise; spawner vehicles: temporary key) and unlocks the
+  vehicle. The client bridge does not ask the server in that mode.
+
   Server-side key systems (qbx_vehiclekeys) cannot be reached from the client, so the
   client bridge (bridge/client/keys.lua) asks through the 'nz:keys:give' / 'nz:keys:remove'
   callbacks, and the garage code calls NZ.KeysServer.give directly after a spawn.
@@ -38,12 +44,19 @@ local function started(name)
   return Utils.resourceStarted(name)
 end
 
---- Key resource in use (same rules as the client), or nil.
+--- Is the built-in car lock in charge of keys?
+---@return boolean
+function KeysServer.builtIn()
+  return type(NZ.CarLock.enabled) == 'function' and NZ.CarLock.enabled() == true
+end
+
+--- Key resource in use (same rules as the client), 'nayzeee' for the built-in car lock, or nil.
 ---@return string|nil
 function KeysServer.resource()
+  if KeysServer.builtIn() then return 'nayzeee' end
   local configured = Config.Integrations and Config.Integrations.keys or 'auto'
   if type(configured) ~= 'string' or configured == '' then configured = 'auto' end
-  if configured == 'none' then return nil end
+  if configured == 'none' or configured == 'nayzeee' then return nil end
   if configured == 'auto' then
     for i = 1, #KEY_RESOURCES do
       if started(KEY_RESOURCES[i]) then return KEY_RESOURCES[i] end
@@ -130,20 +143,49 @@ local function entitled(src, plate)
   return false
 end
 
+--- Built-in car lock hand-out for a vehicle the garage just validated. The entity must be
+--- the one the garage tracks for that plate (a copy wearing the same plate gets nothing).
+local function builtInGive(src, entity, wanted, opts)
+  local plate = wanted or entityPlate(entity)
+  if not plate then return false end
+  local out = type(NZ.Vehicles.out) == 'table' and NZ.Vehicles.out[plate] or nil
+  if type(out) == 'table' and out.entity and out.entity ~= entity then
+    log('security.keys', src, { plate = plate, reason = 'key hand-out for an entity the garage does not track' })
+    return false
+  end
+  if recentlyGiven(src, entity) then return true end
+  local ok, res = pcall(NZ.CarLock.onVehicleOut, src, entity, plate, opts)
+  if not ok then
+    lib.print.warn(('keys: built-in hand-out failed for %s: %s'):format(plate, tostring(res)))
+    return false
+  end
+  if res then remember(src, entity) end
+  return res == true
+end
+
 ---------------------------------------------------------------------------------------
 -- Public API
 ---------------------------------------------------------------------------------------
 
---- Give a player keys through a server-side key system (qbx_vehiclekeys). Trusted
---- server code only: callers must have validated the request. No-op for client-side
---- key systems (the client bridge handles those).
+--- Give a player keys. Built-in car lock: key item / temporary key + unlock (see the header).
+--- Server-side key systems (qbx_vehiclekeys): their export. Trusted server code only: callers
+--- must have validated the request. No-op for client-side key systems (the client bridge
+--- handles those).
 ---@param src number player source
 ---@param netId number network id of the vehicle
 ---@param plate string|nil expected plate (checked against the entity when given)
+---@param opts table|nil built-in only: { spawner = boolean }
 ---@return boolean given
-function KeysServer.give(src, netId, plate)
+function KeysServer.give(src, netId, plate, opts)
   src = validPlayer(src)
   if not src then return false end
+  if KeysServer.builtIn() then
+    local entity = vehicleFromNetId(netId)
+    if not entity then return false end
+    local wanted = Utils.plate(plate)
+    if wanted and entityPlate(entity) ~= wanted then return false end
+    return builtInGive(src, entity, wanted, opts)
+  end
   local resource = KeysServer.resource()
   if not resource or not SERVER_SIDE[resource] then return false end
   local entity = vehicleFromNetId(netId)
@@ -171,6 +213,13 @@ end
 function KeysServer.remove(src, netId, plate)
   src = validPlayer(src)
   if not src then return false end
+  if KeysServer.builtIn() then
+    local entity = vehicleFromNetId(netId)
+    local real = entity and NZ.CarLock.realPlate(entity) or Utils.plate(plate)
+    if not real then return false end
+    if recent[src] and entity then recent[src][entity] = nil end
+    return NZ.CarLock.revokeTemp(src, real) == true
+  end
   local resource = KeysServer.resource()
   if not resource or not SERVER_SIDE[resource] then return false end
   local entity = vehicleFromNetId(netId)
@@ -226,6 +275,8 @@ end
 lib.callback.register('nz:keys:give', Utils.safe(function(source, payload)
   local src = validPlayer(source)
   if not src then return Utils.fail(L('Invalid request')) end
+  -- built-in: the garage hands keys out itself (NZ.Vehicles.markSpawned)
+  if KeysServer.builtIn() then return Utils.ok(false) end
   local resource = KeysServer.resource()
   if not resource or not SERVER_SIDE[resource] then return Utils.ok(false) end
   if type(NZ.Settings.get) == 'function' and NZ.Settings.get('vehicles.giveKeys', true) == false then
@@ -244,6 +295,7 @@ end))
 lib.callback.register('nz:keys:remove', Utils.safe(function(source, payload)
   local src = validPlayer(source)
   if not src then return Utils.fail(L('Invalid request')) end
+  if KeysServer.builtIn() then return Utils.ok(false) end
   local resource = KeysServer.resource()
   if not resource or not SERVER_SIDE[resource] then return Utils.ok(false) end
 

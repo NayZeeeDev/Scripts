@@ -312,6 +312,7 @@ export const Inspector = forwardRef<HTMLElement, InspectorProps>(function Inspec
             </Button>
             <Menu
               align="left"
+              side="top"
               items={pointItems}
               trigger={
                 <Button size="sm" icon="route" iconRight="chevronDown" loading={busy === 'points'} title={t('Place points in the world')}>

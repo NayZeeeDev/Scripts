@@ -175,8 +175,15 @@ end
 
 local secret = nil
 
---- Server secret for key signatures: convar nz_carlock_secret (set it when several servers
---- share one database), else a random value kept in this resource's KVP store.
+local function newSecret()
+  local entropy = { tostring(os.time()), tostring(GetGameTimer()), tostring(os.clock()), tostring({}) }
+  for _ = 1, 8 do entropy[#entropy + 1] = tostring(math.random(0, 0x7fffffff)) end
+  return hex(sha256(table.concat(entropy, '|')))
+end
+
+--- Server secret for key signatures: convar nz_carlock_secret (set the same value on servers
+--- that share one database), else the value stored in nz_settings (created on the first
+--- start), else (database unreachable) this resource's KVP store.
 local function keySecret()
   if secret then return secret end
   local convar = GetConvar('nz_carlock_secret', '')
@@ -184,20 +191,38 @@ local function keySecret()
     secret = convar
     return secret
   end
+  -- the very first start creates nz_settings during the boot: wait for it
+  if not NZ.Ready and coroutine.isyieldable() then
+    local deadline = GetGameTimer() + 30000
+    while not NZ.Ready and GetGameTimer() < deadline do Wait(250) end
+    if secret then return secret end
+  end
+  if NZ.DB.keys and type(NZ.DB.keys.secret) == 'function' then
+    local ok, stored = pcall(NZ.DB.keys.secret, newSecret())
+    if ok and type(stored) == 'string' and #stored >= 32 then
+      secret = stored
+      return secret
+    end
+  end
   local okRead, stored = pcall(GetResourceKvpString, SECRET_KVP)
   if okRead and type(stored) == 'string' and #stored >= 32 then
     secret = stored
-    return secret
+  else
+    secret = newSecret()
+    pcall(SetResourceKvp, SECRET_KVP, secret)
   end
-  local entropy = { tostring(os.time()), tostring(GetGameTimer()), tostring(os.clock()), tostring({}) }
-  for _ = 1, 8 do entropy[#entropy + 1] = tostring(math.random(0, 0x7fffffff)) end
-  secret = hex(sha256(table.concat(entropy, '|')))
-  local okWrite = pcall(SetResourceKvp, SECRET_KVP, secret)
-  if not okWrite then
-    lib.print.warn('[nayzeee-garages] carlock: could not store the key secret (KVP); key items will stop working after a restart. Set the convar nz_carlock_secret.')
-  end
+  lib.print.warn('[nayzeee-garages] carlock: the key secret could not be read from the database; using the local KVP copy. Key items may stop working when the database is back. Set the convar nz_carlock_secret to avoid this.')
   return secret
 end
+
+-- Load the secret once the database is migrated (server/main.lua sets NZ.Ready), so the first
+-- key check never waits on it and a first start never signs with a temporary value.
+CreateThread(function()
+  local deadline = GetGameTimer() + 120000
+  while not NZ.Ready and GetGameTimer() < deadline do Wait(500) end
+  local ok, err = pcall(keySecret)
+  if not ok then lib.print.warn(('[nayzeee-garages] carlock: key secret: %s'):format(tostring(err))) end
+end)
 
 local function signature(plate, version, kind, id)
   local msg = table.concat({ 'nzkey', plate, tostring(version), kind, id }, '|')
@@ -515,6 +540,12 @@ function CarLock.verifyKeyItem(metadata, plate)
   if plate ~= nil and p ~= normPlate(plate) then return false, 'plate' end
   local version = tonumber(metadata.version)
   local kind, id, sig = metadata.kind, metadata.id, metadata.sig
+  if sig == nil and cfg().trustUnsignedKeys == true then
+    -- key items written by other scripts / inventory admin tools (no signature): owner's choice
+    version = math.tointeger(version or 0) or 0
+    if version ~= CarLock.keyVersion(p) then return false, 'version' end
+    return true, nil
+  end
   if not version or version ~= math.floor(version) or (kind ~= 'key' and kind ~= 'fob')
     or type(id) ~= 'string' or #id > 32 or type(sig) ~= 'string' or #sig ~= SIG_LENGTH then
     return false, 'invalid'
@@ -560,6 +591,7 @@ function CarLock.giveKeyItem(src, plate, opts)
   src, plate = validSrc(src), normPlate(plate)
   if not src or not plate then return false, L('Invalid request') end
   if not NZ.Inventory.supportsMetadata() then return false, L('Your inventory cannot hold vehicle keys') end
+  if CarLock.mode() ~= 'physical' then return false, L('This server does not use key items') end
   opts = type(opts) == 'table' and opts or {}
   local model = opts.model
   if type(model) ~= 'string' then
@@ -721,7 +753,7 @@ function CarLock.revokeVirtual(ownerSrc, identifier, plate)
 end
 
 --- Everyone with a virtual or temporary key of `plate`:
---- { { identifier, name, kind = 'virtual'|'temp', grantedBy?, createdAt?, expires? } }.
+--- { { identifier, name, kind = 'virtual'|'temp', grantedBy?, at?, createdAt?, expires?, reason? } }.
 ---@param plate string
 ---@return table[]
 function CarLock.holders(plate)
@@ -737,14 +769,14 @@ function CarLock.holders(plate)
     for _, row in ipairs(NZ.DB.keys.list(plate) or {}) do
       seen[row.identifier] = true
       out[#out + 1] = { identifier = row.identifier, name = nameOf(row.identifier), kind = 'virtual',
-        grantedBy = row.grantedBy, createdAt = row.createdAt }
+        grantedBy = row.grantedBy ~= '' and row.grantedBy or nil, createdAt = row.createdAt, at = row.createdAt }
     end
   end
   for holder in pairs(temp) do
     local entry = tempEntry(holder, plate)
     if entry and not seen[holder] and not holder:match('^src:') then
       out[#out + 1] = { identifier = holder, name = nameOf(holder), kind = 'temp', expires = entry.expires,
-        reason = entry.reason }
+        reason = entry.reason, at = entry.at }
     end
   end
   return out
@@ -792,7 +824,8 @@ function CarLock.keysOf(src)
 
   local holder = holderOf(src)
   for plate in pairs(temp[holder] or {}) do
-    if tempEntry(holder, plate) then add(plate, 'temp') end
+    local entry = tempEntry(holder, plate)
+    if entry then add(plate, 'temp', { expires = entry.expires, reason = entry.reason }) end
   end
   local mode = CarLock.mode()
   local id = identifierOf(src)
@@ -814,7 +847,9 @@ function CarLock.keysOf(src)
       add(row.plate, 'owner', { label = row.nickname, model = row.model })
     end
     local okShares, shared = pcall(NZ.DB.shares.forIdentifier, id)
-    for _, plate in ipairs(okShares and shared or {}) do add(plate, 'owner') end
+    for _, entry in ipairs(okShares and type(shared) == 'table' and shared or {}) do
+      add(type(entry) == 'table' and entry.plate or entry, 'owner', { shared = true })
+    end
   end
 
   -- net ids of the vehicles that exist right now (one pass over the world)
@@ -1002,6 +1037,122 @@ function CarLock.jobBypass(src, plate)
     if (kind == 'job' and name == job) or (kind == 'gang' and name == gang) then return true end
   end
   return false
+end
+
+--- Real plate for a plate TEXT another script read from a vehicle (a fake plate becomes the
+--- real one when a vehicle wearing that text stands near `src`). Unknown texts pass through.
+---@param text string
+---@param src number|nil
+---@return string|nil
+function CarLock.plateFromText(text, src)
+  local wanted = normPlate(text)
+  if not wanted then return nil end
+  local origin, bucket = nil, nil
+  src = validSrc(src)
+  if src then
+    local ped = GetPlayerPed(tostring(src))
+    if ped and ped ~= 0 then origin = GetEntityCoords(ped) end
+    bucket = GetPlayerRoutingBucket(tostring(src))
+  end
+  local best, bestDist = nil, math.huge
+  for _, entity in ipairs(GetAllVehicles() or {}) do
+    if isVehicle(entity) and normPlate(GetVehicleNumberPlateText(entity)) == wanted
+      and (bucket == nil or GetEntityRoutingBucket(entity) == bucket) then
+      local dist = origin and #(GetEntityCoords(entity) - origin) or 0.0
+      if dist < bestDist then best, bestDist = entity, dist end
+    end
+  end
+  if best and bestDist <= 50.0 then
+    local real = CarLock.realPlate(best)
+    if real then return real end
+  end
+  return wanted
+end
+
+--- Lock range of a vehicle for a player: fob range for remote profiles or when `fob` is
+--- true (a fob item in hand), else the key range.
+---@param entity number
+---@param fob boolean|nil
+---@return number
+function CarLock.lockRangeOf(entity, fob)
+  if fob then return CarLock.range('fob') end
+  local _, profile = CarLock.profileOfEntity(entity)
+  return CarLock.lockRange(profile)
+end
+
+local POP_MISSION = 7      -- GetEntityPopulationType: created by a script
+
+--- May a CLIENT-originated request (another script's client event / export) give `src` a
+--- temporary key of `entity`? Server-side calls never come here. Rules: inside or within
+--- ranges.compat; nobody else drives it; a player-owned vehicle only for its owner / shared /
+--- fleet players or the one who took it out; with compatAmbient = false only script-spawned
+--- (mission) vehicles or vehicles this resource tracks.
+---@param src number
+---@param entity number
+---@param dist number|nil distance from the server ped (vehicleFromNet)
+---@param inside boolean|nil
+---@return boolean ok, string|nil plate, string|nil error (translated)
+function CarLock.canAcquire(src, entity, dist, inside)
+  src = validSrc(src)
+  if not src or not isVehicle(entity) then return false, nil, L('Vehicle not found') end
+  if not inside and (dist == nil or dist > CarLock.range('compat')) then
+    return false, nil, L('You are too far from the vehicle')
+  end
+  local plate = CarLock.realPlate(entity)
+  if not plate then return false, nil, L('Vehicle not found') end
+  local ped = GetPlayerPed(tostring(src))
+  local driver = GetPedInVehicleSeat(entity, -1)
+  if driver and driver ~= 0 and driver ~= ped and IsPedAPlayer(driver) then
+    return false, plate, L('Someone else is driving this vehicle')
+  end
+  local out = type(NZ.Vehicles.out) == 'table' and NZ.Vehicles.out[plate] or nil
+  local tracked = type(out) == 'table' and (out.entity == nil or out.entity == entity)
+  if rowOf(plate) or (tracked and not out.spawner) then
+    local mine = tracked and (out.src == src or out.identifier == identifierOf(src))
+    if not mine and not ownerAccess(src, plate) then
+      return false, plate, L('You do not have access to this vehicle')
+    end
+    return true, plate, nil
+  end
+  if tracked and out.spawner then
+    local mine = out.src == src or out.identifier == identifierOf(src)
+    if not mine then return false, plate, L('You do not have access to this vehicle') end
+    return true, plate, nil
+  end
+  if cfg().compatAmbient ~= true then
+    local okPop, pop = pcall(GetEntityPopulationType, entity)
+    if not okPop or tonumber(pop) ~= POP_MISSION then
+      return false, plate, L('You do not have the keys of this vehicle')
+    end
+  end
+  return true, plate, nil
+end
+
+--- Physical mode: move one valid key item of `plate` from `src` to `target` (server copy of
+--- the metadata; rolled back when the target cannot take it).
+---@param src number
+---@param target number
+---@param plate string
+---@return boolean ok, string|nil error (translated)
+function CarLock.handOverKeyItem(src, target, plate)
+  src, target, plate = validSrc(src), validSrc(target), normPlate(plate)
+  if not src or not target or not plate or src == target then return false, L('Invalid request') end
+  local entry = CarLock.keyItemsOf(src, plate)[1]
+  if not entry then return false, L('You do not have a key item for this vehicle') end
+  local md = entry.metadata
+  if not NZ.Inventory.canCarry(target, entry.item, 1, md) then return false, L('They cannot carry the key') end
+  local match = md.id and { id = md.id } or { plate = plate }
+  if not NZ.Inventory.removeItem(src, entry.item, 1, match, entry.slot) then return false, L('Something went wrong') end
+  if not NZ.Inventory.addItem(target, entry.item, 1, md) then
+    if not NZ.Inventory.addItem(src, entry.item, 1, md) then
+      lib.print.error(('[nayzeee-garages] carlock: key item %s of %s lost during a hand-over (inventory refused the rollback)'):format(entry.item, plate))
+    end
+    return false, L('They cannot carry the key')
+  end
+  push(src, plate)
+  push(target, plate)
+  log('vehicle.keyHandOver', src, { plate = plate, target = identifierOf(target), kind = md.kind })
+  return true, nil
 end
 
 ---------------------------------------------------------------------------------------

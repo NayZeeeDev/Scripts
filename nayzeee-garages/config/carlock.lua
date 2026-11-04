@@ -21,6 +21,15 @@ Config.CarLock = {
   -- Physical mode: give a key item on garage retrieval when the player has no valid key.
   giveKeyOnRetrieve = true,
 
+  -- Key items are signed by the server (metadata `sig`), so keys edited or forged through an
+  -- inventory never open anything. true = also accept key items without a signature (given by
+  -- other scripts or inventory admin commands with just a `plate`): anyone able to write item
+  -- metadata can then make keys. Prefer exports['nayzeee-garages']:GiveKeyItem(src, plate).
+  trustUnsignedKeys = false,
+
+  -- Short notification after locking / unlocking ("Vehicle locked").
+  lockNotify = true,
+
   -- Temporary keys (hotwire, robbery, admin, other scripts, spawners) expire after this many hours.
   tempKeyHours = 24,
 
@@ -223,15 +232,17 @@ Config.CarLock = {
 -- Impound: an NPC flatbed tow truck collects vehicles impounded with the impound form
 -- (/impound or the target option). The database impound happens at once; the tow is only
 -- visual. When anything goes wrong (no road nearby, stuck, nobody left to run it, timeout)
--- the vehicle is deleted instead, as without the tow truck.
+-- the vehicle is deleted instead, as without the tow truck. Vehicles somebody sits in,
+-- boats, aircraft and vehicles too big for the bed are deleted at once (no tow).
 Config.Tow = {
   enabled = true,
   truck = 'flatbed',
   driver = 's_m_m_trucker_01',
+  plate = 'IMPOUND',               -- plate text of the tow truck (8 characters at most, '' = random)
   spawnDistance = { min = 80.0, max = 150.0 }, -- metres from the vehicle, on a road, out of sight when possible
   timeout = 150,                   -- seconds before falling back to deleting the vehicle
   loadSeconds = 6,                 -- the driver works the bed controls while the vehicle is pulled on
-  speed = 14.0,                    -- m/s on the way to the vehicle (about 50 km/h)
+  speed = 14.0,                    -- m/s on the way to the vehicle and when leaving (about 50 km/h)
   drivingStyle = 786603,           -- law-abiding (786469 = goes around traffic and ignores lights)
   despawnDistance = 150.0,         -- after loading: removed once every player is farther than this ...
   despawnSeconds = 60,             -- ... or after this many seconds
@@ -241,10 +252,13 @@ Config.Tow = {
   -- Never towed (GTA classes): 10 industrial, 14 boats, 15 helicopters, 16 planes,
   -- 19 military, 20 commercial, 21 trains.
   skipClasses = { 10, 14, 15, 16, 19, 20, 21 },
-  -- Where the vehicle sits on the bed (metres, relative to the truck bone). The bed height is
+  -- Where the vehicle sits on the bed (metres, relative to the truck bone): `y` = centre of the
+  -- bed, `rear` = its rear edge (the vehicle is pulled on from there). The bed height is
   -- measured on the truck when possible; `surface` is the fallback. Tune for add-on trucks.
   bed = { bone = 'bodyshell', y = -2.35, surface = 0.55, rear = -6.0 },
   animation = { dict = 'amb@prop_human_atm@male@idle_a', clip = 'idle_b' }, -- the driver at the bed controls
+  -- Blip on the tow truck for the impounding officer while it is on its way.
+  blip = { enabled = true, sprite = 68, color = 17, scale = 0.8 },
 }
 
 -- Car sale contracts.

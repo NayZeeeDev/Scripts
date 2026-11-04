@@ -118,8 +118,10 @@ local function pick()
   if type(configured) ~= 'string' or configured == '' then configured = 'auto' end
   if configured == 'none' then return nil end
   if configured == 'custom' then return 'custom' end
-  if KNOWN[configured] and started(configured) then return configured end
-  if configured ~= 'framework' then
+  if KNOWN[configured] then
+    -- forced: that inventory, else the framework items (same as the server)
+    if started(configured) then return configured end
+  elseif configured ~= 'framework' then
     for i = 1, #ORDER do
       if started(ORDER[i]) then return ORDER[i] end
     end

@@ -1725,6 +1725,29 @@ function DB.keys.bumpVersion(plate)
   return math.max(int(after and after.nz_key_version, (int(raw.nz_key_version, 0) + 1)), 0)
 end
 
+local KEY_SECRET = 'carlock_secret'
+local KEY_SECRET_MIN = 32
+
+--- Signing secret of key items (nz_settings 'carlock_secret'). Returns the stored value; when
+--- none is stored yet (first start) `candidate` is stored and returned. nil when the database
+--- cannot be read or written (the caller falls back to another store).
+---@param candidate string|nil new secret (at least 32 characters)
+---@return string|nil
+function DB.keys.secret(candidate)
+  local value, ok = run('scalar', 'SELECT `value` FROM `nz_settings` WHERE `key` = ? LIMIT 1', { KEY_SECRET })
+  if not ok then return nil end
+  if type(value) == 'string' and #value >= KEY_SECRET_MIN then return value end
+  if type(candidate) ~= 'string' or #candidate < KEY_SECRET_MIN then return nil end
+  -- keeps a valid stored value when two servers race on the first start
+  local _, written = run('update', [[INSERT INTO `nz_settings` (`key`, `value`) VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE `value` = IF(CHAR_LENGTH(`value`) >= ?, `value`, ?)]],
+    { KEY_SECRET, candidate, KEY_SECRET_MIN, candidate })
+  if not written then return nil end
+  value = run('scalar', 'SELECT `value` FROM `nz_settings` WHERE `key` = ? LIMIT 1', { KEY_SECRET })
+  if type(value) == 'string' and #value >= KEY_SECRET_MIN then return value end
+  return candidate
+end
+
 ---------------------------------------------------------------------------------------
 -- Vehicle history (ownership / service records)
 ---------------------------------------------------------------------------------------

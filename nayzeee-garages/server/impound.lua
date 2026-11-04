@@ -205,6 +205,22 @@ local function deleteEntity(entity)
   return true
 end
 
+--- Take an impounded vehicle out of the world. With `tow` (impound form) an NPC flatbed
+--- collects it when Config.Tow allows (NZ.Tow locks it at once and deletes it after the tow or
+--- on any failure); otherwise, or when the tow cannot run (disabled, boat / aircraft, somebody
+--- inside, nobody nearby ...), it is deleted at once. Never yields.
+---@return boolean removed, boolean towed
+local function removeEntity(entity, tow, src)
+  if not isVehicleEntity(entity) then return false, false end
+  if tow and type(NZ.Tow.start) == 'function' then
+    local success, started = pcall(NZ.Tow.start, entity, src)
+    if success and started == true then return true, true end
+    if not success then lib.print.warn(('impound: tow truck failed: %s'):format(tostring(started))) end
+  end
+  DeleteEntity(entity)
+  return true, false
+end
+
 local function clearOut(plate)
   if type(NZ.Vehicles.clearOut) == 'function' then
     NZ.Vehicles.clearOut(plate)
@@ -278,9 +294,10 @@ end
 --- An impound only hands out vehicles of its own category (car / sea / air): a vehicle of
 --- another category goes to the nearest impound of its category instead (refused when the
 --- server has none), otherwise its owner could never collect it.
---- Used by the impound form, the admin panel and the ImpoundVehicle export.
+--- Used by the impound form, the admin panel and the ImpoundVehicle export. `opts.tow`
+--- (impound form only): an NPC flatbed collects the vehicle instead of it vanishing (NZ.Tow).
 ---@param plate string
----@param opts table { locationId, reason?, fee?, hours?, retrievable?, netId?, byName? }
+---@param opts table { locationId, reason?, fee?, hours?, retrievable?, netId?, byName?, tow? }
 ---@param src number|nil player who impounds (nil for exports / automation)
 ---@return boolean success, string|nil error (translated), table|nil location actually used
 function Impound.impound(plate, opts, src)
@@ -302,6 +319,7 @@ function Impound.impound(plate, opts, src)
   if type(opts.retrievable) == 'boolean' then retrievable = opts.retrievable end
   local reason = Utils.cleanText(opts.reason, MAX_REASON) or ''
   local netId = toInt(opts.netId, 1)
+  local tow = opts.tow == true
 
   local by = identifierOf(src)
   local byName = playerName(src) or Utils.cleanText(opts.byName, 60) or L('Impound service')
@@ -314,11 +332,11 @@ function Impound.impound(plate, opts, src)
     local row = NZ.DB.getVehicle(plate)
     if not row then
       if not entity then return false, L('Vehicle not found') end
-      deleteEntity(entity)
+      local _, towed = removeEntity(entity, tow, src)
       releaseSpawner(plate)
       log('impound.add', src, {
         plate = plate, npc = true, impound = location.id, impoundName = location.name,
-        reason = reason, by = by, byName = byName,
+        reason = reason, by = by, byName = byName, towed = towed or nil,
       })
       return true, nil, location
     end
@@ -348,9 +366,12 @@ function Impound.impound(plate, opts, src)
       return false, L('Could not impound the vehicle')
     end
 
+    -- the vehicle the officer pointed at (else the tracked one) may be towed; a second copy
+    -- with the same plate is deleted at once
     local tracked = trackedEntity(plate)
-    local removed = deleteEntity(entity)
-    if tracked and tracked ~= entity then removed = deleteEntity(tracked) or removed end
+    local primary = entity or tracked
+    local removed, towed = removeEntity(primary, tow, src)
+    if tracked and tracked ~= primary then removed = deleteEntity(tracked) or removed end
     clearOut(plate)
     releaseSpawner(plate)
     -- its saved trailer is impounded with it: never leave a second copy in the world
@@ -373,6 +394,7 @@ function Impound.impound(plate, opts, src)
       by = by,
       byName = byName,
       removedEntity = removed,
+      towed = towed or nil,
     })
 
     local ownerSrc = sourceOf(row.owner)
@@ -886,6 +908,7 @@ register('nz:impoundForm:submit', function(src, payload)
     hours = payload.hours,
     retrievable = payload.retrievable,
     netId = netId,
+    tow = true, -- the vehicle in front of the officer: an NPC flatbed collects it (Config.Tow)
   }, src)
   if not success then return fail(err or L('Could not impound the vehicle')) end
   local where = type(used) == 'table' and used.name or location.name

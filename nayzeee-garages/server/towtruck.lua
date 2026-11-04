@@ -41,8 +41,14 @@ local LOAD_EXTRA_MS = 25000         -- loading may take loadSeconds + this befor
 local LOADED_STALL_MS = 30000       -- driver not back in the truck after this: clean up from here
 local LAST_SEAT = 14
 local REPORT_GAP_MS = 150           -- per job, between two reports of its runner
-local TOWABLE = { automobile = true, bike = true }  -- server GetVehicleType values
+-- server GetVehicleType values that fit on a flatbed (class / size are checked by the runner)
+local TOWABLE = {
+  automobile = true, bike = true, quadbike = true,
+  amphibious_automobile = true, amphibious_quadbike = true,
+}
 local STAGES = { start = 1, spawned = 2, arrived = 3, load = 4, loaded = 5, leaving = 6 }
+-- 'spawned' problems that only a modified client produces (a slow network gives 'missing')
+local SUSPICIOUS = { model = true, owner = true, entity = true, taken = true, bucket = true, distance = true }
 
 local jobs = {}                     -- [id] = job
 local owned = {}                    -- [entity] = job (vehicle, truck and driver of every job)
@@ -307,6 +313,7 @@ local function sendStart(job, adopt)
     timeout = left,
     truck = adopt and job.truckNet or nil,
     driver = adopt and job.driverNet or nil,
+    officer = job.runner == job.officer, -- the runner shows a blip on its truck
   })
 end
 
@@ -327,6 +334,10 @@ local function handover(job, reason, exclude)
   local old = job.runner
   if exclude then job.excluded[old] = true end
   if connected(old) then TriggerClientEvent('nz:client:tow:stop', old, { id = job.id }) end
+  -- a client still pulling the vehicle onto the old truck stops as well
+  if job.attacher and job.attacher ~= old and connected(job.attacher) then
+    TriggerClientEvent('nz:client:tow:stop', job.attacher, { id = job.id })
+  end
   if job.handovers >= MAX_HANDOVERS or job.deadline - now < HANDOVER_MIN_LEFT_MS then
     return finish(job, 'fallback', 'runner:' .. reason)
   end
@@ -404,7 +415,8 @@ local function check(job, now)
   local cfg = config()
   if job.stage == 'leaving' then
     if not truckAlive(job) then return finish(job, 'done', 'truckGone') end
-    if targetAlive(job) and leftBehind(job) then
+    -- never leave the impounded vehicle behind or let anybody drive it away
+    if targetAlive(job) and (leftBehind(job) or playerInside(job.target)) then
       DeleteEntity(job.target)
     end
     local despawnMs = number(cfg.despawnSeconds, 60, 10, 600) * 1000
@@ -420,6 +432,9 @@ local function check(job, now)
     if now - job.targetGoneAt >= TARGET_GONE_GRACE_MS then return finish(job, 'fallback', 'targetGone') end
   elseif bucketOf(job.target) ~= job.bucket then
     return finish(job, 'fallback', 'bucket')
+  elseif playerInside(job.target) then
+    -- doors are locked and clients refuse it: somebody forced their way in
+    return finish(job, 'fallback', 'occupied')
   end
   if now >= job.deadline then return finish(job, 'fallback', 'timeout') end
 
@@ -535,9 +550,13 @@ function Tow.start(entity, officerSrc)
 
   local locked = pcall(SetVehicleDoorsLocked, entity, 2)
   if not locked then warnOnce('lock', 'SetVehicleDoorsLocked is not available on this server build') end
+  -- keep the built-in car lock's state bag in line (its clients apply `nzLocked`)
+  if type(NZ.CarLock.setLocked) == 'function' then
+    local success, err = pcall(NZ.CarLock.setLocked, entity, true)
+    if not success then warnOnce('carlock', ('could not lock through the car lock: %s'):format(tostring(err))) end
+  end
   setState(entity, 'nzTowing', true)
   sendStart(job, false)
-  if officerSrc and connected(officerSrc) then notify(officerSrc, 'info', L('Tow truck dispatched')) end
   ensureWatchdog()
   return true, nil
 end
@@ -625,7 +644,9 @@ function handlers.spawned(job, src, payload)
     if Utils.dist(GetEntityCoords(truck), targetCoords(job)) > maxDistance then problem = 'distance' end
   end
   if problem then
-    securityLog(src, job, 'spawn:' .. problem, { truck = truckNet, driver = driverNet })
+    if SUSPICIOUS[problem] then
+      securityLog(src, job, 'spawn:' .. problem, { truck = truckNet, driver = driverNet })
+    end
     finish(job, 'fallback', 'spawn:' .. problem)
     return fail(L('The tow truck could not be sent'))
   end
@@ -641,6 +662,11 @@ function handlers.spawned(job, src, payload)
   setState(driver, 'nzTowDriver', true)
   job.stage = 'spawned'
   job.stageAt = GetGameTimer()
+  -- told once the truck really is on its way (a boat or an oversized vehicle never gets here)
+  if not job.notified and job.officer and connected(job.officer) then
+    job.notified = true
+    notify(job.officer, 'info', L('Tow truck dispatched'))
+  end
   return ok(nil)
 end
 
@@ -721,6 +747,14 @@ function handlers.leaving(job, src, payload)
 end
 
 function handlers.tick()
+  return ok(nil)
+end
+
+-- The leaving truck is out of the runner's sight: end now when every player is far from it
+-- (otherwise the watchdog ends it by distance or time as usual).
+function handlers.done(job)
+  if job.stage ~= 'leaving' then return invalid() end
+  if not truckAlive(job) or everyoneFar(job) then finish(job, 'done', 'far') end
   return ok(nil)
 end
 

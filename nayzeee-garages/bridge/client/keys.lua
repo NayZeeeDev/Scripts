@@ -1,7 +1,12 @@
 --[[
   nayzeee-garages — vehicle keys integration (client): NZ.Keys.
 
-  Gives / removes keys through the key resource selected by Config.Integrations.keys
+  Built-in car lock (Config.CarLock.enabled and Config.Integrations.keys 'auto' or
+  'nayzeee'): the server hands the key out when the garage validates the spawned vehicle
+  (bridge/server/keys.lua), so give() only tells the local car lock that a key is on its way
+  (the engine is not cut while the server answers) and remove() asks the server.
+
+  Otherwise gives / removes keys through the key resource selected by Config.Integrations.keys
   ('auto' = first started resource of KEY_RESOURCES, 'none' = disabled). Server-side key
   systems (qbx_vehiclekeys) are reached through the 'nz:keys:give' / 'nz:keys:remove'
   callbacks (bridge/server/keys.lua). Every third-party call is protected: a broken or
@@ -159,6 +164,18 @@ adapters['Renewed-Vehiclekeys'] = {
   end,
 }
 
+-- Built-in car lock: the server grants the key itself once the garage validated the entity.
+adapters.nayzeee = {
+  give = function(vehicle, plate)
+    if type(NZ.CarLock.expectKey) == 'function' then NZ.CarLock.expectKey(vehicle, plate) end
+    return true
+  end,
+  remove = function(vehicle, plate)
+    lib.callback('nz:carlock:compat', false, function() end, { action = 'remove', plate = plate, netId = netIdOf(vehicle) })
+    return true
+  end,
+}
+
 adapters['vehicles_keys'] = {
   give = function(_, plate)
     TriggerServerEvent('vehicles_keys:selfGiveVehicleKeys', plate)
@@ -174,12 +191,20 @@ adapters['vehicles_keys'] = {
 -- Resolution
 ---------------------------------------------------------------------------------------
 
---- Key resource in use right now, or nil (disabled, unknown or not started).
+--- Is the built-in car lock in charge of keys?
+---@return boolean
+function Keys.builtIn()
+  return type(NZ.CarLock.enabled) == 'function' and NZ.CarLock.enabled() == true
+end
+
+--- Key resource in use right now: 'nayzeee' (built-in car lock), a resource name, or nil
+--- (disabled, unknown or not started).
 ---@return string|nil
 function Keys.resource()
+  if Keys.builtIn() then return 'nayzeee' end
   local configured = Config.Integrations and Config.Integrations.keys or 'auto'
   if type(configured) ~= 'string' or configured == '' then configured = 'auto' end
-  if configured == 'none' then return nil end
+  if configured == 'none' or configured == 'nayzeee' then return nil end
   if configured == 'auto' then
     for i = 1, #KEY_RESOURCES do
       if started(KEY_RESOURCES[i]) then return KEY_RESOURCES[i] end

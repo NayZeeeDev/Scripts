@@ -56,7 +56,11 @@ export function Hero({ detail, data, busy, onBack, onOwner, onBlock, onImpound, 
 
       <div className="nz-dos-hero__id">
         <div className="nz-dos-hero__top">
-          {eyebrow && <span className="nz-dos-hero__eyebrow">{eyebrow}</span>}
+          {eyebrow && (
+            <span className="nz-dos-hero__eyebrow" title={eyebrow}>
+              {eyebrow}
+            </span>
+          )}
           <StatusBadges row={{ state: v.state, financed: !!detail.finance, blocked: v.blocked }} />
         </div>
         <div className="nz-dos-hero__name">

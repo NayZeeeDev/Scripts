@@ -852,6 +852,7 @@ local function applyPatch(src, plate, patch)
     owner = ownerChangedTo,
     state = fields.state,
     garage = fields.garageKey or nil,
+    blocked = fields.blocked,
     removedEntity = entity ~= nil,
   })
 

@@ -1310,7 +1310,9 @@ register('nz:interior:driveOut', 'interior:driveOut', 1500, function(src, payloa
     return fail(L('Something went wrong'))
   end
 
-  log('interior.driveOut', src, { instance = key, plate = plate, spawnIndex = spawnIndex })
+  -- 'vehicle.retrieve' (fromInterior) already carries the plate; keep this one out of the
+  -- vehicle's activity history (nz_logs.plate) so the drive-out is not listed twice
+  log('interior.driveOut', src, { instance = key, vehiclePlate = plate, spawnIndex = spawnIndex })
   settle(key)
   return result
 end)

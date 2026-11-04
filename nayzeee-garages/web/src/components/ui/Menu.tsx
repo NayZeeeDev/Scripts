@@ -26,19 +26,21 @@ export interface MenuProps {
   /** Custom trigger (defaults to a "⋯" icon button). */
   trigger?: ReactNode;
   align?: 'left' | 'right';
+  /** Open below (default) or above the trigger (e.g. action bars at the bottom of a window). */
+  side?: 'top' | 'bottom';
   /** Accessible name of the default trigger. */
   label?: string;
   className?: string;
 }
 
-export function Menu({ items, trigger, align = 'right', label, className }: MenuProps) {
+export function Menu({ items, trigger, align = 'right', side = 'bottom', label, className }: MenuProps) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const id = useUid('nz-menu');
   const { style, placement } = useFloating(open, anchorRef, popRef, {
-    side: 'bottom',
+    side,
     align: align === 'right' ? 'end' : 'start',
     offset: 6,
   });

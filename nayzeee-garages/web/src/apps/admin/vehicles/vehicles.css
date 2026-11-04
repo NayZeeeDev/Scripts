@@ -333,7 +333,7 @@ td.nz-aveh-mono {
 
 .nz-aveh-vrow {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1.5fr) 96px minmax(0, 1fr) 170px 124px 16px;
+  grid-template-columns: 84px minmax(0, 1.5fr) 96px minmax(0, 1fr) 170px 150px 16px;
   align-items: center;
   gap: 16px;
   width: 100%;
@@ -387,7 +387,8 @@ button.nz-aveh-vrow:focus-visible { outline: 2px solid var(--teal); outline-offs
 .nz-aveh-vrow__where.is-impounded { color: var(--red); }
 .nz-aveh-vrow__where.is-impounded i { background: var(--red); box-shadow: 0 0 0 3px var(--red-wash); }
 
-.nz-aveh-vrow__tags { display: flex; align-items: center; justify-content: flex-end; gap: 5px; min-width: 0; }
+/* financed + blocked side by side at 1920; stacked when the column is narrower */
+.nz-aveh-vrow__tags { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 3px 5px; min-width: 0; }
 .nz-aveh-vrow__chev { color: var(--ink-3); transition: transform var(--fast), color var(--fast); }
 button.nz-aveh-vrow:hover .nz-aveh-vrow__chev { color: var(--white); transform: translateX(2px); }
 .nz-aveh-vrow.is-skel { display: grid; }
@@ -1031,8 +1032,10 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
   min-width: 0;
 }
 
-.nz-dos-hero__top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; max-width: 100%; }
-.nz-dos-hero__top .nz-aveh-badges { flex-wrap: wrap; row-gap: 4px; }
+/* one row: the eyebrow gives way (ellipsis, full text on hover) so the badges never clip
+   under the owner card and never push the hero taller; the badges wrap only as a last resort */
+.nz-dos-hero__top { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.nz-dos-hero__top .nz-aveh-badges { flex: 0 0 auto; flex-wrap: wrap; row-gap: 4px; max-width: 100%; }
 
 .nz-dos-hero__eyebrow {
   flex: 0 1 auto;
@@ -1481,8 +1484,8 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dos-fact:last-child { border-bottom: 0; }
 /* impounded vehicles list more facts: keep the column within the window */
 .nz-dos-facts.is-dense .nz-dos-fact { min-height: 27px; padding: 2px 0; }
-/* two rows of callouts: drop the facts the hero already shows and the empty ones */
-.nz-dos-facts.is-crowded .nz-dos-fact.is-optional { display: none; }
+/* impounded: the six impound facts replace the ones the hero already shows and the empty ones */
+.nz-dos-facts.is-dense .nz-dos-fact.is-optional { display: none; }
 
 .nz-dos-fact__label {
   display: flex;
@@ -2533,6 +2536,8 @@ button.nz-dos-act__head:hover,
   .nz-dos-act.is-compact .nz-dos-act__head { min-height: 46px; }
   .nz-dos-ov__gauges { gap: 14px; }
   .nz-dos-ov__glyph .nz-dmg { max-width: 260px; }
+  /* impounded: leave room for the snapshot strip under the six impound facts */
+  .nz-dos-ov.is-imp .nz-dos-ov__glyph .nz-dmg { max-width: 236px; }
   .nz-dos-perf__row { height: 32px; }
 }
 
@@ -2573,5 +2578,15 @@ button.nz-dos-act__head:hover,
   .nz-dos-cond.is-car .nz-dos-cond__records { display: none; }
   .nz-dos-rec { padding: 6px 8px 6px 7px; }
   .nz-dos-rec__icon { width: 26px; height: 26px; }
-  .nz-dos-facts.is-dense .nz-dos-fact.is-optional { display: none; }
+  /* two rows of callouts: drop the facts the hero already shows and the empty ones */
+  .nz-dos-facts.is-crowded .nz-dos-fact.is-optional { display: none; }
+  /* impounded: the six impound facts and the 2-line impound callout leave less room */
+  .nz-dos-ov.is-imp .nz-dos-ov__glyph .nz-dmg { max-width: 180px; }
+  /* two rows of callouts: one line of text each (full sentence on hover), a small glyph
+     beside the damage summary and four activity entries */
+  .nz-dos-ov.is-crowded .nz-dos-callout__text > span { -webkit-line-clamp: 1; }
+  .nz-dos-ov.is-crowded .nz-dos-ov__glyph { flex-direction: row; gap: 12px; margin-top: 2px; padding: 6px 12px 6px 8px; }
+  .nz-dos-ov.is-crowded .nz-dos-ov__glyph .nz-dmg { flex: none; width: 108px; max-width: 108px; }
+  .nz-dos-ov.is-crowded .nz-dos-ov__glyph > span { flex: 1 1 auto; min-width: 0; text-align: left; }
+  .nz-dos-ov.is-crowded .nz-dos-ov__activity .nz-dos-actlist > li:nth-child(n + 5) { display: none; }
 }
