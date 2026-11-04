@@ -42,7 +42,7 @@ local IsPedInAnyVehicle = IsPedInAnyVehicle
 local IsEntityDead = IsEntityDead
 local msin, mcos, mrad, mabs = math.sin, math.cos, math.rad, math.abs
 
-local BLOCK = { 14, 15, 16, 17, 24, 25, 37, 44, 45, 140, 141, 142, 257, 263, 264 }
+local BLOCK = { 14, 15, 16, 17, 24, 25, 37, 44, 45, 47, 140, 141, 142, 257, 263, 264 }
 local NBLOCK = #BLOCK
 
 --- Origin for the ghost so the bottom-centre of the MESH sits on the hit point.
@@ -57,7 +57,7 @@ end
 local function finish(ghost)
     placing = false
     if ghost then Util.delete(ghost) end
-    lib.hideTextUI()
+    Util.prompt(nil)
 end
 
 --- Enter placement mode for the bag the player is wearing.
@@ -84,9 +84,13 @@ function StartPlacing(bagKey, access)
     local cx, cy, minZ = centre.x, centre.y, mn.z
 
     placing = true
-    lib.showTextUI(('%s  ·  %s'):format(Config.Prompts.placeHelp,
-        access == 'public' and Config.Prompts.accessPublic or Config.Prompts.accessPrivate),
-        { position = 'bottom-center', icon = 'hand-pointer' })
+    local P = Config.Prompts
+    Util.prompt({
+        { 'E', P.keyPlace or 'Place' },
+        { 'G', P.keyCancel or 'Cancel' },
+        { 'Scroll', P.keyRotate or 'Rotate' },
+        { nil, access == 'public' and P.accessPublic or P.accessPrivate },
+    })
 
     CreateThread(function()
         local heading = (GetEntityHeading(ped) + 180.0) % 360.0
@@ -171,7 +175,8 @@ function StartPlacing(bagKey, access)
                 end
             end
 
-            if IsControlJustPressed(0, 194) or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then -- BACKSPACE
+            if IsDisabledControlJustPressed(0, 47) or IsControlJustPressed(0, 194) -- G / BACKSPACE
+               or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then
                 finish(ghost)
                 ghost = nil
                 break
@@ -272,10 +277,22 @@ local function spawnPlaced(data)
     despawnPlaced(data.id)
     if not Bags.exists(data.bag) then return end
 
-    local entity, hash = Util.spawnBag(data.bag, data.variant, data.coords, true)
+    local entity, hash = Util.spawnBag(data.bag, data.variant, data.coords, true, data.full)
     if not entity then return end
 
-    SetEntityCoordsNoOffset(entity, data.coords.x, data.coords.y, data.coords.z, false, false, false)
+    local at = data.coords
+    local base = Bags.resolve(data.bag, data.variant, true)
+    if data.full and Bags.def(data.bag).fullModel and Util.loadModel(base, true) then
+        -- the cash look sits where the bag was put down: same bottom-centre
+        local bc, bmn = Util.modelCentre(joaat(base))
+        local c, mn = Util.modelCentre(hash)
+        SetModelAsNoLongerNeeded(joaat(base))
+        local r = math.rad(data.heading or 0.0)
+        local co, si = math.cos(r), math.sin(r)
+        local dx, dy = bc.x - c.x, bc.y - c.y
+        at = vector3(at.x + dx * co - dy * si, at.y + dx * si + dy * co, at.z + bmn.z - mn.z)
+    end
+    SetEntityCoordsNoOffset(entity, at.x, at.y, at.z, false, false, false)
     SetEntityHeading(entity, data.heading or 0.0)
     FreezeEntityPosition(entity, true)
 
@@ -470,11 +487,11 @@ if not usingTarget then
                 local id = nearestPlaced()
 
                 if id then
-                    lib.showTextUI('[E] Backpack')
+                    Util.prompt({ { 'E', Config.Prompts.keyUse or 'Backpack' } })
 
                     while id and not placing do
                         if IsControlJustPressed(0, 38) then -- E
-                            lib.hideTextUI()
+                            Util.prompt(nil)
                             OpenPlacedMenu(id)
                             Wait(400)
                             break
@@ -483,7 +500,7 @@ if not usingTarget then
                         id = nearestPlaced()
                     end
 
-                    lib.hideTextUI()
+                    if not placing then Util.prompt(nil) end
                     sleep = 400
                 end
             end

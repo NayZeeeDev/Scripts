@@ -4,9 +4,11 @@
 #
 #   tools/convert_bag.sh <model> <bag.ydd> <colour1.ytd> [colour2.ytd ...]
 #
-# Output lands in stream/<model>/. Every colour shares the one model; colour
-# n is the archetype <model>_n (colour 1 is just <model>). Textures bigger
-# than 1024 are shrunk to 1024 DXT with mipmaps.
+# Output lands in stream/<model>/. Colour n is <model>_n (colour 1 is just
+# <model>): its own copy of the model (GTA ties a model to one texture set)
+# plus its .ytd. The model is slimmed first (unused textures dropped, maps
+# capped at 512, meshes over 45k triangles simplified). Colour textures
+# bigger than 1024 are shrunk to 1024 DXT with mipmaps.
 #
 # Needs: dotnet 8 SDK, python3 + Pillow + numpy, and CodeWalker's source
 #   git clone --depth 1 https://github.com/dexyfex/CodeWalker
@@ -28,7 +30,8 @@ mkdir -p "$OUT"
 # model
 cw export "$YDD" "$WORK/src" >/dev/null
 python3 "$HERE/conv.py" drawable "$(ls "$WORK"/src/*.xml)" 0 "$MODEL" "$WORK/out"
-cw import "$WORK/out/$MODEL.ydr.xml" ydr "$OUT/$MODEL.ydr" "$WORK/out/$MODEL" >/dev/null
+python3 "$HERE/slim.py" "$WORK/out/$MODEL.ydr.xml" "$WORK/slim/$MODEL.ydr.xml" --max-tris=45000
+cw import "$WORK/slim/$MODEL.ydr.xml" ydr "$OUT/$MODEL.ydr" "$WORK/slim/$MODEL" >/dev/null
 
 # colours
 n=0
@@ -38,6 +41,7 @@ for YTD in "$@"; do
   python3 "$HERE/conv.py" texture "$(ls "$WORK"/tex$n/*.xml)" "${MODEL}_d" "$WORK/t$n/$NAME.ytd.xml"
   python3 "$HERE/shrink.py" "$WORK/t$n/$NAME/${MODEL}_d.dds" "$WORK/t$n/$NAME/${MODEL}_d.dds" 1024 >/dev/null
   cw import "$WORK/t$n/$NAME.ytd.xml" ytd "$OUT/$NAME.ytd" "$WORK/t$n/$NAME" >/dev/null
+  [ "$NAME" != "$MODEL" ] && cp "$OUT/$MODEL.ydr" "$OUT/$NAME.ydr"
 done
 
 # archetypes

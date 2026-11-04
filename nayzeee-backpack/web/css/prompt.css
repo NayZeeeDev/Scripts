@@ -1,0 +1,20 @@
+/* ==========================================================
+   Key prompt: a slim dark bar of key chips + what they do,
+   bottom centre (placing a bag, using a bag, the shop door).
+   ========================================================== */
+#keyPrompt{
+  position:fixed;left:50%;bottom:9vh;transform:translate(-50%,8px);z-index:30;
+  display:flex;align-items:center;gap:18px;padding:9px 16px;border-radius:8px;
+  background:rgba(14,15,17,.86);box-shadow:0 6px 22px rgba(0,0,0,.35);
+  font-family:'Lexend',sans-serif;font-size:13px;font-weight:400;color:#e9eaec;
+  pointer-events:none;opacity:0;transition:opacity .16s ease,transform .16s ease;white-space:nowrap;
+}
+#keyPrompt.on{opacity:1;transform:translate(-50%,0)}
+#keyPrompt .kp-item{display:flex;align-items:center;gap:8px}
+#keyPrompt .kp-note{color:#9ea3a8;font-size:12px}
+#keyPrompt kbd{
+  display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:21px;padding:0 6px;
+  border-radius:4px;background:#26282b;border:1px solid rgba(255,255,255,.16);
+  font-family:'Lexend',sans-serif;font-size:11px;font-weight:600;color:#fff;line-height:1;
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.4);
+}

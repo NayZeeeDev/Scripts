@@ -31,8 +31,8 @@ end
 
 local function sigOf(state, serverId)
     local o = serverId and openState[serverId]
-    return ('%s|%s|%s'):format(state.bag, tostring(state.variant),
-        o and (o.cash and 'cash' or 'open') or 'worn')
+    return ('%s|%s|%s|%s'):format(state.bag, tostring(state.variant),
+        o and (o.cash and 'cash' or 'open') or 'worn', tostring(state.full))
 end
 
 --- Set an opened bag down on the ground in front of its owner.
@@ -102,7 +102,7 @@ local function attachProp(serverId, state)
     if grounded then
         entity = spawnOpen(serverId, state, ped)
     else
-        entity = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped))
+        entity = Util.spawnBag(state.bag, state.variant, GetEntityCoords(ped), false, state.full)
     end
     attaching[serverId] = nil
     if not entity then return false end
@@ -118,7 +118,16 @@ local function attachProp(serverId, state)
 
     if not grounded then
         local bone, pos, rot = Bags.offset(state.bag)
-        Util.attach(entity, ped, bone, pos, rot)
+        if state.full and Bags.def(state.bag).fullModel then
+            -- the cash look, held where the bag's own fit holds it (takes a frame:
+            -- keep the scope loop from starting a second copy meanwhile)
+            attaching[serverId] = true
+            Util.attachMatched(entity, ped, bone, pos, rot, (Bags.resolve(state.bag, state.variant)))
+            attaching[serverId] = nil
+            if not DoesEntityExist(entity) then return false end
+        else
+            Util.attach(entity, ped, bone, pos, rot)
+        end
     end
 
     -- in a vehicle: hidden until the scope loop finds it a seat (a moment later)

@@ -41,6 +41,7 @@ local function listFor(src)
             heading = entry.heading, variant = entry.variant,
             access = entry.access,
             tag = entry.metadata and entry.metadata.tag,
+            full = entry.full,
             mine = entry.owner == identifier,
         }
     end
@@ -69,6 +70,13 @@ CreateThread(function()
         return
     end
 
+    -- make sure the table is there, so a set-down bag is never lost to a missing install.sql
+    MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_placed_bags` (
+        `id` INT NOT NULL, `bag` VARCHAR(64) NOT NULL, `metadata` LONGTEXT DEFAULT NULL,
+        `x` FLOAT NOT NULL, `y` FLOAT NOT NULL, `z` FLOAT NOT NULL, `heading` FLOAT NOT NULL DEFAULT 0,
+        `owner` VARCHAR(64) DEFAULT NULL, `variant` INT DEFAULT 0, `access` VARCHAR(16) NOT NULL DEFAULT 'private',
+        PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
     Wait(1500)
     local rows = MySQL.query.await('SELECT * FROM nayzeee_placed_bags') or {}
 
@@ -86,6 +94,7 @@ CreateThread(function()
             access = row.access or 'private',
             at = os.time(),
         }
+        placed[id].full = BagHasCash(row.bag, placed[id].metadata.bagid) or nil
         if id >= nextId then nextId = id + 1 end
         ::skip::
     end
@@ -112,9 +121,26 @@ function BroadcastPlaced(entry)
             heading = entry.heading, variant = entry.variant,
             access = entry.access,
             tag = entry.metadata and entry.metadata.tag,
+            full = entry.full,
             mine = entry.owner == ownerOf(src),
         }
         TriggerClientEvent('nayzeee-backpack:spawnPlaced', src, copy)
+    end
+end
+
+--- Cash went in or out of a bag's stash: if it's a set-down bag with a
+--- fullModel, show everyone its closed / full look.
+function PlacedCashChanged(stash)
+    for _, entry in pairs(placed) do
+        local bagid = entry.metadata and entry.metadata.bagid
+        if bagid and ('backpack_%s'):format(bagid) == stash then
+            local full = BagHasCash(entry.bag, bagid) or nil
+            if full ~= entry.full then
+                entry.full = full
+                BroadcastPlaced(entry)
+            end
+            return
+        end
     end
 end
 
@@ -174,6 +200,7 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
         access = access,
         at = os.time(),
     }
+    entry.full = BagHasCash(bagKey, metadata.bagid) or nil -- shows its fullModel while it holds cash
 
     placed[id] = entry
     saveOne(entry)

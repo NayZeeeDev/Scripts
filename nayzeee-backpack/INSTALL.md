@@ -56,9 +56,14 @@ Your props in another resource? Set `Config.PropsResource` to its name (or
 
 ## 3. Items
 
-Start the server and run **`/bagitems`** (console or in game as admin). It
-prints a ready-to-paste `ox_inventory/data/items.lua` entry for every bag that
-doesn't have one yet. They look like this:
+Open **`install/ox_items.lua`** and paste everything in it into
+`ox_inventory/data/items.lua` (inside its `return { ... }`). It has every bag
+that ships with the script, the outfit bag, and the padlock, name tag,
+lockpick and bolt cutter items (skip those last two if you have them already).
+
+**`/bagitems`** is only for bags you add yourself: run it (console or in game
+as admin) and it prints an entry for every bag in `Config.Backpacks` that
+ox_inventory doesn't know yet. They look like this:
 
 ```lua
 ['nayzeee_backpack_pug'] = {
@@ -73,7 +78,7 @@ doesn't have one yet. They look like this:
 ```
 
 The outfit bag is a **client** export (it needs the player's clothes), so its
-item looks different. `/bagitems` prints this one too:
+item looks different:
 
 ```lua
 ['outfit_bag'] = {
@@ -90,9 +95,25 @@ item looks different. `/bagitems` prints this one too:
 `nayzeee-backpack.useOutfitBag`. Bags people already own keep their outfits:
 the metadata format is the same.
 
-## 4. Database (optional)
+## 4. Database
 
-Run `install.sql` if `Config.Placement.persist = true`.
+Nothing to run: on start the script creates its two tables by itself
+(`install.sql` has them too, if your database user can't create tables).
+
+**What survives a restart or a crash:**
+
+| Where the bag is | What keeps it |
+|---|---|
+| In a player's inventory | ox_inventory (the bag item + its stash `backpack_<id>`) |
+| Its contents, anywhere | ox_inventory stash, saved like any stash |
+| Set down on the ground | `nayzeee_placed_bags` (`Config.Placement.persist`) |
+| Dropped (death, robbery) | `nayzeee_dropped_bags`: put back on the ground on start until picked up |
+| Outfit bag set down | given back to its owner when they next join |
+| Job bag handed back | its stash id is remembered for the next time it's issued |
+
+Selling a bag is blocked while it still holds anything. ox_inventory writes
+stashes to the database on its own save interval and on a clean shutdown, so a
+hard crash can lose the last few minutes of moves, like any ox_inventory stash.
 
 ---
 
@@ -194,7 +215,7 @@ Crossbody bags like the shoulder bag aren't purses: give them
 ## Placing a bag
 
 Bag menu → **Set down** (or `/placebag`). The ghost follows where you look:
-**E** place, **SCROLL** rotate (**SHIFT** fine), **BACKSPACE** cancel. Works
+**E** place, **SCROLL** rotate (**SHIFT** fine), **G** (or **BACKSPACE**) cancel. Works
 on floors, tables and counters; walls are refused (`maxSlope`). The loop uses
 an async raycast and only moves the ghost when the hit changes, so it sits at
 ~0.00–0.01ms while placing.
@@ -220,6 +241,12 @@ up; getting knocked down, dying or getting in a car closes it for you.
 
 Any bag can get an open look: `open = { style = 'stand', model = 'my_open_prop',
 cashModel = 'my_open_prop_cash', heading = 0.0 }` in its `Config.Backpacks` entry.
+
+**Cash look:** `fullModel = 'my_bag_with_cash'` makes a bag show that model
+whenever it holds cash (any of `Config.OpenBag.cashItems`): carried, set down,
+dropped or handed over. The duffel uses it: empty it's GTA's closed duffel,
+with money in it it's the BzZz duffel stuffed with cash. The cash model is held
+where the bag's own fit holds the closed one, so one `/bagstudio` fit covers both.
 
 ### Duffel props & cash grab animation
 
@@ -291,8 +318,7 @@ padlock; the owner taking it off (bag menu → **Take the padlock off**) gets it
 back. The item tooltip shows *Padlocked*, every lock, pick and cut is logged,
 and the code itself is stored as a salted hash only the server can check.
 
-`/bagitems` prints the padlock, lockpick and bolt cutter items if you don't
-have them yet.
+The padlock, lockpick and bolt cutter items are in `install/ox_items.lua`.
 
 ## Sounds
 

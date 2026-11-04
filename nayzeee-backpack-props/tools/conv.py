@@ -274,9 +274,11 @@ def texture(src, newname, outxml):
 
 
 def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False, lod=100, loose=None):
-    """`loose`: bounds of <model>_loose (the same bag off the back, straps
-    lying flat). Each colour then also gets <colour>_loose, drawing that
-    model with the colour's own textures."""
+    """One archetype per colour, each drawing its OWN model file (<colour>.ydr,
+    a copy of the bag) with its own textures: GTA ties a model to a single
+    texture dictionary, so colours can't share one model.
+    `loose`: bounds of <model>_loose (the bag off the back, straps lying
+    flat); each colour then also gets <colour>_loose (<colour>_loose.ydr)."""
     b = json.load(open(bounds_path))
     flags = 537001984 + (32 if alpha or b.get('alpha') else 0)
     root = ET.Element('CMapTypes', {'name': model})
@@ -303,7 +305,7 @@ def ytyp(model, count, bounds_path, outxml, alpha=False, no_txd=False, lod=100, 
         ET.SubElement(it, 'drawableDictionary')
         ET.SubElement(it, 'physicsDictionary')
         ET.SubElement(it, 'assetType').text = 'ASSET_TYPE_DRAWABLE'
-        ET.SubElement(it, 'assetName').text = model + suffix  # every colour shares the one model
+        ET.SubElement(it, 'assetName').text = name  # its own copy of the model (see above)
         ET.SubElement(it, 'extensions')
     ET.SubElement(root, 'name').text = model
     ET.SubElement(root, 'dependencies')

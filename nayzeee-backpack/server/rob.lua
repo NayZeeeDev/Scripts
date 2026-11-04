@@ -77,8 +77,10 @@ RegisterNetEvent('nayzeee-backpack:rob', function(victimId)
 
         if (Config.OneBagOnly and FindBagItem(src)) or not ox:AddItem(src, bagKey, 1, metadata) then
             -- robber already has a bag or is full, so it lands on the ground instead
-            ox:CustomDrop(Bags.label(bagKey), { { bagKey, 1, metadata } }, GetEntityCoords(robberPed),
-                1, Bags.storage(bagKey).weight, nil, joaat((Bags.resolve(bagKey, metadata.variant, true))))
+            local at = GetEntityCoords(robberPed)
+            local dropId = ox:CustomDrop(Bags.label(bagKey), { { bagKey, 1, metadata } }, at,
+                1, Bags.storage(bagKey).weight, nil, joaat((Bags.resolve(bagKey, metadata.variant, true, BagHasCash(bagKey, metadata.bagid)))))
+            Drop.track(dropId, bagKey, metadata, at) -- survives a restart
         end
 
         RefreshBagState(victimId)

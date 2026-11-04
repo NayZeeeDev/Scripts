@@ -86,5 +86,6 @@ escrow_ignore {
     'integrations.lua',
     'bridge/*.lua',
     'install.sql',
+    'install/*.lua',
     'INSTALL.md',
 }

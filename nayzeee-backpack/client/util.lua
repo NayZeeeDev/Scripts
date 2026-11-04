@@ -66,10 +66,25 @@ function Util.loadClipset(set)
     return true
 end
 
+--- Key prompt at the bottom of the screen: { { 'E', 'Place' }, { 'G', 'Cancel' } }.
+--- Util.prompt(nil) hides it.
+local promptSig = nil
+function Util.prompt(items)
+    local sig = items and json.encode(items) or nil
+    if sig == promptSig then return end
+    promptSig = sig
+    local list = nil
+    if items then
+        list = {}
+        for i, it in ipairs(items) do list[i] = { k = it[1], label = it[2] } end
+    end
+    SendNUIMessage({ action = 'prompt', data = list and { items = list } or nil })
+end
+
 --- Spawn a bag prop (local, no collision). Applies the variant's model + texture.
---- `loose`: the bag isn't being worn (see Bags.resolve).
-function Util.spawnBag(bagKey, variantId, coords, loose)
-    local model, texture = Bags.resolve(bagKey, variantId, loose)
+--- `loose`: the bag isn't being worn; `full`: it holds cash (see Bags.resolve).
+function Util.spawnBag(bagKey, variantId, coords, loose, full)
+    local model, texture = Bags.resolve(bagKey, variantId, loose, full)
     if not model then return nil end
     return Util.spawnModel(model, texture, coords)
 end
@@ -100,6 +115,36 @@ function Util.attach(entity, ped, bone, pos, rot)
         rot.x, rot.y, rot.z,
         true, true, false, true, 1, true
     )
+end
+
+--- Attach with an offset that was fitted for a DIFFERENT model (a bag's cash
+--- look on the bag's own fit): shifts it so this model's top-centre lands
+--- where the fitted model's top-centre would be. Yields a frame.
+function Util.attachMatched(entity, ped, bone, pos, rot, fittedModel)
+    Util.attach(entity, ped, bone, pos, rot)
+    local fitted = fittedModel and (type(fittedModel) == 'number' and fittedModel or joaat(fittedModel))
+    local model = GetEntityModel(entity)
+    if not fitted or fitted == model or not Util.loadModel(fitted, true) then return end
+
+    local fmn, fmx = GetModelDimensions(fitted)
+    local mn, mx = GetModelDimensions(model)
+    SetModelAsNoLongerNeeded(fitted)
+    local dx = (fmn.x + fmx.x) * 0.5 - (mn.x + mx.x) * 0.5
+    local dy = (fmn.y + fmx.y) * 0.5 - (mn.y + mx.y) * 0.5
+    local dz = fmx.z - mx.z
+
+    Wait(0)
+    if not DoesEntityExist(entity) or not DoesEntityExist(ped) then return end
+    -- that shift in world space, then in the bone's own axes (what the offset is in)
+    local o = GetEntityCoords(entity)
+    local d = GetOffsetFromEntityInWorldCoords(entity, dx, dy, dz) - o
+    local b0 = GetPedBoneCoords(ped, bone, 0.0, 0.0, 0.0)
+    local bx = GetPedBoneCoords(ped, bone, 1.0, 0.0, 0.0) - b0
+    local by = GetPedBoneCoords(ped, bone, 0.0, 1.0, 0.0) - b0
+    local bz = GetPedBoneCoords(ped, bone, 0.0, 0.0, 1.0) - b0
+    local function dot(a, b) return a.x * b.x + a.y * b.y + a.z * b.z end
+    Util.attach(entity, ped, bone,
+        vector3(pos.x + dot(d, bx), pos.y + dot(d, by), pos.z + dot(d, bz)), rot)
 end
 
 function Util.delete(entity)

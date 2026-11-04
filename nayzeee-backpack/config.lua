@@ -440,7 +440,7 @@ Config.Handoff = {
 -- ╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
 
 -- Set a bag down as a world prop that stays put and stays lootable.
--- The ghost follows where you look: [E] place, [SCROLL] rotate, [BACKSPACE] cancel.
+-- The ghost follows where you look: [E] place, [SCROLL] rotate, [G] or [BACKSPACE] cancel.
 Config.Placement = {
     enabled = true,
 
@@ -627,7 +627,12 @@ Config.Prompts = {
     rob        = 'Take backpack',   -- Robbery option on another player
     search     = 'Search backpack', -- Police search option
 
-    placeHelp  = '[E] Place  ·  [SCROLL] Rotate  ·  [BACKSPACE] Cancel',
+    -- The key prompt bar at the bottom of the screen
+    keyPlace   = 'Place',          -- E while setting a bag down
+    keyCancel  = 'Cancel',         -- G (or Backspace)
+    keyRotate  = 'Rotate',         -- mouse wheel (hold Shift for fine steps)
+    keyUse     = 'Backpack',       -- E at a bag on the ground (no ox_target)
+    keyShop    = 'Browse bags',    -- E at a bag store (no ox_target)
 
     accessPrivate = 'Private',      -- Only the owner can use it
     accessPublic  = 'Public',       -- Anyone can use it
@@ -862,6 +867,8 @@ Config.IconCapture = {
 -- offset   = optional, overrides Config.DefaultOffset (use /bagstudio to get these)
 -- carry    = optional, a Config.Carry.Styles key ('purse', 'purse_left', 'duffel')
 -- pose     = optional, default pose key for this bag (Config.Carry.Poses)
+-- fullModel = optional, model shown whenever the bag holds cash (carried, set down,
+--            dropped, handed over); held where the bag's own fit holds `model`
 -- loose    = optional, true when every model also has a '<model>_loose' twin with the
 --            shoulder straps lying flat: shown whenever the bag isn't on a back
 -- variants = optional skins, any of these formats:
@@ -1045,12 +1052,15 @@ Config.Backpacks = {
         price    = 2500,
     },
 
-    -- Carried in hand. Set down to open: the bag unzips, and shows the cash
-    -- inside when it holds any. Taking cash out plays the grab-cash animation.
-    -- Open models by BzZz (bzzz.tebex.io), renamed so they never clash with bzzz_money.
+    -- Carried in hand. Empty, it's GTA's closed duffel; holding cash, it's the
+    -- duffel stuffed with money, in your hand and on the ground alike. Set down
+    -- to open: it unzips and shows the cash inside when it holds any. Taking
+    -- cash out plays the grab-cash animation.
+    -- Cash / open models by BzZz (bzzz.tebex.io), renamed so they never clash with bzzz_money.
     ['duffel_bag'] = {
         label    = 'Duffel Bag',
-        model    = 'hei_p_m_bag_var22_arm_s',
+        model    = 'hei_p_m_bag_var22_arm_s',  -- empty
+        fullModel = 'nayzeee_duffel_b',        -- holding cash (any of Config.OpenBag.cashItems)
         category = 'duffel',
         theme    = 'realistic',
         price    = 4500,

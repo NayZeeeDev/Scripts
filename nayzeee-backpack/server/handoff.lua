@@ -111,7 +111,9 @@ local function transfer(src, taker, item)
     if ox:AddItem(taker, item.name, 1, meta) then return true end
 
     if not ox:AddItem(src, item.name, 1, meta) then
-        ox:CustomDrop(label(item.name), { { item.name, 1, meta } }, GetEntityCoords(GetPlayerPed(src)))
+        local at = GetEntityCoords(GetPlayerPed(src))
+        local dropId = ox:CustomDrop(label(item.name), { { item.name, 1, meta } }, at)
+        if Drop and Config.Backpacks[item.name] then Drop.track(dropId, item.name, meta, at) end -- survives a restart
     end
     return false
 end
@@ -149,7 +151,8 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
 
     local model, texture, worn
     if Config.Backpacks[item.name] then
-        model, texture = Bags.resolve(item.name, item.metadata and item.metadata.variant, true)
+        model, texture = Bags.resolve(item.name, item.metadata and item.metadata.variant, true,
+            BagHasCash(item.name, item.metadata and item.metadata.bagid))
         local wearing = FindBagItem(src)
         worn = wearing and wearing.slot == item.slot and not (item.metadata and item.metadata.stowed) or false
     else

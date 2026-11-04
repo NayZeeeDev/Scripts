@@ -266,10 +266,16 @@ local function setCentreVariant(key, variant)
                 SetObjectTextureVariation(it.entity, texture or 0)
                 it.variant = variant
             else
-                Util.delete(it.entity)
-                table.remove(live, i)
+                -- load the new colour before the old one goes, so the stand is never empty
                 local n = spawnSlot(key, variant, 0)
-                if n then n.alpha = -1 end
+                if n then
+                    for j, other in ipairs(live) do
+                        if other == it then table.remove(live, j) break end
+                    end
+                    Util.delete(it.entity)
+                    n.yaw = it.yaw
+                    n.alpha = -1
+                end
             end
             return
         end
@@ -330,7 +336,8 @@ local function frameLoop()
                 it.yaw = (y * (1.0 - math.min(1.0, dt * 5.0 * (1.0 - weight)))) % 360.0
             end
 
-            local heading = view.heading + it.turn + it.yaw - it.o * 24.0
+            -- props face +Y: turn it round so its front faces the camera
+            local heading = view.heading + 180.0 + it.turn + it.yaw - it.o * 24.0
             place(it, p, heading)
 
             local a = math.floor(alpha)
@@ -787,13 +794,13 @@ CreateThread(function()
         end
 
         if near and not open then
-            if not showing then showing = true; lib.showTextUI('[E] Browse bags') end
+            if not showing then showing = true; Util.prompt({ { 'E', Config.Prompts.keyShop or 'Browse bags' } }) end
             if IsControlJustPressed(0, 38) then
-                lib.hideTextUI(); showing = false
+                Util.prompt(nil); showing = false
                 OpenShop(near)
             end
         elseif showing then
-            showing = false; lib.hideTextUI()
+            showing = false; Util.prompt(nil)
         end
 
         Wait(near and 0 or 900)

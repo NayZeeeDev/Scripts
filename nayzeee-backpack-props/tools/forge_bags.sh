@@ -4,9 +4,10 @@
 #   tools/forge_bags.sh                 every bag in bagforge/catalog.py
 #   tools/forge_bags.sh barrel dome     just these catalog keys
 #
-# Each model lands in stream/<model>/: <model>.ydr (shape + relief),
-# one .ytd per colour (<model>, <model>_2 ...) and <model>.ytyp. Backpacks
-# also get <model>_loose.ydr (straps flat) and a <colour>_loose archetype each.
+# Each model lands in stream/<model>/: per colour (<model>, <model>_2 ...)
+# its own .ydr (GTA ties a model to one texture set, so colours can't share
+# one) and .ytd, plus <model>.ytyp. Backpacks also get <colour>_loose.ydr,
+# the bag with its straps lying flat, for when it's off a back.
 #
 # Needs: dotnet 8 SDK, python3 + Pillow + numpy, and CodeWalker's source
 #   git clone --depth 1 https://github.com/dexyfex/CodeWalker
@@ -40,6 +41,10 @@ for KEY in "${KEYS[@]}"; do
     for T in $(ls -d "$DIR"/t*/ | sort -V); do
       n=$((n + 1)); NAME="$MODEL"; [ "$n" -gt 1 ] && NAME="${MODEL}_$n"
       cw import "$T/$NAME.ytd.xml" ytd "$OUT/$NAME.ytd" "$T/$NAME"
+      if [ "$NAME" != "$MODEL" ]; then
+        cp "$OUT/$MODEL.ydr" "$OUT/$NAME.ydr"
+        [ -f "$OUT/${MODEL}_loose.ydr" ] && cp "$OUT/${MODEL}_loose.ydr" "$OUT/${NAME}_loose.ydr"
+      fi
     done
     python3 "$HERE/conv.py" ytyp "$MODEL" "$n" "$DIR/bounds.json" "$DIR/$MODEL.ytyp.xml" ${LOOSE[@]+"${LOOSE[@]}"}
     cw import "$DIR/$MODEL.ytyp.xml" ytyp "$OUT/$MODEL.ytyp"

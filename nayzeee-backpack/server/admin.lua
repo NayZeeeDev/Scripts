@@ -2,7 +2,9 @@
 -- Admin helpers
 --
 -- /bagitems   prints an ox_inventory items.lua entry for every bag
---             that isn't registered yet, ready to paste.
+--             that isn't registered yet, ready to paste. The bags that
+--             ship with the script are already in install/ox_items.lua;
+--             this is for bags a server adds itself.
 -- /givebag    /givebag [id] [bag] [variant]
 -----------------------------------------------------------------
 

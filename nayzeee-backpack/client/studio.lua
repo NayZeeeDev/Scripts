@@ -756,8 +756,11 @@ on('studio:variant', function(d)
     if newModel == oldModel and preview then
         SetObjectTextureVariation(preview, texture or 0)
         variantId = v
-    else
-        spawnPreview(currentKey, v, true)
+    elseif not spawnPreview(currentKey, v, true) then
+        -- that colour's model didn't load: put the one we had back
+        local old = variantId
+        spawnPreview(currentKey, old, true)
+        Config.Notify(('Colour model "%s" did not load (see F8).'):format(tostring(newModel)), 'error')
     end
     if Icons and Icons.active() then Icons.refreshProp() end
 end, 'full')

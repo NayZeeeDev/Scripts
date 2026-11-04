@@ -207,9 +207,11 @@ end
 --- `loose`: the bag isn't on a back (set down, in a hand, on a seat, in the
 --- shop). Bags with `loose = true` then use '<model>_loose', the same bag
 --- with its shoulder straps lying flat instead of wrapped round a wearer.
-function Bags.resolve(key, variantId, loose)
+--- `full`: the bag holds cash; bags with a `fullModel` show that instead.
+function Bags.resolve(key, variantId, loose, full)
     local bag = Bags.def(key)
     if not bag then return nil, 0 end
+    if full and bag.fullModel then return bag.fullModel, 0 end
     local v = Bags.variant(key, variantId)
     local model = (v and v.model) or bag.model
     if loose and bag.loose then model = model .. '_loose' end
@@ -230,6 +232,7 @@ function Bags.models(key)
     if bag.loose then
         for i = 1, #out do out[#out + 1] = out[i] .. '_loose' end
     end
+    if bag.fullModel and not seen[bag.fullModel] then out[#out + 1] = bag.fullModel end
     return out
 end
 

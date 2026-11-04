@@ -41,6 +41,7 @@ function ServerCanUseBag(src, bagKey)
 end
 
 local denied = {} -- [src] = bagKey we already told them about
+local wornStash = {} -- [stashId] = src wearing it (bags with a fullModel)
 
 --- Rebuild a player's statebag from their inventory.
 function RefreshBagState(src)
@@ -76,12 +77,14 @@ function RefreshBagState(src)
         slot = item.slot,
         locked = m.lock and true or nil,
         tag = m.tag,
+        full = BagHasCash(item.name, m.bagid) or nil, -- shows its fullModel while it holds cash
     }
+    if m.bagid and Bags.def(item.name).fullModel then wornStash[stashId(m.bagid)] = src end
 
     -- only write when something changed; statebag writes go to everyone
     if not current or current.bag ~= state.bag or current.variant ~= state.variant
        or current.stowed ~= state.stowed or current.pose ~= state.pose or current.slot ~= state.slot
-       or current.locked ~= state.locked or TagSig(current.tag) ~= TagSig(state.tag) then
+       or current.locked ~= state.locked or current.full ~= state.full or TagSig(current.tag) ~= TagSig(state.tag) then
         Player(src).state:set('nayzeee_backpack', state, true)
         if Logs and (not current or current.bag ~= state.bag) then
             Logs.simple('equip', 'Backpack equipped', src, state.bag)
@@ -210,6 +213,13 @@ end
 
 local watching = {} -- [stashId] = { bag, src } while a bag with a cash model / grab anim is open
 
+--- Does this bag hold cash? Only asked for bags with a `fullModel` (nil otherwise).
+function BagHasCash(bagKey, bagid)
+    local bag = Bags.def(bagKey)
+    if not bag or not bag.fullModel or not bagid then return nil end
+    return hasAny(PrepareStash(bagKey, bagid), Bags.openInfo(bagKey).cashItems)
+end
+
 local openUnlocked -- forward
 
 --- Open a bag in your own inventory (asks for the code if it's padlocked).
@@ -283,7 +293,29 @@ ox:registerHook('swapItems', function(payload)
     return true
 end, { inventoryFilter = { '^backpack_' } })
 
+-- cash in or out of a bag with a fullModel, from anyone: swap the closed / full look
+local function cashLookChanged(stash)
+    local src = wornStash[stash]
+    if src then
+        if GetPlayerPing(src) == 0 then wornStash[stash] = nil else RefreshBagState(src) end
+    end
+    if PlacedCashChanged then PlacedCashChanged(stash) end
+end
+
+ox:registerHook('swapItems', function(payload)
+    local from, to = payload.fromInventory, payload.toInventory
+    local moved = payload.fromSlot and payload.fromSlot.name
+    if not moved then return true end
+    for _, stash in ipairs({ from, to }) do
+        if type(stash) == 'string' and stash:find('^backpack_') then
+            SetTimeout(200, function() cashLookChanged(stash) end)
+        end
+    end
+    return true
+end, { inventoryFilter = { '^backpack_' } })
+
 AddEventHandler('ox_inventory:closedInventory', function(playerId, inventoryId)
+    if type(inventoryId) == 'string' and inventoryId:find('^backpack_') then cashLookChanged(inventoryId) end
     if Sounds and type(inventoryId) == 'string' and inventoryId:find('^backpack_') then
         Sounds.play('zip_close', playerId)
     end
