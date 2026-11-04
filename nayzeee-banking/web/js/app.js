@@ -301,12 +301,6 @@ function openPinPad(data) {
   document.body.classList.add('up', 'locked');
   document.getElementById('pinpad').classList.add('up');
 
-  // how the pad arrives, set by Config.ATM.cardAnimation
-  const style = (data && data.animation) || 'vertical';
-  const box = document.querySelector('.pin-box');
-  box.className = 'pin-box' + (style === 'none' ? '' : ' ' + style);
-  void box.offsetWidth;
-
   PIN.busy = false;
 }
 

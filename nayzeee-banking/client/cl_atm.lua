@@ -87,12 +87,12 @@ end
 --- reaches for it and takes it, and the player steps away. `onCardOut`
 --- runs once the card is showing (the screen mode hands the camera back
 --- there). On a resource stop nothing here may wait.
---- Is the player free to play the walk-away? Not in a car (clearing tasks there
---- throws them out), not ragdolled, cuffed or being led away by someone.
+--- Can the walk-away play and the ATM idle be cleared? Only a car stops it
+--- (clearing tasks there throws the player out) and a dead ped plays nothing.
+--- Anything else, the idle is always cleared, so nobody is left stuck in it.
 function Bank.atmFree(ped)
     ped = ped or PlayerPedId()
-    return not IsEntityDead(ped) and not IsPedInAnyVehicle(ped, false) and not IsPedRagdoll(ped)
-        and not IsPedCuffed(ped) and not IsEntityAttached(ped)
+    return not IsEntityDead(ped) and not IsPedInAnyVehicle(ped, false)
 end
 
 function Bank.atmExit(entity, model, onCardOut)
@@ -104,9 +104,10 @@ function Bank.atmExit(entity, model, onCardOut)
 
     -- nothing may wait on a resource stop, and a player who is not free (dead,
     -- in a car, ragdolled, cuffed, escorted) plays no gestures and keeps their task
-    if Bank.stopping or not Bank.atmFree(ped) then
+    if Bank.stopping or not Bank.atmFree(ped) or IsPedRagdoll(ped) then
         if onCardOut then onCardOut() end
-        if was and Bank.atmFree(ped) then ClearPedTasksImmediately(ped) end
+        -- out of the idle in every case but a car: a ragdoll keeps falling
+        if was and not IsPedInAnyVehicle(ped, false) and not IsPedRagdoll(ped) then ClearPedTasksImmediately(ped) end
         return
     end
 
@@ -162,8 +163,7 @@ local function pinGate(card, ui)
         data = {
             card       = card,
             ui         = ui,
-            serverName = Config.ServerName,
-            animation  = Config.ATM.padAnimation or 'vertical'
+            serverName = Config.ServerName
         }
     })
 

@@ -329,13 +329,12 @@ The screen itself has no cursor and no way to reach Lua. The client works out wh
 
 | Setting | Default | Description |
 |---|---|---|
-| `Config.ATM.screen.mode` | `'texture'` | `'texture'` or `'draw'` |
 | `Config.ATM.screen.island` | per model | Where the page lands on the texture |
 | `Config.ATM.screen.outside` | `'#000000'` | The rest of the sheet |
 | `Config.ATM.screen.aim` | vec3 | The middle of the screen, from the prop's origin |
-| `Config.ATM.screen.camera` | table | `back`, `up`, `side`, `tilt`, `fov` |
+| `Config.ATM.screen.camera` | table | `back`, `up`, `side`, `tilt`, `fov`. Close in by default (`back = 0.50`); the player's own body is hidden from them during the session |
 | `Config.ATM.screen.camera.sensitivity` | `4.0` | Mouse speed |
-| `Config.ATM.screen.camera.lookUp` / `lookDown` / `lookSide` | `18` / `52` / `28` | Degrees of travel from the starting angle |
+| `Config.ATM.screen.camera.lookUp` / `lookDown` / `lookSide` | `20` / `46` / `26` | Degrees of travel from the starting angle |
 | `Config.ATM.buttons.proximity` | `0.030` | How close to the middle of your view a button must be |
 
 The starting angle is **worked out from where the camera stands**, not set by hand — point it at the machine's face, a little below the glass so the keypad is in frame from the start. Move `back`, `up` or `side` and the angle follows; a hand-set one would be wrong the moment anything else changed.
@@ -348,8 +347,6 @@ These prop textures are **atlases** — the screen face is only a patch of the s
 
 {% hint style="warning" %}
 `AddReplaceTexture` keys on a texture **name**, not on an object — so while you are at a machine, every other ATM sharing that texture shows the same screen, and any other surface using it takes the colour in `outside`. On the Fleeca wall unit that is the lit sign above the machine. The swap only lasts for the session. This is the trade every DUI ATM makes; the only way out is a streamed model whose screen has a texture name nothing else uses, at which point `island` goes back to full-page.
-
-`mode = 'draw'` avoids all of it by painting a flat panel in front of the machine instead. It needs no knowledge of the model, but it reads as a sticker rather than a screen.
 {% endhint %}
 
 ### Calibration

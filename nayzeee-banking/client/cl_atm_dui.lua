@@ -158,7 +158,7 @@ local function createDui()
 end
 
 local function replaceScreen(cfg)
-  if not DUI.obj or cfg.mode == 'draw' then return false end
+  if not DUI.obj then return false end
 
   for _, r in ipairs(DUI.replaced) do
     RemoveReplaceTexture(r.dict, r.tex)
@@ -168,7 +168,7 @@ local function replaceScreen(cfg)
   local name, tex = cfg.modelName, cfg.screenTexture
   if not name or not tex then
     print('^3[nayzeee-banking]^7 this ATM model has no screenTexture in ' ..
-          'Config.ATM.screen.models — set its mode to \'draw\', or add the texture name.')
+          'Config.ATM.screen.models — add the name of its screen texture.')
     return false
   end
 
@@ -229,12 +229,6 @@ end
 --  GEOMETRY
 -- ═══════════════════════════════════════════════════════════
 local DEFAULT_AIM = vec3(0.0, -0.104, 1.018)
-
-local function spriteSize(cfg)
-  local w = cfg.size or 0.247
-  local duiAspect = (cfg.width or 1024) / (cfg.height or 820)
-  return w, w * GetAspectRatio(false) / duiAspect
-end
 
 --- Work out every button's world position once, rather than asking
 --- the engine twenty times a frame for points that are not moving.
@@ -874,11 +868,15 @@ function Bank.useATMScreen(entity, model, card, data)
     while DUI.active do
       if not DoesEntityExist(DUI.entity) then DUI.active = false break end
 
-      -- killed, knocked over, cuffed, led away or put in a car: the session ends there
+      -- killed, knocked over, put in a car or taken away from it: the session ends there.
+      -- (Not cuffed/attached: some servers report those while a player stands
+      -- normally at a machine, which ended every session the moment it began.)
       local me = PlayerPedId()
-      if IsEntityDead(me) or IsPedRagdoll(me) or IsPedInAnyVehicle(me, false)
-        or IsPedCuffed(me) or IsEntityAttached(me)
-        or #(GetEntityCoords(me) - GetEntityCoords(DUI.entity)) > 3.0 then
+      local why = (IsEntityDead(me) and 'dead') or (IsPedRagdoll(me) and 'ragdoll')
+        or (IsPedInAnyVehicle(me, false) and 'vehicle')
+        or (#(GetEntityCoords(me) - GetEntityCoords(DUI.entity)) > 5.0 and 'moved away') or nil
+      if why then
+        Bank.debug('ATM session ended: ' .. why)
         DUI.active = false
         break
       end
@@ -917,16 +915,9 @@ function Bank.useATMScreen(entity, model, card, data)
 
       if not busyElsewhere then updateLook() end
 
-      -- ── paint, in draw mode ──
-      if DUI.cfg.mode == 'draw' then
-        local o = DUI.cfg.aim or DEFAULT_AIM
-        local w, h = spriteSize(DUI.cfg)
-        local world = GetOffsetFromEntityInWorldCoords(DUI.entity, o.x, o.y, o.z)
-
-        SetDrawOrigin(world.x, world.y, world.z, 0)
-        DrawSprite(TXD_NAME, DUI.tex, 0.0, 0.0, w, h, 0.0, 255, 255, 255, 255)
-        ClearDrawOrigin()
-      end
+      -- the camera sits where the player's head would be; their own body is
+      -- hidden from them for the session so nothing stands in front of the glass
+      SetEntityLocallyInvisible(me)
 
       -- ── what am I looking at ──
       local found = not busyElsewhere and buttonUnderCrosshair() or nil

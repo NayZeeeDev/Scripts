@@ -219,9 +219,6 @@ Config.ATM = {
     -- and is handed back when they walk away. Needs Cards.physicalItem.
     holdCard = true,
 
-    -- How the PIN pad slides onto the screen
-    padAnimation = 'vertical',    -- vertical / horizontal / none
-
     -- ── IN-WORLD SCREEN ──
     -- How long to wait on the server before the machine gives up and
     -- says so. A callback that dies would otherwise leave the screen
@@ -248,11 +245,8 @@ Config.ATM = {
         width   = 1024,
         height  = 820,
 
-        -- 'texture' puts the page on the prop's own screen, where it
-        -- sits in the bezel and lights up at night. 'draw' paints it
-        -- as a flat panel in front instead — only worth it on a model
-        -- whose screen texture name you do not know.
-        mode = 'texture',
+        -- The page goes on the prop's own screen texture, where it sits in
+        -- the bezel and lights up at night.
 
         -- These prop textures are atlases: the screen face is only a
         -- patch of the sheet, so drawing across the whole thing comes
@@ -265,11 +259,8 @@ Config.ATM = {
         outside = '#000000',
 
         -- Where the camera looks, from the prop's own origin: the
-        -- middle of the screen. Also where 'draw' mode paints.
+        -- middle of the screen.
         aim = vec3(0.0, -0.104, 1.018),
-
-        -- 'draw' mode only
-        size = 0.247,
 
         -- Where the player stands
         headingOffset = 0.0,
@@ -279,17 +270,17 @@ Config.ATM = {
         -- The player looks around with the mouse, within limits, so
         -- they can move between the screen and the keypad the way
         -- they would at a real machine.
-        -- Far enough back to see the whole machine at a glance, and
-        -- aimed a little below the glass so the keypad is in frame
-        -- from the start. The starting angle is worked out from these
+        -- Close in on the machine, the player's own body hidden from them
+        -- for the session, and aimed a little below the glass so the
+        -- keypad is in frame from the start. The starting angle is worked out from these
         -- rather than set by hand, so moving the camera cannot leave
         -- it pointing somewhere else.
         camera = {
-            back = 0.85,    -- metres out from the screen
-            up   = 0.22,    -- metres above it
+            back = 0.50,    -- metres out from the screen: close in on the machine
+            up   = 0.08,    -- metres above it
             side = -0.04,   -- metres left or right
             tilt = -0.06,   -- aim this far below the middle of the glass
-            fov  = 46.0,
+            fov  = 42.0,
 
             sensitivity = 4.0,
             lookUp      = 20.0,   -- how far up from the start
@@ -301,22 +292,22 @@ Config.ATM = {
         models = {
             [`prop_atm_01`]     = { modelName = 'prop_atm_01', screenTexture = 'prop_cashpoint_screen',
                                     lodVariants = true, playerDist = 0.8,
-                                    aim = vec3(0.0, -0.118, 1.100), size = 0.235,
+                                    aim = vec3(0.0, -0.118, 1.100),
                                     island = { x = 0.0, y = 0.0, w = 1.0, h = 1.0 } },
             [`prop_atm_02`]     = { modelName = 'prop_atm_02', screenTexture = 'prop_cashpoint_screen',
                                     lodVariants = true,
-                                    aim = vec3(-0.120, 0.090, 1.150), size = 0.247,
+                                    aim = vec3(-0.120, 0.090, 1.150),
                                     island = { x = 0.0, y = 0.0, w = 1.0, h = 1.0 } },
             [`prop_atm_03`]     = { modelName = 'prop_atm_03', screenTexture = 'prop_cashpoint_screen',
                                     lodVariants = true,
-                                    aim = vec3(-0.120, 0.075, 1.150), size = 0.247,
+                                    aim = vec3(-0.120, 0.075, 1.150),
                                     island = { x = 0.0, y = 0.0, w = 1.0, h = 1.0 } },
 
             -- The Fleeca machine's screen is the emissive texture, and
             -- it sits in the lower-left of the sheet. If the page looks
             -- offset on your build, /atmuv fixes it in half a minute.
             [`prop_fleeca_atm`] = { modelName = 'prop_fleeca_atm', screenTexture = 'prop_fleece_emis',
-                                    aim = vec3(-0.120, 0.095, 1.150), size = 0.247,
+                                    aim = vec3(-0.120, 0.095, 1.150),
                                     island = { x = 0.004, y = 0.508, w = 0.492, h = 0.465 } },
         },
     },
