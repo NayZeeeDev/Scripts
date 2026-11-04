@@ -36,21 +36,38 @@ local function dropModel(bagKey, metadata)
     return joaat(Bags.resolve(bagKey, metadata.variant, true, BagHasCash(bagKey, metadata.bagid)))
 end
 
--- picked up out of the drop: forget it
+--- Is the bag still lying in this drop? (false once ox has removed the drop)
+local function stillThere(dropId, bagKey)
+    local inv = ox:GetInventory(dropId, false)
+    for _, it in pairs(inv and inv.items or {}) do
+        if it and it.name == bagKey then return true end
+    end
+    return false
+end
+
+-- taken out of the drop (dragged out, or swapped for something): forget it
 ox:registerHook('swapItems', function(payload)
-    local from = payload.fromInventory
-    local w = from and active[tostring(from)]
-    if w and payload.fromSlot and payload.fromSlot.name == w.bag and payload.toInventory ~= from then
-        SetTimeout(500, function()
-            local inv = ox:GetInventory(from, false)
-            local still = false
-            for _, it in pairs(inv and inv.items or {}) do
-                if it and it.name == w.bag then still = true end
-            end
-            if not still then untrack(from) end
-        end)
+    for _, inv in ipairs({ payload.fromInventory, payload.toInventory }) do
+        local id = inv and tostring(inv)
+        local w = id and active[id]
+        if w then
+            SetTimeout(500, function()
+                if active[id] and not stillThere(id, w.bag) then untrack(id) end
+            end)
+        end
     end
     return true
+end)
+
+-- safety net for anything the hook missed: every minute, forget drops the
+-- bag is no longer in (picked up, or ox cleaned the drop away)
+CreateThread(function()
+    while true do
+        Wait(60000)
+        for id, w in pairs(active) do
+            if not stillThere(id, w.bag) then untrack(id) end
+        end
+    end
 end)
 
 -- put back what was lying on the ground when the server went down
@@ -80,8 +97,9 @@ CreateThread(function()
             local coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0)
             local dropId = ox:CustomDrop(Bags.label(row.bag), { { row.bag, 1, metadata } }, coords, 1,
                 Bags.storage(row.bag).weight, nil, dropModel(row.bag, metadata))
-            MySQL.query.await('DELETE FROM nayzeee_dropped_bags WHERE drop_id = ?', { row.drop_id })
             if dropId then
+                -- only forget the old row once the bag is really back (never lose it)
+                MySQL.query.await('DELETE FROM nayzeee_dropped_bags WHERE drop_id = ?', { row.drop_id })
                 Drop.track(dropId, row.bag, metadata, coords)
                 restored = restored + 1
             else
@@ -143,22 +161,6 @@ function Drop.bag(src, bagKey, coords, skipLog)
     return dropId
 end
 
--- clear drops nobody picked up
-if Config.Drop.enabled and (Config.Drop.despawn or 0) > 0 then
-    CreateThread(function()
-        while true do
-            Wait(60000)
-            local now = os.time()
-            for id, info in pairs(active) do
-                if now - info.at > Config.Drop.despawn then
-                    -- ox removes the drop itself once empty; this just stops
-                    -- the table growing forever
-                    active[id] = nil
-                end
-            end
-        end
-    end)
-end
 
 -----------------------------------------------------------------
 -- death

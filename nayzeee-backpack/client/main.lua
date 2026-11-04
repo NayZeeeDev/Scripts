@@ -31,8 +31,9 @@ end
 
 local function sigOf(state, serverId)
     local o = serverId and openState[serverId]
+    -- while it's open on the ground the open models already show the cash
     return ('%s|%s|%s|%s'):format(state.bag, tostring(state.variant),
-        o and (o.cash and 'cash' or 'open') or 'worn', tostring(state.full))
+        o and (o.cash and 'cash' or 'open') or 'worn', tostring(not o and state.full or nil))
 end
 
 --- Set an opened bag down on the ground in front of its owner.
@@ -116,18 +117,27 @@ local function attachProp(serverId, state)
         return false
     end
 
+    local fit = nil
     if not grounded then
         local bone, pos, rot = Bags.offset(state.bag)
         if state.full and Bags.def(state.bag).fullModel then
             -- the cash look, held where the bag's own fit holds it (takes a frame:
             -- keep the scope loop from starting a second copy meanwhile)
             attaching[serverId] = true
-            Util.attachMatched(entity, ped, bone, pos, rot, (Bags.resolve(state.bag, state.variant)))
+            pos = Util.attachMatched(entity, ped, bone, pos, rot, (Bags.resolve(state.bag, state.variant)))
             attaching[serverId] = nil
-            if not DoesEntityExist(entity) then return false end
+            -- things may have moved on during that frame: start again if so
+            local after = wanted[serverId]
+            if not DoesEntityExist(entity) or not DoesEntityExist(ped) or not shown(serverId, after)
+               or sigOf(after, serverId) ~= sig then
+                Util.delete(entity)
+                if shown(serverId, after) then CreateThread(function() apply(serverId) end) end
+                return false
+            end
         else
             Util.attach(entity, ped, bone, pos, rot)
         end
+        fit = { bone = bone, pos = pos, rot = rot }
     end
 
     -- in a vehicle: hidden until the scope loop finds it a seat (a moment later)
@@ -137,7 +147,7 @@ local function attachProp(serverId, state)
 
     -- 'pending' in a vehicle so the scope loop always places it (seat, back on a bike, or hidden)
     props[serverId] = {
-        entity = entity, sig = sig, ped = ped, grounded = grounded, holder = ped,
+        entity = entity, sig = sig, ped = ped, grounded = grounded, holder = ped, fit = fit,
         place = IsPedInAnyVehicle(ped, false) and 'pending' or 'worn',
     }
 
@@ -364,8 +374,13 @@ local function setPlacement(serverId, place)
         if p.seat then Util.delete(p.seat); p.seat = nil end
         ResetEntityAlpha(p.entity)
         if p.holder ~= ped or not IsEntityAttachedToEntity(p.entity, ped) then
-            local bone, pos, rot = Bags.offset(state.bag)
-            Util.attach(p.entity, ped, bone, pos, rot)
+            -- the way it was first attached (a matched cash look keeps its shift)
+            local f = p.fit
+            if f then Util.attach(p.entity, ped, f.bone, f.pos, f.rot)
+            else
+                local bone, pos, rot = Bags.offset(state.bag)
+                Util.attach(p.entity, ped, bone, pos, rot)
+            end
             p.holder = ped
         end
         SetEntityVisible(p.entity, visible and not (serverId == myId and localHidden), false)

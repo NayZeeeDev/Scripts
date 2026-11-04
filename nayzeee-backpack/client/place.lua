@@ -57,7 +57,7 @@ end
 local function finish(ghost)
     placing = false
     if ghost then Util.delete(ghost) end
-    Util.prompt(nil)
+    Util.prompt(nil, 'place')
 end
 
 --- Enter placement mode for the bag the player is wearing.
@@ -90,7 +90,7 @@ function StartPlacing(bagKey, access)
         { 'G', P.keyCancel or 'Cancel' },
         { 'Scroll', P.keyRotate or 'Rotate' },
         { nil, access == 'public' and P.accessPublic or P.accessPrivate },
-    })
+    }, 'place')
 
     CreateThread(function()
         local heading = (GetEntityHeading(ped) + 180.0) % 360.0
@@ -296,7 +296,7 @@ local function spawnPlaced(data)
     SetEntityHeading(entity, data.heading or 0.0)
     FreezeEntityPosition(entity, true)
 
-    data.centre = centreOf(data, hash)
+    data.centre = centreOf({ coords = at, heading = data.heading }, hash)
     placed[data.id] = entity
     addZone(data)
 end
@@ -487,11 +487,11 @@ if not usingTarget then
                 local id = nearestPlaced()
 
                 if id then
-                    Util.prompt({ { 'E', Config.Prompts.keyUse or 'Backpack' } })
+                    Util.prompt({ { 'E', Config.Prompts.keyUse or 'Backpack' } }, 'nearby')
 
                     while id and not placing do
                         if IsControlJustPressed(0, 38) then -- E
-                            Util.prompt(nil)
+                            Util.prompt(nil, 'nearby')
                             OpenPlacedMenu(id)
                             Wait(400)
                             break
@@ -500,7 +500,7 @@ if not usingTarget then
                         id = nearestPlaced()
                     end
 
-                    if not placing then Util.prompt(nil) end
+                    Util.prompt(nil, 'nearby')
                     sleep = 400
                 end
             end

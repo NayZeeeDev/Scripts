@@ -209,7 +209,6 @@ Config.Drop = {
     enabled      = true, -- Master switch for physical drops
     onDeath      = true, -- Drop the bag when the player dies
     onRob        = true, -- Robbery drops it instead of handing it straight over
-    despawn      = 900,  -- Seconds before an untouched drop is cleaned up (0 = never)
     keepContents = true, -- false wipes the stash when it drops
     keepJobBags  = true, -- Job-issued bags never drop on death
 }

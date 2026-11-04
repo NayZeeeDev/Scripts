@@ -67,12 +67,14 @@ function Util.loadClipset(set)
 end
 
 --- Key prompt at the bottom of the screen: { { 'E', 'Place' }, { 'G', 'Cancel' } }.
---- Util.prompt(nil) hides it.
-local promptSig = nil
-function Util.prompt(items)
+--- `owner` names who's showing it; Util.prompt(nil, owner) only hides that
+--- owner's prompt, so two places (a bag and a shop door) never hide each other.
+local promptSig, promptOwner = nil, nil
+function Util.prompt(items, owner)
+    if not items and owner and promptOwner and promptOwner ~= owner then return end
     local sig = items and json.encode(items) or nil
-    if sig == promptSig then return end
-    promptSig = sig
+    if sig == promptSig then promptOwner = items and owner or nil return end
+    promptSig, promptOwner = sig, items and owner or nil
     local list = nil
     if items then
         list = {}
@@ -119,12 +121,13 @@ end
 
 --- Attach with an offset that was fitted for a DIFFERENT model (a bag's cash
 --- look on the bag's own fit): shifts it so this model's top-centre lands
---- where the fitted model's top-centre would be. Yields a frame.
+--- where the fitted model's top-centre would be. Yields a frame. Returns the
+--- position it ended up attached with (to re-attach the same way later).
 function Util.attachMatched(entity, ped, bone, pos, rot, fittedModel)
     Util.attach(entity, ped, bone, pos, rot)
     local fitted = fittedModel and (type(fittedModel) == 'number' and fittedModel or joaat(fittedModel))
     local model = GetEntityModel(entity)
-    if not fitted or fitted == model or not Util.loadModel(fitted, true) then return end
+    if not fitted or fitted == model or not Util.loadModel(fitted, true) then return pos end
 
     local fmn, fmx = GetModelDimensions(fitted)
     local mn, mx = GetModelDimensions(model)
@@ -134,7 +137,7 @@ function Util.attachMatched(entity, ped, bone, pos, rot, fittedModel)
     local dz = fmx.z - mx.z
 
     Wait(0)
-    if not DoesEntityExist(entity) or not DoesEntityExist(ped) then return end
+    if not DoesEntityExist(entity) or not DoesEntityExist(ped) then return pos end
     -- that shift in world space, then in the bone's own axes (what the offset is in)
     local o = GetEntityCoords(entity)
     local d = GetOffsetFromEntityInWorldCoords(entity, dx, dy, dz) - o
@@ -143,8 +146,9 @@ function Util.attachMatched(entity, ped, bone, pos, rot, fittedModel)
     local by = GetPedBoneCoords(ped, bone, 0.0, 1.0, 0.0) - b0
     local bz = GetPedBoneCoords(ped, bone, 0.0, 0.0, 1.0) - b0
     local function dot(a, b) return a.x * b.x + a.y * b.y + a.z * b.z end
-    Util.attach(entity, ped, bone,
-        vector3(pos.x + dot(d, bx), pos.y + dot(d, by), pos.z + dot(d, bz)), rot)
+    local matched = vector3(pos.x + dot(d, bx), pos.y + dot(d, by), pos.z + dot(d, bz))
+    Util.attach(entity, ped, bone, matched, rot)
+    return matched
 end
 
 function Util.delete(entity)

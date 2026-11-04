@@ -257,6 +257,8 @@ local function shift(dir, incoming)
     spinBoost = 0.0
 end
 
+local loadingFor = {} -- [bag key] = token of the colour change that's loading
+
 local function setCentreVariant(key, variant)
     for i, it in ipairs(live) do
         if it.to == 0 and it.key == key then
@@ -267,15 +269,27 @@ local function setCentreVariant(key, variant)
                 it.variant = variant
             else
                 -- load the new colour before the old one goes, so the stand is never empty
+                local token = {}
+                loadingFor[key] = token
                 local n = spawnSlot(key, variant, 0)
-                if n then
+                if not n then return end
+                local stillThere = false
+                for _, other in ipairs(live) do if other == it then stillThere = true break end end
+                if loadingFor[key] ~= token or not open or not stillThere then
+                    -- another colour was picked, or the shop moved on, while this loaded
                     for j, other in ipairs(live) do
-                        if other == it then table.remove(live, j) break end
+                        if other == n then table.remove(live, j) break end
                     end
-                    Util.delete(it.entity)
-                    n.yaw = it.yaw
-                    n.alpha = -1
+                    Util.delete(n.entity)
+                    return
                 end
+                loadingFor[key] = nil
+                for j, other in ipairs(live) do
+                    if other == it then table.remove(live, j) break end
+                end
+                Util.delete(it.entity)
+                n.yaw = it.yaw
+                n.alpha = -1
             end
             return
         end
@@ -794,13 +808,13 @@ CreateThread(function()
         end
 
         if near and not open then
-            if not showing then showing = true; Util.prompt({ { 'E', Config.Prompts.keyShop or 'Browse bags' } }) end
+            if not showing then showing = true; Util.prompt({ { 'E', Config.Prompts.keyShop or 'Browse bags' } }, 'shop') end
             if IsControlJustPressed(0, 38) then
-                Util.prompt(nil); showing = false
+                Util.prompt(nil, 'shop'); showing = false
                 OpenShop(near)
             end
         elseif showing then
-            showing = false; Util.prompt(nil)
+            showing = false; Util.prompt(nil, 'shop')
         end
 
         Wait(near and 0 or 900)

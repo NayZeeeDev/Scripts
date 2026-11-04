@@ -86,7 +86,7 @@ CreateThread(function()
         placed[id] = {
             id = id,
             bag = row.bag,
-            metadata = json.decode(row.metadata or '{}'),
+            metadata = json.decode(row.metadata or '{}') or {},
             coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0),
             heading = row.heading + 0.0,
             owner = row.owner,

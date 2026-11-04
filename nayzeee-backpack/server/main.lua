@@ -302,17 +302,29 @@ local function cashLookChanged(stash)
     if PlacedCashChanged then PlacedCashChanged(stash) end
 end
 
+-- only cash moves matter here: every item counted as cash by any bag
+local cashFilter = {}
+for _, n in ipairs((Config.OpenBag and Config.OpenBag.cashItems) or { 'money' }) do cashFilter[n] = true end
+for _, bag in pairs(Config.Backpacks) do
+    for _, n in ipairs(bag.open and bag.open.cashItems or {}) do cashFilter[n] = true end
+end
+
 ox:registerHook('swapItems', function(payload)
     local from, to = payload.fromInventory, payload.toInventory
-    local moved = payload.fromSlot and payload.fromSlot.name
-    if not moved then return true end
-    for _, stash in ipairs({ from, to }) do
-        if type(stash) == 'string' and stash:find('^backpack_') then
+    for i, stash in ipairs({ from, to }) do
+        if type(stash) == 'string' and stash:find('^backpack_') and not (i == 2 and to == from) then
             SetTimeout(200, function() cashLookChanged(stash) end)
         end
     end
     return true
-end, { inventoryFilter = { '^backpack_' } })
+end, { inventoryFilter = { '^backpack_' }, itemFilter = cashFilter })
+
+AddEventHandler('playerDropped', function()
+    local src = source
+    for stash, who in pairs(wornStash) do
+        if who == src then wornStash[stash] = nil end
+    end
+end)
 
 AddEventHandler('ox_inventory:closedInventory', function(playerId, inventoryId)
     if type(inventoryId) == 'string' and inventoryId:find('^backpack_') then cashLookChanged(inventoryId) end
