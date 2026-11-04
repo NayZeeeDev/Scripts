@@ -224,13 +224,17 @@ Config.CarLock = {
   },
 
   -- Locksmiths (ped + blip + target option / press-E prompt, following the interface's
-  -- interaction setting). Legal shops serve owners and key holders; illegal shops work on any
-  -- vehicle parked within `range` and may alert the police (alertChance %, NZ.Dispatch).
+  -- interaction setting). Legal shops serve owners and holders of a real key (a registered key
+  -- item or a virtual key; never a temporary key, a back-alley key or garage share / job
+  -- access); illegal shops program keys for any vehicle parked within `range` and may alert
+  -- the police (alertChance %, NZ.Dispatch; the alert names the plate the vehicle wears).
+  -- Keys from an illegal shop open the vehicle but never reach its tracker.
   -- Services: duplicate (copy a key item: physical keys only), program (a new key for a
-  -- vehicle parked nearby; virtual mode: a temporary key), rekey (change the locks: every
-  -- other key stops working). materials: { item = Config.CarLock.items key or item name,
-  -- count, label? }. Checked on the atlas map: Davis Ave (south LS shops) and the Terminal
-  -- container port quay (docks); the ped is put on the ground at spawn.
+  -- vehicle parked nearby; virtual mode: a temporary key, illegal shops only), rekey (change
+  -- the locks: every other key stops working; OWNER ONLY at every shop, an illegal one included).
+  -- materials: { item = Config.CarLock.items key or item name, count, label? }.
+  -- bucket: routing bucket of the shop (default 0). Checked on the atlas map: Davis Ave (south
+  -- LS shops) and the Terminal container port quay (docks); the ped is put on the ground.
   locksmiths = {
     {
       name = 'Los Santos Locksmith',
@@ -269,6 +273,14 @@ Config.CarLock = {
   -- from the key ring (waypoint + live distance, same routing bucket) and sound their alarm.
   tracker = {
     enabled = true,
+    -- A crime's key gives no tracker access: no position, distance or remote alarm of the
+    -- victim's vehicle, no owner's nickname. Crime keys: temporary keys from a hotwire, a
+    -- robbery, a search, a back-alley locksmith, another script (compat) or any unknown
+    -- reason, and key items cut by a back-alley locksmith (or copied from such a key). Owners,
+    -- garage shares / fleets, virtual keys the owner gave, key items without a crime origin and
+    -- service keys (garage hand-out, job spawner, staff, contract, NPC assist) always have it.
+    -- true = every key, a crime's included, has tracker access (the nickname stays private).
+    tempKeys = false,
     alarmSeconds = 20,             -- remote alarm length
     alarmCooldown = 60,            -- seconds before the same vehicle's alarm can be triggered again
     locateSeconds = 120,           -- the map blip of a located vehicle follows it this long
@@ -345,6 +357,7 @@ Config.Contracts = {
   account = 'bank',                -- the buyer pays from, and the seller is paid into: 'bank' | 'cash'
   signedCopies = true,             -- both parties keep a signed_contract item (use it to read the contract; needs item metadata)
   maxPrice = 10000000,
+  resendCooldown = 60,             -- seconds before a seller may send the same buyer another contract after a "no" (declined / expired)
 }
 
 -- Fake plates (docs/CARLOCK.md §13). Install or remove one at the rear of a vehicle (target
@@ -357,7 +370,7 @@ Config.FakePlates = {
   installSeconds = 6,
   removeSeconds = 5,
   returnOnStore = true,            -- storing in a garage removes the fake plate and gives the item back
-  pattern = '11AAA111',            -- 1 = digit, A = letter, anything else as written (8 at most); never a registered plate
+  pattern = '11AAA111',            -- 1 = digit, A = letter, a space or anything else as written (8 at most, e.g. 'AAA 111'); never a registered plate
   alertChance = 0,                 -- % the police get an alert (Config.CarLock.dispatch) when one is installed
   distance = 2.0,                  -- metres from the rear of the vehicle
   animation = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer' },

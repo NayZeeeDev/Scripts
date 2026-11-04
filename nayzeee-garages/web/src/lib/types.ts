@@ -685,7 +685,9 @@ export interface KeyEntry extends VehicleLabel {
   remote: boolean;
   /** temporary keys: seconds left when the data was sent, else null */
   expiresIn: number | null;
-  /** why a temporary key was given ('hotwire', 'robbery', 'garage', 'locksmith' ...) */
+  /** how the key was obtained: a temporary key's reason ('hotwire', 'robbery', 'garage',
+   *  'locksmith' ...), or the crime origin of a key item ('locksmith' = cut by a back-alley
+   *  locksmith, 'search' = spare key found in a vehicle); null for every other key */
   reason: string | null;
   isOwner: boolean;
   /** the vehicle exists in the player's routing bucket */
@@ -696,7 +698,10 @@ export interface KeyEntry extends VehicleLabel {
   distance: number | null;
   /** the security profile carries a tracker */
   tracker: boolean;
-  /** tracker eligible and spawned (locate, remote alarm) */
+  /** the key gives tracker access: false for a crime's key (a temporary key from a hotwire,
+   *  a robbery, another script; a back-alley or found key item) unless the server allows it */
+  trackerAccess: boolean;
+  /** tracker eligible, tracker access and spawned (locate, remote alarm) */
   trackable: boolean;
   /** on the impound tow truck: nothing works */
   towing: boolean;
@@ -737,16 +742,24 @@ export interface KeysOpenData {
   seatPlate?: string | false | null;
   live?: Record<string, KeyLive> | null;
   tracking?: KeyTracking | null;
+  /** the key ring keybind ('F7'): pressing it again while the ring is open closes it */
+  closeKey?: string | null;
 }
 
-/** A nearby player for the share picker (server distance in metres). */
-export interface KeyRingPlayer extends PlayerOption { distance?: number }
+/** A nearby player for the share picker (server distance in metres). anonymous: the server
+ *  does not send character names (Config.CarLock.sharePicker.names): name = 'Player <id>'. */
+export interface KeyRingPlayer extends PlayerOption { distance?: number; anonymous?: boolean }
 
 export interface KeyHolder {
-  identifier: string;
+  /** opaque id from the server (identifiers never reach the interface); revoke with it */
+  id: string;
+  /** character name, or 'Unknown holder' when masked */
   name: string;
   kind: 'virtual' | 'temp';
-  grantedBy: string | null;
+  /** temporary keys: how it was obtained ('hotwire', 'robbery', 'garage'...), else null */
+  reason: string | null;
+  /** a temporary key that is not a service's (a crime, another script): the name is not shown */
+  masked: boolean;
   /** seconds since the key was given (server clock), null when unknown */
   agoSeconds: number | null;
   /** temporary keys: seconds left */
@@ -761,7 +774,7 @@ export interface LocksmithService {
   id: LocksmithServiceId;
   /** offered at this location (config) */
   enabled: boolean;
-  /** available in this key mode (virtual: no duplicate) */
+  /** available in this key mode (virtual: no duplicate; no program at a legal shop) */
   offered: boolean;
   reason?: string | null;
   price: number;
@@ -781,6 +794,9 @@ export interface LocksmithVehicle extends VehicleLabel {
   keyKind?: 'owner' | 'item' | 'temp' | 'virtual' | null;
   /** valid key items of this plate the player carries */
   keyItems: number;
+  /** every key item carried is a crime's (back-alley copy, found key): opens the vehicle, but
+   *  a legal shop never programs a registered key from it */
+  unregistered?: boolean;
   /** what a key cut for it is */
   keyType: 'key' | 'fob';
   /** within range of the locksmith (program / rekey need the vehicle nearby) */
@@ -833,6 +849,22 @@ export type Signature = string;
 /** Outcome of a sent contract, pushed into the open window ('update' { status }). */
 export type ContractStatus = 'pending' | 'signed' | 'declined' | 'expired' | 'withdrawn' | 'cancelled' | 'failed';
 
+/** How the buyer got the keys: a key item (physical car lock), a temporary key, the keys of
+ *  an external key resource; null = no key system. */
+export type ContractKeyKind = 'item' | 'temp' | 'external';
+
+/** A contract the seller already sent (the draft reopened by using a blank contract again). */
+export interface ContractSent {
+  id: string;
+  /** seconds left to sign (count down from receipt) */
+  expiresIn: number;
+  buyer: PlayerOption;
+  plate: string;
+  price: number;
+  terms: string;
+  signature: Signature;
+}
+
 /** The seller drafts a contract (blank contract item used next to their vehicle). */
 export interface ContractDraftData {
   mode: 'draft';
@@ -844,8 +876,15 @@ export interface ContractDraftData {
   account: 'bank' | 'cash';
   /** seconds the buyer has to sign once the contract is sent */
   expireSeconds: number;
+  /** the seller's contract still waiting for the buyer: the window opens in its sent state */
+  sent?: ContractSent | null;
   /** set by Lua after sending (outcome of the sent contract) */
   status?: ContractStatus;
+  /** with status 'signed': the seller's signed copy is in their inventory */
+  copy?: boolean;
+  /** with status 'declined' / 'expired': seconds before this buyer can get a new contract from
+   *  the seller (Config.Contracts.resendCooldown, counted from receipt); another buyer can now */
+  resendIn?: number | null;
 }
 
 /** The buyer reads, signs and pays. */
@@ -1022,20 +1061,28 @@ export interface NuiCallbacks {
   'admin:vehicle:activity': Cb<{ plate: string; page: number }, Paged<VehicleActivity>>;
 
   'keys:refresh': Cb<Record<string, never>, KeysOpenData>;
-  'keys:lock': Cb<{ plate: string }, { plate: string; locked: boolean }>;
+  /** refused = 'range': the server's out-of-range answer (message = its words), locked absent */
+  'keys:lock': Cb<{ plate: string }, { plate: string; locked?: boolean; refused?: 'range' | null; message?: string | null }>;
   'keys:locate': Cb<{ plate: string; stop?: boolean }, { distance: number | null }>;
-  'keys:alarm': Cb<{ plate: string; on?: boolean }, { alarm: boolean; seconds: number | null; cooldown: number }>;
+  /** refused = 'cooldown': not yet, cooldown = seconds left (message = the server's words) */
+  'keys:alarm': Cb<
+    { plate: string; on?: boolean },
+    { alarm: boolean; seconds: number | null; cooldown: number; refused?: 'cooldown' | null; message?: string | null }
+  >;
   'keys:players': Cb<Record<string, never>, KeyRingPlayer[]>;
   'keys:share': Cb<{ plate: string; target: number }, null>;
   'keys:holders': Cb<{ plate: string }, KeyHolder[]>;
-  'keys:revoke': Cb<{ plate: string; identifier: string }, KeyHolder[] | null>;
+  'keys:revoke': Cb<{ plate: string; id: string }, KeyHolder[]>;
 
   'locksmith:refresh': Cb<{ locksmithId: number }, LocksmithOpenData>;
   'locksmith:service': Cb<{ locksmithId: number; service: LocksmithServiceId; plate: string }, { message: string; data: LocksmithOpenData }>;
 
   'contract:refresh': Cb<Record<string, never>, { vehicles: ContractVehicle[]; buyers: PlayerOption[] }>;
   'contract:send': Cb<{ plate: string; buyer: number; price: number; terms: string; signature: Signature }, { contractId: string; expiresIn: number }>;
-  'contract:sign': Cb<{ contractId: string; signature: Signature }, { signedAt: number }>;
+  /** key = how the buyer got the keys (null: no key system), copy = their signed copy was given */
+  'contract:sign': Cb<{ contractId: string; signature: Signature }, { signedAt: number; key?: ContractKeyKind | null; copy?: boolean }>;
+  /** the buyer's review: can they pay now (polled while the contract is pending) */
+  'contract:balance': Cb<{ contractId: string }, { canAfford: boolean }>;
   /** the buyer declines, or the seller withdraws a sent contract */
   'contract:decline': Cb<{ contractId: string }, null>;
 }

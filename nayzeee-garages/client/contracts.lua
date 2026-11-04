@@ -4,11 +4,16 @@
   Shows the `contract` app; the server decides everything.
     'nz:client:contract:open'   data = ContractOpenData (draft for the seller after a blank
                                 contract use, review for the buyer, view of a signed copy)
-    'nz:client:contract:status' { contractId, status }: the outcome of the contract shown
-                                ('signed' | 'declined' | 'expired' | 'withdrawn' | 'cancelled' |
-                                'failed'), pushed into the open window ('update')
+    'nz:client:contract:status' { contractId, status, copy?, resendIn? }: the outcome of the
+                                contract shown ('signed' | 'declined' | 'expired' | 'withdrawn' |
+                                'cancelled' | 'failed'), pushed into the open window ('update');
+                                resendIn = seconds before the seller may send that buyer another
+    'nz:client:contract:keys'   { netId, plate, give }: a sale with an external client-side key
+                                resource: the buyer gets its keys, the seller loses theirs
   NUI callbacks forwarded 1:1 to the server: contract:refresh, contract:send, contract:sign,
-  contract:decline. Closing a contract you were asked to sign declines it.
+  contract:decline, contract:balance. Closing a contract you were asked to sign declines it.
+  A draft opened with `sent` (the seller used a blank contract while theirs is still waiting)
+  follows that contract.
 ]]
 
 local Contracts = NZ.Contracts
@@ -41,7 +46,8 @@ local function show(data)
   if data.mode == 'review' then
     current = { id = data.contractId, role = 'buyer', status = 'pending' }
   elseif data.mode == 'draft' then
-    current = { id = nil, role = 'seller', status = 'draft' }
+    local sent = type(data.sent) == 'table' and type(data.sent.id) == 'string' and data.sent or nil
+    current = { id = sent and sent.id or nil, role = 'seller', status = sent and 'pending' or 'draft' }
   else
     current = { id = data.contractId, role = 'reader', status = 'view' }
   end
@@ -71,10 +77,27 @@ RegisterNetEvent('nz:client:contract:status', function(data)
   if type(data) ~= 'table' or type(data.contractId) ~= 'string' or type(data.status) ~= 'string' then return end
   if not current or current.id ~= data.contractId then return end
   current.status = data.status
-  if NZ.NUI.isOpen(APP) then NZ.NUI.send('update', { app = APP, data = { status = data.status } }) end
+  if NZ.NUI.isOpen(APP) then
+    local resendIn = tonumber(data.resendIn)
+    resendIn = resendIn and resendIn == resendIn and math.floor(math.max(0, math.min(3600, resendIn))) or nil
+    NZ.NUI.send('update', { app = APP, data = { status = data.status, copy = data.copy == true, resendIn = resendIn } })
+  end
+end)
+
+-- External client-side key resource (qb-vehiclekeys, wasabi_carlock...): the keys follow the sale.
+RegisterNetEvent('nz:client:contract:keys', function(data)
+  if type(data) ~= 'table' or type(data.plate) ~= 'string' or data.plate == '' or #data.plate > 16 then return end
+  local netId = tonumber(data.netId)
+  local vehicle = (netId and NetworkDoesNetworkIdExist(netId)) and NetworkGetEntityFromNetworkId(netId) or 0
+  if data.give == true then
+    pcall(NZ.Keys.give, vehicle, data.plate)
+  else
+    pcall(NZ.Keys.remove, vehicle, data.plate)
+  end
 end)
 
 NZ.NUI.forward('contract:refresh')
+NZ.NUI.forward('contract:balance')
 
 NZ.NUI.forward('contract:send', function(result)
   if result.ok and type(result.data) == 'table' and current and current.role == 'seller' then
@@ -83,8 +106,10 @@ NZ.NUI.forward('contract:send', function(result)
   end
 end)
 
+-- A refused sign leaves the status to the server: a voided contract arrives as 'failed' through
+-- 'nz:client:contract:status'; a vehicle that was busy keeps it pending (closing still declines).
 NZ.NUI.forward('contract:sign', function(result)
-  if current and current.role == 'buyer' then current.status = result.ok and 'signed' or 'failed' end
+  if current and current.role == 'buyer' and result.ok then current.status = 'signed' end
 end)
 
 NZ.NUI.forward('contract:decline', function(result)

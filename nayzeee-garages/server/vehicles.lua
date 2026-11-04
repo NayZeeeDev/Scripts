@@ -458,7 +458,7 @@ function Vehicles.isOut(plate)
   end
   if entry.netId then
     local entity = NetworkGetEntityFromNetworkId(entry.netId)
-    if isVehicleEntity(entity) and plateOf(entity) == plate then
+    if isVehicleEntity(entity) and identityOf(entity) == plate then
       entry.entity = entity
       entityPlates[entity] = plate
       return true, entity
@@ -1887,7 +1887,9 @@ local function adoptExisting()
   local adopted = 0
   for _, entity in ipairs(GetAllVehicles() or {}) do
     if isVehicleEntity(entity) then
-      local plate = plateOf(entity)
+      -- the registration, also under a fake plate (server/fakeplates.lua restores its
+      -- records before this boot step): a fake-plated car is adopted, never spawned twice
+      local plate = identityOf(entity)
       local row = plate and byPlate[plate]
       if row and not Vehicles.out[plate] then
         local _, fleetName = Vehicles.fleetOf(row)
@@ -2197,7 +2199,11 @@ register('nz:garage:recover', function(src, payload)
       return fail(L('Something went wrong'))
     end
 
-    if entity then deleteVehicle(entity) end
+    if entity then
+      -- a fake plate comes off first (the item goes back with Config.FakePlates.returnOnStore)
+      dropFakePlate(src, entity, plate)
+      deleteVehicle(entity)
+    end
     Vehicles.clearOut(plate)
     -- its saved trailer comes back with it: never leave a second copy in the world
     Vehicles.removeTrailerOf(plate, row)

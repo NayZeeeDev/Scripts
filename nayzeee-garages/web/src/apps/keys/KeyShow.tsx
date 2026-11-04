@@ -12,7 +12,7 @@ import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import type { KeyEntry, KeyHolder, KeyTracking, KeysOpenData } from '@/lib/types';
 import { FobGlyph, KindGlyph, SignalGlyph, SirenGlyph } from './glyphs';
-import { ago, countdown, kindInfo, meters, rangeOf, rangeState, reasonLabel } from './model';
+import { ago, countdown, howObtained, kindInfo, meters, rangeOf, rangeState, reasonLabel } from './model';
 
 export interface Answer {
   tone: 'teal' | 'amber' | 'red';
@@ -191,7 +191,14 @@ function Stage({ k, tracking }: { k: KeyEntry; tracking: KeyTracking | null }) {
             {k.profileLabel}
           </span>
           {k.tracker && (
-            <span className={cx('nz-keys__tag', tracking && !tracking.lost && !tracking.stopped && 'is-live')}>
+            <span
+              className={cx(
+                'nz-keys__tag',
+                !k.trackerAccess && 'is-off',
+                k.trackerAccess && tracking && !tracking.lost && !tracking.stopped && 'is-live',
+              )}
+              title={k.trackerAccess ? undefined : t('This key has no tracker access')}
+            >
               <SignalGlyph size={12} strokeWidth={1.9} />
               {t('Tracker')}
             </span>
@@ -342,11 +349,13 @@ export function KeyShow(p: KeyShowProps) {
     ? t('The vehicle tracker is offline')
     : !k.tracker
       ? t('No tracker fitted')
-      : k.towing
-        ? t('This vehicle is being towed')
-        : !k.spawned
-          ? t('The vehicle is not out')
-          : null;
+      : !k.trackerAccess
+        ? t('This key has no tracker access')
+        : k.towing
+          ? t('This vehicle is being towed')
+          : !k.spawned
+            ? t('The vehicle is not out')
+            : null;
   const alarmLabel = k.alarm ? t('Silence') : p.alarmCooldown > 0 ? t('Alarm {s}s', { s: p.alarmCooldown }) : t('Alarm');
 
   const shareReason = k.canShare
@@ -466,18 +475,30 @@ export function KeyShow(p: KeyShowProps) {
             <NoData
               glyph={<SignalGlyph size={18} strokeWidth={1.5} />}
               title={
-                !k.tracker ? t('No tracker fitted') : !data.tracker ? t('Tracker offline') : k.towing ? t('Signal lost') : t('No signal')
+                !k.tracker
+                  ? t('No tracker fitted')
+                  : !data.tracker
+                    ? t('Tracker offline')
+                    : !k.trackerAccess
+                      ? t('No tracker access')
+                      : k.towing
+                        ? t('Signal lost')
+                        : t('No signal')
               }
               text={
                 !k.tracker
                   ? t('Vehicles with a high-end security profile carry a tracker.')
                   : !data.tracker
                     ? t('The server has switched the vehicle tracker off.')
-                    : k.towing
-                      ? t('The vehicle is on the tow truck to the impound.')
-                      : t('The vehicle is stored, or not in this part of the world.')
+                    : !k.trackerAccess
+                      ? t('{how}: this key opens the vehicle, it does not reach the tracker. Only the owner and the keys they give do.', {
+                          how: howObtained(k),
+                        })
+                      : k.towing
+                        ? t('The vehicle is on the tow truck to the impound.')
+                        : t('The vehicle is stored, or not in this part of the world.')
               }
-              tone={k.towing && k.tracker ? 'red' : undefined}
+              tone={k.tracker && data.tracker && (k.towing || !k.trackerAccess) ? (k.trackerAccess ? 'red' : 'amber') : undefined}
             />
           ) : (
             <div className="nz-keys__track">
@@ -539,41 +560,55 @@ export function KeyShow(p: KeyShowProps) {
               <NoData
                 icon="users"
                 title={t('Only you hold a key')}
-                text={t('Give a key to a player next to you with Share. You can take it back here.')}
+                text={t('Give a key to a player next to you with Give key. You can take it back here.')}
               />
             ) : (
               <div className="nz-keys__holders">
-                {holderList.map((h) => (
-                  <div key={h.identifier} className="nz-keys__holder">
-                    <Avatar name={h.name} size={30} />
-                    <span className="nz-keys__holder-text">
-                      <b>{h.name}</b>
-                      <small>
-                        {h.kind === 'temp' ? (
-                          <span className="is-amber">
-                            {h.expiresIn !== null
-                              ? t('Temporary · {time} left', { time: countdown(h.expiresIn - (p.now - p.holdersAt) / 1000) })
-                              : t('Temporary key')}
-                          </span>
-                        ) : (
-                          <span>{t('Virtual key')}</span>
-                        )}
-                        {' · '}
-                        {t('given {ago}', { ago: ago(h.agoSeconds) })}
-                      </small>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="line"
-                      icon="ban"
-                      className="nz-keys__revoke"
-                      loading={p.revoking === h.identifier}
-                      onClick={() => p.onRevoke(h)}
+                {holderList.map((h) => {
+                  const left = h.expiresIn !== null ? countdown(h.expiresIn - (p.now - p.holdersAt) / 1000) : null;
+                  return (
+                    <div
+                      key={h.id}
+                      className={cx('nz-keys__holder', h.masked && 'is-masked')}
+                      title={h.masked ? t('Someone holds a key from a crime. Revoke it to lock them out.') : undefined}
                     >
-                      {t('Revoke')}
-                    </Button>
-                  </div>
-                ))}
+                      {h.masked ? (
+                        <span className="nz-keys__holder-mask" aria-hidden="true">
+                          <Icon name="eyeOff" size={14} strokeWidth={1.8} />
+                        </span>
+                      ) : (
+                        <Avatar name={h.name} size={30} />
+                      )}
+                      <span className="nz-keys__holder-text">
+                        <b>{h.name}</b>
+                        <small>
+                          {h.kind === 'temp' ? (
+                            <span className={h.masked ? 'is-red' : 'is-amber'}>
+                              {reasonLabel(h.reason)}
+                              {left !== null && ` · ${t('{time} left', { time: left })}`}
+                            </span>
+                          ) : (
+                            <>
+                              <span>{t('Virtual key')}</span>
+                              {' · '}
+                              {t('given {ago}', { ago: ago(h.agoSeconds) })}
+                            </>
+                          )}
+                        </small>
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="line"
+                        icon="ban"
+                        className="nz-keys__revoke"
+                        loading={p.revoking === h.id}
+                        onClick={() => p.onRevoke(h)}
+                      >
+                        {t('Revoke')}
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Block>
@@ -595,8 +630,8 @@ export function KeyShow(p: KeyShowProps) {
                 : t('{profile} · key within {range}', { profile: k.profileLabel, range: meters(data.ranges.key, unit) })}
             </Fact>
             <Fact icon="user" label={t('Access')}>
-              {k.kind === 'temp'
-                ? reasonLabel(k.reason)
+              {k.kind === 'temp' || (k.reason && !k.isOwner)
+                ? howObtained(k)
                 : k.isOwner
                   ? t('Owner')
                   : k.group === 'shared'

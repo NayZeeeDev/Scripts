@@ -10,6 +10,9 @@
   The client only shows the work: 'nz:fakeplates:start' (the server checks everything and
   starts its own timer) -> progress circle + animation -> 'nz:fakeplates:finish' { token }
   (or { token, cancel = true }). The item checks here only hide options; the server decides.
+  External key resource keyed on the plate text: the finish result says `keys` when this player
+  may keep keys (access to the real registration); 'nz:client:fakeplates:keys' gives the owner
+  of a car someone else fitted a fake plate to keys for the new text.
 ]]
 
 local FakePlates = NZ.FakePlates
@@ -19,6 +22,8 @@ local REMOVE_ID = 'nz:fakeplate:remove'
 local REAR_BONES = { 'platelight', 'bumper_r', 'boot' }
 local NO_PLATE_CLASSES = { [13] = true, [14] = true, [15] = true, [16] = true, [21] = true }
 local SEARCH_RADIUS = 7.0
+local BEHIND_SIDE = 1.5            -- m off the long axis (server: 1.6)
+local BEHIND_COS = 0.55            -- cosine of the angle behind the centre (server: 0.5 = 60 degrees)
 
 local busy = false
 local targetsAdded = false
@@ -80,10 +85,20 @@ local function hasPlate(vehicle)
   return not NO_PLATE_CLASSES[GetVehicleClass(vehicle)]
 end
 
+--- Is `pos` behind `vehicle`: near its long axis and clearly behind its centre, not at a rear
+--- corner? The server's rule (server/fakeplates.lua behind: 1.6 m, 60 degrees), a little
+--- stricter here so an option the player sees is never refused for the position.
+local function behindAxis(vehicle, pos)
+  local off = GetOffsetFromEntityGivenWorldCoords(vehicle, pos.x, pos.y, pos.z)
+  if off.y >= 0 or math.abs(off.x) > BEHIND_SIDE then return false end
+  return -off.y / math.max(#vector2(off.x, off.y), 0.001) >= BEHIND_COS
+end
+
 --- Is the local player on foot at the rear of `vehicle` (Config.FakePlates.distance)?
 local function atRear(vehicle, ped)
   if not isVehicle(vehicle) or IsPedInAnyVehicle(ped, false) or not hasPlate(vehicle) then return false end
-  return #(GetEntityCoords(ped) - rearPoint(vehicle)) <= cfg().distance + 0.35
+  local pos = GetEntityCoords(ped)
+  return #(pos - rearPoint(vehicle)) <= cfg().distance + 0.35 and behindAxis(vehicle, pos)
 end
 
 --- The vehicle whose rear the player stands at (nearest rear), or nil.
@@ -92,7 +107,7 @@ local function vehicleAtRear(ped)
   local ok, pool = pcall(GetGamePool, 'CVehicle')
   local best, bestDist = nil, math.huge
   for _, vehicle in ipairs(ok and pool or {}) do
-    if #(GetEntityCoords(vehicle) - origin) <= SEARCH_RADIUS and hasPlate(vehicle) then
+    if #(GetEntityCoords(vehicle) - origin) <= SEARCH_RADIUS and hasPlate(vehicle) and behindAxis(vehicle, origin) then
       local dist = #(origin - rearPoint(vehicle))
       if dist < bestDist then best, bestDist = vehicle, dist end
     end
@@ -167,7 +182,10 @@ function FakePlates.run(action, vehicle)
     elseif not result.ok then
       notify('error', result.error)
     elseif action == 'install' then
-      notify('success', L('Fake plate installed: {plate}', { plate = type(result.data) == 'table' and result.data.plate or '' }))
+      local data = type(result.data) == 'table' and result.data or {}
+      -- external key resource keyed on the plate text: keep the keys of a car you may use
+      if data.keys == true and type(data.plate) == 'string' then pcall(NZ.Keys.give, vehicle, data.plate) end
+      notify('success', L('Fake plate installed: {plate}', { plate = data.plate or '' }))
     else
       notify('success', L('Fake plate removed: the vehicle shows {plate} again', {
         plate = type(result.data) == 'table' and result.data.plate or '',
@@ -207,6 +225,15 @@ RegisterNetEvent('nz:client:fakeplates:use', function()
     end
     FakePlates.run('install', vehicle)
   end)
+end)
+
+-- The owner's car got a fake plate from someone else (external key resource keyed on the
+-- plate text): the owner keeps keys to it.
+RegisterNetEvent('nz:client:fakeplates:keys', function(data)
+  if type(data) ~= 'table' or type(data.plate) ~= 'string' or data.plate == '' or #data.plate > 16 then return end
+  local netId = tonumber(data.netId)
+  local vehicle = (netId and NetworkDoesNetworkIdExist(netId)) and NetworkGetEntityFromNetworkId(netId) or 0
+  pcall(NZ.Keys.give, vehicle, data.plate)
 end)
 
 ---------------------------------------------------------------------------------------

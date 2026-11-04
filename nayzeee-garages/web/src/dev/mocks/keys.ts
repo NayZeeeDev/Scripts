@@ -8,8 +8,12 @@
  *   keys-range      a car 46 m away with a plain key: pressing Lock gets the server's range answer
  *   keys-share      a key item selected (Hand over opens the share picker)
  *   keys-towing     the selected car is on the impound tow truck
+ *   keys-hotwired   a hotwired high-end car: the tracker is fitted, but a crime key has no access
+ *   keys-backalley  a fob cut by a back-alley locksmith: it opens the car, no tracker, no nickname
+ *   keys-names      the share picker of a server with character names on (sharePicker.names)
  *   keys-empty      no keys at all
- * Stateful handlers answer keys:* like the server would (range rules, alarm cooldown, holders).
+ * Stateful handlers answer keys:* like the server would (range rules as refused = 'range',
+ * alarm cooldown as refused = 'cooldown', holders by opaque id with a masked thief).
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui, onNuiMessage } from '../../lib/nui';
@@ -52,6 +56,7 @@ function key(model: string, label: string, make: string, plate: string, extra: K
     locked: null,
     distance: null,
     tracker: highend,
+    trackerAccess: true,
     trackable: false,
     towing: false,
     alarm: false,
@@ -66,6 +71,7 @@ function physical(): KeysOpenData {
     mode: 'physical',
     ranges: RANGES,
     tracker: true,
+    closeKey: 'F7',
     nearbyPlayers: [],
     keys: [
       key('jester4', 'Jester RR', 'Dinka', '52MZL952', { kind: 'item', spawned: true, netId: 101, locked: true, distance: 4 }),
@@ -122,6 +128,22 @@ function physical(): KeysOpenData {
         locked: false,
         distance: 230,
       }),
+      key('zentorno', 'Zentorno', 'Pegassi', 'HOT 666', {
+        kind: 'temp',
+        group: 'temp',
+        profile: 'highend',
+        isOwner: false,
+        canShare: false,
+        expiresIn: 3 * H + 5 * 60,
+        reason: 'hotwire',
+        spawned: true,
+        netId: 108,
+        locked: false,
+        distance: 34,
+        // a crime key: the tracker is fitted but out of reach
+        trackerAccess: false,
+        trackable: false,
+      }),
       key('buffalo4', 'Buffalo STX', 'Bravado', 'LSPD 11', {
         kind: 'temp',
         group: 'temp',
@@ -138,6 +160,20 @@ function physical(): KeysOpenData {
         profile: 'highend',
         spawned: false,
         trackable: false,
+      }),
+      key('pariah', 'Pariah', 'Ocelot', 'DEN 404', {
+        kind: 'fob',
+        group: 'items',
+        isOwner: false,
+        profile: 'highend',
+        // cut by a back-alley locksmith: it opens the car, the tracker stays the owner's
+        reason: 'locksmith',
+        trackerAccess: false,
+        trackable: false,
+        spawned: true,
+        netId: 109,
+        locked: true,
+        distance: 21,
       }),
       key('vigero2', 'Vigero ZX', 'Declasse', 'VGR 22', {
         kind: 'item',
@@ -156,6 +192,7 @@ function virtual(): KeysOpenData {
     mode: 'virtual',
     ranges: RANGES,
     tracker: true,
+    closeKey: 'F7',
     nearbyPlayers: [],
     keys: [
       key('torero2', 'Torero XO', 'Pegassi', 'XO 1', {
@@ -206,18 +243,27 @@ function virtual(): KeysOpenData {
   };
 }
 
+// ids are opaque server tokens: identifiers never reach the interface
 const HOLDERS: Record<string, KeyHolder[]> = {
   'XO 1': [
-    { identifier: 'CID-AVA', name: 'Ava Brooks', kind: 'virtual', grantedBy: 'NZV41207', agoSeconds: 3 * 86400, expiresIn: null },
-    { identifier: 'CID-LENA', name: 'Lena Ortiz', kind: 'virtual', grantedBy: 'NZV41207', agoSeconds: 2 * H, expiresIn: null },
-    { identifier: 'CID-SAM', name: 'Sam Carter', kind: 'temp', grantedBy: null, agoSeconds: 25 * 60, expiresIn: 23 * H + 35 * 60 },
+    { id: '3f9a1c07b2e4', name: 'Ava Brooks', kind: 'virtual', reason: null, masked: false, agoSeconds: 3 * 86400, expiresIn: null },
+    { id: '81d0e6a95c3b', name: 'Lena Ortiz', kind: 'virtual', reason: null, masked: false, agoSeconds: 2 * H, expiresIn: null },
+    { id: 'c47b20f1d8a6', name: 'Sam Carter', kind: 'temp', reason: 'garage', masked: false, agoSeconds: 40 * 60, expiresIn: 2 * H + 20 * 60 },
+    // a hotwired key: the owner sees how it was obtained, never who holds it
+    { id: '0e5d93b7a1f2', name: 'Unknown holder', kind: 'temp', reason: 'hotwire', masked: true, agoSeconds: 25 * 60, expiresIn: 23 * H + 35 * 60 },
   ],
 };
 
-const PLAYERS: KeyRingPlayer[] = [
+// the server sends no names of strangers by default (Config.CarLock.sharePicker.names = false)
+const ANONYMOUS: KeyRingPlayer[] = [
+  { serverId: 12, name: 'Player 12', anonymous: true, distance: 1.4 },
+  { serverId: 41, name: 'Player 41', anonymous: true, distance: 2.6 },
+];
+const NAMED: KeyRingPlayer[] = [
   { serverId: 12, name: 'Lena Ortiz', distance: 1.4 },
   { serverId: 41, name: 'Sam Carter', distance: 2.6 },
 ];
+let players: KeyRingPlayer[] = ANONYMOUS;
 
 let current: KeysOpenData | null = null;
 let holders: Record<string, KeyHolder[]> = clone(HOLDERS);
@@ -227,6 +273,8 @@ onNuiMessage((msg) => {
   if (msg.action === 'open' && msg.data.app === 'keys') {
     current = clone(msg.data.data as KeysOpenData);
     holders = clone(HOLDERS);
+    // a scenario may bring its own share picker answer (keys-names)
+    players = current.nearbyPlayers.length ? current.nearbyPlayers : ANONYMOUS;
   }
   if (msg.action === 'update' && msg.data.app === 'keys' && current) current = { ...current, ...(msg.data.data as Partial<KeysOpenData>) };
 });
@@ -242,7 +290,8 @@ mockNui('keys:lock', ({ plate }) => {
   if (k.towing) return { ok: false, error: 'This vehicle is being towed' };
   if (!k.spawned) return { ok: false, error: 'The vehicle is not out' };
   const range = k.remote ? RANGES.fob : RANGES.key;
-  if (k.distance === null || k.distance > range) return { ok: false, error: 'The vehicle is too far away' };
+  // out of range is the server's answer, not an error
+  if (k.distance === null || k.distance > range) return { plate, refused: 'range', message: 'The vehicle is too far away' };
   k.locked = !k.locked;
   return { plate, locked: k.locked };
 });
@@ -253,32 +302,40 @@ mockNui('keys:locate', ({ plate, stop }) => {
     update({ tracking: { plate, distance: null, live: false, stopped: true } });
     return { distance: null };
   }
-  if (!k || !k.trackable) return { ok: false, error: 'This vehicle has no tracker' };
+  if (!k || !k.tracker) return { ok: false, error: 'This vehicle has no tracker' };
+  if (!k.trackerAccess) return { ok: false, error: 'This key has no tracker access' };
+  if (!k.trackable) return { ok: false, error: 'The vehicle is not out' };
   window.setTimeout(() => update({ tracking: { plate, distance: k.distance, live: false } }), 300);
   return { distance: k.distance };
 });
 
 mockNui('keys:alarm', ({ plate }) => {
   const k = find(plate);
-  if (!k || !k.trackable) return { ok: false, error: 'This vehicle has no tracker' };
+  if (!k || !k.tracker) return { ok: false, error: 'This vehicle has no tracker' };
+  if (!k.trackerAccess) return { ok: false, error: 'This key has no tracker access' };
+  if (!k.trackable) return { ok: false, error: 'The vehicle is not out' };
   if (k.alarm) {
     k.alarm = false;
     return { alarm: false, seconds: null, cooldown: Math.max(0, Math.ceil(((alarmUntil[plate] ?? 0) - Date.now()) / 1000)) };
   }
   const left = Math.ceil(((alarmUntil[plate] ?? 0) - Date.now()) / 1000);
-  if (left > 0) return { ok: false, error: `The alarm can be triggered again in ${left} s` };
+  if (left > 0) {
+    return { alarm: false, seconds: null, cooldown: left, refused: 'cooldown', message: `The alarm can be triggered again in ${left} s` };
+  }
   k.alarm = true;
   alarmUntil[plate] = Date.now() + 60000;
   return { alarm: true, seconds: 20, cooldown: 60 };
 });
 
-mockNui('keys:players', () => clone(PLAYERS));
+mockNui('keys:players', () => clone(players));
 mockNui('keys:share', ({ target }) =>
-  PLAYERS.some((p) => p.serverId === target) ? null : { ok: false, error: 'That player is too far away' },
+  players.some((p) => p.serverId === target) ? null : { ok: false, error: 'That player is too far away' },
 );
 mockNui('keys:holders', ({ plate }) => clone(holders[plate] ?? []));
-mockNui('keys:revoke', ({ plate, identifier }) => {
-  holders[plate] = (holders[plate] ?? []).filter((h) => h.identifier !== identifier);
+mockNui('keys:revoke', ({ plate, id }) => {
+  const list = holders[plate] ?? [];
+  if (!list.some((h) => h.id === id)) return { ok: false, error: 'The key holder list is out of date: refresh it' };
+  holders[plate] = list.filter((h) => h.id !== id);
   return clone(holders[plate]);
 });
 
@@ -342,6 +399,27 @@ registerMock({
   group: 'Key ring',
   label: 'Vehicle on the tow truck',
   messages: [init, open({ ...physical(), focus: 'VGR 22' })],
+});
+
+registerMock({
+  id: 'keys-hotwired',
+  group: 'Key ring',
+  label: 'Hotwired: no tracker access',
+  messages: [init, open({ ...physical(), focus: 'HOT 666' })],
+});
+
+registerMock({
+  id: 'keys-backalley',
+  group: 'Key ring',
+  label: 'Back-alley key: no tracker',
+  messages: [init, open({ ...physical(), focus: 'DEN 404' })],
+});
+
+registerMock({
+  id: 'keys-names',
+  group: 'Key ring',
+  label: 'Share picker with names',
+  messages: [init, open({ ...physical(), focus: 'KRM 404', nearbyPlayers: NAMED })],
 });
 
 registerMock({

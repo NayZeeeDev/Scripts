@@ -9,12 +9,22 @@
     key ring status (nz:carlock:tracker): every key / one key, trackable only for tracker
     profiles in the player's routing bucket, distances from the server ped, coordinates only
     for one trackable key, towed vehicles unavailable, tracker switched off, no key -> refused;
-    remote alarm (nz:carlock:trackerAlarm): start, silence, cooldown, no tracker / no key /
-    towed refused; share picker (nz:carlock:nearbyPlayers); key ring opened by the server;
-    locksmith (nz:carlock:locksmith:open / :service): counter distance, legal duplicate /
-    program / rekey rules, illegal shop on any vehicle nearby + police alert, missing
-    materials, cannot afford, cannot carry, refunds when the inventory refuses the key,
-    rekey retires every other key, virtual mode (no duplicate, program = temporary key).
+    remote alarm (nz:carlock:trackerAlarm): start, silence, cooldown (seconds left as a
+    number), no tracker / no key / towed refused; temporary keys from a crime: no tracker,
+    no distance, no nickname (service keys and tracker.tempKeys do track; unknown reasons
+    count as crimes); key items cut by a back-alley locksmith (metadata.origin): no
+    coordinates, distance, alarm or nickname anywhere, copies keep the origin, a legal shop
+    never turns them into a registered key, a registered key from the owner does track; share
+    picker (nz:carlock:nearbyPlayers: server ids, names only when configured); key ring opened
+    by the server; key holders (keyHolders / keyRevoke): opaque ids, thieves and unknown
+    reasons masked, the owner's own keys not listed, owner only, revoke by id;
+    locksmith (nz:carlock:locksmith:open / :service): counter distance and routing bucket,
+    legal duplicate / program / rekey rules (garage / job access never makes a key), illegal
+    shop on any vehicle nearby + police alert with the plate the vehicle wears (fake plate),
+    no nickname of strangers' cars, rekey owner only at every shop, missing materials, cannot
+    afford, cannot carry, refunds when the inventory refuses the key, rekey retires every other
+    key (no room for the new key: a temporary 'rekey' key), virtual mode (a legal shop offers
+    neither duplicate nor program; illegal program = temporary key).
 
   Usage (from the resource root):  lua5.4 tools/smoke/keyring.lua
 ]]
@@ -624,7 +634,8 @@ check(logs[#logs].event == 'vehicle.remoteAlarm', 'remote alarm logged')
 res = cb('nz:carlock:trackerAlarm', 1, { plate = 'FOB777' })
 check(res.ok and res.data.alarm == false and Entity(zentorno).state.nzAlarm == false, 'a second press silences it')
 res = cb('nz:carlock:trackerAlarm', 1, { plate = 'FOB777', on = true })
-check(not res.ok and res.error:find('can be triggered again', 1, true), 'cooldown between two alarms')
+check(res.ok and res.data.alarm == false and res.data.refused == 'cooldown' and res.data.cooldown > 0 and res.data.cooldown <= 60
+  and res.data.message:find('can be triggered again', 1, true) ~= nil, 'cooldown between two alarms: seconds left as a number')
 advance(61000)
 res = cb('nz:carlock:trackerAlarm', 1, { plate = 'FOB777', on = true })
 check(res.ok and res.data.alarm == true, 'alarm again after the cooldown')
@@ -638,12 +649,76 @@ res = cb('nz:carlock:trackerAlarm', 1, { plate = 'NOPE99' })
 check(not res.ok, 'unknown plate: refused')
 
 ---------------------------------------------------------------------------------------
+-- 2b. Temporary keys from a crime: no tracker, no nickname; service keys do track
+---------------------------------------------------------------------------------------
+
+rows.FOB777.nickname = 'Zen'
+run(CarLock.invalidate, 'FOB777')
+run(CarLock.grantTemp, 2, 'FOB777', 'hotwire')
+res = cb('nz:carlock:tracker', 2, {})
+local hot = res.ok and find(res.data.keys, 'FOB777') or nil
+check(res.ok and res.data.mode == 'physical' and hot and hot.kind == 'temp' and hot.reason == 'hotwire',
+  'list: the keys and the mode come with the vehicles (one call)')
+st = res.ok and find(res.data.vehicles, 'FOB777') or nil
+check(st and st.spawned and st.tracker and st.trackerAccess == false and not st.trackable and st.distance == nil
+  and st.nickname == nil, 'hotwired key: no tracker access, no distance, no nickname')
+res = cb('nz:carlock:tracker', 2, { plate = 'FOB777' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.coords == nil and not st.trackable and st.trackerAccess == false, 'hotwired key: no position')
+res = cb('nz:carlock:trackerAlarm', 2, { plate = 'FOB777' })
+check(not res.ok and res.error == 'This key has no tracker access', 'hotwired key: no remote alarm')
+res = cb('nz:carlock:tracker', 1, { plate = 'FOB777' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.coords ~= nil and st.trackerAccess and st.nickname == 'Zen', 'owner: tracker and nickname')
+Config.CarLock.tracker.tempKeys = true
+res = cb('nz:carlock:tracker', 2, { plate = 'FOB777' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.coords ~= nil and st.nickname == nil, 'tracker.tempKeys = true: temporary keys track (still no nickname)')
+Config.CarLock.tracker.tempKeys = false
+run(CarLock.grantTemp, 2, 'FOB777', 'garage')
+res = cb('nz:carlock:tracker', 2, { plate = 'FOB777' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.coords ~= nil and st.nickname == 'Zen', 'service temporary key (garage hand-out): tracker and nickname')
+run(CarLock.revokeTemp, 2, 'FOB777')
+-- an NPC handing the keys to an on-duty job player is a service: tracker and nickname
+run(CarLock.grantTemp, 2, 'FOB777', 'assist')
+res = cb('nz:carlock:tracker', 2, { plate = 'FOB777' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.nickname == 'Zen' and st.origin == nil, 'assist temporary key: a service key (tracker, nickname)')
+run(CarLock.revokeTemp, 2, 'FOB777')
+-- a reason no list knows (another script): treated like a crime
+run(CarLock.grantTemp, 2, 'FOB777', 'mystery')
+res = cb('nz:carlock:tracker', 2, { plate = 'FOB777' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and not st.trackable and st.trackerAccess == false and st.nickname == nil and st.origin == 'mystery',
+  'unknown temporary key reason: no tracker access, no nickname (privacy by default)')
+res = cb('nz:carlock:keyHolders', 1, { plate = 'FOB777' })
+local mystery = res.ok and res.data[1] or nil
+check(res.ok and #res.data == 1 and mystery.masked == true and mystery.name == 'Unknown holder' and mystery.reason == 'mystery',
+  'key holders: an unknown reason is masked like a crime')
+run(CarLock.revokeTemp, 2, 'FOB777')
+run(CarLock.grantTemp, 2, 'FOB777', 'assist')
+run(CarLock.grantTemp, 1, 'FOB777', 'garage')
+res = cb('nz:carlock:keyHolders', 1, { plate = 'FOB777' })
+local helper = res.ok and res.data[1] or nil
+check(res.ok and #res.data == 1 and helper.name == 'Name CID002' and not helper.masked and helper.reason == 'assist',
+  'key holders: an assist key by name, the owner\'s own key not listed')
+run(CarLock.revokeTemp, 2, 'FOB777')
+run(CarLock.revokeTemp, 1, 'FOB777')
+
+---------------------------------------------------------------------------------------
 -- 3. Share picker and key ring from the server
 ---------------------------------------------------------------------------------------
 
 res = cb('nz:carlock:nearbyPlayers', 1, {})
 check(res.ok and #res.data == 2 and res.data[1].serverId == 2 and res.data[2].serverId == 3
-  and res.data[1].name == 'Char 2' and res.data[1].distance == 1, 'nearby players: closest first, character names, no player without a character')
+  and res.data[1].name == 'Player 2' and res.data[1].anonymous == true and res.data[1].distance == 1,
+  'nearby players: closest first, server ids (no names of strangers), no player without a character')
+Config.CarLock.sharePicker = { names = true }
+res = cb('nz:carlock:nearbyPlayers', 1, {})
+check(res.ok and res.data[1].name == 'Char 2' and res.data[2].name == 'Char 3' and res.data[1].anonymous == nil,
+  'nearby players: character names when sharePicker.names = true')
+Config.CarLock.sharePicker = nil
 playerBucket[3] = 9
 res = cb('nz:carlock:nearbyPlayers', 1, {})
 check(res.ok and #res.data == 1 and res.data[1].serverId == 2, 'nearby players: same routing bucket only')
@@ -668,6 +743,10 @@ res = cb('nz:carlock:locksmith:open', 1, { id = 1 })
 check(res.ok and res.data.id == 1 and res.data.illegal == false and res.data.mode == 'physical' and res.data.money == 10000
   and res.data.account == 'cash' and #res.data.services == 3, 'locksmith opens with services, mode and money')
 local data = res.data
+playerBucket[1] = 4
+res = cb('nz:carlock:locksmith:open', 1, { id = 1 })
+check(not res.ok and res.error == 'You are too far from the locksmith', 'locksmith: counter in the shop\'s routing bucket only')
+playerBucket[1] = nil
 local car = find(data.vehicles, 'ABC123')
 check(car and car.nearby and car.distance == 8 and car.isOwner and car.keyItems == 1 and car.keyType == 'key'
   and car.blocked.duplicate == nil and car.blocked.program == nil and car.blocked.rekey == nil, 'owned vehicle nearby with its key: every service')
@@ -706,6 +785,17 @@ res = cb('nz:carlock:locksmith:service', 2, { id = 1, service = 'program', plate
 check(not res.ok and res.error == 'Only the owner or a key holder can order a key', 'legal program: strangers refused')
 res = cb('nz:carlock:locksmith:service', 2, { id = 1, service = 'rekey', plate = 'ABC123' })
 check(not res.ok and res.error == 'Only the owner can change the locks', 'legal rekey: owner only')
+-- garage share access (ownerHasKey) never turns into a permanent key item
+Config.CarLock.ownerHasKey = true
+shares.CID002 = { 'ABC123' }
+run(CarLock.invalidate, 'ABC123')
+local _, shareKind = hasKey(2, 'ABC123')
+res = cb('nz:carlock:locksmith:service', 2, { id = 1, service = 'program', plate = 'ABC123' })
+check(shareKind == 'owner' and not res.ok and res.error == 'Garage or job access is not enough: only the owner or a key holder',
+  'legal program: garage share access refused')
+Config.CarLock.ownerHasKey = nil
+shares.CID002 = nil
+run(CarLock.invalidate, 'ABC123')
 
 -- program: missing materials, cannot afford, then done
 res = cb('nz:carlock:locksmith:service', 1, { id = 1, service = 'program', plate = 'ABC123' })
@@ -746,6 +836,16 @@ check(run(CarLock.verifyKeyItem, oldKey, 'ABC123') == false, 'rekey: old keys no
 check(#itemsOf(1, 'vehicle_key') == 1 and run(CarLock.verifyKeyItem, itemsOf(1, 'vehicle_key')[1].item.metadata, 'ABC123'), 'rekey: old key items taken back, one new key')
 check(not hasKey(3, 'ABC123'), 'rekey: temporary keys of others removed')
 check(wallet[1].cash == cashBefore - 1500, 'rekey: paid 1500')
+-- no room for the new key: the owner gets a temporary key of the service (not listed as a holder)
+addFails = 1
+res = cb('nz:carlock:locksmith:service', 1, { id = 1, service = 'rekey', plate = 'ABC123' })
+local _, rekeyKind = hasKey(1, 'ABC123')
+check(res.ok and res.data.message:find('temporary key instead', 1, true) and rekeyKind == 'temp' and addFails == 0,
+  'rekey: no room for the new key -> a temporary key')
+res = cb('nz:carlock:keyHolders', 1, { plate = 'ABC123' })
+check(res.ok and #res.data == 0, 'rekey: the owner\'s own temporary key is not listed as a holder')
+run(CarLock.revokeTemp, 1, 'ABC123')
+check(run(CarLock.giveKeyItem, 1, 'ABC123', {}) == true, 'owner gets a key item again')
 
 -- towed vehicle
 towed[sultan] = true
@@ -771,20 +871,111 @@ local den = Config.CarLock.locksmiths[2]
 local denPos = vec3(den.coords.x, den.coords.y, den.coords.z)
 playerPos[3] = vec3(denPos.x, denPos.y + 1, denPos.z)
 wallet[3].cash = 10000
+-- a stolen car of an offline owner, wearing a fake plate (real plate XYZ987, shows FAKE01)
+rows.XYZ987 = { plate = 'XYZ987', owner = 'CID999', model = 'asea', hash = joaat_('asea'), version = 0, nickname = 'Daisy' }
 local stranger = spawnVehicle('XYZ987', 'asea', vec3(denPos.x + 6, denPos.y, denPos.z), 2)
+run(CarLock.setRealPlate, stranger, 'XYZ987')
+entities[stranger].plate = 'FAKE01'
 den.alertChance = 100
 res = cb('nz:carlock:locksmith:open', 3, { id = 2 })
 local sv = res.ok and find(res.data.vehicles, 'XYZ987') or nil
 check(res.ok and res.data.illegal and sv and sv.nearby and not sv.hasKey and sv.blocked.program == nil
   and sv.blocked.rekey == 'Not offered here' and sv.blocked.duplicate == 'Bring a key of this vehicle to copy', 'illegal shop: any vehicle nearby can get a key')
+check(sv and sv.owned and sv.nickname == nil, 'illegal shop: a stranger\'s car never shows the owner\'s nickname')
 local nAlerts = #alerts
 res = cb('nz:carlock:locksmith:service', 3, { id = 2, service = 'program', plate = 'XYZ987' })
 check(res.ok and #itemsOf(3, 'vehicle_key') == 1 and hasKey(3, 'XYZ987') and wallet[3].cash == 6500, 'illegal program: key for a stranger\'s car')
-check(#alerts == nAlerts + 1 and alerts[#alerts].alert.kind == 'locksmith' and alerts[#alerts].alert.plate == 'XYZ987'
-  and alerts[#alerts].alert.code == Config.CarLock.dispatch.codes.locksmith, 'illegal program: police alert through NZ.Dispatch.alert')
+local alert = alerts[#alerts] and alerts[#alerts].alert or {}
+check(#alerts == nAlerts + 1 and alert.kind == 'locksmith' and alert.code == Config.CarLock.dispatch.codes.locksmith,
+  'illegal program: police alert through NZ.Dispatch.alert')
+check(alert.plate == 'FAKE01' and alert.message:find('FAKE01', 1, true) ~= nil and not alert.message:find('XYZ987', 1, true)
+  and alert.modelHash == joaat_('asea'), 'illegal program: the police get the plate the car wears, never the real one')
 den.alertChance = 0
 res = cb('nz:carlock:locksmith:service', 3, { id = 2, service = 'rekey', plate = 'XYZ987' })
 check(not res.ok and res.error == 'Not offered here', 'disabled service refused')
+-- even where rekey is offered, a stranger never changes the locks (the owner would be locked out)
+den.services.rekey.enabled = true
+res = cb('nz:carlock:locksmith:service', 3, { id = 2, service = 'rekey', plate = 'XYZ987' })
+check(not res.ok and res.error == 'Only the owner can change the locks' and hasKey(3, 'XYZ987'), 'illegal rekey: owner only')
+res = cb('nz:carlock:locksmith:open', 3, { id = 2 })
+sv = res.ok and find(res.data.vehicles, 'XYZ987') or nil
+check(sv and sv.blocked.rekey == 'Only the owner can change the locks' and sv.nickname == nil and sv.unregistered == true and sv.keyItems == 1,
+  'illegal shop: rekey blocked for strangers; a back-alley key never shows the nickname')
+local denKey = itemsOf(3, 'vehicle_key')[1]
+check(denKey and denKey.item.metadata.origin == 'locksmith' and run(CarLock.verifyKeyItem, denKey.item.metadata, 'XYZ987') == true,
+  'illegal program: the key item carries origin = locksmith and is a valid signed key')
+den.services.rekey.enabled = false
+
+-- a back-alley key of a car WITH a tracker: opens it, but no position, distance, alarm or nickname
+rows.HIG001 = { plate = 'HIG001', owner = 'CID999', model = 'zentorno', hash = joaat_('zentorno'), version = 0, nickname = 'Secret' }
+local hig = spawnVehicle('HIG001', 'zentorno', vec3(denPos.x + 5, denPos.y + 2, denPos.z), 7)
+res = cb('nz:carlock:locksmith:service', 3, { id = 2, service = 'program', plate = 'HIG001' })
+local _, higKind = hasKey(3, 'HIG001')
+check(res.ok and higKind == 'item', 'illegal program of a high-end car: a key item')
+entities[hig].coords = vec3(-2000, 3000, 0)
+res = cb('nz:carlock:tracker', 3, { plate = 'HIG001' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.spawned and st.tracker and st.trackerAccess == false and not st.trackable and st.coords == nil and st.distance == nil
+  and st.nickname == nil and st.origin == 'locksmith', 'back-alley key: no coordinates, distance or nickname (origin reported)')
+res = cb('nz:carlock:tracker', 3, {})
+st = res.ok and find(res.data.vehicles, 'HIG001') or nil
+check(st and st.trackerAccess == false and st.distance == nil and st.nickname == nil and st.origin == 'locksmith', 'back-alley key in the list: no distance, no nickname')
+res = cb('nz:carlock:trackerAlarm', 3, { plate = 'HIG001' })
+check(not res.ok and res.error == 'This key has no tracker access' and Entity(hig).state.nzAlarm ~= true
+  and type(Entity(hig).state.nzAlarm) ~= 'table', 'back-alley key: no remote alarm')
+-- the owner's tracker still works; a back-alley key of the owner's own car counts as theirs
+online[5], playerPos[5], wallet[5], inv[5] = 'CID999', vec3(denPos.x, denPos.y - 1, denPos.z), { cash = 10000, bank = 0 }, {}
+check(run(CarLock.giveKeyItem, 5, 'HIG001', { reason = 'garage' }) == true, 'the owner has a fob of their own')
+res = cb('nz:carlock:tracker', 5, { plate = 'HIG001' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.coords and st.coords.x == -2000 and st.nickname == 'Secret', 'owner: tracker and nickname')
+-- tracker.tempKeys = true opens the tracker to every key, the nickname stays private
+Config.CarLock.tracker.tempKeys = true
+res = cb('nz:carlock:tracker', 3, { plate = 'HIG001' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.nickname == nil, 'tracker.tempKeys = true: a back-alley key tracks, no nickname')
+Config.CarLock.tracker.tempKeys = false
+-- a legal shop: a copy keeps the back-alley origin; programming a registered key is refused
+entities[hig].coords = vec3(shopPos.x + 6, shopPos.y - 2, shopPos.z)
+playerPos[3] = vec3(shopPos.x, shopPos.y + 1, shopPos.z)
+wallet[3].cash = 10000
+giveBlank(3)
+res = cb('nz:carlock:locksmith:open', 3, { id = 1 })
+local higView = res.ok and find(res.data.vehicles, 'HIG001') or nil
+check(higView and higView.unregistered == true and higView.nickname == nil and higView.blocked.duplicate == nil
+  and higView.blocked.program == 'An unregistered key is not enough: only the owner or a key holder', 'legal shop: a back-alley key copies, never programs a registered key')
+res = cb('nz:carlock:locksmith:service', 3, { id = 1, service = 'program', plate = 'HIG001' })
+check(not res.ok and res.error == 'An unregistered key is not enough: only the owner or a key holder', 'legal program with a back-alley key refused')
+res = cb('nz:carlock:locksmith:service', 3, { id = 1, service = 'duplicate', plate = 'HIG001' })
+local copies = itemsOf(3, 'vehicle_fob')
+check(res.ok and #copies == 2 and copies[1].item.metadata.origin == 'locksmith' and copies[2].item.metadata.origin == 'locksmith',
+  'legal duplicate of a back-alley key keeps its origin')
+res = cb('nz:carlock:tracker', 3, { plate = 'HIG001' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackerAccess == false and st.nickname == nil, 'a copy of a back-alley key: still no tracker')
+-- the owner copies their own key at a legal shop: a registered key, the friend who gets it tracks
+playerPos[5] = vec3(shopPos.x - 1, shopPos.y, shopPos.z)
+res = cb('nz:carlock:locksmith:service', 5, { id = 1, service = 'duplicate', plate = 'HIG001' })
+local ownerCopy = itemsOf(5, 'vehicle_fob')[2]
+check(res.ok and ownerCopy and ownerCopy.item.metadata.origin == nil, 'owner\'s legal copy: no origin')
+run(NZ.Inventory.removeItem, 5, 'vehicle_fob', 1, nil, ownerCopy.slot)
+run(NZ.Inventory.addItem, 2, 'vehicle_fob', 1, ownerCopy.item.metadata)
+res = cb('nz:carlock:tracker', 2, { plate = 'HIG001' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.trackerAccess and st.nickname == 'Secret' and st.origin == nil, 'a registered key item from the owner: tracker and nickname')
+-- player 3 carries a registered key too: it wins over the back-alley one
+run(NZ.Inventory.addItem, 3, 'vehicle_fob', 1, ownerCopy.item.metadata)
+res = cb('nz:carlock:tracker', 3, { plate = 'HIG001' })
+st = res.ok and res.data.vehicles[1] or nil
+check(st and st.trackable and st.nickname == 'Secret', 'a registered key next to a back-alley one: tracker')
+for _, e in ipairs(itemsOf(3, 'vehicle_fob')) do run(NZ.Inventory.removeItem, 3, 'vehicle_fob', 1, nil, e.slot) end
+for _, e in ipairs(itemsOf(2, 'vehicle_fob')) do
+  if e.item.metadata.plate == 'HIG001' then run(NZ.Inventory.removeItem, 2, 'vehicle_fob', 1, nil, e.slot) end
+end
+playerPos[3] = vec3(denPos.x, denPos.y + 1, denPos.z)
+entities[hig].coords = vec3(-2000, 3000, 0)
+online[5], playerPos[5], inv[5] = nil, nil, nil
+
 -- a player behind the wheel of someone else's car
 seat(2, stranger)
 res = cb('nz:carlock:locksmith:open', 3, { id = 2 })
@@ -808,12 +999,49 @@ local dup = nil
 for _, s in ipairs(res.data.services) do if s.id == 'duplicate' then dup = s end end
 check(res.ok and res.data.mode == 'virtual' and dup and dup.offered == false and dup.reason == 'Give virtual keys from your key ring', 'virtual: duplicate not offered')
 car = find(res.data.vehicles, 'ABC123')
-check(car and car.blocked.duplicate == 'Give virtual keys from your key ring' and car.blocked.program == 'You already have a key for this vehicle', 'virtual: owner already has a key')
+local prog = nil
+for _, s in ipairs(res.data.services) do if s.id == 'program' then prog = s end end
+check(prog and prog.offered == false and prog.reason == 'Owners give keys from the key ring'
+  and car and car.blocked.duplicate == 'Give virtual keys from your key ring' and car.blocked.program == 'Owners give keys from the key ring',
+  'virtual: a legal shop offers neither duplicate nor program (owners give keys from the key ring)')
+res = cb('nz:carlock:locksmith:service', 1, { id = 1, service = 'program', plate = 'ABC123' })
+check(not res.ok and res.error == 'Owners give keys from the key ring', 'virtual: legal program refused')
 res = cb('nz:carlock:locksmith:service', 1, { id = 1, service = 'duplicate', plate = 'ABC123' })
 check(not res.ok and res.error == 'Give virtual keys from your key ring', 'virtual: duplicate refused')
 -- share a virtual key, then rekey revokes it
 run(CarLock.shareVirtual, 1, 2, 'ABC123')
 check(hasKey(2, 'ABC123'), 'virtual key shared')
+-- key holders: opaque ids, a thief's name masked, revoke by id
+run(CarLock.grantTemp, 3, 'ABC123', 'hotwire')
+res = cb('nz:carlock:keyHolders', 1, { plate = 'ABC123' })
+local friend, thief = nil, nil
+for _, h in ipairs(res.ok and res.data or {}) do
+  if h.kind == 'virtual' then friend = h elseif h.kind == 'temp' then thief = h end
+end
+check(res.ok and #res.data == 2 and friend and friend.name == 'Name CID002' and not friend.masked and thief
+  and thief.name == 'Unknown holder' and thief.masked == true and thief.reason == 'hotwire' and type(thief.expires) == 'number',
+  'key holders: a friend by name, a thief masked with how the key was obtained')
+local leaked = false
+for _, h in ipairs(res.ok and res.data or {}) do
+  for k, v in pairs(h) do
+    -- (the stub's character names contain the identifier: 'Name CID002')
+    if k == 'identifier' or k == 'grantedBy' or (type(v) == 'string' and v:match('^CID%d+$')) then leaked = true end
+  end
+end
+check(res.ok and not leaked and type(friend.id) == 'string' and #friend.id <= 32, 'key holders: no identifier leaves the server')
+local again = cb('nz:carlock:keyHolders', 1, { plate = 'ABC123' })
+check(again.ok and friend and again.data[1].id == res.data[1].id, 'key holders: ids stay the same while valid')
+res = cb('nz:carlock:keyHolders', 2, { plate = 'ABC123' })
+check(not res.ok and res.error == 'Only the owner can manage the keys of this vehicle', 'key holders: owner only')
+res = cb('nz:carlock:keyRevoke', 2, { plate = 'ABC123', id = thief and thief.id })
+check(not res.ok and hasKey(3, 'ABC123'), 'revoke: an id handed to another player means nothing')
+res = cb('nz:carlock:keyRevoke', 1, { plate = 'ABC123', id = 'nope' })
+check(not res.ok and res.error == 'The key holder list is out of date: refresh it', 'revoke: unknown id')
+res = cb('nz:carlock:keyRevoke', 1, { plate = 'FOB777', id = thief and thief.id })
+check(not res.ok and hasKey(3, 'ABC123'), 'revoke: the id belongs to another plate')
+res = cb('nz:carlock:keyRevoke', 1, { plate = 'ABC123', id = thief and thief.id })
+check(res.ok and #res.data == 1 and res.data[1].kind == 'virtual' and not hasKey(3, 'ABC123') and hasKey(2, 'ABC123'),
+  'revoke by id: the thief loses the key, the new list comes back')
 res = cb('nz:carlock:locksmith:service', 1, { id = 1, service = 'rekey', plate = 'ABC123' })
 check(res.ok and not hasKey(2, 'ABC123') and hasKey(1, 'ABC123'), 'virtual rekey: others revoked, owner keeps the key')
 -- illegal program in virtual mode = temporary key
@@ -823,10 +1051,10 @@ check(stranger2 ~= nil, 'second car at the den')
 res = cb('nz:carlock:locksmith:service', 3, { id = 2, service = 'program', plate = 'VIR001' })
 local _, kind = hasKey(3, 'VIR001')
 check(res.ok and kind == 'temp' and res.data.message:find('Temporary key for VIR001', 1, true), 'virtual program: temporary key')
--- illegal rekey of a stranger's car: the requester keeps a temporary key
+-- illegal rekey of a stranger's car: refused (owner only), the programmed key stays
 res = cb('nz:carlock:locksmith:service', 3, { id = 2, service = 'rekey', plate = 'VIR001' })
 _, kind = hasKey(3, 'VIR001')
-check(res.ok and kind == 'temp', 'virtual illegal rekey: requester keeps a temporary key')
+check(not res.ok and res.error == 'Only the owner can change the locks' and kind == 'temp', 'virtual illegal rekey: owner only')
 den.services.rekey.enabled = false
 Config.CarLock.keyMode = 'auto'
 

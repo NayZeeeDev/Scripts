@@ -143,11 +143,19 @@ export function ShareModal({ k, mode, giveRange, unit, onClose, onDone }: ShareM
                     void give();
                   }}
                 >
-                  <Avatar name={pl.name} size={32} />
+                  {pl.anonymous ? (
+                    // no names of strangers: the server id is what the player sees
+                    <span className="nz-keys-share__idpip" aria-hidden="true">
+                      <small>{t('ID')}</small>
+                      {pl.serverId}
+                    </span>
+                  ) : (
+                    <Avatar name={pl.name} size={32} />
+                  )}
                   <span className="nz-keys-share__ptext">
                     <b>{pl.name}</b>
                     <small>
-                      {t('ID {id}', { id: pl.serverId })}
+                      {pl.anonymous ? t('Name not shown') : t('ID {id}', { id: pl.serverId })}
                       {pl.distance !== undefined && ` · ${meters(pl.distance, unit)}`}
                     </small>
                   </span>

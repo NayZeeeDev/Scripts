@@ -22,6 +22,10 @@
 
   Keys, locks and garages keep using the real plate (NZ.CarLock.realPlate,
   NZ.FakePlates.plateOf); everyone else, police plate checks included, sees the fake one.
+  External key resources that key on the plate text (qb-vehiclekeys, wasabi_carlock...): the
+  installer, when they have access to the real registration, and the owner (online) get keys
+  for the fake text, so the car stays theirs; nobody else does. qbx_vehiclekeys keys follow
+  the entity, not the text.
   Storing in a garage takes the fake plate off (server/vehicles.lua -> NZ.FakePlates.onStore;
   the item goes back with Config.FakePlates.returnOnStore). A fake plate survives a restart of
   this resource (KVP snapshot, same server session only) and ends with its vehicle.
@@ -38,6 +42,8 @@ local LATE_MS = 30000             -- a job not finished this long after its dura
 local PLATE_TRIES = 12
 local RATE = { use = 1000, start = 1200, finish = 300 }
 local BLOCKED_TYPES = { boat = true, heli = true, plane = true, submarine = true, train = true }
+local SIDE_REACH = 1.6            -- m sideways from the vehicle's long axis
+local ENTITY_KEYED = { qbx_vehiclekeys = true } -- key resources whose keys follow the entity, not the text
 
 local records = {}                -- [entity] = { real, fake, by, at, bagSet }
 local jobs = {}                   -- [src] = { token, action, entity, netId, startedAt, duration }
@@ -220,6 +226,7 @@ local function template(pattern)
     local c = pattern:sub(i, i)
     if c == '1' then out[#out + 1] = '#'
     elseif c == 'A' or c == 'a' then out[#out + 1] = '@'
+    elseif c == ' ' then out[#out + 1] = ' ' -- ESX style 'AAA 111' (Utils.plate trims the ends only)
     elseif c:match('[%w#@%*]') then out[#out + 1] = c:upper()
     end
   end
@@ -255,7 +262,9 @@ end
 -- Checks
 ---------------------------------------------------------------------------------------
 
---- Is the player on foot behind the vehicle and close enough (server positions)?
+--- Is the player on foot behind the vehicle and close enough (server positions)? Within
+--- REACH of the centre (the rear of long vehicles), at most SIDE_REACH off the long axis and
+--- clearly behind it (not at a rear corner or beside the boot).
 local function behind(src, entity)
   local ped = GetPlayerPed(tostring(src))
   if not ped or ped == 0 or GetVehiclePedIsIn(ped, false) ~= 0 then return false end
@@ -266,8 +275,10 @@ local function behind(src, entity)
   if dist > REACH or math.abs(dz) > 3.0 then return false end
   if dist < 0.5 then return true end
   local heading = math.rad(tonumber(GetEntityHeading(entity)) or 0.0)
-  local fx, fy = -math.sin(heading), math.cos(heading)
-  return (dx * fx + dy * fy) / math.max(math.sqrt(dx * dx + dy * dy), 0.001) <= -0.2
+  local fx, fy = -math.sin(heading), math.cos(heading)   -- forward
+  local rx, ry = math.cos(heading), math.sin(heading)    -- right
+  if math.abs(dx * rx + dy * ry) > SIDE_REACH then return false end
+  return (dx * fx + dy * fy) / math.max(math.sqrt(dx * dx + dy * dy), 0.001) <= -0.5
 end
 
 --- Common rules of both steps. Returns nil or a translated error.
@@ -330,6 +341,47 @@ local function alertPolice(src, entity, plate)
   if not okA then lib.print.warn(('[nayzeee-garages] fakeplates: dispatch failed: %s'):format(tostring(err))) end
 end
 
+--- The key resource in use when it keys on the plate text (the built-in car lock and
+--- entity-keyed resources follow the real plate / the entity), else nil.
+local function textKeyedResource()
+  if NZ.CarLock and type(NZ.CarLock.enabled) == 'function' then
+    local okOn, on = pcall(NZ.CarLock.enabled)
+    if okOn and on == true then return nil end
+  end
+  if type(NZ.KeysServer) ~= 'table' or type(NZ.KeysServer.resource) ~= 'function' then return nil end
+  local okR, name = pcall(NZ.KeysServer.resource)
+  if not okR or type(name) ~= 'string' or name == '' or name == 'nayzeee' or ENTITY_KEYED[name] then return nil end
+  if NZ.Settings and type(NZ.Settings.get) == 'function' then
+    local okS, give = pcall(NZ.Settings.get, 'vehicles.giveKeys', true)
+    if okS and give == false then return nil end
+  end
+  return name
+end
+
+--- After a fake plate went on (external text-keyed key resource only): may the installer get
+--- keys for the fake text (access to the real registration: owner, share, fleet)? The owner,
+--- online and not the installer, gets them through 'nz:client:fakeplates:keys'.
+---@return boolean installerKeys
+local function keysForFake(src, entity, real, fake)
+  if not textKeyedResource() then return false end
+  local okRow, row = pcall(NZ.DB.getVehicle, real)
+  if not okRow or type(row) ~= 'table' then return false end
+  local id = identifierOf(src)
+  local access = nil
+  if id and type(NZ.Vehicles.accessOf) == 'function' then
+    local okA, res = pcall(NZ.Vehicles.accessOf, src, row, nil, { identifier = id })
+    if okA then access = res end
+  end
+  if row.owner and row.owner ~= id and type(NZ.Bridge.getSourceByIdentifier) == 'function' then
+    local okO, owner = pcall(NZ.Bridge.getSourceByIdentifier, row.owner)
+    owner = okO and validSrc(owner) or nil
+    if owner and owner ~= src then
+      TriggerClientEvent('nz:client:fakeplates:keys', owner, { netId = NetworkGetNetworkIdFromEntity(entity), plate = fake })
+    end
+  end
+  return access ~= nil
+end
+
 local function install(src, entity)
   local real = FakePlates.plateOf(entity)
   if not real then return nil, L('This vehicle has no plate to change') end
@@ -346,10 +398,11 @@ local function install(src, entity)
   SetVehicleNumberPlateText(entity, fake)
   writeBag(entity, fake)
 
+  local keys = keysForFake(src, entity, real, fake)
   breakScrewdriver(src)
   alertPolice(src, entity, fake)
-  log('vehicle.fakeplate', src, { action = 'install', plate = real, fake = fake })
-  return fake, nil
+  log('vehicle.fakeplate', src, { action = 'install', plate = real, fake = fake, keys = keys or nil })
+  return fake, nil, keys
 end
 
 --- Take the fake plate off (the real text comes back). Returns the record or nil.
@@ -464,7 +517,8 @@ register('nz:fakeplates:start', function(src, payload)
   return Utils.ok({ token = token, duration = duration })
 end)
 
--- { token, cancel? } -> { plate } (the plate the vehicle shows now)
+-- { token, cancel? } -> { plate, keys? } (the plate the vehicle shows now; keys = the client
+-- gives itself keys for the fake text through the external key resource)
 register('nz:fakeplates:finish', function(src, payload)
   if limited(src, 'finish') then return Utils.fail(L('Please wait a moment before trying again')) end
   local job = jobs[src]
@@ -489,14 +543,14 @@ register('nz:fakeplates:finish', function(src, payload)
   local problem = vehicleProblem(src, entity, job.action)
   if problem then return Utils.fail(problem) end
 
-  local plate, err
+  local plate, err, keys
   if job.action == 'install' then
-    plate, err = install(src, entity)
+    plate, err, keys = install(src, entity)
   else
     plate, err = remove(src, entity)
   end
   if not plate then return Utils.fail(err) end
-  return Utils.ok({ plate = plate })
+  return Utils.ok({ plate = plate, keys = keys == true })
 end)
 
 ---------------------------------------------------------------------------------------

@@ -293,6 +293,10 @@
 
 .nz-contract__note svg { flex: none; margin-top: 2px; }
 .nz-contract__hint { margin-top: 8px; }
+.nz-contract__hint.is-amber { font-weight: 400; color: var(--amber); }
+
+/* a buyer who said no: no new contract to them until the cooldown ends */
+.nz-contract__opt.is-waiting .nz-contract__opt-dist { color: var(--amber); }
 
 .nz-contract__count {
   font-size: 10.5px;

@@ -32,6 +32,7 @@ import { t } from '@/lib/i18n';
 import { dateTime, money } from '@/lib/format';
 import type {
   ContractDraftData,
+  ContractKeyKind,
   ContractReviewData,
   ContractStatus,
   ContractVehicle,
@@ -40,12 +41,14 @@ import type {
 } from '@/lib/types';
 import { ContractDocument } from './ContractDocument';
 import type { StampTone } from './ContractDocument';
-import { SignaturePad, SignatureView, signatureReady, strokesToPath } from './signature';
+import { SignaturePad, SignatureView, pathToStrokes, signatureReady, strokesToPath } from './signature';
 import type { Stroke } from './signature';
 import './contract.css';
 
 const MAX_TERMS = 600;
 const MAX_TERMS_LINES = 12;
+/** ms between two balance checks while the buyer reads a contract */
+const BALANCE_POLL = 5000;
 
 export function ContractApp() {
   const { open, data, close, update } = useApp('contract');
@@ -120,7 +123,7 @@ function statusInfo(status: ContractStatus, role: 'seller' | 'buyer', other: str
       return {
         icon: 'checkCircle',
         tone: 'teal',
-        text: role === 'seller' ? t('{name} signed and paid. The vehicle is theirs now.', { name: other }) : t('Signed and paid. The vehicle and its keys are yours.'),
+        text: role === 'seller' ? t('{name} signed and paid. The vehicle is theirs now.', { name: other }) : t('Signed and paid. The vehicle is yours.'),
         stamp: { text: t('Sold'), tone: 'teal' },
       };
     case 'declined':
@@ -181,6 +184,15 @@ function accountLabel(account: 'bank' | 'cash') {
   return account === 'cash' ? t('cash') : t('bank account');
 }
 
+/** What the buyer holds after signing: the key (by key system) and their signed copy. */
+function boughtNote(key: ContractKeyKind | null | undefined, copy: boolean): string {
+  if (key === 'item') return copy ? t('The key and your signed copy are in your inventory.') : t('The key is in your inventory.');
+  const keyText = key === 'temp' ? t('You have a temporary key to it.') : key === 'external' ? t('You have the keys.') : null;
+  const copyText = copy ? t('Your signed copy is in your inventory.') : null;
+  if (keyText && copyText) return `${keyText} ${copyText}`;
+  return keyText ?? copyText ?? t('The sale is recorded in the vehicle\'s ownership history.');
+}
+
 /* ───────────────────────── draft (seller) ───────────────────────── */
 
 const CLAUSES = [
@@ -196,6 +208,13 @@ interface Sent {
   buyer: PlayerOption;
 }
 
+/** After a "no" (declined / expired) this buyer waits `seconds` (from `at`) for a new contract. */
+interface Cooldown {
+  buyer: PlayerOption;
+  seconds: number;
+  at: number;
+}
+
 function DraftView({
   data,
   close,
@@ -206,15 +225,22 @@ function DraftView({
   update: (partial: Partial<ContractDraftData>) => void;
 }) {
   const settings = useSettings();
+  // `data.sent`: the seller's contract is still waiting (blank contract used again): its sent state
+  const reopened = data.sent ?? null;
   const [vehicles, setVehicles] = useState<ContractVehicle[]>(data.vehicles);
   const [buyers, setBuyers] = useState<PlayerOption[]>(data.buyers);
-  const [plate, setPlate] = useState<string | null>(() => data.vehicles.find((v) => !v.blocked)?.plate ?? null);
-  const [buyerId, setBuyerId] = useState<number | null>(() => (data.buyers.length === 1 ? data.buyers[0].serverId : null));
-  const [price, setPrice] = useState(Number.NaN);
-  const [terms, setTerms] = useState('');
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [sent, setSent] = useState<Sent | null>(null);
+  const [plate, setPlate] = useState<string | null>(() => reopened?.plate ?? data.vehicles.find((v) => !v.blocked)?.plate ?? null);
+  const [buyerId, setBuyerId] = useState<number | null>(() =>
+    reopened ? reopened.buyer.serverId : data.buyers.length === 1 ? data.buyers[0].serverId : null,
+  );
+  const [price, setPrice] = useState(() => reopened?.price ?? Number.NaN);
+  const [terms, setTerms] = useState(() => reopened?.terms ?? '');
+  const [strokes, setStrokes] = useState<Stroke[]>(() => (reopened ? pathToStrokes(reopened.signature) : []));
+  const [sent, setSent] = useState<Sent | null>(() =>
+    reopened ? { id: reopened.id, expiresIn: reopened.expiresIn, buyer: reopened.buyer } : null,
+  );
   const [busy, setBusy] = useState<'send' | 'withdraw' | 'refresh' | null>(null);
+  const [cooldown, setCooldown] = useState<Cooldown | null>(null);
   useEscape(close, true);
   const vehicleRef = useRef<HTMLSpanElement>(null);
   const buyerRef = useRef<HTMLSpanElement>(null);
@@ -230,10 +256,19 @@ function DraftView({
   const locked = sent !== null;
   const termLines = terms.split('\n').length;
   const termsOk = terms.length <= MAX_TERMS && termLines <= MAX_TERMS_LINES;
+  // the server's answer to a "no" carries how long that buyer waits for a new contract
+  useEffect(() => {
+    if (!sent || (data.status !== 'declined' && data.status !== 'expired')) return;
+    const seconds = data.resendIn ?? 0;
+    if (seconds > 0) setCooldown({ buyer: sent.buyer, seconds, at: Date.now() });
+  }, [sent, data.status, data.resendIn]);
+  const coolLeft = useCountdown(cooldown ? cooldown.seconds : null, cooldown?.at) ?? 0;
+  const cooling = cooldown && coolLeft > 0 ? cooldown : null;
+  const buyerWaits = !!cooling && !!buyer && buyer.serverId === cooling.buyer.serverId;
 
   const checks = [
     { ok: !!vehicle && !vehicle.blocked, label: t('Vehicle'), ref: vehicleRef },
-    { ok: !!buyer, label: t('Buyer'), ref: buyerRef },
+    { ok: !!buyer && !buyerWaits, label: t('Buyer'), ref: buyerRef },
     { ok: price >= 1 && price <= data.maxPrice, label: t('Price'), ref: priceRef },
     { ok: signatureReady(strokes), label: t('Signature'), ref: signRef },
   ];
@@ -300,7 +335,7 @@ function DraftView({
     if (effective && effective !== 'pending') paperRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [effective]);
   const banner = !sent ? null : effective === 'pending' ? (
-    <Banner icon="clock" tone="teal" progress={left !== null ? left / Math.max(sent.expiresIn, 1) : null}>
+    <Banner icon="clock" tone="teal" progress={left !== null ? left / Math.max(data.expireSeconds, sent.expiresIn, 1) : null}>
       {t('Waiting for {name} to sign. You can close this window: you will be told when they answer.', { name: sent.buyer.name })}
     </Banner>
   ) : info ? (
@@ -317,7 +352,11 @@ function DraftView({
       title={t('Sale contract')}
       icon="receipt"
       subtitle={sent ? t('Sent to {name}', { name: sent.buyer.name }) : t('Draft · fill it in, sign and send it to the buyer')}
-      headerExtra={sent && effective === 'pending' && left !== null ? <Timer left={left} total={sent.expiresIn} label={t('to sign')} /> : undefined}
+      headerExtra={
+        sent && effective === 'pending' && left !== null ? (
+          <Timer left={left} total={Math.max(data.expireSeconds, sent.expiresIn)} label={t('to sign')} />
+        ) : undefined
+      }
       onClose={close}
     >
       <div className="nz-contract__split">
@@ -389,25 +428,36 @@ function DraftView({
               <div className="nz-contract__opts nz-contract__opts--people" role="radiogroup" aria-label={t('Buyer')}>
                 {buyers.map((b) => {
                   const selected = b.serverId === buyerId;
+                  const waits = !!cooling && cooling.buyer.serverId === b.serverId;
                   return (
                     <button
                       key={b.serverId}
                       type="button"
                       role="radio"
                       aria-checked={selected}
-                      className={clsx('nz-contract__opt nz-contract__opt--person', selected && 'is-selected')}
+                      className={clsx('nz-contract__opt nz-contract__opt--person', selected && 'is-selected', waits && 'is-waiting')}
                       disabled={locked}
                       onClick={() => setBuyerId(b.serverId)}
                     >
                       <Avatar name={b.name} size={28} />
                       <span className="nz-contract__opt-text">
                         <b title={b.name}>{b.name}</b>
-                        <span className="nz-contract__opt-dist">{t('ID {id}', { id: b.serverId })}</span>
+                        <span className="nz-contract__opt-dist">
+                          {waits ? t('Wait {n} s', { n: coolLeft }) : t('ID {id}', { id: b.serverId })}
+                        </span>
                       </span>
                     </button>
                   );
                 })}
               </div>
+            )}
+            {!locked && buyerWaits && cooling && (
+              <p className="nz-contract__hint is-amber">
+                {t('{name} can get a new contract from you in {n} s. You can choose another buyer now.', {
+                  name: cooling.buyer.name,
+                  n: coolLeft,
+                })}
+              </p>
             )}
           </Section>
 
@@ -525,7 +575,7 @@ function DraftView({
           <>
             <span className="nz-contract__foot-note is-teal">
               <Icon name="receipt" size={13} />
-              {t('Your signed copy is in your inventory.')}
+              {data.copy ? t('Your signed copy is in your inventory.') : t('The sale is recorded in the vehicle\'s ownership history.')}
             </span>
             <span className="nz-contract__spacer" />
             <Button variant="teal" icon="check" onClick={close}>
@@ -535,8 +585,13 @@ function DraftView({
         ) : (
           <>
             <span className="nz-contract__foot-note">
-              <Icon name="info" size={13} />
-              {t('Your blank contract was not used. Change what you need and send it again.')}
+              <Icon name={cooling ? 'clock' : 'info'} size={13} />
+              {cooling
+                ? t('{name} can get a new contract from you in {n} s. You can choose another buyer now.', {
+                    name: cooling.buyer.name,
+                    n: coolLeft,
+                  })
+                : t('Your blank contract was not used. Change what you need and send it again.')}
             </span>
             <span className="nz-contract__spacer" />
             <Button variant="ghost" onClick={close}>
@@ -558,6 +613,8 @@ function ReviewView({ data, close }: { data: ContractReviewData; close: () => vo
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [busy, setBusy] = useState(false);
   const [signedAt, setSignedAt] = useState<number | null>(null);
+  const [bought, setBought] = useState<{ key: ContractKeyKind | null; copy: boolean }>({ key: null, copy: false });
+  const [canAfford, setCanAfford] = useState(data.canAfford);
   const [confirm, setConfirm] = useState(false);
   const signRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -566,8 +623,22 @@ function ReviewView({ data, close }: { data: ContractReviewData; close: () => vo
   const pending = status === 'pending';
   const info = pending ? null : statusInfo(status, 'buyer', data.seller.name);
   const signed = signatureReady(strokes);
-  const canSign = pending && data.canAfford && signed && !busy;
+  const canSign = pending && canAfford && signed && !busy;
   const padVisible = useInView(signRef, pending);
+  // money can arrive (or go) while the buyer reads: ask the server again every few seconds
+  useEffect(() => {
+    if (!pending) return;
+    let alive = true;
+    const id = window.setInterval(() => {
+      void request('contract:balance', { contractId: data.contractId }, { toastError: false }).then((res) => {
+        if (alive && res.ok && res.data) setCanAfford(res.data.canAfford);
+      });
+    }, BALANCE_POLL);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [pending, data.contractId]);
   useEffect(() => {
     if (!pending && status !== 'signed') scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [pending, status]);
@@ -584,7 +655,9 @@ function ReviewView({ data, close }: { data: ContractReviewData; close: () => vo
     setBusy(true);
     const res = await request('contract:sign', { contractId: data.contractId, signature: strokesToPath(strokes) });
     setBusy(false);
-    if (res.ok) setSignedAt(res.data?.signedAt ?? Math.floor(Date.now() / 1000));
+    if (!res.ok) return;
+    setBought({ key: res.data?.key ?? null, copy: res.data?.copy === true });
+    setSignedAt(res.data?.signedAt ?? Math.floor(Date.now() / 1000));
   };
 
   const banner = pending ? (
@@ -640,12 +713,12 @@ function ReviewView({ data, close }: { data: ContractReviewData; close: () => vo
         <footer className="nz-contract__actions">
           {pending ? (
             <>
-              <span className={clsx('nz-contract__pay', !data.canAfford && 'is-short')}>
-                <Icon name={data.canAfford ? 'money' : 'warning'} size={15} strokeWidth={1.8} />
+              <span className={clsx('nz-contract__pay', !canAfford && 'is-short')}>
+                <Icon name={canAfford ? 'money' : 'warning'} size={15} strokeWidth={1.8} />
                 <span>
-                  <b>{data.canAfford ? t('You pay {amount}', { amount: money(data.price) }) : t('Not enough money')}</b>
+                  <b>{canAfford ? t('You pay {amount}', { amount: money(data.price) }) : t('Not enough money')}</b>
                   <small>
-                    {data.canAfford
+                    {canAfford
                       ? t('From your {account}, the moment you sign', { account: accountLabel(data.account) })
                       : t('You need {amount} in your {account} to sign', { amount: money(data.price), account: accountLabel(data.account) })}
                   </small>
@@ -666,7 +739,7 @@ function ReviewView({ data, close }: { data: ContractReviewData; close: () => vo
                 badge={money(data.price)}
                 disabled={!canSign}
                 loading={busy}
-                title={!data.canAfford ? t('Not enough money') : !signed ? t('Sign the contract first') : undefined}
+                title={!canAfford ? t('Not enough money') : !signed ? t('Sign the contract first') : undefined}
                 onClick={() => void sign()}
               >
                 {t('Sign & pay')}
@@ -676,7 +749,7 @@ function ReviewView({ data, close }: { data: ContractReviewData; close: () => vo
             <>
               <span className={clsx('nz-contract__foot-note', status === 'signed' && 'is-teal')}>
                 <Icon name={status === 'signed' ? 'key' : 'info'} size={13} />
-                {status === 'signed' ? t('The keys and your signed copy are in your inventory.') : t('Nothing was paid and nothing changed hands.')}
+                {status === 'signed' ? boughtNote(bought.key, bought.copy) : t('Nothing was paid and nothing changed hands.')}
               </span>
               <span className="nz-contract__spacer" />
               <Button variant={status === 'signed' ? 'teal' : 'line'} icon={status === 'signed' ? 'check' : undefined} onClick={close}>

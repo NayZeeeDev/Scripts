@@ -29,6 +29,20 @@ export function strokesToPath(strokes: Stroke[]): string {
   return out;
 }
 
+/** Back from path data (as the server rebuilds it) to strokes: a sent contract reopened. */
+export function pathToStrokes(path: string | null | undefined): Stroke[] {
+  if (typeof path !== 'string' || path.length > SIG_MAX) return [];
+  const strokes: Stroke[] = [];
+  const re = /([ML])\s*(-?\d+(?:\.\d+)?)[\s,]+(-?\d+(?:\.\d+)?)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(path)) !== null) {
+    const point: [number, number] = [Number(m[2]), Number(m[3])];
+    if (m[1] === 'M' || strokes.length === 0) strokes.push([point]);
+    else strokes[strokes.length - 1].push(point);
+  }
+  return strokes.filter((s) => s.length >= 2);
+}
+
 export function inkLength(strokes: Stroke[]): number {
   let ink = 0;
   for (const stroke of strokes) {

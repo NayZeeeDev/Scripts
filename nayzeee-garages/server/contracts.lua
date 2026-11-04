@@ -10,7 +10,8 @@
      not a fleet vehicle, not financed / impounded / blocked / towed / wearing a fake plate,
      buyer and vehicle in range, one pending contract per seller, buyer and vehicle) and the
      buyer's client opens the review. The contract expires after Config.Contracts.expireSeconds.
-  3. 'nz:contract:sign' { contractId, signature } (buyer, ONE attempt per contract): the whole
+  3. 'nz:contract:sign' { contractId, signature } (buyer, ONE attempt per contract; only a
+     vehicle busy with another operation at that instant leaves it pending): the whole
      sale is validated again, then: blank contract consumed -> buyer charged from
      Config.Contracts.account -> owner changed -> seller paid (NZ.Actions.sellVehicle: a step
      that fails undoes the ones before it; shares cleared, ownership history entry
@@ -18,13 +19,23 @@
      temporary key otherwise) -> signed copies (Config.Contracts.signedCopies).
   4. 'nz:contract:decline' { contractId }: the buyer declines, or the seller withdraws.
      Expiry, a party leaving and every outcome are told to both players
-     ('nz:client:contract:status' + notification).
+     ('nz:client:contract:status' + notification). After a "no" (declined / expired) the same
+     seller cannot send that buyer another contract for Config.Contracts.resendCooldown seconds
+     (the seller's status carries `resendIn`; another buyer can get one at once).
+     A seller who closed the window gets it back in its sent state (withdraw) by using a blank
+     contract again; 'nz:contract:balance' tells the buyer's window whether they can pay now.
   5. Signed copies (Config.CarLock.items.signedContract) carry the contract in their metadata;
      using one opens the read-only `view` (`verified` = the ownership history of the plate
-     holds that contract: metadata edited through an inventory is never shown as genuine).
+     holds that contract and its digest covers every field the copy shows: metadata edited
+     through an inventory is never shown as genuine).
 
   Signatures are SVG path data in a 400x140 box (M / L commands only, <= 4000 characters),
   rebuilt by the server from the numbers it accepts.
+
+  Keys: built-in car lock -> NZ.CarLock.rekey (in sellVehicle) + a key for the buyer
+  (NZ.Actions.handBuyerKey, shared with the garage sale of an out vehicle). An external
+  key resource -> NZ.KeysServer.give / remove (server-side systems) and 'nz:client:contract:keys'
+  to both clients (client-side systems: the buyer gets keys, the seller loses theirs).
 ]]
 
 local Contracts = NZ.Contracts
@@ -40,11 +51,12 @@ local MAX_VEHICLES = 8             -- vehicles offered in the draft
 local MAX_BUYERS = 12
 local MAX_NAME = 60
 local HISTORY_LOOKUP = 100         -- ownership history entries searched to verify a copy
-local RATE = { use = 1000, refresh = 1000, send = 2500, sign = 2000, decline = 800 }
+local RATE = { use = 1000, refresh = 1000, send = 2500, sign = 2000, decline = 800, balance = 2000 }
 
 local contracts = {}               -- [id] = contract (pending or being signed)
 local drafts = {}                  -- [src] = { identifier, slot, at }
 local usedIds = {}                 -- ids handed out this session
+local refused = {}                 -- ['sellerId>buyerId'] = { at = os.time(), kind = 'declined'|'expired' } (the last "no")
 
 ---------------------------------------------------------------------------------------
 -- Config and small helpers
@@ -66,6 +78,7 @@ local function cfg()
     account = c.account == 'cash' and 'cash' or 'bank',
     signedCopies = c.signedCopies ~= false,
     maxPrice = math.floor(num(c.maxPrice, 1, 2000000000, 10000000)),
+    resendCooldown = math.floor(num(c.resendCooldown, 0, 3600, 60)),
   }
 end
 
@@ -326,6 +339,7 @@ local function blockReason(row, entity, buyer)
   if fleetOf(row) then return L('Fleet vehicles cannot be sold') end
   if row.blocked then return L('This vehicle is blocked') end
   if row.state == 'impounded' then return L('This vehicle is impounded') end
+  if row.state ~= 'out' then return L('Take the vehicle out of the garage first') end
   if financed(row) then return L('Pay off the finance before selling') end
   if isVehicle(entity) then
     if towing(entity) then return L('This vehicle is being towed') end
@@ -337,6 +351,14 @@ local function blockReason(row, entity, buyer)
       return L('Its last garage is private: store it in a public garage first')
     end
   end
+  return nil
+end
+
+--- The entity the garage tracks for `plate` (NZ.Vehicles.isOut), or nil.
+local function trackedEntity(plate)
+  if type(NZ.Vehicles.isOut) ~= 'function' then return nil end
+  local okO, out, entity = pcall(NZ.Vehicles.isOut, plate)
+  if okO and out and isVehicle(entity) then return entity end
   return nil
 end
 
@@ -354,10 +376,12 @@ local function nearbyOwned(src, identifier, range)
       local dist = entity == inside and 0.0 or #(GetEntityCoords(entity) - origin)
       if dist <= range then
         local plate = identityOf(entity)
-        if plate and not seen[plate] then
-          seen[plate] = true
+        if plate then
           found[#found + 1] = { entity = entity, plate = plate, dist = dist }
-          plates[#plates + 1] = plate
+          if not seen[plate] then
+            seen[plate] = true
+            plates[#plates + 1] = plate
+          end
         end
       end
     end
@@ -368,28 +392,42 @@ local function nearbyOwned(src, identifier, range)
   for _, row in ipairs(okRows and type(rows) == 'table' and rows or {}) do
     if type(row) == 'table' and row.plate then byPlate[row.plate] = row end
   end
-  local out = {}
+  -- the vehicle itself only (same rules as vehicleNear), the nearest entity per registration
+  table.sort(found, function(a, b) return a.dist < b.dist end)
+  local out, listed = {}, {}
   for _, entry in ipairs(found) do
     local row = byPlate[entry.plate]
-    if row and row.owner == identifier then
-      out[#out + 1] = { entity = entry.entity, row = row, dist = entry.dist }
+    if row and row.owner == identifier and not listed[entry.plate] then
+      local hash = rowHash(row)
+      local tracked = trackedEntity(entry.plate)
+      if (not hash or hash == 0 or toSigned(GetEntityModel(entry.entity)) == hash)
+        and (not tracked or tracked == entry.entity) then
+        listed[entry.plate] = true
+        out[#out + 1] = { entity = entry.entity, row = row, dist = entry.dist }
+      end
     end
   end
-  table.sort(out, function(a, b) return a.dist < b.dist end)
   while #out > MAX_VEHICLES do out[#out] = nil end
   return out
 end
 
---- The entity of `plate` nearest to `src` within `range` (same routing bucket), or nil.
-local function vehicleNear(src, plate, range)
+--- The entity of `plate` nearest to `src` within `range` (same routing bucket), or nil. Only
+--- the vehicle itself counts: an entity of another model than `hash` (the registration's) or,
+--- when the garage tracks the vehicle, any other entity than the tracked one (a plate changer,
+--- a spawned copy) is never taken for it.
+---@param hash number|nil signed model hash of the registration (rowHash)
+local function vehicleNear(src, plate, range, hash)
   local ped = pedOf(src)
   if not ped then return nil end
   local origin = GetEntityCoords(ped)
   local bucket = GetPlayerRoutingBucket(tostring(src))
   local inside = GetVehiclePedIsIn(ped, false)
+  local tracked = trackedEntity(plate)
   local best, bestDist = nil, math.huge
   for _, entity in ipairs(GetAllVehicles() or {}) do
-    if isVehicle(entity) and GetEntityRoutingBucket(entity) == bucket and identityOf(entity) == plate then
+    if isVehicle(entity) and GetEntityRoutingBucket(entity) == bucket and identityOf(entity) == plate
+      and (not hash or hash == 0 or toSigned(GetEntityModel(entity)) == hash)
+      and (not tracked or entity == tracked) then
       local dist = entity == inside and 0.0 or #(GetEntityCoords(entity) - origin)
       if dist < bestDist then best, bestDist = entity, dist end
     end
@@ -450,11 +488,28 @@ local function pendingWhere(fn)
   return nil
 end
 
---- Tell one party about the outcome: status for its open window + a notification.
-local function tellStatus(target, c, status)
-  if validSrc(target) then
-    TriggerClientEvent('nz:client:contract:status', target, { contractId = c.id, status = status })
+--- Tell one party about the outcome: status for its open window (+ `extra` fields).
+local function tellStatus(target, c, status, extra)
+  if not validSrc(target) then return end
+  local payload = { contractId = c.id, status = status }
+  if type(extra) == 'table' then
+    for k, v in pairs(extra) do payload[k] = v end
   end
+  TriggerClientEvent('nz:client:contract:status', target, payload)
+end
+
+local function pairKey(sellerId, buyerId)
+  return tostring(sellerId) .. '>' .. tostring(buyerId)
+end
+
+--- The buyer said no (declined, closed the review, let it expire): this seller waits
+--- Config.Contracts.resendCooldown seconds before sending them another contract.
+local function rememberRefusal(c, kind)
+  local now, cooldown = os.time(), cfg().resendCooldown
+  for key, entry in pairs(refused) do
+    if now - entry.at >= cooldown then refused[key] = nil end
+  end
+  if cooldown > 0 then refused[pairKey(c.sellerIdentifier, c.buyerIdentifier)] = { at = now, kind = kind } end
 end
 
 --- End a contract that was not signed: status + notifications for both parties.
@@ -463,7 +518,14 @@ local function finish(c, status, actor, messages)
   if contracts[c.id] ~= c then return end
   contracts[c.id] = nil
   c.state = status
-  tellStatus(c.seller, c, status)
+  local sellerExtra = nil
+  if status == 'declined' or status == 'expired' then
+    rememberRefusal(c, status)
+    -- the seller's window says when this buyer can get a new contract (another buyer: now)
+    local cooldown = cfg().resendCooldown
+    if cooldown > 0 then sellerExtra = { resendIn = cooldown } end
+  end
+  tellStatus(c.seller, c, status, sellerExtra)
   tellStatus(c.buyer, c, status)
   if messages then
     if messages.seller then notify(c.seller, messages.kind or 'info', messages.seller) end
@@ -535,7 +597,30 @@ local function openDraft(src, slot)
     return true
   end
   local _, pending = pendingWhere(function(x) return x.seller == src end)
-  if pending then
+  if pending and pending.state == 'pending' and pending.sellerIdentifier == identifier then
+    -- the seller closed the window after sending: give it back in its sent state (withdraw)
+    drafts[src] = { identifier = identifier, slot = tonumber(slot), at = os.time() }
+    local buyer = { serverId = pending.buyer, name = pending.buyerName }
+    TriggerClientEvent('nz:client:contract:open', src, {
+      mode = 'draft',
+      seller = { name = nameOf(src), serverId = src },
+      vehicles = { pending.vehicle },
+      buyers = { buyer },
+      maxPrice = c.maxPrice,
+      account = pending.account,
+      expireSeconds = c.expireSeconds,
+      sent = {
+        id = pending.id,
+        expiresIn = math.max(0, pending.expiresAt - os.time()),
+        buyer = buyer,
+        plate = pending.plate,
+        price = pending.price,
+        terms = pending.terms,
+        signature = pending.sellerSignature,
+      },
+    })
+    return true
+  elseif pending then
     notify(src, 'info', L('Your contract for {plate} is still waiting for {name}', { plate = pending.plate, name = pending.buyerName }))
     return true
   end
@@ -602,14 +687,78 @@ local function copyMetadata(c, role)
   }
 end
 
---- Was this contract recorded in the ownership history of its plate?
-local function verifyCopy(contractId, plate, price)
-  local okList, list = pcall(NZ.DB.events.list, plate, 'owner', HISTORY_LOOKUP)
+local function cleanModel(value)
+  return type(value) == 'string' and (value:sub(1, 32):gsub('[^%w_%-]', '')) or ''
+end
+
+local DIGEST_VERSION = 2
+
+--- The fields of a contract a signed copy shows that digest version 2 covers besides terms and
+--- signatures (the car the label is built from, its condition, how it was paid, when it was
+--- written), each in one canonical text form: a copy's metadata can come back from an inventory
+--- with 1234.0 stored as 1234.
+---@param vehicle table { hash, mileage, engine, body }
+---@param account string 'cash' | 'bank'
+---@param createdAt number
+---@return table
+local function digestExtra(vehicle, account, createdAt)
+  vehicle = type(vehicle) == 'table' and vehicle or {}
+  local function int(value) return ('%d'):format(math.floor(tonumber(value) or 0)) end
+  return {
+    int(toSigned(vehicle.hash) or 0),
+    ('%.1f'):format(Utils.round(math.max(0, tonumber(vehicle.mileage) or 0), 1)),
+    int(vehicle.engine), int(vehicle.body),
+    account == 'cash' and 'cash' or 'bank',
+    int(createdAt),
+  }
+end
+
+--- Checksum of the parts of a contract the ownership history does not hold in full: 32-bit
+--- FNV-1a, case sensitive, as 8 hex digits. Version 1 (copies signed before digestVersion was
+--- recorded): terms and both signatures. Version 2: also the digestExtra fields (`extra`).
+---@param extra table|nil digestExtra(...) for version 2, nil for version 1
+local function digestOf(terms, sellerSignature, buyerSignature, extra)
+  local parts = { terms or '', sellerSignature or '', buyerSignature or '' }
+  if type(extra) == 'table' then
+    for _, value in ipairs(extra) do parts[#parts + 1] = tostring(value) end
+  end
+  local text = table.concat(parts, '\n')
+  local h = 2166136261
+  for i = 1, #text do
+    h = ((h ~ text:byte(i)) * 16777619) & 0xFFFFFFFF
+  end
+  return ('%08x'):format(h)
+end
+
+--- Is this signed copy the contract recorded in the ownership history of its plate? Price,
+--- parties, date, model, terms and signatures must all match the entry the sale wrote; for
+--- digest version 2 entries also the vehicle (hash, mileage, condition), the account and the
+--- date it was written.
+---@param view table viewOf result (cleaned fields)
+local function verifyCopy(view)
+  local okList, list = pcall(NZ.DB.events.list, view.vehicle.plate, 'owner', HISTORY_LOOKUP)
   if not okList or type(list) ~= 'table' then return false end
   for _, entry in ipairs(list) do
     local data = type(entry) == 'table' and entry.data or nil
-    if type(data) == 'table' and data.via == 'contract' and data.contractId == contractId then
-      return math.floor(tonumber(data.price) or -1) == price
+    if type(data) == 'table' and data.via == 'contract' and data.contractId == view.contractId then
+      if math.floor(tonumber(data.price) or -1) ~= view.price then return false end
+      if cleanName(data.fromName) ~= view.seller.name or cleanName(data.name) ~= view.buyer.name then return false end
+      local recorded = tonumber(data.signedAt)
+      if recorded then
+        if math.floor(recorded) ~= view.signedAt then return false end
+      elseif math.abs((tonumber(data.at) or 0) - view.signedAt) > 5 then
+        return false
+      end
+      if data.model ~= nil and cleanModel(data.model) ~= view.vehicle.model then return false end
+      if data.digest ~= nil then
+        local version = math.floor(tonumber(data.digestVersion) or 1)
+        local extra = version >= 2
+          and digestExtra(view.vehicle, view.account, view.createdAt) or nil
+        if data.digest ~= digestOf(view.terms, view.sellerSignature, view.buyerSignature, extra) then
+          return false
+        end
+      end
+      return true
     end
   end
   return false
@@ -626,13 +775,13 @@ local function viewOf(md)
   if price < 0 or price > 2000000000 then return nil end
   local hash = toSigned(md.hash) or 0
   local vtype = (md.vehicleType == 'sea' or md.vehicleType == 'air') and md.vehicleType or 'car'
-  return {
+  local view = {
     mode = 'view',
     contractId = contractId,
     copy = (md.copy == 'seller' or md.copy == 'buyer') and md.copy or nil,
     vehicle = {
       plate = plate,
-      model = type(md.model) == 'string' and md.model:sub(1, 32):gsub('[^%w_%-]', '') or '',
+      model = cleanModel(md.model),
       hash = hash,
       vehicleType = vtype,
       nickname = cleanName(md.nickname),
@@ -649,8 +798,10 @@ local function viewOf(md)
     signedAt = math.floor(num(md.signedAt, 0, 4102444800, 0)),
     sellerSignature = cleanSignature(md.sellerSignature) or '',
     buyerSignature = cleanSignature(md.buyerSignature) or '',
-    verified = verifyCopy(contractId, plate, price),
+    verified = false,
   }
+  view.verified = verifyCopy(view)
+  return view
 end
 
 local function openCopy(src, metadata)
@@ -749,6 +900,14 @@ register('nz:contract:send', function(src, payload)
   if not buyerId then return fail(L('That player is not available')) end
   if buyerId == identifier then return fail(L('You cannot sell a vehicle to yourself')) end
   if not playersClose(src, buyer, c.maxDistance) then return fail(L('The buyer must be standing next to you')) end
+  local lastNo = refused[pairKey(identifier, buyerId)]
+  if lastNo and os.time() - lastNo.at < c.resendCooldown then
+    local vars = { name = nameOf(buyer), seconds = c.resendCooldown - (os.time() - lastNo.at) }
+    if lastNo.kind == 'expired' then
+      return fail(L('{name} did not sign your last contract: wait {seconds} s before sending another', vars))
+    end
+    return fail(L('{name} turned down your last contract: wait {seconds} s before sending another', vars))
+  end
 
   if pendingWhere(function(x) return x.seller == src end) then
     return fail(L('You already have a contract waiting for a signature'))
@@ -763,10 +922,10 @@ register('nz:contract:send', function(src, payload)
     return fail(L('That player already has a contract to sign'))
   end
 
-  local entity, dist = vehicleNear(src, plate, c.maxDistance)
-  if not entity then return fail(L('The vehicle must be next to you')) end
   local row = NZ.DB.getVehicle(plate)
   if not row or row.owner ~= identifier then return fail(L('You do not own this vehicle')) end
+  local entity, dist = vehicleNear(src, plate, c.maxDistance, rowHash(row))
+  if not entity then return fail(L('The vehicle must be next to you')) end
   local buyerInfo = { source = buyer, identifier = buyerId, name = nameOf(buyer) }
   local blocked = blockReason(row, entity, buyerInfo)
   if blocked then return fail(blocked) end
@@ -817,42 +976,58 @@ register('nz:contract:send', function(src, payload)
   return ok({ contractId = id, expiresIn = c.expireSeconds })
 end)
 
---- Physical key item for the buyer (temporary key when the inventory refuses it), or the key
---- of the external key resource when the built-in car lock is off.
-local function giveBuyerKey(buyer, plate, row, entity)
-  local carLock = NZ.CarLock
-  local okOn, on = pcall(carLock.enabled)
-  if okOn and on == true then
-    local okMode, mode = pcall(carLock.mode)
-    if okMode and mode == 'physical' then
-      local okGive, given = pcall(carLock.giveKeyItem, buyer, plate, { model = row.model, reason = 'contract' })
-      if okGive and given then return 'item' end
-      notify(buyer, 'warning', L('You cannot carry the key: you got a temporary key instead'))
-    end
-    pcall(carLock.grantTemp, buyer, plate, 'contract')
-    return 'temp'
-  end
-  if NZ.KeysServer and type(NZ.KeysServer.give) == 'function' and isVehicle(entity) then
-    pcall(NZ.KeysServer.give, buyer, NetworkGetNetworkIdFromEntity(entity), plate)
-    return 'external'
-  end
+local function externalKeyResource()
+  if type(NZ.KeysServer) ~= 'table' or type(NZ.KeysServer.resource) ~= 'function' then return nil end
+  local okR, name = pcall(NZ.KeysServer.resource)
+  if okR and type(name) == 'string' and name ~= '' and name ~= 'nayzeee' then return name end
   return nil
 end
 
+--- The keys change hands. Built-in car lock (already rekeyed for the buyer by sellVehicle): a
+--- key item for the buyer in physical mode (a temporary key when they cannot carry it), else a
+--- temporary key. An external key resource: the buyer gets its keys and the seller loses theirs
+--- (server-side systems through NZ.KeysServer, client-side ones through each client).
+--- Returns 'item' | 'temp' | 'external' | nil (no key system).
+local function handOverKeys(c, row, entity)
+  -- built-in car lock: the same hand-over as the garage sale of an out vehicle
+  if type(NZ.Actions.handBuyerKey) == 'function' then
+    local okKey, kind = pcall(NZ.Actions.handBuyerKey, c.buyer, c.plate, row.model, 'contract')
+    if okKey and kind then return kind end
+  end
+  if not externalKeyResource() or not isVehicle(entity) then return nil end
+  if setting('vehicles.giveKeys', true) == false then return nil end
+  local netId = NetworkGetNetworkIdFromEntity(entity)
+  local okG, given = pcall(NZ.KeysServer.give, c.buyer, netId, c.plate)
+  if not (okG and given) then
+    TriggerClientEvent('nz:client:contract:keys', c.buyer, { netId = netId, plate = c.plate, give = true })
+  end
+  if type(NZ.KeysServer.remove) == 'function' then pcall(NZ.KeysServer.remove, c.seller, netId, c.plate) end
+  if validSrc(c.seller) then
+    TriggerClientEvent('nz:client:contract:keys', c.seller, { netId = netId, plate = c.plate, give = false })
+  end
+  return 'external'
+end
+
+--- Signed copies for both parties (Config.Contracts.signedCopies, inventories with item
+--- metadata). Returns { seller = boolean, buyer = boolean }: who got one.
 local function giveCopies(c)
-  if not cfg().signedCopies then return end
+  local given = { seller = false, buyer = false }
+  if not cfg().signedCopies then return given end
   local okMeta, meta = pcall(NZ.Inventory.supportsMetadata)
-  if not okMeta or meta ~= true then return end
+  if not okMeta or meta ~= true then return given end
   local item = itemName('signedContract')
   for _, party in ipairs({ { c.seller, 'seller' }, { c.buyer, 'buyer' } }) do
     local target, role = party[1], party[2]
     if validSrc(target) then
       local okAdd, added = pcall(NZ.Inventory.addItem, target, item, 1, copyMetadata(c, role))
-      if not okAdd or not added then
+      if okAdd and added then
+        given[role] = true
+      else
         notify(target, 'warning', L('You cannot carry your copy of the contract'))
       end
     end
   end
+  return given
 end
 
 --- Consume the blank contract the seller used (that slot when it still holds one).
@@ -875,6 +1050,7 @@ end
 
 --- The sale itself (inside NZ.Vehicles.withLock(plate)). Returns a callback result.
 local function complete(c, signature)
+  c.ran = true
   local cf = cfg()
   local function void(sellerMsg, buyerMsg)
     finish(c, 'failed', c.buyer, {
@@ -892,15 +1068,15 @@ local function complete(c, signature)
     return void(L('{name} was too far away to sign the contract for {plate}', { name = c.buyerName, plate = c.plate }),
       L('Stand next to the seller to sign'))
   end
-  local entity = vehicleNear(c.seller, c.plate, cf.maxDistance)
-  if not entity then
-    return void(L('The sale of {plate} failed: the vehicle was not next to you', { plate = c.plate }),
-      L('The vehicle is no longer here'))
-  end
   local row = NZ.DB.getVehicle(c.plate)
   if not row or row.owner ~= c.sellerIdentifier then
     return void(L('The sale of {plate} failed: you no longer own it', { plate = c.plate }),
       L('The seller no longer owns this vehicle'))
+  end
+  local entity = vehicleNear(c.seller, c.plate, cf.maxDistance, rowHash(row))
+  if not entity then
+    return void(L('The sale of {plate} failed: the vehicle was not next to you', { plate = c.plate }),
+      L('The vehicle is no longer here'))
   end
   local buyer = { source = c.buyer, identifier = c.buyerIdentifier, name = c.buyerName }
   local blocked = blockReason(row, entity, buyer)
@@ -918,9 +1094,14 @@ local function complete(c, signature)
 
   local seller = { source = c.seller, identifier = c.sellerIdentifier, name = c.sellerName }
   local signedAt = os.time()
-  local sold, err, code = NZ.Actions.sellVehicle(row, seller, buyer, {
+  local sold, err, code, unpaid = NZ.Actions.sellVehicle(row, seller, buyer, {
     via = 'contract', price = c.price, account = c.account, payAccount = c.account,
-    history = { contractId = c.id, from = c.sellerIdentifier, fromName = c.sellerName },
+    -- what a signed copy is checked against later (verifyCopy)
+    history = {
+      contractId = c.id, from = c.sellerIdentifier, fromName = c.sellerName, signedAt = signedAt,
+      model = cleanModel(row.model), digestVersion = DIGEST_VERSION,
+      digest = digestOf(c.terms, c.sellerSignature, signature, digestExtra(c.vehicle, c.account, c.createdAt)),
+    },
   })
   if not sold then
     giveBlankBack(c)
@@ -934,22 +1115,30 @@ local function complete(c, signature)
   c.state = 'signed'
   c.signedAt = signedAt
   c.buyerSignature = signature
-  local keyKind = giveBuyerKey(c.buyer, c.plate, row, entity)
-  giveCopies(c)
-  tellStatus(c.seller, c, 'signed')
-  notify(c.seller, 'success', L('You sold {plate} to {name} for {amount}', {
-    plate = c.plate, name = c.buyerName, amount = money(c.price),
-  }))
+  local keyKind = handOverKeys(c, row, entity)
+  local copies = giveCopies(c)
+  tellStatus(c.seller, c, 'signed', { copy = copies.seller })
+  if unpaid then
+    -- the payout and its rollback both failed (database): logged by sellVehicle for staff
+    notify(c.seller, 'error', L('{name} bought {plate}, but your payment of {amount} failed: contact staff', {
+      plate = c.plate, name = c.buyerName, amount = money(c.price),
+    }))
+  else
+    notify(c.seller, 'success', L('You sold {plate} to {name} for {amount}', {
+      plate = c.plate, name = c.buyerName, amount = money(c.price),
+    }))
+  end
   notify(c.buyer, 'success', L('You bought {plate} for {amount}', { plate = c.plate, amount = money(c.price) }))
   log('vehicle.sell', c.buyer, {
     plate = c.plate, action = 'contract', contractId = c.id, price = c.price, account = c.account,
     seller = c.sellerIdentifier, sellerName = c.sellerName, buyer = c.buyerIdentifier, buyerName = c.buyerName,
-    key = keyKind,
+    key = keyKind, copies = copies.seller or copies.buyer, unpaid = unpaid or nil,
   })
-  return ok({ signedAt = signedAt })
+  return ok({ signedAt = signedAt, key = keyKind, copy = copies.buyer })
 end
 
--- { contractId, signature } -> { signedAt } (buyer; one attempt per contract)
+-- { contractId, signature } -> { signedAt, key = 'item'|'temp'|'external'|nil, copy } (buyer;
+-- one attempt per contract)
 register('nz:contract:sign', function(src, payload)
   if limited(src, 'sign') then return fail(L('Please wait a moment before trying again')) end
   local id = readId(payload.contractId)
@@ -963,15 +1152,36 @@ register('nz:contract:sign', function(src, payload)
   local signature = cleanSignature(payload.signature)
   if not signature then return fail(L('Sign the contract first')) end
 
-  -- from here on the contract is used up, whatever happens
+  -- from here on the contract is used up, whatever happens (except a busy vehicle, below)
   c.state = 'signing'
+  c.ran = nil
   local okRun, result = pcall(NZ.Vehicles.withLock, c.plate, complete, c, signature)
+  if okRun and not c.ran and contracts[id] == c then
+    -- another operation held this vehicle (store, recover, impound...) at this instant: nothing
+    -- was checked or charged, the buyer may sign again (result = the "busy" failure)
+    c.state = 'pending'
+    if os.time() > c.expiresAt then
+      expire(c)
+      return fail(L('This contract has expired'))
+    end
+    return result
+  end
   if contracts[id] == c then
-    -- the plate was busy (another operation on this vehicle) or an error: the attempt is over
+    -- an error inside the sale (complete voids every refusal itself): the attempt is over
     finish(c, 'failed', src, { kind = 'error', seller = L('The sale of {plate} failed', { plate = c.plate }) })
   end
   if not okRun then error(result, 0) end
   return result
+end)
+
+-- { contractId } -> { canAfford } (the buyer's review: can they pay now? The sign step checks again)
+register('nz:contract:balance', function(src, payload)
+  if limited(src, 'balance') then return fail(L('Please wait a moment before trying again')) end
+  local id = readId(payload.contractId)
+  local c = id and contracts[id] or nil
+  if not c or c.buyer ~= src or c.state ~= 'pending' then return fail(L('This contract is no longer valid')) end
+  local okMoney, balance = pcall(NZ.Bridge.getMoney, src, c.account)
+  return ok({ canAfford = okMoney and (tonumber(balance) or 0) >= c.price })
 end)
 
 -- { contractId } -> null (the buyer declines, the seller withdraws)

@@ -2,20 +2,25 @@
   nayzeee-garages — car lock: the key ring NUI app 'keys' (client, NZ.CarLock).
   docs/CARLOCK.md §10.
 
-  Opened by Config.CarLock.commands.keyRing (/keys), the keybind Config.CarLock.keys.keyRing,
-  the client export OpenKeys(plate?) and the server ('nz:client:carlock:keyRing', e.g. a fob
-  used far from its vehicle). The data comes from the core callback nz:carlock:keys (which
-  keys) and nz:carlock:tracker (the vehicles behind them, server/carlock/tracker.lua); every
-  action goes to the server, which answers with its own rules (ranges, owner, mode):
+  Opened by Config.CarLock.commands.keyRing (/keys), the keybind Config.CarLock.keys.keyRing
+  (pressing it again while the ring is open closes it: KeysOpenData.closeKey), the client
+  export OpenKeys(plate?) and the server ('nz:client:carlock:keyRing', e.g. a fob used far
+  from its vehicle). The keys AND the vehicles behind them come from ONE server call,
+  nz:carlock:tracker {} (server/carlock/tracker.lua); re-opening within CACHE_MS reuses the
+  last answer and a request the server rate-limits is tried once more. Every action goes to
+  the server, which answers with its own rules (ranges, owner, mode):
 
-    keys:refresh {}                     -> KeysOpenData
-    keys:lock    { plate }              -> { plate, locked }     nz:carlock:toggleLock { netId }
-    keys:locate  { plate, stop? }       -> { distance }          tracker: waypoint + following blip
-    keys:alarm   { plate }              -> { alarm, seconds, cooldown }   nz:carlock:trackerAlarm
-    keys:players {}                     -> KeyRingPlayer[]       nz:carlock:nearbyPlayers
-    keys:share   { plate, target }      -> null                  nz:carlock:share (virtual key / key item)
-    keys:holders { plate }              -> KeyHolder[]           nz:carlock:holders (owner)
-    keys:revoke  { plate, identifier }  -> KeyHolder[]           nz:carlock:revoke, then the new list
+    keys:refresh {}                -> KeysOpenData
+    keys:lock    { plate }         -> { plate, locked? , refused? = 'range', message? }
+                                      nz:carlock:toggleLock { netId }; out of range is an answer
+    keys:locate  { plate, stop? }  -> { distance }          tracker: waypoint + following blip
+    keys:alarm   { plate }         -> { alarm, seconds, cooldown, refused? = 'cooldown', message? }
+                                      nz:carlock:trackerAlarm
+    keys:players {}                -> KeyRingPlayer[]       nz:carlock:nearbyPlayers
+    keys:share   { plate, target } -> null                  nz:carlock:share (virtual key / key item)
+    keys:holders { plate }         -> KeyHolder[]           nz:carlock:keyHolders (owner; opaque ids,
+                                                            thieves shown as 'Unknown holder')
+    keys:revoke  { plate, id }     -> KeyHolder[]           nz:carlock:keyRevoke, the new list
 
   While the window is open a 1 s loop pushes what this client sees itself ('update' -> live:
   distance and lock state of vehicles in scope) and the tracker's readout of the located
@@ -28,16 +33,19 @@ local Utils = NZ.Utils
 local APP = 'keys'
 local LIVE_STEP = 1000           -- ms between two live updates while the window is open
 local REFRESH_DEBOUNCE = 1200    -- ms: a burst of key changes refreshes once
+local CACHE_MS = 2000            -- ms: re-opening the ring this soon reuses the last data
+local RETRY_WAIT = 1100          -- ms: a request the server rate-limited is tried once more after this
 
 local ring = {
   open = false,
   opening = false,
   byPlate = {},                  -- [plate] = KeyEntry of the last data
-  statuses = {},                 -- [plate] = last server status (kept when a refresh is rate limited)
   clock = nil,                   -- { server = os.time() of the server, game = GetGameTimer() }
+  cache = nil,                   -- { at = GetGameTimer(), res } of the last build
   generation = 0,
   refreshQueued = false,
 }
+local keybind = nil              -- the key ring keybind (its current key closes the open ring)
 
 ---------------------------------------------------------------------------------------
 -- Helpers
@@ -85,6 +93,21 @@ local function ranges()
   return { key = CarLock.range('key'), fob = CarLock.range('fob'), give = CarLock.range('give') }
 end
 
+--- The key the player bound to the key ring (ox_lib keybind), else the configured default.
+local function closeKey()
+  if keybind and type(keybind.getCurrentKey) == 'function' then
+    local ok, key = pcall(keybind.getCurrentKey, keybind)
+    if ok and type(key) == 'string' and key:match('^[%w_]+$') then return key end
+  end
+  local keys = CarLock.cfg().keys
+  local key = type(keys) == 'table' and keys.keyRing or nil
+  return type(key) == 'string' and key:match('^[%w_]+$') and key or nil
+end
+
+local function forget()
+  ring.cache = nil
+end
+
 ---------------------------------------------------------------------------------------
 -- Data
 ---------------------------------------------------------------------------------------
@@ -120,7 +143,10 @@ local function entryOf(key, st, mode)
     profileLabel = st.profileLabel or L('Standard'),
     remote = st.remote == true,
     expiresIn = nil,
-    reason = key.kind == 'temp' and type(key.reason) == 'string' and key.reason or nil,
+    -- how the key was obtained: a temporary key's reason, or the crime origin of a key item
+    -- (back-alley copy, spare key found in a search) the server reports
+    reason = (key.kind == 'temp' and type(key.reason) == 'string' and key.reason)
+      or (type(st.origin) == 'string' and st.origin ~= '' and st.origin:sub(1, 16)) or nil,
     isOwner = isOwner,
     spawned = st.spawned == true or netId ~= nil,
     netId = netId,
@@ -130,6 +156,8 @@ local function entryOf(key, st, mode)
     trackable = st.trackable == true,
     towing = st.towing == true,
     alarm = st.alarm == true,
+    -- a crime's key (temporary key or key item) / another script's has no tracker access (server rule)
+    trackerAccess = (st.trackerAccess == nil and key.kind ~= 'temp') or st.trackerAccess == true,
     canShare = (mode == 'virtual' and isOwner and key.kind ~= 'temp') or (mode == 'physical' and key.kind == 'item'),
     holders = nil,
   }
@@ -165,29 +193,37 @@ local function entryOf(key, st, mode)
   return entry
 end
 
+--- The server's key ring answer (yields): nz:carlock:tracker {} = keys + vehicles in one call.
+--- The server asks to wait when it comes too soon (closing and re-opening, a key change right
+--- after an open): tried once more after RETRY_WAIT instead of showing an error.
+local function fetchList()
+  local res = CarLock.trackerStatus(nil)
+  if not res.ok and res.error == L('Please wait a moment') then
+    Wait(RETRY_WAIT)
+    res = CarLock.trackerStatus(nil)
+  end
+  return res
+end
+
 --- KeysOpenData from the server (yields). Returns a result table.
 local function build(focus)
-  local keysRes = NZ.NUI.await('nz:carlock:keys', {})
-  if not keysRes.ok then return keysRes end
-  local data = type(keysRes.data) == 'table' and keysRes.data or {}
+  local res = fetchList()
+  if not res.ok then return res end
+  local data = type(res.data) == 'table' and res.data or {}
   local mode = data.mode == 'physical' and 'physical' or 'virtual'
-  local statusRes = CarLock.trackerStatus(nil)
-  local trackerOn = CarLock.cfg().tracker == nil or (type(CarLock.cfg().tracker) == 'table' and CarLock.cfg().tracker.enabled ~= false)
-  if statusRes.ok and type(statusRes.data) == 'table' then
-    trackerOn = statusRes.data.tracker == true
-    if tonumber(statusRes.data.now) then ring.clock = { server = tonumber(statusRes.data.now), game = GetGameTimer() } end
-    for _, st in ipairs(type(statusRes.data.vehicles) == 'table' and statusRes.data.vehicles or {}) do
-      local plate = Utils.plate(st.plate)
-      if plate then ring.statuses[plate] = st end
-    end
+  if tonumber(data.now) then ring.clock = { server = tonumber(data.now), game = GetGameTimer() } end
+  local statuses = {}
+  for _, st in ipairs(type(data.vehicles) == 'table' and data.vehicles or {}) do
+    local plate = type(st) == 'table' and Utils.plate(st.plate) or nil
+    if plate then statuses[plate] = st end
   end
 
   local list, byPlate = {}, {}
   for _, key in ipairs(type(data.keys) == 'table' and data.keys or {}) do
-    local plate = Utils.plate(key.plate)
+    local plate = type(key) == 'table' and Utils.plate(key.plate) or nil
     if plate and not byPlate[plate] then
       key.plate = plate
-      local entry = entryOf(key, ring.statuses[plate] or {}, mode)
+      local entry = entryOf(key, statuses[plate] or {}, mode)
       list[#list + 1] = entry
       byPlate[plate] = entry
     end
@@ -195,17 +231,20 @@ local function build(focus)
   enrich(list)
   ring.byPlate = byPlate
   local seat = seatPlate()
-  return Utils.ok({
+  local out = Utils.ok({
     mode = mode,
     keys = list,
     nearbyPlayers = {},
     ranges = ranges(),
-    tracker = trackerOn,
+    tracker = data.tracker == true,
     focus = Utils.plate(focus),
     seatPlate = seat,
+    closeKey = closeKey(),
     tracking = nil,
     live = nil,
   })
+  ring.cache = { at = GetGameTimer(), res = out }
+  return out
 end
 
 ---------------------------------------------------------------------------------------
@@ -257,6 +296,7 @@ end
 
 -- keys handed over, revoked, received, a change of locks...
 AddEventHandler('nz:client:carlock:keysChanged', function()
+  forget()
   queueRefresh()
 end)
 
@@ -277,7 +317,8 @@ end)
 -- Open / close
 ---------------------------------------------------------------------------------------
 
---- Open the key ring (yields), on `focus` (plate) when given. Pressing the key again closes it.
+--- Open the key ring (yields), on `focus` (plate) when given. While it is open the NUI closes
+--- it on the key ring keybind (closeKey) and Esc.
 ---@param focus string|nil
 ---@return boolean opened
 function CarLock.openKeyRing(focus)
@@ -289,7 +330,16 @@ function CarLock.openKeyRing(focus)
   -- another window (garage, admin...) is in front: never stack the key ring on it
   if NZ.NUI.isOpen() or IsPauseMenuActive() or NZ.Points.incapacitated() then return false end
   ring.opening = true
-  local res = build(focus)
+  local res
+  local cached = ring.cache
+  if cached and GetGameTimer() - cached.at < CACHE_MS and cached.res.ok then
+    -- closed and opened again right away: the answer of a moment ago
+    res = cached.res
+    res.data.focus = Utils.plate(focus)
+    res.data.seatPlate = seatPlate()
+  else
+    res = build(focus)
+  end
   ring.opening = false
   if not res.ok then
     NZ.NUI.notify('error', res.error)
@@ -324,7 +374,7 @@ if CarLock.enabled() then
     RegisterCommand(commands.keyRing, function() openAsync(nil) end, false)
   end
   if type(keys.keyRing) == 'string' and keys.keyRing ~= '' then
-    lib.addKeybind({
+    keybind = lib.addKeybind({
       name = 'nz_carlock_keyring',
       description = L('Open the key ring'),
       defaultKey = keys.keyRing,
@@ -352,6 +402,7 @@ local function entryFor(data)
 end
 
 NZ.NUI.register('keys:refresh', function()
+  forget()
   local res = build(nil)
   if res.ok then res.data = enrich(res.data) end
   return res
@@ -368,8 +419,16 @@ NZ.NUI.register('keys:lock', function(data)
   if seatVehicle and seat ~= plate then
     return Utils.fail(L('Get out of your vehicle to lock another one'))
   end
+  forget()
   local res = NZ.NUI.await('nz:carlock:toggleLock', { netId = entry.netId })
-  if not res.ok then return res end
+  if not res.ok then
+    -- out of range is the server's answer, not a failure: the key ring shows it as such
+    -- (the same Lua locale on both sides: no translated text is parsed in the NUI)
+    if res.error == L('The vehicle is too far away') then
+      return Utils.ok({ plate = plate, refused = 'range', message = res.error })
+    end
+    return res
+  end
   local out = type(res.data) == 'table' and res.data or {}
   local donePlate = Utils.plate(out.plate) or plate
   local done = ring.byPlate[donePlate]
@@ -397,11 +456,19 @@ NZ.NUI.register('keys:alarm', function(data)
   if not entry then return Utils.fail(L('You do not have the keys of this vehicle')) end
   local on = nil
   if data.on == true or data.on == false then on = data.on end
+  forget()
   local res = CarLock.remoteAlarm(plate, on)
   if not res.ok then return res end
   local out = type(res.data) == 'table' and res.data or {}
   entry.alarm = out.alarm == true
-  return Utils.ok({ alarm = out.alarm == true, seconds = tonumber(out.seconds), cooldown = tonumber(out.cooldown) or 0 })
+  return Utils.ok({
+    alarm = out.alarm == true,
+    seconds = tonumber(out.seconds),
+    cooldown = tonumber(out.cooldown) or 0,
+    -- still cooling down: the seconds left come as a number, the text for the player as is
+    refused = out.refused == 'cooldown' and 'cooldown' or nil,
+    message = out.refused == 'cooldown' and type(out.message) == 'string' and out.message or nil,
+  })
 end)
 
 NZ.NUI.register('keys:players', function()
@@ -418,23 +485,27 @@ NZ.NUI.register('keys:share', function(data)
   if not entry.canShare then
     return Utils.fail(entry.kind == 'temp' and L('You cannot lend a temporary key') or L('Only the owner can share this key'))
   end
+  forget()
   local res = NZ.NUI.await('nz:carlock:share', { plate = plate, target = math.tointeger(target) })
   if not res.ok then return res end
   return Utils.ok(nil)
 end)
 
 --- KeyHolder list for the NUI (server times turned into seconds left / ago on this clock).
+--- id: the server's opaque holder id (identifiers never reach the NUI).
 local function holdersOf(raw)
   local now = serverNow()
   local list = {}
   for _, h in ipairs(type(raw) == 'table' and raw or {}) do
-    if type(h) == 'table' and type(h.identifier) == 'string' then
+    if type(h) == 'table' and type(h.id) == 'string' and h.id ~= '' then
       local expires, at = tonumber(h.expires), tonumber(h.at)
+      local temp = h.kind == 'temp'
       list[#list + 1] = {
-        identifier = h.identifier,
+        id = h.id,
         name = type(h.name) == 'string' and h.name or L('Unknown'),
-        kind = h.kind == 'temp' and 'temp' or 'virtual',
-        grantedBy = type(h.grantedBy) == 'string' and h.grantedBy or nil,
+        kind = temp and 'temp' or 'virtual',
+        reason = temp and type(h.reason) == 'string' and h.reason or nil,
+        masked = h.masked == true,
         agoSeconds = (at and now) and math.max(now - at, 0) or nil,
         expiresIn = (expires and now) and math.max(expires - now, 0) or nil,
       }
@@ -443,24 +514,25 @@ local function holdersOf(raw)
   return list
 end
 
-NZ.NUI.register('keys:holders', function(data)
-  local _, plate = entryFor(data)
-  if not plate then return Utils.fail(L('Invalid plate')) end
-  local res = NZ.NUI.await('nz:carlock:holders', { plate = plate })
+local function holderResult(res, plate)
   if not res.ok then return res end
   local list = holdersOf(res.data)
   local entry = ring.byPlate[plate]
   if entry then entry.holders = #list end
   return Utils.ok(list)
+end
+
+NZ.NUI.register('keys:holders', function(data)
+  local _, plate = entryFor(data)
+  if not plate then return Utils.fail(L('Invalid plate')) end
+  return holderResult(NZ.NUI.await('nz:carlock:keyHolders', { plate = plate }), plate)
 end)
 
 NZ.NUI.register('keys:revoke', function(data)
   local _, plate = entryFor(data)
-  local identifier = type(data.identifier) == 'string' and #data.identifier <= 64 and data.identifier or nil
-  if not plate or not identifier then return Utils.fail(L('Invalid request')) end
-  local res = NZ.NUI.await('nz:carlock:revoke', { plate = plate, identifier = identifier })
-  if not res.ok then return res end
-  local list = NZ.NUI.await('nz:carlock:holders', { plate = plate })
-  if not list.ok then return Utils.ok(nil) end
-  return Utils.ok(holdersOf(list.data))
+  local id = type(data) == 'table' and type(data.id) == 'string' and #data.id <= 32 and data.id ~= '' and data.id or nil
+  if not plate or not id then return Utils.fail(L('Invalid request')) end
+  forget()
+  -- the server answers with the new holder list
+  return holderResult(NZ.NUI.await('nz:carlock:keyRevoke', { plate = plate, id = id }), plate)
 end)

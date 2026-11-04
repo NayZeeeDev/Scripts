@@ -179,10 +179,13 @@ function CarLock.locate(plate)
   if not res.ok then return res end
   local st = type(res.data) == 'table' and type(res.data.vehicles) == 'table' and res.data.vehicles[1] or nil
   if type(st) ~= 'table' then return Utils.fail(L('Something went wrong')) end
+  if res.data.tracker == false then return Utils.fail(L('The vehicle tracker is not available')) end
+  if st.tracker ~= true then return Utils.fail(L('This vehicle has no tracker')) end
+  -- a crime's key (hotwired, robbed, back-alley copy...): the vehicle has a tracker, the key no access
+  if st.trackerAccess == false then return Utils.fail(L('This key has no tracker access')) end
   if not st.spawned then return Utils.fail(L('The vehicle is not out')) end
   if st.towing then return Utils.fail(L('This vehicle is being towed')) end
-  if res.data.tracker == false then return Utils.fail(L('The vehicle tracker is not available')) end
-  if not st.trackable or type(st.coords) ~= 'table' then return Utils.fail(L('This vehicle has no tracker')) end
+  if not st.trackable or type(st.coords) ~= 'table' then return Utils.fail(L('The vehicle is not out')) end
 
   CarLock.stopLocate()
   follow.plate = plate

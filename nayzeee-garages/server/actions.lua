@@ -229,7 +229,12 @@ local function afterOwnerChange(row, newOwner, via, price, extra)
   end
   NZ.DB.events.add(row.plate, 'owner', entry)
   local tracked = NZ.Vehicles.out and NZ.Vehicles.out[row.plate]
-  if tracked then tracked.identifier = newOwner.identifier end
+  if tracked then
+    tracked.identifier = newOwner.identifier
+    -- the seller no longer has it out: key bridges trust out.src (a retrieve still waiting
+    -- for its entity keeps the player who is spawning it)
+    if tracked.entity or tracked.netId then tracked.src = newOwner.source end
+  end
   if NZ.CarLock and type(NZ.CarLock.invalidate) == 'function' then pcall(NZ.CarLock.invalidate, row.plate) end
   rekeyFor(row.plate, newOwner.identifier)
 end
@@ -245,17 +250,22 @@ end
 ---   payAccount = 'cash'|'bank' (default 'bank': the seller's account),
 ---   history = { ... } extra fields of the ownership history entry,
 --- }
---- Returns true, nil, accountUsed | false, translated error, code ('afford' | 'error').
+--- Returns true, nil, accountUsed, unpaid | false, translated error, code ('afford' | 'error').
+--- `unpaid` = true only when the seller's payout AND the rollback both failed (a database
+--- failure): the buyer paid and keeps the vehicle, the seller must be paid by staff (logged).
 ---@param row table NZVehicleRow
 ---@param seller table
 ---@param buyer table
 ---@param opts table
----@return boolean ok, string|nil error, string|nil codeOrAccount
+---@return boolean ok, string|nil error, string|nil codeOrAccount, boolean|nil unpaid
 function Actions.sellVehicle(row, seller, buyer, opts)
   opts = type(opts) == 'table' and opts or {}
   local price = math.max(0, math.floor(tonumber(opts.price) or 0))
   local via = type(opts.via) == 'string' and opts.via or 'sale'
-  local reason = 'nayzeee-garages:vehicle-' .. via
+  -- the buyer's statement says purchase, the seller's says sale (garage sale: the reasons
+  -- other scripts / banking logs have always seen)
+  local chargeReason = via == 'sale' and 'nayzeee-garages:vehicle-purchase' or ('nayzeee-garages:vehicle-purchase-' .. via)
+  local payReason = via == 'sale' and 'nayzeee-garages:vehicle-sale' or ('nayzeee-garages:vehicle-sale-' .. via)
   if type(row) ~= 'table' or type(seller) ~= 'table' or type(buyer) ~= 'table'
     or not buyer.identifier or not seller.identifier then
     return false, L('Something went wrong'), 'error'
@@ -264,21 +274,30 @@ function Actions.sellVehicle(row, seller, buyer, opts)
   local paid, account
   if opts.account == 'cash' or opts.account == 'bank' then
     account = opts.account
-    paid = price <= 0 or NZ.Bridge.removeMoney(buyer.source, account, price, reason)
+    paid = price <= 0 or NZ.Bridge.removeMoney(buyer.source, account, price, chargeReason)
   else
-    paid, account = charge(buyer.source, price, reason)
+    paid, account = charge(buyer.source, price, chargeReason)
   end
   if not paid then return false, L('You cannot afford this ({amount})', { amount = money(price) }), 'afford' end
 
   if not NZ.DB.updateVehicle(row.plate, { owner = buyer.identifier }) then
-    refund(buyer.source, price, account, reason .. '-refund')
+    refund(buyer.source, price, account, chargeReason .. '-refund')
     return false, L('Something went wrong'), 'error'
   end
 
   local payAccount = (opts.payAccount == 'cash' or opts.payAccount == 'bank') and opts.payAccount or 'bank'
-  if price > 0 and not NZ.Bridge.addMoney(seller.source, payAccount, price, reason) then
-    NZ.DB.updateVehicle(row.plate, { owner = seller.identifier })
-    refund(buyer.source, price, account, reason .. '-refund')
+  if price > 0 and not NZ.Bridge.addMoney(seller.source, payAccount, price, payReason) then
+    if not NZ.DB.updateVehicle(row.plate, { owner = seller.identifier }) then
+      -- neither the payout nor the rollback went through: the buyer paid and keeps the
+      -- vehicle, staff settle the seller's payout from this log entry
+      log('security.sell', buyer.source, {
+        plate = row.plate, seller = seller.identifier, buyer = buyer.identifier, price = price, via = via,
+        account = payAccount, reason = 'payout and rollback failed: buyer keeps the vehicle, not refunded, seller unpaid',
+      })
+      afterOwnerChange(row, buyer, via, price, opts.history)
+      return true, nil, account, true
+    end
+    refund(buyer.source, price, account, chargeReason .. '-refund')
     log('security.sell', buyer.source, {
       plate = row.plate, seller = seller.identifier, price = price, via = via,
       reason = 'seller payout failed, sale reverted',
@@ -288,6 +307,33 @@ function Actions.sellVehicle(row, seller, buyer, opts)
 
   afterOwnerChange(row, buyer, via, price, opts.history)
   return true, nil, account
+end
+
+--- Built-in car lock: a key for the new owner of a vehicle that stands in the world (garage
+--- sale of an out vehicle, sale contract). sellVehicle already rekeyed it for them. Physical
+--- mode: a key item (a temporary key when they cannot carry it); otherwise a temporary key.
+--- Returns 'item' | 'temp' | nil (the built-in car lock is off: nothing done).
+---@param buyerSrc number
+---@param plate string
+---@param model string|nil
+---@param reason string|nil 'sale' | 'contract'
+---@return string|nil
+function Actions.handBuyerKey(buyerSrc, plate, model, reason)
+  local carLock = NZ.CarLock
+  if type(carLock) ~= 'table' or type(carLock.enabled) ~= 'function' then return nil end
+  local okOn, on = pcall(carLock.enabled)
+  if not okOn or on ~= true then return nil end
+  reason = type(reason) == 'string' and reason or 'sale'
+  local okMode, mode = pcall(carLock.mode)
+  if okMode and mode == 'physical' and type(carLock.giveKeyItem) == 'function' then
+    local okGive, given = pcall(carLock.giveKeyItem, buyerSrc, plate, {
+      model = type(model) == 'string' and model or nil, reason = reason,
+    })
+    if okGive and given then return 'item' end
+    notify(buyerSrc, 'warning', L('You cannot carry the key: you got a temporary key instead'))
+  end
+  if type(carLock.grantTemp) == 'function' then pcall(carLock.grantTemp, buyerSrc, plate, reason) end
+  return 'temp'
 end
 
 ---------------------------------------------------------------------------------------
@@ -440,7 +486,7 @@ local function completeSale(src, offer)
 
   local price = offer.price
   local sellerInfo = { source = seller, identifier = offer.sellerIdentifier, name = offer.sellerName }
-  local sold, err, code = Actions.sellVehicle(row, sellerInfo, buyer, { via = 'sale', price = price })
+  local sold, err, code, unpaid = Actions.sellVehicle(row, sellerInfo, buyer, { via = 'sale', price = price })
   if not sold then
     if code == 'afford' then
       notify(seller, 'error', L('{name} could not afford {plate}', { name = buyer.name, plate = offer.plate }))
@@ -448,14 +494,22 @@ local function completeSale(src, offer)
     return fail(err)
   end
 
-  notify(seller, 'success', L('You sold {plate} to {name} for {amount}', {
-    plate = offer.plate, name = buyer.name, amount = money(price),
-  }))
+  -- a vehicle standing in the world: the buyer gets a key for it (built-in car lock)
+  local keyKind = row.state == 'out' and Actions.handBuyerKey(src, offer.plate, row.model, 'sale') or nil
+  if unpaid then
+    notify(seller, 'error', L('{name} bought {plate}, but your payment of {amount} failed: contact staff', {
+      plate = offer.plate, name = buyer.name, amount = money(price),
+    }))
+  else
+    notify(seller, 'success', L('You sold {plate} to {name} for {amount}', {
+      plate = offer.plate, name = buyer.name, amount = money(price),
+    }))
+  end
   -- The buyer's client shows its own confirmation toast after accepting.
   log('vehicle.sell', src, {
     plate = offer.plate, action = 'sold', price = price,
     seller = offer.sellerIdentifier, sellerName = offer.sellerName,
-    buyer = buyer.identifier, buyerName = buyer.name,
+    buyer = buyer.identifier, buyerName = buyer.name, key = keyKind, unpaid = unpaid or nil,
   })
   return ok(nil)
 end

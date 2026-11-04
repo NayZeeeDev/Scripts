@@ -3,13 +3,15 @@
   client/nui.lua (real NUI bridge), client/carlock/{lock,tracker,keysapp,locksmith}.lua in the
   stubbed client runtime of tools/smoke/carlock_client.lua with a scripted server.
 
-    /keys + keybind + OpenKeys export + server event open the key ring -> data built from
-    nz:carlock:keys + nz:carlock:tracker (groups, kinds, fob, time left on the server clock,
-    share rules, what this client sees itself) -> keys:lock (never another vehicle than the
-    one you sit in, server answer passed through) -> keys:locate (waypoint, following blip,
-    live readout, signal lost) -> keys:alarm -> keys:share / players / holders / revoke ->
-    key changes refresh the open ring -> locksmith blips, NPC, prompt + keybind, window,
-    services forwarded, window closes when walking away.
+    /keys + keybind + OpenKeys export + server event open the key ring -> data built from ONE
+    call, nz:carlock:tracker {} (keys + vehicles: groups, kinds, fob, time left on the server
+    clock, share rules, tracker access, what this client sees itself, the close key) ->
+    keys:lock (never another vehicle than the one you sit in; out of range comes back as
+    refused = 'range') -> keys:locate (waypoint, following blip, live readout, signal lost)
+    -> keys:alarm (cooldown as a number) -> keys:share / players / holders / revoke (opaque
+    ids, masked names) -> key changes refresh the open ring -> re-open right away reuses the
+    last answer, a rate-limited request is tried once more -> locksmith blips, NPC, prompt +
+    keybind, window, services forwarded, window closes before the server's counter range.
 
   Usage (from the resource root):  lua5.4 tools/smoke/keyring_client.lua
 ]]
@@ -297,20 +299,28 @@ local keysList = {
   { plate = 'TMP001', kind = 'temp', expires = NOW + 3600, reason = 'hotwire', netId = 56 },
   { plate = 'SHR001', kind = 'owner', shared = true },
   { plate = 'ITM999', kind = 'item', keyKind = 'key', model = 'asea' },
+  { plate = 'DEN001', kind = 'item', keyKind = 'fob', model = 'zentorno', netId = 58 },
 }
 local statusList = {
   { plate = 'ABC123', owned = true, isOwner = true, hash = 11, model = 'sultan', spawned = true, netId = 55, profile = 'standard', profileLabel = 'Standard', keyType = 'key', locked = false, tracker = false, trackable = false },
   { plate = 'FOB777', owned = true, isOwner = true, hash = 22, model = 'zentorno', nickname = 'Zen', spawned = true, netId = 57, profile = 'highend', profileLabel = 'High-end', remote = true, keyType = 'fob', locked = true, tracker = true, trackable = true, distance = 300 },
-  { plate = 'TMP001', owned = false, isOwner = false, hash = 33, spawned = true, netId = 56, profile = 'standard', profileLabel = 'Standard', keyType = 'key', locked = false },
+  { plate = 'TMP001', owned = false, isOwner = false, hash = 33, spawned = true, netId = 56, profile = 'standard', profileLabel = 'Standard', keyType = 'key', locked = false, trackerAccess = false },
   { plate = 'SHR001', owned = true, isOwner = false, hash = 44, model = 'blista', spawned = false, profile = 'standard', profileLabel = 'Standard', keyType = 'key' },
   { plate = 'ITM999', owned = true, isOwner = false, hash = 55, model = 'asea', spawned = false, profile = 'standard', profileLabel = 'Standard', keyType = 'key' },
+  { plate = 'DEN001', owned = true, isOwner = false, hash = 22, model = 'zentorno', spawned = true, netId = 58, profile = 'highend', profileLabel = 'High-end', remote = true, keyType = 'fob', tracker = true, trackerAccess = false, trackable = false, origin = 'locksmith' },
 }
 local fobStatus = { plate = 'FOB777', spawned = true, netId = 57, trackable = true, tracker = true, distance = 300, coords = { x = 300.0, y = 0.0, z = 30.0 } }
-server['nz:carlock:keys'] = function() return { ok = true, data = { mode = 'physical', keys = keysList } } end
 server['nz:carlock:tracker'] = function(p)
   if p.plate == 'FOB777' then return { ok = true, data = { now = NOW, tracker = true, vehicles = { fobStatus } } } end
   if p.plate == 'ABC123' then return { ok = true, data = { now = NOW, tracker = true, vehicles = { statusList[1] } } } end
-  return { ok = true, data = { now = NOW, tracker = true, vehicles = statusList } }
+  if p.plate == 'DEN001' then return { ok = true, data = { now = NOW, tracker = true, vehicles = { statusList[6] } } } end
+  return { ok = true, data = { now = NOW, tracker = true, mode = 'physical', keys = keysList, vehicles = statusList } }
+end
+--- Key ring list calls (nz:carlock:tracker without a plate).
+local function listCalls()
+  local n = 0
+  for _, p in ipairs(calls['nz:carlock:tracker'] or {}) do if p.plate == nil then n = n + 1 end end
+  return n
 end
 
 ---------------------------------------------------------------------------------------
@@ -324,6 +334,8 @@ check(run(CarLock.openKeyRing) == true, 'key ring opens')
 local open = lastMsg('open')
 local data = open and open.data.data
 check(open and open.data.app == 'keys' and data.mode == 'physical' and data.tracker == true, 'open message: app keys, mode, tracker')
+check(calls['nz:carlock:keys'] == nil and listCalls() == 1, 'one server call for the keys and their vehicles')
+check(data and data.closeKey == 'F7', 'the key ring keybind closes the open ring (closeKey)')
 check(data and data.ranges.key == 5.0 and data.ranges.fob == 30.0 and data.ranges.give == 3.0, 'ranges from the config')
 check(enriched > 0, 'vehicle labels added (enrichDeep)')
 local e = byPlate(data.keys, 'ABC123')
@@ -334,6 +346,7 @@ check(e and e.kind == 'fob' and e.group == 'owned' and e.trackable and e.distanc
 e = byPlate(data.keys, 'TMP001')
 check(e and e.group == 'temp' and e.kind == 'temp' and e.expiresIn and e.expiresIn <= 3600 and e.expiresIn >= 3590
   and e.reason == 'hotwire' and not e.canShare, 'temporary key: time left on the server clock, not shareable')
+check(e and e.trackerAccess == false and byPlate(data.keys, 'FOB777').trackerAccess == true, 'tracker access from the server')
 e = byPlate(data.keys, 'SHR001')
 check(e and e.group == 'shared' and e.kind == 'owner' and not e.spawned and not e.canShare, 'garage share: shared group')
 check(e and e.profile == 'highend' and e.tracker and e.remote and e.keyType == 'fob',
@@ -341,8 +354,11 @@ check(e and e.profile == 'highend' and e.tracker and e.remote and e.keyType == '
 e = byPlate(data.keys, 'FOB777')
 check(e and e.profile == 'highend', 'vehicle out: the server profile is kept')
 e = byPlate(data.keys, 'ITM999')
-check(e and e.group == 'items' and e.canShare and e.model == 'asea', "someone else's key item: items group, can be handed over")
-check(run(CarLock.openKeyRing) == true and #calls['nz:carlock:keys'] == 1, 'a second open while open does not reload')
+check(e and e.group == 'items' and e.canShare and e.model == 'asea' and e.reason == nil, "someone else's key item: items group, can be handed over")
+e = byPlate(data.keys, 'DEN001')
+check(e and e.group == 'items' and e.kind == 'fob' and e.reason == 'locksmith' and e.trackerAccess == false and e.tracker and not e.trackable,
+  'back-alley key item: how it was obtained (origin) and no tracker access')
+check(run(CarLock.openKeyRing) == true and listCalls() == 1, 'a second open while open does not reload')
 
 ---------------------------------------------------------------------------------------
 -- 2. Lock / unlock
@@ -360,7 +376,11 @@ r = nui('keys:lock', { plate = 'SHR001' })
 check(not r.ok and r.error == 'The vehicle is not out', 'lock: vehicle not out')
 server['nz:carlock:toggleLock'] = function() return { ok = false, error = 'The vehicle is too far away' } end
 r = nui('keys:lock', { plate = 'FOB777' })
-check(not r.ok and r.error == 'The vehicle is too far away', 'lock: the server answer (range) is passed through')
+check(r.ok and r.data.refused == 'range' and r.data.message == 'The vehicle is too far away' and r.data.plate == 'FOB777'
+  and r.data.locked == nil, 'lock: out of range is an answer (refused = range), not an error')
+server['nz:carlock:toggleLock'] = function() return { ok = false, error = 'You do not have the keys of this vehicle' } end
+r = nui('keys:lock', { plate = 'FOB777' })
+check(not r.ok and r.error == 'You do not have the keys of this vehicle', 'lock: other refusals passed through')
 r = nui('keys:lock', { plate = 'NOPE' })
 check(not r.ok and r.error == 'You do not have the keys of this vehicle', 'lock: unknown key')
 
@@ -386,6 +406,8 @@ tr = lastMsg('update', 'keys', 'tracking')
 check(tr and tr.data.data.tracking.lost == true and trackerBlip() == nil and CarLock.locating() == nil, 'locate: stored -> signal lost, blip removed')
 r = nui('keys:locate', { plate = 'ABC123' })
 check(not r.ok and r.error == 'This vehicle has no tracker', 'locate: no tracker')
+r = nui('keys:locate', { plate = 'DEN001' })
+check(not r.ok and r.error == 'This key has no tracker access' and CarLock.locating() == nil, 'locate: a crime\'s key has no tracker access')
 r = nui('keys:locate', { plate = 'FOB777' })
 check(not r.ok and r.error == 'The vehicle is not out', 'locate: not out')
 fobStatus = { plate = 'FOB777', spawned = true, netId = 57, trackable = true, tracker = true, distance = 300, coords = { x = 300.0, y = 0.0, z = 30.0 } }
@@ -401,6 +423,12 @@ server['nz:carlock:trackerAlarm'] = function(p) return { ok = true, data = { ala
 r = nui('keys:alarm', { plate = 'FOB777' })
 check(r.ok and r.data.alarm == true and r.data.seconds == 20 and r.data.cooldown == 60
   and calls['nz:carlock:trackerAlarm'][1].plate == 'FOB777' and calls['nz:carlock:trackerAlarm'][1].on == nil, 'alarm: toggled on the server')
+server['nz:carlock:trackerAlarm'] = function()
+  return { ok = true, data = { alarm = false, refused = 'cooldown', cooldown = 42, message = 'The alarm can be triggered again in 42 s' } }
+end
+r = nui('keys:alarm', { plate = 'FOB777' })
+check(r.ok and r.data.alarm == false and r.data.refused == 'cooldown' and r.data.cooldown == 42
+  and r.data.message == 'The alarm can be triggered again in 42 s', 'alarm: cooldown as a number (no text parsing)')
 r = nui('keys:share', { plate = 'TMP001', target = 2 })
 check(not r.ok and r.error == 'You cannot lend a temporary key' and calls['nz:carlock:share'] == nil, 'share: temporary key refused here')
 server['nz:carlock:share'] = function() return { ok = true } end
@@ -411,20 +439,26 @@ check(not r.ok, 'share: bad target')
 server['nz:carlock:nearbyPlayers'] = function() return { ok = true, data = { { serverId = 2, name = 'Char 2', distance = 1.2 } } } end
 r = nui('keys:players', {})
 check(r.ok and r.data[1].serverId == 2 and r.data[1].name == 'Char 2', 'share picker: nearby players')
-server['nz:carlock:holders'] = function()
-  return { ok = true, data = {
-    { identifier = 'CID2', name = 'Alex Doe', kind = 'virtual', at = NOW - 7200 },
-    { identifier = 'CID3', name = 'Sam Roe', kind = 'temp', expires = NOW + 600, at = NOW - 60 },
-  } }
-end
+local holderRows = {
+  { id = 'a1b2c3d4e5f6', name = 'Alex Doe', kind = 'virtual', at = NOW - 7200 },
+  { id = '0f0f0f0f0f0f', name = 'Unknown holder', kind = 'temp', reason = 'hotwire', masked = true, expires = NOW + 600, at = NOW - 60 },
+}
+server['nz:carlock:keyHolders'] = function() return { ok = true, data = holderRows } end
 r = nui('keys:holders', { plate = 'ABC123' })
 check(r.ok and #r.data == 2 and r.data[1].kind == 'virtual' and r.data[1].agoSeconds >= 7200 and r.data[2].kind == 'temp'
   and r.data[2].expiresIn <= 600 and r.data[2].expiresIn > 500, 'holders: times on the server clock')
-server['nz:carlock:revoke'] = function() return { ok = true } end
+check(r.ok and r.data[1].id == 'a1b2c3d4e5f6' and r.data[1].masked == false and r.data[1].reason == nil
+  and r.data[2].masked == true and r.data[2].reason == 'hotwire' and r.data[2].name == 'Unknown holder'
+  and r.data[1].identifier == nil and calls['nz:carlock:holders'] == nil, 'holders: opaque ids and masked thieves from nz:carlock:keyHolders')
+server['nz:carlock:keyRevoke'] = function() return { ok = true, data = { holderRows[1] } } end
+r = nui('keys:revoke', { plate = 'ABC123', id = '0f0f0f0f0f0f' })
+local rv = calls['nz:carlock:keyRevoke'] and calls['nz:carlock:keyRevoke'][1]
+check(r.ok and #r.data == 1 and rv and rv.id == '0f0f0f0f0f0f' and rv.plate == 'ABC123' and calls['nz:carlock:revoke'] == nil,
+  'revoke: by id, the server answers with the new holder list')
+r = nui('keys:revoke', { plate = 'ABC123', id = ('x'):rep(80) })
+check(not r.ok, 'revoke: bad id')
 r = nui('keys:revoke', { plate = 'ABC123', identifier = 'CID3' })
-check(r.ok and #r.data == 2 and calls['nz:carlock:revoke'][1].identifier == 'CID3', 'revoke: then the new holder list')
-r = nui('keys:revoke', { plate = 'ABC123', identifier = ('x'):rep(80) })
-check(not r.ok, 'revoke: bad identifier')
+check(not r.ok and #calls['nz:carlock:keyRevoke'] == 1, 'revoke: identifiers are not accepted')
 
 ---------------------------------------------------------------------------------------
 -- 5. Live loop, key changes, close, server event, going down
@@ -434,17 +468,43 @@ local before = #nuiMessages
 advance(1100)
 local live = lastMsg('update', 'keys', 'live')
 check(live and #nuiMessages > before and live.data.data.live.ABC123 and live.data.data.live.ABC123.distance == 3, 'live loop: distance of vehicles in scope')
-local keysCalls = #calls['nz:carlock:keys']
+local keysCalls = listCalls()
 TriggerEvent('nz:client:carlock:keysChanged', 'ABC123')
 TriggerEvent('nz:client:carlock:keysChanged', 'FOB777')
 advance(1500)
-check(#calls['nz:carlock:keys'] == keysCalls + 1 and lastMsg('update', 'keys', 'keys') ~= nil, 'key changes: one refresh pushed to the open ring')
+check(listCalls() == keysCalls + 1 and lastMsg('update', 'keys', 'keys') ~= nil, 'key changes: one refresh pushed to the open ring')
 nui('close', { app = 'keys' })
 before = #nuiMessages
 advance(2500)
 local after = 0
 for i = before + 1, #nuiMessages do if nuiMessages[i].action == 'update' then after = after + 1 end end
 check(after == 0, 'closed: no more live updates')
+
+-- close and open again right away: the answer of a moment ago (no "Please wait a moment")
+local n1 = listCalls()
+check(run(CarLock.openKeyRing) == true and listCalls() == n1 + 1, 're-open after a while: fresh data')
+nui('close', { app = 'keys' })
+check(run(CarLock.openKeyRing) == true and listCalls() == n1 + 1 and NZ.NUI.isOpen('keys'), 're-open right away: the last answer is reused')
+nui('close', { app = 'keys' })
+advance(2100)
+-- the server asks to wait (rate limit): tried once more, no error shown
+local listFn, waited = server['nz:carlock:tracker'], false
+server['nz:carlock:tracker'] = function(p)
+  if p.plate == nil and not waited then
+    waited = true
+    return { ok = false, error = 'Please wait a moment' }
+  end
+  return listFn(p)
+end
+local errorsBefore = 0
+for _, n in ipairs(notes) do if n.kind == 'error' then errorsBefore = errorsBefore + 1 end end
+local reopened = run(CarLock.openKeyRing)
+local errorsAfter = 0
+for _, n in ipairs(notes) do if n.kind == 'error' then errorsAfter = errorsAfter + 1 end end
+check(reopened == true and waited and listCalls() == n1 + 3 and errorsAfter == errorsBefore, 'rate limited: tried once more, no error shown')
+server['nz:carlock:tracker'] = listFn
+nui('close', { app = 'keys' })
+advance(2100)
 TriggerEvent('nz:client:carlock:keyRing', { plate = 'FOB777' })
 advance(500)
 open = lastMsg('open')
@@ -491,9 +551,9 @@ r = nui('locksmith:refresh', { locksmithId = 1 })
 check(r.ok and r.data.id == 1, 'refresh')
 r = nui('locksmith:refresh', { locksmithId = 7 })
 check(not r.ok, 'refresh: unknown locksmith')
-pedPos = vec3(190, -1799.68, 29.32)
+pedPos = vec3(170.58 + 4.8, -1799.68, 29.32)
 advance(800)
-check(NZ.NUI.isOpen('locksmith') == false, 'walking away closes the locksmith')
+check(NZ.NUI.isOpen('locksmith') == false, 'walking away closes the locksmith before the server refuses (4.5 m < 5 m)')
 counter.onExit()
 area.onExit()
 check(lastMsg('prompt') and lastMsg('prompt').data == nil, 'prompt hidden when leaving the counter')

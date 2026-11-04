@@ -4,13 +4,26 @@
  * vehicles), right the selected vehicle and the services — Duplicate a key, Program a key,
  * Change the locks — with price, materials (have / need) and why a service is not possible,
  * then the order dock (Pay). Legal shops serve owners and key holders; illegal shops work on any
- * vehicle parked nearby (the police may hear about it). The server re-checks everything
- * (locksmith:service) and answers with fresh data.
- * Keyboard: ↑ ↓ vehicle, ← → service, Enter pay, Esc close.
+ * vehicle parked nearby (the police may hear about it). Changing the locks is for owners only.
+ * Every paid service is confirmed first (Pay / Enter open the confirmation, its button pays).
+ * The server re-checks everything (locksmith:service) and answers with fresh data.
+ * Keyboard: ↑ ↓ vehicle, ← → service, Enter order (then Enter to pay), Esc close.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Badge, Button, EmptyState, Icon, IconButton, KeyHint, PlateTag, VehicleImage, Window, cx } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  Icon,
+  IconButton,
+  KeyHint,
+  PlateTag,
+  VehicleImage,
+  Window,
+  cx,
+} from '@/components/ui';
 import type { IconName } from '@/components/ui';
 import { useApp, useUi, toast } from '@/lib/store';
 import { useEscape } from '@/lib/escape';
@@ -66,13 +79,18 @@ function serviceText(id: LocksmithServiceId, d: LocksmithOpenData, v: LocksmithV
       : t('A copy of a {kind} you carry. It works until the locks change.', { kind: word });
   }
   if (id === 'program') {
-    return d.mode === 'virtual'
-      ? t('A temporary key ({hours} h) for a vehicle parked here.', { hours: Math.round(d.tempHours) })
-      : t('A brand-new {kind} for a vehicle parked here, no key needed.', { kind: word });
+    if (d.mode === 'virtual') {
+      return d.illegal
+        ? t('A temporary key ({hours} h) for a vehicle parked here. It opens it, not its tracker.', { hours: Math.round(d.tempHours) })
+        : t('Owners give keys from the key ring: a licensed shop programs none.');
+    }
+    return d.illegal
+      ? t('A brand-new {kind} for a vehicle parked here, no key needed. Unregistered: it opens the car, not its tracker.', { kind: word })
+      : t('A brand-new {kind} for a vehicle you own or hold a key for, parked here.', { kind: word });
   }
   return d.mode === 'virtual'
-    ? t('New locks: every key given to others stops working.')
-    : t('New locks and a new {kind}: every other key stops working.', { kind: word });
+    ? t('Owners only. New locks: every key given to others stops working.')
+    : t('Owners only. New locks and a new {kind}: every other key stops working.', { kind: word });
 }
 
 /** What the customer walks away with. */
@@ -83,8 +101,20 @@ function outcome(id: LocksmithServiceId, d: LocksmithOpenData, v: LocksmithVehic
     if (d.mode === 'virtual') return t('Temporary key · {hours} h', { hours: Math.round(d.tempHours) });
     return fob ? t('New fob · {plate}', { plate: v.plate }) : t('New key · {plate}', { plate: v.plate });
   }
-  if (d.mode === 'virtual') return v.isOwner ? t('New locks') : t('New locks + temporary key');
+  if (d.mode === 'virtual') return t('New locks');
   return fob ? t('New locks + fob') : t('New locks + key');
+}
+
+/** Title of the confirmation: what is bought, for how much. */
+function confirmTitle(id: LocksmithServiceId, d: LocksmithOpenData, v: LocksmithVehicle, price: number): string {
+  const kind = v.keyType === 'fob' ? t('fob') : t('key');
+  if (price <= 0) return t('{service}?', { service: serviceTitle(id) });
+  const p = money(price);
+  if (id === 'duplicate') return t('Pay {price} for a spare {kind}?', { price: p, kind });
+  if (id === 'program') {
+    return d.mode === 'virtual' ? t('Pay {price} for a temporary key?', { price: p }) : t('Pay {price} for a new {kind}?', { price: p, kind });
+  }
+  return t('Pay {price} to change the locks?', { price: p });
 }
 
 interface Done {
@@ -114,6 +144,8 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Done | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // the order waiting for its confirmation (vehicle + service at the moment Pay was pressed)
+  const [confirm, setConfirm] = useState<{ plate: string; service: LocksmithServiceId } | null>(null);
 
   // picking another vehicle picks the first service it can get
   const pick = (p: string) => {
@@ -137,13 +169,22 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
   else if (short) reason = t('You cannot afford this: you have {money}', { money: money(data.money) });
   const canPay = reason === null && !busy;
 
-  const order = async () => {
+  /** Pay / Enter: ask first (money is taken, materials used; new locks lock others out). */
+  const order = () => {
     if (!v || !service || !canPay) return;
+    setConfirm({ plate: v.plate, service: service.id });
+  };
+
+  /** The confirmation's button: the server checks and runs the service. */
+  const pay = async () => {
+    if (!confirm || busy) return;
+    const { plate: p, service: sid } = confirm;
     setBusy(true);
-    const res = await request('locksmith:service', { locksmithId: data.id, service: service.id, plate: v.plate });
+    const res = await request('locksmith:service', { locksmithId: data.id, service: sid, plate: p });
     setBusy(false);
+    setConfirm(null);
     if (!res.ok || !res.data) return;
-    setDone({ plate: v.plate, service: service.id, message: res.data.message, at: Date.now() });
+    setDone({ plate: p, service: sid, message: res.data.message, at: Date.now() });
     toast({ type: 'success', message: res.data.message });
     if (res.data.data && useUi.getState().apps.locksmith.open) useUi.getState().openApp('locksmith', res.data.data);
   };
@@ -158,8 +199,11 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
 
   /* ── keyboard ── */
   useEffect(() => {
+    // the confirmation has the keyboard (its focused Pay button, Esc cancels)
+    if (confirm) return;
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && flat.length) {
         e.preventDefault();
@@ -172,8 +216,17 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
         const next = services[Math.max(0, Math.min(services.length - 1, i + (e.key === 'ArrowRight' ? 1 : -1)))];
         if (next) setServiceId(next.id);
       } else if (e.key === 'Enter') {
+        // the service card already picked (focused after a mouse pick): Enter orders it, as the
+        // footer says; any other focused button (another card, Refresh) does what it says
+        const card = el?.closest<HTMLElement>('.nz-smith__card');
+        if (card && card.getAttribute('aria-checked') === 'true') {
+          e.preventDefault();
+          order();
+          return;
+        }
+        if (el && el.closest('button, a, [role="button"]')) return;
         e.preventDefault();
-        void order();
+        order();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -223,7 +276,7 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
           <span className="nz-smith__spacer" />
           {flat.length > 1 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Vehicle')} />}
           {v && services.length > 1 && <KeyHint keys={['ArrowLeft', 'ArrowRight']} label={t('Service')} />}
-          {canPay && <KeyHint keys={['Enter']} label={t('Pay')} />}
+          {canPay && <KeyHint keys={['Enter']} label={t('Order')} />}
           <KeyHint keys={['Esc']} label={t('Close')} />
         </>
       }
@@ -334,7 +387,7 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
                     icon="money"
                     disabled={!canPay}
                     loading={busy}
-                    onClick={() => void order()}
+                    onClick={order}
                     className="nz-smith__go"
                   >
                     {service && service.price > 0 ? t('Pay {price}', { price: money(service.price) }) : t('Confirm')}
@@ -371,7 +424,119 @@ function Locksmith({ data, close }: { data: LocksmithOpenData; close: () => void
           )}
         </main>
       </div>
+      <OrderConfirm
+        data={data}
+        order={confirm}
+        vehicle={confirm ? (flat.find((x) => x.plate === confirm.plate) ?? null) : null}
+        service={confirm ? (services.find((x) => x.id === confirm.service) ?? null) : null}
+        busy={busy}
+        onConfirm={() => void pay()}
+        onCancel={() => setConfirm(null)}
+      />
     </Window>
+  );
+}
+
+/* ── order confirmation ───────────────────────────────────────────────── */
+
+function OrderConfirm({
+  data,
+  order,
+  vehicle,
+  service,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  data: LocksmithOpenData;
+  order: { plate: string; service: LocksmithServiceId } | null;
+  vehicle: LocksmithVehicle | null;
+  service: LocksmithService | null;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const open = !!order && !!vehicle && !!service;
+  const v = vehicle;
+  const s = service;
+  const rekey = s?.id === 'rekey';
+  const price = s?.price ?? 0;
+  const after = data.money - price;
+  const accountLabel = data.account === 'bank' ? t('Bank') : t('Cash');
+  return (
+    <ConfirmDialog
+      className="nz-smith-confirm"
+      open={open}
+      tone={rekey || data.illegal ? 'red' : 'teal'}
+      icon={s ? serviceIcon(s.id) : 'key'}
+      title={s && v ? confirmTitle(s.id, data, v, price) : ''}
+      message={
+        s && v ? (
+          <>
+            {t('You get: {what}', { what: outcome(s.id, data, v) })}
+            {'. '}
+            {t('The money and materials are taken when the work is done.')}
+          </>
+        ) : null
+      }
+      confirmLabel={price > 0 ? t('Pay {price}', { price: money(price) }) : t('Confirm')}
+      busy={busy}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
+      {s && v && (
+        <>
+          <div className="nz-smith-confirm__sum">
+            <div className="nz-smith-confirm__row">
+              <span>
+                <Icon name="car" size={12} strokeWidth={1.9} />
+                {t('Vehicle')}
+              </span>
+              <span className="nz-smith-confirm__veh">
+                <b title={nameOf(v)}>{nameOf(v)}</b>
+                <PlateTag plate={v.plate} size="sm" />
+              </span>
+            </div>
+            <div className="nz-smith-confirm__row">
+              <span>
+                <Icon name={serviceIcon(s.id)} size={12} strokeWidth={1.9} />
+                {t('Service')}
+              </span>
+              <b>{serviceTitle(s.id)}</b>
+            </div>
+            <div className="nz-smith-confirm__row">
+              <span>
+                <Icon name="wrench" size={12} strokeWidth={1.9} />
+                {t('Materials')}
+              </span>
+              <b>{s.materials.length ? s.materials.map((m) => `${m.count}× ${m.label}`).join(', ') : t('None')}</b>
+            </div>
+            <div className="nz-smith-confirm__row is-total">
+              <span>
+                <Icon name="money" size={12} strokeWidth={1.9} />
+                {t('From {account}', { account: accountLabel })}
+              </span>
+              <b>
+                {price > 0 ? money(price) : t('Free')}
+                <small>{t('{money} left', { money: money(Math.max(0, after)) })}</small>
+              </b>
+            </div>
+          </div>
+          {rekey && (
+            <div className="nz-smith-confirm__warn">
+              <Icon name="warning" size={14} strokeWidth={1.8} />
+              <span>{t('Every other key of {plate} stops working, including keys you gave to others.', { plate: v.plate })}</span>
+            </div>
+          )}
+          {data.illegal && (
+            <div className="nz-smith-confirm__warn is-amber">
+              <Icon name="warning" size={14} strokeWidth={1.8} />
+              <span>{t('No questions asked: word gets around, the police may hear about it.')}</span>
+            </div>
+          )}
+        </>
+      )}
+    </ConfirmDialog>
   );
 }
 
@@ -431,17 +596,31 @@ function RailGroup({
   );
 }
 
+/** What the player's key is, in words: the owner's access, a garage share / fleet access, a
+ *  virtual key the owner gave, a temporary key. */
+function keyWord(v: LocksmithVehicle): { text: string; tone: 'teal' | 'blue' | 'amber' } | null {
+  if (!v.hasKey) return null;
+  if (v.keyKind === 'temp') return { text: t('Temporary key'), tone: 'amber' };
+  // 'owner' = ownership itself, or the access of a garage share / job or gang fleet
+  if (v.keyKind === 'owner') return v.isOwner ? { text: t('Owner'), tone: 'teal' } : { text: t('Shared access'), tone: 'blue' };
+  if (v.keyKind === 'virtual') return { text: t('Virtual key'), tone: 'blue' };
+  return null;
+}
+
 function KeyChip({ v, illegal }: { v: LocksmithVehicle; illegal: boolean }) {
   if (v.keyItems > 0) {
     return (
-      <span className="nz-smith__chip is-white">
+      <span
+        className={cx('nz-smith__chip', v.unregistered ? 'is-amber' : 'is-white')}
+        title={v.unregistered ? t('Unregistered key: it opens the vehicle, a licensed locksmith will not register it') : undefined}
+      >
         <Icon name="key" size={10} strokeWidth={2.2} />
         {v.keyType === 'fob' ? t('Fob ×{n}', { n: v.keyItems }) : t('Key ×{n}', { n: v.keyItems })}
       </span>
     );
   }
-  if (v.hasKey && v.keyKind === 'temp') return <span className="nz-smith__chip is-amber">{t('Temporary key')}</span>;
-  if (v.hasKey) return <span className="nz-smith__chip is-blue">{t('Virtual key')}</span>;
+  const word = keyWord(v);
+  if (word) return <span className={cx('nz-smith__chip', `is-${word.tone}`)}>{word.text}</span>;
   if (v.isOwner) return <span className="nz-smith__chip">{t('Papers')}</span>;
   return <span className={cx('nz-smith__chip', illegal ? 'is-red' : undefined)}>{t('No key')}</span>;
 }
@@ -458,13 +637,15 @@ function Hero({ v, data }: { v: LocksmithVehicle; data: LocksmithOpenData }) {
   if (v.isOwner) facts.push({ icon: 'crown', text: t('You own it') });
   else if (v.owned) facts.push({ icon: 'user', text: t('Someone else’s vehicle'), tone: data.illegal ? 'red' : undefined });
   else facts.push({ icon: 'user', text: t('No registered owner') });
-  if (v.keyItems > 0)
+  const word = keyWord(v);
+  if (v.keyItems > 0) {
     facts.push({
       icon: 'key',
       text: v.keyType === 'fob' ? t('{n} fob(s) in your pockets', { n: v.keyItems }) : t('{n} key(s) in your pockets', { n: v.keyItems }),
     });
-  else if (v.hasKey) facts.push({ icon: 'key', text: v.keyKind === 'temp' ? t('Temporary key') : t('Virtual key') });
-  else facts.push({ icon: 'ban', text: t('No key'), tone: 'grey' });
+    if (v.unregistered) facts.push({ icon: 'warning', text: t('Unregistered key'), tone: 'amber' });
+  } else if (word && !(word.tone === 'teal' && v.isOwner)) facts.push({ icon: 'key', text: word.text, tone: word.tone === 'amber' ? 'amber' : undefined });
+  else if (!word) facts.push({ icon: 'ban', text: t('No key'), tone: 'grey' });
   return (
     <div className="nz-smith__hero">
       <div className="nz-smith__heroimg">
@@ -504,16 +685,22 @@ function ShopRules({ data }: { data: LocksmithOpenData }) {
         { icon: 'warning', title: t('Risky business'), text: t('Word gets around: the police may hear about it.'), tone: 'red' },
         {
           icon: 'key',
-          title: data.mode === 'virtual' ? t('Temporary keys') : t('Copies need a key'),
+          title: data.mode === 'virtual' ? t('Temporary keys') : t('Unregistered keys'),
           text:
             data.mode === 'virtual'
-              ? t('Programmed keys last {h} h.', { h: Math.round(data.tempHours) })
-              : t('A duplicate is cut from a key you bring.'),
+              ? t('Programmed keys last {h} h and never reach a tracker.', { h: Math.round(data.tempHours) })
+              : t('They open the vehicle, never its tracker. Copies need a key you bring.'),
         },
       ]
     : [
-        { icon: 'shield', title: t('Owners and key holders'), text: t('Bring a key, or the papers of a vehicle you own.') },
-        { icon: 'clock', title: t('Temporary keys do not count'), text: t('Hotwired or robbed keys never make new keys.') },
+        data.mode === 'virtual'
+          ? { icon: 'shield', title: t('Your own vehicles'), text: t('Owners only: bring the vehicle.') }
+          : { icon: 'shield', title: t('Owners and key holders'), text: t('Bring a key, or the papers of a vehicle you own.') },
+        {
+          icon: 'clock',
+          title: t('Borrowed access does not count'),
+          text: t('Temporary keys, back-alley keys, garage shares and job vehicles never make new keys.'),
+        },
         { icon: 'pin', title: t('Park it here'), text: t('Programming and new locks need the vehicle within {m} m.', { m: range }) },
       ];
   return (

@@ -12,13 +12,19 @@
     financed after sending; expiry; decline / withdraw; a party leaving; success (owner,
     money, blank consumed, rekey: old key dead and buyer key item, history entry, signed
     copies, logs); reuse attempts; signed copy view (verified / edited / garbage); the
-    garage sale helper (NZ.Actions.sellVehicle) and its rollback.
+    garage sale helper (NZ.Actions.sellVehicle) and its rollback; resend cooldown after a "no";
+    the draft reopened in its sent state; the buyer's balance poll; another model / an untracked
+    copy wearing the registration's text; a garaged registration; keys moving with an external
+    key resource; money reasons.
     fake plates: item use; start refusals (rear, screwdriver, occupied, towed); server timer
     (too early = attempt used up); install (unique plate from the pattern, real plate kept for
     keys / locks, state bags, client tampering put back, police lookup, contract blocked);
     pattern collisions; removal (item back, bags cleared); screwdriver breaking; garage store
     (real plate saved, fake plate returned); garage retrieve never deleting another model
-    showing the plate but removing a fake-plated copy of the vehicle itself; resource restart.
+    showing the plate but removing a fake-plated copy of the vehicle itself; resource restart
+    (the garage adopts the fake-plated vehicle back: no second copy); recover returning the item;
+    pattern with a space; rear corner refused; keys for the fake text with an external key
+    resource (installer with access, absent owner; never a stranger).
 
   Usage (from the resource root):  lua5.4 tools/smoke/contracts.lua
 ]]
@@ -347,14 +353,17 @@ NZ.Bridge.getGang = function() return nil end
 NZ.Bridge.getPlayer = function() return nil end
 NZ.Bridge.notify = function(src, message, kind) TriggerClientEvent('nz:client:notify', src, { type = kind, message = message }) end
 NZ.Bridge.getMoney = function(src, account) return wallet(account)[tonumber(src)] or 0 end
-NZ.Bridge.removeMoney = function(src, account, amount)
+local reasons = {}           -- money reasons in call order: { op, src, reason }
+NZ.Bridge.removeMoney = function(src, account, amount, reason)
+  reasons[#reasons + 1] = { op = 'remove', src = tonumber(src), reason = reason }
   local w = wallet(account)
   src = tonumber(src)
   if not w[src] or w[src] < amount then return false end
   w[src] = w[src] - amount
   return true
 end
-NZ.Bridge.addMoney = function(src, account, amount)
+NZ.Bridge.addMoney = function(src, account, amount, reason)
+  reasons[#reasons + 1] = { op = 'add', src = tonumber(src), reason = reason }
   if payoutFails and tonumber(src) == 1 then return false end
   local w = wallet(account)
   src = tonumber(src)
@@ -362,8 +371,8 @@ NZ.Bridge.addMoney = function(src, account, amount)
   w[src] = (w[src] or 0) + amount
   return true
 end
-NZ.Bridge.pay = function(src, amount)
-  if NZ.Bridge.removeMoney(src, 'bank', amount) then return true, 'bank' end
+NZ.Bridge.pay = function(src, amount, reason)
+  if NZ.Bridge.removeMoney(src, 'bank', amount, reason) then return true, 'bank' end
   return false, nil
 end
 NZ.Bridge.isAdmin = function() return false end
@@ -664,10 +673,29 @@ check(send(1, { terms = string.rep('x', 601) }).ok == false, 'terms over 600 cha
 local savedPos = playerPos[1]
 spawnVehicle('PRV001', 'sultan', vec3(-3, 0, 0))
 check(send(1, { plate = 'PRV001' }).ok == false, 'vehicle whose last garage the buyer cannot open refused')
+-- only the vehicle itself counts: the tracked car is elsewhere, look-alikes stand next to the seller
+entities[car].coords = vec3(80, 0, 0)
+local lookalike = spawnVehicle('ABC123', 'blista', vec3(3, -1, 0))
+local res = send(1)
+check(res.ok == false and tostring(res.error):find('next to you', 1, true) ~= nil, 'another model wearing the plate: not the vehicle')
+local twin = spawnVehicle('ABC123', 'sultan', vec3(3, 1, 0))
+check(send(1).ok == false, 'untracked same-model copy while the tracked car is elsewhere: not the vehicle')
+local refreshed = cb('nz:contract:refresh', 1, {})
+local listedAgain = {}
+for _, v in ipairs(refreshed.ok and refreshed.data.vehicles or {}) do listedAgain[v.plate] = true end
+check(refreshed.ok and not listedAgain.ABC123, 'draft list: look-alikes are not offered')
+DeleteEntity(lookalike)
+DeleteEntity(twin)
+entities[car].coords = vec3(4, 0, 0)
+-- a registration parked in a garage (a copy stands next to the seller)
+local garCopy = spawnVehicle('GAR001', 'sultan', vec3(2, -2, 0))
+res = send(1, { plate = 'GAR001' })
+check(res.ok == false and tostring(res.error):find('out of the garage', 1, true) ~= nil, 'garaged registration: refused')
+DeleteEntity(garCopy)
 
 -- 3. buyer cannot pay: one attempt, voided, nothing changes, blank given back
 bank[2] = 100
-local res = send(1)
+res = send(1)
 check(res.ok and type(res.data) == 'table' and type(res.data.contractId) == 'string', 'contract sent')
 local id1 = res.data and res.data.contractId
 local review = lastEvent('nz:client:contract:open', 2)
@@ -675,6 +703,22 @@ check(review and review.payload.mode == 'review' and review.payload.contractId =
 check(review and review.payload.canAfford == false, 'review says the buyer cannot afford it')
 check(review and review.payload.expiresIn == 120 and review.payload.sellerSignature == SIG, 'review: countdown + seller signature')
 check(send(1).ok == false, 'one pending contract per seller')
+-- the buyer's balance poll
+check(cb('nz:contract:balance', 3, { contractId = id1 }).ok == false, 'balance: only the buyer may ask')
+local bal = cb('nz:contract:balance', 2, { contractId = id1 })
+check(bal.ok and bal.data.canAfford == false, 'balance: cannot afford yet')
+bank[2] = 60000
+bal = cb('nz:contract:balance', 2, { contractId = id1 })
+check(bal.ok and bal.data.canAfford == true, 'balance: money arrived, can afford now')
+bank[2] = 100
+-- the seller closed the window: using a blank contract again reopens it in its sent state
+run(Contracts.useItem, 1, 'vehicle_contract', 1, {}, 'contract')
+local reopened = lastEvent('nz:client:contract:open', 1).payload
+local sentInfo = type(reopened.sent) == 'table' and reopened.sent or {}
+check(reopened.mode == 'draft' and sentInfo.id == id1 and sentInfo.price == 50000 and sentInfo.signature == SIG
+  and sentInfo.buyer and sentInfo.buyer.serverId == 2 and sentInfo.plate == 'ABC123'
+  and type(sentInfo.expiresIn) == 'number' and sentInfo.expiresIn <= 120, 'draft reopened in its sent state')
+check(#reopened.vehicles == 1 and reopened.vehicles[1].plate == 'ABC123', 'reopened draft: the contract vehicle')
 check(cb('nz:contract:sign', 3, { contractId = id1, signature = SIG }).ok == false, 'only the buyer can sign')
 check(cb('nz:contract:sign', 2, { contractId = id1, signature = 'M1 1' }).ok == false, 'buyer needs a real signature')
 check(Contracts.pending()[1] and Contracts.pending()[1].state == 'pending', 'a bad signature does not use the contract up')
@@ -711,22 +755,40 @@ local id4 = res.data and res.data.contractId
 advance(121000)
 check(lastEvent('nz:client:contract:status', 1).payload.status == 'expired', 'expiry pushed to the seller')
 check(lastEvent('nz:client:contract:status', 2).payload.status == 'expired', 'expiry pushed to the buyer')
+check(lastEvent('nz:client:contract:status', 1).payload.resendIn == 60
+  and lastEvent('nz:client:contract:status', 2).payload.resendIn == nil, 'expiry: the seller is told the resend cooldown')
 check(notified(1, 'expired') and notified(2, 'expired'), 'expiry: both notified')
 local statusCount = countEvents('nz:client:contract:status', 2)
 check(cb('nz:contract:sign', 2, { contractId = id4, signature = SIG }).ok == false, 'expired contract cannot be signed')
 check(countEvents('nz:client:contract:status', 2) == statusCount, 'signing an expired contract changes nothing more')
 -- the draft session lasts 15 minutes after the item use: use the item again
 run(Contracts.useItem, 1, 'vehicle_contract', 1, {}, 'contract')
+-- an expired contract is a "no": the same buyer cannot be sent another one for a minute
+res = send(1)
+check(res.ok == false and tostring(res.error):find('did not sign', 1, true) ~= nil
+  and not tostring(res.error):find('turned down', 1, true), 'resend after expiry within the cooldown: refused (not "turned down")')
+advance(60000)
 
 -- 7. decline / withdraw / player leaving
 res = send(1)
 check(cb('nz:contract:decline', 2, { contractId = res.data.contractId }).ok == true, 'buyer declines')
 check(notified(1, 'declined'), 'decline: seller notified')
+check(lastEvent('nz:client:contract:status', 1).payload.status == 'declined'
+  and lastEvent('nz:client:contract:status', 1).payload.resendIn == 60, 'decline: the seller is told the resend cooldown')
 res = send(1)
+check(res.ok == false and tostring(res.error):find('turned down', 1, true) ~= nil, 'resend to the buyer who declined: refused for a while')
+res = send(1, { buyer = 4 })
+check(res.ok == true, 'another buyer can get a contract during the cooldown')
+cb('nz:contract:decline', 1, { contractId = res.data and res.data.contractId })
+advance(60000)
+res = send(1)
+check(res.ok == true, 'after the cooldown the buyer can get a contract again')
 check(cb('nz:contract:decline', 1, { contractId = res.data.contractId }).ok == true, 'seller withdraws')
 check(notified(2, 'withdrew'), 'withdraw: buyer notified')
 check(lastEvent('nz:client:contract:status', 2).payload.status == 'withdrawn', 'withdraw: status pushed')
+check(lastEvent('nz:client:contract:status', 1).payload.resendIn == nil, 'withdraw: no resend cooldown')
 res = send(1)
+check(res.ok == true, 'a withdrawal starts no cooldown')
 local idDrop = res.data.contractId
 online[2] = nil
 TriggerEvent('playerDropped', 'quit')
@@ -739,8 +801,24 @@ check(cb('nz:contract:sign', 2, { contractId = idDrop, signature = SIG }).ok == 
 res = send(1, { terms = 'Sold as seen.\nKeys on signing.' })
 local id5 = res.data.contractId
 local oldKey = NZ.Inventory.find(1, 'vehicle_key')[1]
+-- another operation holds the vehicle at this instant: nothing checked, the attempt is kept
+local holding = true
+CreateThread(function()
+  Vehicles.withLock('ABC123', function() while holding do Wait(100) end end)
+end)
+advance(100)
+local sellerStatus = countEvents('nz:client:contract:status', 1)
+res = cb('nz:contract:sign', 2, { contractId = id5, signature = SIG })
+check(res.ok == false and tostring(res.error):find('busy', 1, true) ~= nil, 'vehicle busy: refused with the busy message')
+check(Contracts.pending()[1] and Contracts.pending()[1].id == id5 and Contracts.pending()[1].state == 'pending',
+  'vehicle busy: the contract stays pending (the attempt is not used up)')
+check(countEvents('nz:client:contract:status', 1) == sellerStatus and db.ABC123.owner == 'CID001'
+  and count(1, 'vehicle_contract') == 1, 'vehicle busy: nothing told, charged or consumed')
+holding = false
+advance(200)
 res = cb('nz:contract:sign', 2, { contractId = id5, signature = SIG })
 check(res.ok == true and type(res.data) == 'table' and type(res.data.signedAt) == 'number', 'buyer signs and pays')
+check(res.data and res.data.key == 'item' and res.data.copy == true, 'sign result: key item and signed copy given')
 check(db.ABC123.owner == 'CID002', 'owner changed to the buyer')
 check(bank[2] == 10000 and bank[1] == 51000, 'buyer charged, seller paid (Config.Contracts.account)')
 check(count(1, 'vehicle_contract') == 0, 'blank contract consumed')
@@ -749,7 +827,15 @@ check(favourites['CID001ABC123'] == false, "seller's favourite removed")
 local entry = history.ABC123 and history.ABC123[1]
 check(entry and entry.data.via == 'contract' and entry.data.contractId == id5 and entry.data.price == 50000
   and entry.data.identifier == 'CID002' and entry.data.from == 'CID001', 'ownership history entry via contract')
+check(entry and entry.data.signedAt == res.data.signedAt and entry.data.model == 'sultan'
+  and type(entry.data.digest) == 'string' and #entry.data.digest == 8, 'history keeps signedAt, model and the terms / signatures digest')
+local saleReasons = {}
+for _, r in ipairs(reasons) do saleReasons[r.op .. r.src .. ':' .. tostring(r.reason)] = true end
+check(saleReasons['remove2:nayzeee-garages:vehicle-purchase-contract'] and saleReasons['add1:nayzeee-garages:vehicle-sale-contract'],
+  'contract money reasons: purchase for the buyer, sale for the seller')
 check(Vehicles.out.ABC123 and Vehicles.out.ABC123.identifier == 'CID002', 'tracked vehicle follows the new owner')
+check(Vehicles.out.ABC123 and Vehicles.out.ABC123.src == 2, 'tracked vehicle: the buyer has it out now (key bridges trust out.src)')
+check(entry and entry.data.digestVersion == 2, 'history entry: digest version 2')
 check(oldKey ~= nil and not run(CarLock.verifyKeyItem, oldKey.metadata, 'ABC123'), "seller's old key no longer works (rekey)")
 check(run(CarLock.hasKey, 1, 'ABC123') == false, 'seller has no key any more')
 local buyerHas, buyerKind = run(CarLock.hasKey, 2, 'ABC123')
@@ -761,6 +847,7 @@ check(md.contractId == id5 and md.plate == 'ABC123' and md.price == 50000 and md
   and md.sellerSignature == SIG and md.buyerSignature == SIG and md.seller == 'Marcus Hale', 'signed copy metadata')
 check(lastLog('vehicle.sell', 'action', 'contract') ~= nil, 'sale logged')
 check(lastEvent('nz:client:contract:status', 1).payload.status == 'signed', 'seller window told: signed')
+check(lastEvent('nz:client:contract:status', 1).payload.copy == true, 'seller window told: signed copy given')
 
 -- 9. reuse attempts
 check(cb('nz:contract:sign', 2, { contractId = id5, signature = SIG }).ok == false, 'signed contract cannot be signed again')
@@ -783,6 +870,40 @@ local v2 = lastEvent('nz:client:contract:open', 2).payload
 check(v2.sellerSignature == '' and not tostring(v2.seller.name):find('<', 1, true), 'copy fields cleaned again')
 run(Contracts.useItem, 2, 'signed_contract', 1, { plate = 'x' }, 'signedContract')
 check(notified(2, 'unreadable'), 'garbage metadata: error notification')
+local function verifiedWith(patch)
+  local m = copy(md)
+  for k, v in pairs(patch) do m[k] = v end
+  run(Contracts.useItem, 2, 'signed_contract', 1, m, 'signedContract')
+  return lastEvent('nz:client:contract:open', 2).payload.verified
+end
+check(verifiedWith({}) == true, 'untouched copy verified')
+check(verifiedWith({ buyer = 'Someone Else' }) == false, 'edited buyer name: not verified')
+check(verifiedWith({ seller = 'Someone Else' }) == false, 'edited seller name: not verified')
+check(verifiedWith({ terms = 'Sold with a full warranty.' }) == false, 'edited terms: not verified')
+check(verifiedWith({ signedAt = md.signedAt - 86400 }) == false, 'edited date: not verified')
+check(verifiedWith({ model = 'adder' }) == false, 'edited model: not verified')
+check(verifiedWith({ buyerSignature = 'M10 10L200 100L300 20' }) == false, 'replaced signature: not verified')
+check(verifiedWith({ hash = joaat('adder') }) == false, 'edited vehicle hash (the label shown): not verified')
+check(verifiedWith({ mileage = (tonumber(md.mileage) or 0) + 1000 }) == false, 'edited mileage: not verified')
+check(verifiedWith({ engine = 100, body = 100 }) == false, 'edited condition: not verified')
+check(verifiedWith({ account = 'cash' }) == false, 'edited payment account: not verified')
+check(verifiedWith({ createdAt = (tonumber(md.createdAt) or 0) - 3600 }) == false, 'edited date written: not verified')
+-- metadata coming back from an inventory as JSON: 1234.0 read as 1234, integers as floats
+check(verifiedWith({ mileage = (tonumber(md.mileage) or 0) + 0.0, hash = (tonumber(md.hash) or 0) + 0.0,
+  engine = (tonumber(md.engine) or 0) + 0.0, createdAt = (tonumber(md.createdAt) or 0) + 0.0 }) == true,
+  'number forms after a JSON round trip: still verified')
+-- a copy signed before the digest covered these fields (no digestVersion) keeps verifying
+local function fnv(text)
+  local h = 2166136261
+  for i = 1, #text do h = ((h ~ text:byte(i)) * 16777619) & 0xFFFFFFFF end
+  return ('%08x'):format(h)
+end
+local v2Data = copy(history.ABC123[1].data)
+history.ABC123[1].data.digestVersion = nil
+history.ABC123[1].data.digest = fnv(table.concat({ md.terms, md.sellerSignature, md.buyerSignature }, '\n'))
+check(verifiedWith({}) == true, 'version 1 copy (terms and signatures only): still verified')
+check(verifiedWith({ terms = 'Sold with a full warranty.' }) == false, 'version 1 copy: edited terms still caught')
+history.ABC123[1].data = v2Data
 
 -- 11. disabled
 Config.Contracts.enabled = false
@@ -804,6 +925,82 @@ local okFail, _, code = run(NZ.Actions.sellVehicle, garRow, { source = 1, identi
   { source = 2, identifier = 'CID002', name = 'Jade Ortiz' }, { via = 'sale', price = 100 })
 check(okFail == false and code == 'error' and db.GAR001.owner == 'CID001' and bank[2] == 9900, 'payout failure: sale reverted, buyer refunded')
 payoutFails = false
+-- the payout and its rollback both fail (database): the buyer paid and keeps it, logged for staff
+payoutFails = true
+db.GAR001.owner = 'CID001'
+garRow = NZ.DB.getVehicle('GAR001')
+local updateVehicle = NZ.DB.updateVehicle
+NZ.DB.updateVehicle = function(plate, fields)
+  if fields.owner == 'CID001' then return false end
+  return updateVehicle(plate, fields)
+end
+local okUnpaid, _, _, unpaid = run(NZ.Actions.sellVehicle, garRow, { source = 1, identifier = 'CID001', name = 'Marcus Hale' },
+  { source = 2, identifier = 'CID002', name = 'Jade Ortiz' }, { via = 'sale', price = 100 })
+check(okUnpaid == true and unpaid == true and db.GAR001.owner == 'CID002' and bank[2] == 9800,
+  'payout and rollback failed: the buyer keeps the vehicle they paid for, flagged unpaid')
+check(lastLog('security.sell', 'reason', 'payout and rollback failed: buyer keeps the vehicle, not refunded, seller unpaid') ~= nil,
+  'payout and rollback failed: logged for staff')
+NZ.DB.updateVehicle = updateVehicle
+payoutFails = false
+bank[2] = 9900
+-- garage sale of a vehicle standing in the world: the buyer gets a key, the seller loses theirs
+addRow('OUT001')
+local outCar, outNet = spawnVehicle('OUT001', 'sultan', vec3(3, -3, 0))
+Vehicles.setOut('OUT001', { netId = outNet, entity = outCar, src = 1, identifier = 'CID001', garageKey = 'L1' })
+check(run(CarLock.giveKeyItem, 1, 'OUT001', { model = 'sultan' }) == true, 'out vehicle: seller has a key item')
+local outKey = NZ.Inventory.find(1, 'vehicle_key')
+outKey = outKey[#outKey]
+local outRow = NZ.DB.getVehicle('OUT001')
+check(run(NZ.Actions.sellVehicle, outRow, { source = 1, identifier = 'CID001', name = 'Marcus Hale' },
+  { source = 2, identifier = 'CID002', name = 'Jade Ortiz' }, { via = 'sale', price = 100 }) == true, 'out vehicle: sold')
+check(Vehicles.out.OUT001.src == 2 and Vehicles.out.OUT001.identifier == 'CID002', 'out vehicle: tracked entry moves to the buyer')
+check(run(NZ.Actions.handBuyerKey, 2, 'OUT001', 'sultan', 'sale') == 'item', 'handBuyerKey: key item in physical mode')
+local outHas, outKind = run(CarLock.hasKey, 2, 'OUT001')
+check(outHas == true and outKind == 'item', 'out vehicle: the buyer holds a working key')
+check(run(CarLock.hasKey, 1, 'OUT001') == false and not run(CarLock.verifyKeyItem, outKey.metadata, 'OUT001'),
+  "out vehicle: the seller's key stopped working")
+local carLockOnFn = NZ.CarLock.enabled
+NZ.CarLock.enabled = function() return false end
+check(run(NZ.Actions.handBuyerKey, 2, 'OUT001', 'sultan', 'sale') == nil, 'handBuyerKey: nothing when the built-in car lock is off')
+NZ.CarLock.enabled = carLockOnFn
+local gsReasons = {}
+for _, r in ipairs(reasons) do gsReasons[r.op .. r.src .. ':' .. tostring(r.reason)] = true end
+check(gsReasons['remove2:nayzeee-garages:vehicle-purchase'] and gsReasons['add1:nayzeee-garages:vehicle-sale']
+  and gsReasons['add2:nayzeee-garages:vehicle-purchase-refund'], 'garage sale money reasons unchanged (purchase / sale / purchase-refund)')
+
+-- 13. external key resource (built-in car lock off): keys move with the sale
+addRow('EXT001')
+local ext, extNet = spawnVehicle('EXT001', 'sultan', vec3(-2, 2, 0))
+Vehicles.setOut('EXT001', { netId = extNet, entity = ext, src = 1, identifier = 'CID001', garageKey = 'L1' })
+local carLockEnabled = NZ.CarLock.enabled
+local keysServer = { give = NZ.KeysServer.give, remove = NZ.KeysServer.remove, resource = NZ.KeysServer.resource }
+local serverKeyCalls = {}
+NZ.CarLock.enabled = function() return false end
+NZ.KeysServer.resource = function() return 'qb-vehiclekeys' end
+NZ.KeysServer.give = function(src, netId, plate) serverKeyCalls[#serverKeyCalls + 1] = { 'give', src, netId, plate } return false end
+NZ.KeysServer.remove = function(src, netId, plate) serverKeyCalls[#serverKeyCalls + 1] = { 'remove', src, netId, plate } return false end
+run(Contracts.useItem, 1, 'vehicle_contract', 1, {}, 'contract')
+res = send(1, { plate = 'EXT001', price = 5000 })
+check(res.ok == true, 'external keys: contract sent')
+res = cb('nz:contract:sign', 2, { contractId = res.data and res.data.contractId, signature = SIG })
+check(res.ok == true and res.data.key == 'external' and db.EXT001.owner == 'CID002', 'external keys: sold, key kind external')
+local bk, sk = lastEvent('nz:client:contract:keys', 2), lastEvent('nz:client:contract:keys', 1)
+check(bk and bk.payload.give == true and bk.payload.plate == 'EXT001' and bk.payload.netId == extNet, 'external keys: buyer client gets the keys')
+check(sk and sk.payload.give == false and sk.payload.plate == 'EXT001', "external keys: seller client loses theirs")
+check(#serverKeyCalls == 2 and serverKeyCalls[1][1] == 'give' and serverKeyCalls[1][2] == 2
+  and serverKeyCalls[2][1] == 'remove' and serverKeyCalls[2][2] == 1, 'external keys: server-side systems asked first')
+NZ.KeysServer.resource = function() return nil end
+give(1, 'vehicle_contract', 1)
+addRow('EXT002')
+local ext2, ext2Net = spawnVehicle('EXT002', 'sultan', vec3(-2, -2, 0))
+Vehicles.setOut('EXT002', { netId = ext2Net, entity = ext2, src = 1, identifier = 'CID001', garageKey = 'L1' })
+run(Contracts.useItem, 1, 'vehicle_contract', 1, {}, 'contract')
+local keyEvents = countEvents('nz:client:contract:keys')
+res = send(1, { plate = 'EXT002', price = 100 })
+res = cb('nz:contract:sign', 2, { contractId = res.data and res.data.contractId, signature = SIG })
+check(res.ok == true and res.data.key == nil and countEvents('nz:client:contract:keys') == keyEvents, 'no key system: no key promised')
+NZ.CarLock.enabled = carLockEnabled
+NZ.KeysServer.give, NZ.KeysServer.remove, NZ.KeysServer.resource = keysServer.give, keysServer.remove, keysServer.resource
 
 ---------------------------------------------------------------------------------------
 -- Fake plates
@@ -837,6 +1034,11 @@ towed[gar2] = true
 check(start(1, gar2Net).ok == false, 'being towed: refused')
 towed[gar2] = nil
 check(start(3, gar2Net).ok == false, 'far away player: refused')
+playerPos[1] = vec3(10 + 1.9, -2.6, 0)
+check(start(1, gar2Net).ok == false, 'rear corner, off the long axis: refused')
+playerPos[1] = vec3(10 + 1.4, -0.6, 0)
+check(start(1, gar2Net).ok == false, 'beside the rear wheel (not behind): refused')
+playerPos[1] = vec3(10, -2.6, 0)
 
 res = start(1, gar2Net)
 check(res.ok and res.data.duration == 6000, 'install started (server timer)')
@@ -916,11 +1118,15 @@ check(Entity(npc).state.nzFakePlate == nil and Entity(npc).state.nzPlate == nil,
 check(not FakePlates.isFake(npc), 'no fake plate any more')
 check(start(1, npcNet, 'remove').ok == false, 'nothing to remove: refused')
 
--- screwdriver breaking
+-- screwdriver breaking (and an ESX style pattern with a space)
 Config.FakePlates.screwdriverBreakChance = 100
+Config.FakePlates.pattern = 'AAA 111'
 res = start(1, npcNet)
 advance(6000)
-check(finish(1, res.data.token).ok and count(1, 'screwdriver') == 0, 'screwdriver can break')
+done = finish(1, res.data.token)
+check(done.ok and count(1, 'screwdriver') == 0, 'screwdriver can break')
+check(done.ok and tostring(done.data.plate):match('^%u%u%u %d%d%d$') ~= nil, "pattern 'AAA 111' keeps its space")
+Config.FakePlates.pattern = '11AAA111'
 check(notified(1, 'screwdriver broke'), 'player told the screwdriver broke')
 Config.FakePlates.screwdriverBreakChance = 0
 give(1, 'screwdriver', 1)
@@ -934,6 +1140,18 @@ advance(500)
 check(FakePlates.realPlateOf(npc) == 'NPC111' and FakePlates.isFake(npc), 'fake plate restored after a restart')
 check(FakePlates.realPlateOf(gar2) == 'GAR002', 'garage vehicle fake plate restored after a restart')
 check(npcFake ~= 'NPC111', 'npc still shows its fake plate')
+-- the garage adopts the fake-plated vehicle back by its real plate: no second copy is spawned
+Vehicles.clearOut('GAR002')
+local getOut = NZ.DB.getOutVehicles
+NZ.DB.getOutVehicles = function() return { copy(db.GAR002) } end
+run(Vehicles.boot)
+check(Vehicles.out.GAR002 and Vehicles.out.GAR002.entity == gar2 and Vehicles.out.GAR002.adopted == true,
+  'restart: fake-plated garage vehicle adopted by its real plate')
+check(Entity(gar2).state.nzPlate == 'GAR002', 'restart: nzPlate is the real plate')
+Vehicles.out.GAR002.entity = nil -- only the network id known
+local isOutNow, outEntity = Vehicles.isOut('GAR002')
+check(isOutNow and outEntity == gar2, 'restart: the registration is out (garage / phone see it, no duplicate)')
+NZ.DB.getOutVehicles = getOut
 
 -- garage store: the fake plate comes off, the real plate is saved, the item comes back
 playerPos[1] = vec3(10, 0, 0)
@@ -974,6 +1192,63 @@ check(done.ok and Utils.plate(GetVehicleNumberPlateText(hidden)) ~= 'DEF456', 'c
 playerPos[1] = vec3(10, 0, 0)
 res = run(Vehicles.retrieve, 1, 'DEF456', session, { spawnIndex = 1 })
 check(res.ok == true and entities[hidden] == nil, 'fake-plated copy of the vehicle found by its real plate and removed')
+
+-- external key resource keyed on the plate text (built-in car lock off)
+addRow('KEY001')
+local kc, kcNet = spawnVehicle('KEY001', 'sultan', vec3(90, 0, 0), 0.0)
+local carLockOn, keysResource = NZ.CarLock.enabled, NZ.KeysServer.resource
+NZ.CarLock.enabled = function() return false end
+NZ.KeysServer.resource = function() return 'qb-vehiclekeys' end
+give(1, 'fake_plate', 1)
+playerPos[1] = vec3(90, -2.6, 0)
+res = start(1, kcNet)
+advance(6000)
+done = finish(1, res.data.token)
+check(done.ok and done.data.keys == true, 'external keys: the owner fitting a fake plate keeps keys (fake text)')
+res = start(1, kcNet, 'remove')
+advance(5000)
+check(finish(1, res.data.token).ok, 'external keys: fake plate removed again')
+give(4, 'fake_plate', 1)
+give(4, 'screwdriver', 1)
+playerPos[1] = vec3(0, 0, 0)
+playerPos[4] = vec3(90, -2.6, 0)
+local ownerKeyEvents = countEvents('nz:client:fakeplates:keys', 1)
+res = start(4, kcNet)
+advance(6000)
+done = finish(4, res.data.token)
+check(done.ok and done.data.keys == false, 'external keys: a stranger gets no keys for the fake text')
+local ownerEv = lastEvent('nz:client:fakeplates:keys', 1)
+check(countEvents('nz:client:fakeplates:keys', 1) == ownerKeyEvents + 1 and ownerEv.payload.plate == done.data.plate
+  and ownerEv.payload.netId == kcNet, 'external keys: the absent owner keeps keys to their car')
+check(countEvents('nz:client:fakeplates:keys', 4) == 0, 'external keys: nothing sent to the stranger')
+NZ.CarLock.enabled, NZ.KeysServer.resource = carLockOn, keysResource
+playerPos[4] = vec3(3, 1, 0)
+
+-- recover: the fake plate comes off and the item comes back before the entity is removed
+local requireSession = NZ.Access.requireSession
+NZ.Access.requireSession = function() return session end
+
+-- garage sale (offer + accept) of a vehicle standing next to the seller: the buyer gets a key
+addRow('OUT002')
+local o2, o2Net = spawnVehicle('OUT002', 'sultan', vec3(2, -3, 0))
+Vehicles.setOut('OUT002', { netId = o2Net, entity = o2, src = 1, identifier = 'CID001', garageKey = 'L1' })
+run(CarLock.giveKeyItem, 1, 'OUT002', { model = 'sultan' })
+bank[2] = 50000
+res = cb('nz:garage:sell', 1, { plate = 'OUT002', serverId = 2, price = 1000 })
+check(res.ok == true, 'garage sale of an out vehicle: offer sent')
+local offerEv = lastEvent('nz:client:sellOffer', 2)
+res = cb('nz:garage:sellRespond', 2, { offerId = offerEv and offerEv.payload.offerId, accept = true })
+check(res.ok == true and db.OUT002.owner == 'CID002', 'garage sale of an out vehicle: sold')
+local o2Has, o2Kind = run(CarLock.hasKey, 2, 'OUT002')
+check(o2Has == true and o2Kind == 'item', 'garage sale of an out vehicle: the buyer got a key item')
+check(run(CarLock.hasKey, 1, 'OUT002') == false and Vehicles.out.OUT002.src == 2, 'garage sale of an out vehicle: the seller has no key and no claim')
+check(lastLog('vehicle.sell', 'key', 'item') ~= nil, 'garage sale: key hand-out logged')
+local fpBefore = count(1, 'fake_plate')
+res = cb('nz:garage:recover', 1, { plate = 'KEY001' })
+check(res.ok == true and entities[kc] == nil and db.KEY001.state == 'garaged', 'recover: fake-plated vehicle back in the garage')
+check(count(1, 'fake_plate') == fpBefore + 1, 'recover: fake plate item returned (returnOnStore)')
+check(lastLog('vehicle.fakeplate', 'action', 'store') ~= nil, 'recover: fake plate removal logged')
+NZ.Access.requireSession = requireSession
 
 ---------------------------------------------------------------------------------------
 

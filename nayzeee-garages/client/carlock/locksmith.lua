@@ -23,7 +23,7 @@ local Utils = NZ.Utils
 local APP = 'locksmith'
 local PROMPT_RADIUS = 2.0        -- m: press-E prompt next to the counter
 local TARGET_DISTANCE = 2.5      -- m: target option reach
-local LEAVE_DISTANCE = 6.0       -- m: the open window closes beyond this
+local LEAVE_DISTANCE = 4.5       -- m: the open window closes beyond this (below the server's counter range, 5 m)
 local MODEL_TIMEOUT = 5000
 
 local shops = {}                 -- [id] = shop record

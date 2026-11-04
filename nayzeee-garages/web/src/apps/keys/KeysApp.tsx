@@ -5,8 +5,11 @@
  * stage, status strip, remote range gauge with the server's answer, tracker, key details,
  * key holders (owner, virtual mode) and the dock: Lock / Unlock, Locate, Alarm, Share.
  * Every action asks Lua -> the server (keys:*); Lua pushes `live` (what this client sees),
- * `tracking` (the located vehicle) and fresh data after key changes ('update').
- * Keyboard: ↑ ↓ select, Enter lock / unlock, L locate, / search, Esc close.
+ * `tracking` (the located vehicle) and fresh data after key changes ('update'). Action
+ * results are kept as patches on top of the server data (never written into data.keys: the
+ * temporary key countdowns stay anchored to the moment the server data arrived).
+ * Keyboard: ↑ ↓ select, Enter lock / unlock (Enter on a focused button clicks that button),
+ * L locate, / search, Esc or the key ring keybind (data.closeKey) close.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog, EmptyState, Icon, IconButton, KeyHint, Window, cx } from '@/components/ui';
@@ -21,7 +24,7 @@ import { KeyShow } from './KeyShow';
 import type { Answer, HolderState } from './KeyShow';
 import { ShareModal } from './ShareModal';
 import { FobGlyph } from './glyphs';
-import { GROUPS, displayName, leftNow, matchesQuery, merged, sortKeys } from './model';
+import { GROUPS, displayName, leftNow, matchesQuery, merged, reasonLabel, sortKeys } from './model';
 import type { KeyFilter } from './model';
 import './keys.css';
 
@@ -32,13 +35,11 @@ export function KeysApp() {
   return <KeyRing data={data} close={close} />;
 }
 
-const patchKey = (plate: string, patch: Partial<KeyEntry>) => {
-  const d = useUi.getState().apps.keys.data;
-  if (!d || !Array.isArray(d.keys)) return;
-  useUi.getState().updateApp('keys', { keys: d.keys.map((k) => (k.plate === plate ? { ...k, ...patch } : k)) });
-};
-
 const isOpen = () => useUi.getState().apps.keys.open;
+
+/** Does a keydown match the key ring keybind (ox_lib key name: 'F7', 'K', '1'...)? */
+const isCloseKey = (e: KeyboardEvent, closeKey: string | null | undefined) =>
+  !!closeKey && !e.repeat && e.key.length > 0 && e.key.toUpperCase() === closeKey.toUpperCase();
 
 function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
   const settings = useSettings();
@@ -61,10 +62,16 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
   const [revoke, setRevoke] = useState<{ plate: string; holder: KeyHolder } | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // what the last actions changed (lock state, alarm, distance), on top of the server data
+  const [patches, setPatches] = useState<Record<string, Partial<KeyEntry>>>({});
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // Temporary keys count down from the moment their data arrived (server clock independent).
+  // Only fresh server data (a new data.keys) moves this anchor; actions never touch data.keys.
   const receivedAt = useMemo(() => Date.now(), [data.keys]);
+  useEffect(() => setPatches({}), [data.keys]);
+  const patchKey = (plate: string, patch: Partial<KeyEntry>) =>
+    setPatches((p) => ({ ...p, [plate]: { ...p[plate], ...patch } }));
 
   // a key asked for by Lua (fob used, OpenKeys(plate))
   useEffect(() => {
@@ -100,17 +107,21 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
 
   /* ── merge live data, filter, group ── */
   const keys = useMemo(
-    () => (Array.isArray(data.keys) ? data.keys : []).map((k) => merged(k, data.live, data.tracking)),
-    [data.keys, data.live, data.tracking],
+    () =>
+      (Array.isArray(data.keys) ? data.keys : []).map((k) =>
+        merged(patches[k.plate] ? { ...k, ...patches[k.plate] } : k, data.live, data.tracking),
+      ),
+    [data.keys, data.live, data.tracking, patches],
   );
   const hasTemp = keys.some((k) => k.kind === 'temp' && k.expiresIn !== null);
   const anyCooldown = Object.values(cooldowns).some((until) => until > now);
 
+  const hasAnswers = Object.keys(answers).length > 0;
   useEffect(() => {
-    if (!hasTemp && !anyCooldown && Object.keys(answers).length === 0) return;
+    if (!hasTemp && !anyCooldown && !hasAnswers) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [hasTemp, anyCooldown, answers]);
+  }, [hasTemp, anyCooldown, hasAnswers]);
 
   const searched = useMemo(() => keys.filter((k) => matchesQuery(k, query)), [keys, query]);
   const present = useMemo(() => GROUPS.filter((g) => keys.some((k) => k.group === g)), [keys]);
@@ -146,8 +157,11 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
   }, [wantHolders, k, holders, loadHolders]);
 
   /* ── actions ── */
-  const say = (plate: string, tone: Answer['tone'], title: string, text: string) =>
+  const say = (plate: string, tone: Answer['tone'], title: string, text: string) => {
+    // the clock of the countdowns moves with the answer (no stale "ago" / cooldown for a second)
+    setNow(Date.now());
     setAnswers((a) => ({ ...a, [plate]: { tone, title, text, at: Date.now() } }));
+  };
 
   const lock = async (key: KeyEntry) => {
     if (busy.lock) return;
@@ -155,9 +169,12 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
     const res = await request('keys:lock', { plate: key.plate }, { toastError: false });
     setBusy((b) => ({ ...b, lock: null }));
     if (!res.ok) {
-      // the server's own (translated) words for "out of range"
-      const far = res.error === t('The vehicle is too far away');
-      say(key.plate, far ? 'amber' : 'red', far ? t('Out of range') : t('Refused'), res.error);
+      say(key.plate, 'red', t('Refused'), res.error);
+      return;
+    }
+    if (res.data?.refused === 'range') {
+      // the server measured the distance: its own words
+      say(key.plate, 'amber', t('Out of range'), res.data.message || t('The vehicle is too far away'));
       return;
     }
     const plate = res.data?.plate ?? key.plate;
@@ -196,9 +213,13 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
     const res = await request('keys:alarm', { plate: key.plate }, { toastError: false });
     setBusy((b) => ({ ...b, alarm: null }));
     if (!res.ok) {
-      const m = res.error.match(/(\d+)\s*s\b/);
-      if (m) setCooldowns((c) => ({ ...c, [key.plate]: Date.now() + Number(m[1]) * 1000 }));
-      say(key.plate, 'amber', m ? t('Not yet') : t('Alarm'), res.error);
+      say(key.plate, 'red', t('Alarm'), res.error);
+      return;
+    }
+    if (res.data?.refused === 'cooldown') {
+      const left = Math.max(0, Number(res.data.cooldown) || 0);
+      if (left > 0) setCooldowns((c) => ({ ...c, [key.plate]: Date.now() + left * 1000 }));
+      say(key.plate, 'amber', t('Not yet'), res.data.message || t('Alarm ready again in {s}s', { s: left }));
       return;
     }
     const on = res.data?.alarm === true;
@@ -237,18 +258,27 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
   const confirmRevoke = async () => {
     if (!revoke || revoking) return;
     const { plate, holder } = revoke;
-    setRevoking(holder.identifier);
-    const res = await request('keys:revoke', { plate, identifier: holder.identifier });
+    setRevoking(holder.id);
+    const res = await request('keys:revoke', { plate, id: holder.id });
     setRevoking(null);
     setRevoke(null);
-    if (!res.ok) return;
+    if (!res.ok) {
+      // an old list (ids expire on the server): load it again
+      void loadHolders(plate);
+      return;
+    }
     if (Array.isArray(res.data)) {
       setHolders((h) => ({ ...h, [plate]: res.data as KeyHolder[] }));
       setHoldersAt((h) => ({ ...h, [plate]: Date.now() }));
     } else {
       void loadHolders(plate);
     }
-    toast({ type: 'success', message: t('{name} no longer has a key.', { name: holder.name }) });
+    toast({
+      type: 'success',
+      message: holder.masked
+        ? t('That temporary key no longer works.')
+        : t('{name} no longer has a key.', { name: holder.name }),
+    });
   };
 
   /* ── keyboard ── */
@@ -258,6 +288,12 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+      // the key ring keybind closes it again (a letter key only when not typing in the search)
+      if (isCloseKey(e, data.closeKey) && (!typing || e.key.length > 1)) {
+        e.preventDefault();
+        close();
+        return;
+      }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         if (!flat.length) return;
         e.preventDefault();
@@ -270,6 +306,9 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
         if (e.key === 'Enter' && k) (target as HTMLInputElement).blur();
         return;
       }
+      // a focused control (Refresh, Revoke, Cancel, a dock tool) does what it says: Enter clicks
+      // it and never locks / unlocks the car by surprise (rows are options: Enter still locks)
+      if (e.key === 'Enter' && target?.closest('button, a, [role="button"], [role="switch"], [role="tab"]')) return;
       if (e.key === 'Enter' && k) {
         e.preventDefault();
         if (canLockNow(k)) void lock(k);
@@ -284,7 +323,7 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [modalOpen, flat, current, k, locatingPlate, busy]);
+  }, [modalOpen, flat, current, k, locatingPlate, busy, data.closeKey, close]);
 
   /** The dock's Lock button is enabled (out, not towed, not sitting in another vehicle). */
   const canLockNow = (x: KeyEntry) => x.spawned && !x.towing && !(data.seatPlate && data.seatPlate !== x.plate);
@@ -347,7 +386,7 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
             {k && canLockNow(k) && <KeyHint keys={['Enter']} label={k.locked === true ? t('Unlock') : t('Lock')} />}
             {k?.trackable && <KeyHint keys={['L']} label={t('Locate')} />}
             {total > 0 && <KeyHint keys={['/']} label={t('Search')} />}
-            <KeyHint keys={['Esc']} label={t('Close')} />
+            <KeyHint keys={data.closeKey && data.closeKey.toUpperCase() !== 'ESC' ? ['Esc', data.closeKey] : ['Esc']} label={t('Close')} />
           </>
         }
       >
@@ -442,14 +481,27 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
         open={!!revoke}
         tone="red"
         icon="ban"
-        title={t('Revoke the key of {name}?', { name: revoke?.holder.name ?? '' })}
+        title={
+          revoke?.holder.masked
+            ? t('Revoke this temporary key?')
+            : t('Revoke the key of {name}?', { name: revoke?.holder.name ?? '' })
+        }
         message={
           revoke ? (
-            <>
-              {t('They can no longer lock, unlock or start')}{' '}
-              <b>{displayName(keys.find((x) => x.plate === revoke.plate) ?? { label: revoke.plate })}</b>.{' '}
-              {revoke.holder.kind === 'temp' ? t('Their temporary key ends now.') : t('You can give them a new key later.')}
-            </>
+            revoke.holder.masked ? (
+              <>
+                {t('How it was obtained: {how}.', { how: reasonLabel(revoke.holder.reason) })}{' '}
+                {t('Whoever holds it can no longer lock, unlock or start')}{' '}
+                <b>{displayName(keys.find((x) => x.plate === revoke.plate) ?? { label: revoke.plate })}</b>.{' '}
+                {t('Changing the locks at a locksmith also ends every other key.')}
+              </>
+            ) : (
+              <>
+                {t('They can no longer lock, unlock or start')}{' '}
+                <b>{displayName(keys.find((x) => x.plate === revoke.plate) ?? { label: revoke.plate })}</b>.{' '}
+                {revoke.holder.kind === 'temp' ? t('Their temporary key ends now.') : t('You can give them a new key later.')}
+              </>
+            )
           ) : null
         }
         confirmLabel={t('Revoke key')}

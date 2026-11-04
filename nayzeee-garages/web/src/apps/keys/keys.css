@@ -591,6 +591,8 @@
 .nz-keys__tag > svg { color: var(--teal); }
 .nz-keys__tag.is-live { border-color: var(--teal-edge); background: linear-gradient(180deg, rgba(var(--teal-rgb), .2), rgba(var(--teal-rgb), .08)), var(--hud); }
 .nz-keys__tag.is-live > svg { animation: nz-keys-pulse 1200ms var(--ease) infinite; }
+.nz-keys__tag.is-off { color: var(--ink-3); border-color: var(--line-soft); }
+.nz-keys__tag.is-off > svg { color: var(--ink-3); }
 
 .nz-keys__bigkind {
   display: inline-flex;
@@ -1190,6 +1192,27 @@
 }
 
 .nz-keys__holder-text small .is-amber { color: var(--amber); }
+.nz-keys__holder-text small .is-red { color: var(--red); }
+
+/* a temporary key from a crime: the holder's name is not shown */
+.nz-keys__holder.is-masked {
+  border-color: var(--red-edge);
+  background: linear-gradient(90deg, var(--red-wash), transparent 72%), var(--inset);
+}
+
+.nz-keys__holder-mask {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--red-edge);
+  background: var(--red-wash);
+  color: var(--red);
+}
+
+.nz-keys__holder.is-masked .nz-keys__holder-text b { color: var(--ink-2); }
 
 .nz-keys__revoke.nz-btn { flex: none; color: var(--red); border-color: var(--red-edge); }
 .nz-keys__revoke.nz-btn:hover:not(:disabled) { background: var(--red-wash); color: var(--white); }
@@ -1427,6 +1450,28 @@
 .nz-keys-share__player:hover { border-color: var(--line); background: var(--raise-2); }
 .nz-keys-share__player.is-picked { border-color: var(--teal-edge); background: linear-gradient(90deg, rgba(var(--teal-rgb), .14), rgba(var(--teal-rgb), .05)), var(--raise); }
 .nz-keys-share__player.is-skel { cursor: default; }
+
+.nz-keys-share__idpip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--inset);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-keys-share__idpip small { font-size: 7.5px; font-weight: 600; letter-spacing: .08em; color: var(--ink-3); }
+.nz-keys-share__player.is-picked .nz-keys-share__idpip { border-color: var(--teal-edge); color: var(--teal); }
 
 .nz-keys-share__ptext { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .nz-keys-share__ptext b { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12.5px; font-weight: 600; color: var(--ink); }

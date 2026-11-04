@@ -93,7 +93,7 @@ export function ago(seconds: number | null | undefined): string {
   return d === 1 ? t('yesterday') : t('{n} days ago', { n: d });
 }
 
-/** How a temporary key was obtained. */
+/** How a key was obtained: a temporary key's reason or a key item's crime origin. */
 export function reasonLabel(reason: string | null | undefined): string {
   switch (reason) {
     case 'hotwire':
@@ -111,7 +111,9 @@ export function reasonLabel(reason: string | null | undefined): string {
     case 'spawner':
       return t('Job / rental vehicle');
     case 'locksmith':
-      return t('Programmed by a locksmith');
+      return t('Cut by a back-alley locksmith');
+    case 'rekey':
+      return t('Temporary key after new locks');
     case 'contract':
       return t('Sale contract');
     case 'compat':
@@ -120,6 +122,13 @@ export function reasonLabel(reason: string | null | undefined): string {
     default:
       return t('Temporary access');
   }
+}
+
+/** How the player got this key, for keys that came with a reason (a temporary key, a crime's
+ *  key item: back-alley copy, spare key found in a search). */
+export function howObtained(k: Pick<KeyEntry, 'kind' | 'reason'>): string {
+  if (k.kind === 'temp' || k.reason === 'locksmith' || k.reason === 'search') return reasonLabel(k.reason);
+  return t('Key of unknown origin');
 }
 
 /** Metres in, "12 m" / "1.4 km" or "40 ft" / "0.9 mi" out (settings distance unit). */
@@ -150,6 +159,7 @@ export function merged(k: KeyEntry, live: KeysOpenData['live'], tracking: KeyTra
     image: k.image ?? null,
     label: k.label ?? '',
     make: k.make ?? '',
+    trackerAccess: k.trackerAccess !== false,
   };
   if (l) {
     out = {

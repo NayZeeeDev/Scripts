@@ -2,27 +2,39 @@
   nayzeee-garages — car lock: locksmith services (server, NZ.CarLock). docs/CARLOCK.md §9.
 
   Locations: Config.CarLock.locksmiths (the list index is the id). The player must stand at
-  the counter (SERVER ped position within COUNTER_RANGE of the location); vehicles count as
-  "nearby" when they are within the location's `range` (default 25 m) of the locksmith in the
-  player's routing bucket. Vehicles on the impound tow truck (NZ.Tow.isTowing) are refused.
+  the counter (SERVER ped position within COUNTER_RANGE of the location, in the location's
+  routing bucket: `bucket`, default 0); vehicles count as "nearby" when they are within the
+  location's `range` (default 25 m) of the locksmith in the player's routing bucket. Vehicles
+  on the impound tow truck (NZ.Tow.isTowing) are refused.
 
   Services (per location: enabled, price paid from Config.CarLock.locksmithAccount, materials
   taken through NZ.Inventory):
     duplicate  physical mode only: a copy of a key item, cut for the current key version.
                Legal: you carry a valid key item of that plate, or you own the vehicle (papers).
                Illegal: you carry a valid key item. Virtual mode: not offered (owners give
-               virtual keys from the key ring).
-    program    a new key for a vehicle parked nearby. Legal: the owner, or a key holder whose
-               key is not temporary (a hotwired / robbed key never makes more keys). Illegal:
-               any vehicle nearby. Physical mode: a key / fob item; virtual mode: a temporary
-               key (Config.CarLock.tempKeyHours).
+               virtual keys from the key ring). A copy keeps the origin of the key it copies.
+    program    a new key for a vehicle parked nearby. Legal: the owner, or a holder of a real
+               key (a key item without a crime origin, or a virtual key the owner gave). A
+               temporary key (hotwired, robbed...), a crime's key item (back-alley copy, spare
+               key found in a search) and the access of a garage share / job or gang fleet never
+               make a registered key. Illegal: any vehicle nearby. Physical mode: a key / fob
+               item; virtual mode: a temporary key (Config.CarLock.tempKeyHours), at an illegal
+               shop only (a legal shop does not offer it: owners give keys from the key ring).
     rekey      change of locks of a vehicle parked nearby (NZ.CarLock.rekey: every other key
-               stops working, virtual and temporary keys of others are removed). Legal: owner
-               only; illegal: any vehicle nearby. Physical mode: a new key item, the old key
-               items of that plate you carry are taken back; a non-owner gets a temporary key
-               in virtual mode.
+               stops working, virtual and temporary keys of others are removed). OWNER ONLY, at
+               every location (an illegal shop never locks an owner out of their vehicle).
+               Physical mode: a new key item, the old key items of that plate the owner carries
+               are taken back.
+  Keys of an illegal shop are a crime's keys: key items carry metadata.origin = 'locksmith'
+  (players cannot edit item metadata; it is not part of the signature), temporary keys the
+  reason 'locksmith'. They open the vehicle like any key but give no tracker access and no
+  owner's nickname (NZ.CarLock.isServiceKey, server/carlock/tracker.lua) unless the holder
+  owns the vehicle.
   Illegal locations: each service has the location's alertChance (%) of a police alert through
-  NZ.Dispatch.alert (when the dispatch integration provides it).
+  NZ.Dispatch.alert (when the dispatch integration provides it). The alert names the plate the
+  vehicle WEARS (a fake plate stays fake for the police, docs/CARLOCK.md §13); a duplicate of a
+  key whose vehicle is not there names no plate. Strangers' vehicles never show the owner's
+  nickname.
 
   A service: validate everything -> money and materials checked -> materials taken -> money
   taken -> the service -> on any failure the money and materials are given back.
@@ -33,7 +45,8 @@
   LocksmithOpenData = { id, name, illegal, account, mode, money, tempHours, range,
     services = { { id, enabled, offered, reason?, price, materials = { { item, label, count, have } } } },
     vehicles = { { plate, model?, hash?, vehicleType, nickname?, isOwner, hasKey, keyKind?, keyItems,
-                   keyType, nearby, distance?, towing, blocked = { duplicate?, program?, rekey? } } } }
+                   unregistered (every key item carried is a crime's), keyType, nearby, distance?,
+                   towing, blocked = { duplicate?, program?, rekey? } } } }
 ]]
 
 local CarLock = NZ.CarLock
@@ -130,10 +143,11 @@ local function rangeOf(loc)
   return Utils.clamp(tonumber(loc.range) or DEFAULT_RANGE, 5.0, 100.0)
 end
 
---- Is the player at the counter (server ped position, any routing bucket the world uses)?
-local function atCounter(src, c)
+--- Is the player at the counter (server ped position, in the location's routing bucket)?
+local function atCounter(src, c, loc)
   local ped = pedOf(src)
   if not ped then return false end
+  if GetPlayerRoutingBucket(tostring(src)) ~= (math.tointeger(tonumber(loc.bucket)) or 0) then return false end
   return #(GetEntityCoords(ped) - centerOf(c)) <= COUNTER_RANGE
 end
 
@@ -212,26 +226,6 @@ end
 -- Vehicles
 ---------------------------------------------------------------------------------------
 
---- Valid key items the player carries, per plate: { [plate] = { count, kind } } (one pass).
-local function keyItemCounts(src)
-  local out = {}
-  if CarLock.mode() ~= 'physical' then return out end
-  for _, item in pairs(CarLock.keyItems()) do
-    for _, entry in ipairs(NZ.Inventory.find(src, item)) do
-      local md = entry.metadata
-      if type(md) == 'table' and CarLock.verifyKeyItem(md) then
-        local plate = Utils.plate(md.plate)
-        if plate then
-          local cur = out[plate] or { count = 0, kind = md.kind }
-          cur.count = cur.count + (tonumber(entry.count) or 1)
-          out[plate] = cur
-        end
-      end
-    end
-  end
-  return out
-end
-
 --- Nearest vehicle with `plate` near the locksmith in the player's bucket: entity, distance.
 local function nearbyEntity(src, plate, loc, c)
   local entity = CarLock.findVehicle(plate, src)
@@ -243,8 +237,10 @@ end
 --- Reason a service is not available for a vehicle (translated), nil when it is.
 local function blockOf(loc, service, v, mode)
   if not enabled(loc, service) then return L('Not offered here') end
-  if v.towing then return L('This vehicle is being towed') end
   local illegal = loc.illegal == true
+  -- virtual mode: owners give keys from the key ring, a legal shop programs none
+  if service == 'program' and mode == 'virtual' and not illegal then return L('Owners give keys from the key ring') end
+  if v.towing then return L('This vehicle is being towed') end
   if service == 'duplicate' then
     if mode ~= 'physical' then return L('Give virtual keys from your key ring') end
     if v.keyItems > 0 then return nil end
@@ -257,12 +253,18 @@ local function blockOf(loc, service, v, mode)
   if service == 'program' then
     if mode == 'virtual' and v.hasKey and v.keyKind ~= 'temp' then return L('You already have a key for this vehicle') end
     if illegal or v.isOwner then return nil end
-    if v.hasKey and v.keyKind ~= 'temp' then return nil end
+    -- a real key only: a key item you carry that is not a crime's, or a virtual key the owner
+    -- gave you. A temporary key, a back-alley / found key item or the 'owner' access of a
+    -- garage share / fleet must never turn into a registered key.
+    if (v.keyItems > 0 and not v.unregistered) or v.keyKind == 'virtual' then return nil end
+    if v.unregistered then return L('An unregistered key is not enough: only the owner or a key holder') end
     if v.keyKind == 'temp' then return L('A temporary key is not enough: only the owner or a key holder') end
+    if v.keyKind == 'owner' then return L('Garage or job access is not enough: only the owner or a key holder') end
     return L('Only the owner or a key holder can order a key')
   end
   if service == 'rekey' then
-    if illegal or v.isOwner then return nil end
+    -- owner only, legal or not: new locks lock everybody else out for good
+    if v.isOwner then return nil end
     return L('Only the owner can change the locks')
   end
   return L('Invalid request')
@@ -284,17 +286,26 @@ local function vehicleInfo(src, ctx, plate, entity, dist, keyKind)
   local nearby = entity ~= nil and dist ~= nil and dist <= ctx.range
   local driver = entity and GetPedInVehicleSeat(entity, -1) or 0
   local items = ctx.items[plate]
+  local isOwner = row ~= nil and ctx.identifier ~= nil and row.owner == ctx.identifier
+  -- a real key: the owner, a virtual key / garage share / fleet access, a key item without a
+  -- crime origin (a temporary key or a back-alley copy is not one)
+  local real = isOwner or (has == true and kind ~= 'temp' and kind ~= 'item') or (items ~= nil and items.real > 0)
   local v = {
     plate = plate,
     model = row and row.model or nil,
     hash = entity and GetEntityModel(entity) or (row and (tonumber(row.hash) or hashOf(row.model))) or nil,
     vehicleType = entity and vehicleTypeOfEntity(entity) or (row and vehicleTypeOfRow(row)) or 'car',
-    nickname = row and type(row.nickname) == 'string' and row.nickname ~= '' and row.nickname or nil,
-    isOwner = row ~= nil and ctx.identifier ~= nil and row.owner == ctx.identifier,
+    -- the owner's private nickname: only for the owner and holders of a real key, never for a
+    -- stranger's car parked at an illegal shop, a hotwired / robbed one or a back-alley copy
+    nickname = real and row and type(row.nickname) == 'string' and row.nickname ~= '' and row.nickname or nil,
+    isOwner = isOwner,
     owned = row ~= nil,
     hasKey = has == true,
     keyKind = has and kind or nil,
     keyItems = items and items.count or 0,
+    unregistered = items ~= nil and items.count > 0 and items.real == 0,
+    -- the crime origin a copy keeps (only when no key item carried is a real one)
+    itemOrigin = items and items.origin or nil,
     keyType = (items and items.kind) or CarLock.keyKindOf(profile),
     nearby = nearby,
     distance = nearby and math.floor(dist + 0.5) or nil,
@@ -309,7 +320,7 @@ end
 local function newContext(src, loc, c)
   return {
     loc = loc, c = c, center = centerOf(c), range = rangeOf(loc), mode = CarLock.mode(),
-    identifier = identifierOf(src), ped = pedOf(src), items = keyItemCounts(src),
+    identifier = identifierOf(src), ped = pedOf(src), items = CarLock.keyItemSummary(src),
     bucket = GetPlayerRoutingBucket(tostring(src)),
   }
 end
@@ -358,7 +369,7 @@ local function vehicleList(src, ctx)
       if plate and not seen[plate] then add(vehicleInfo(src, ctx, plate, nil, nil)) end
     end
   end
-  for _, v in ipairs(list) do v.otherDriver = nil end
+  for _, v in ipairs(list) do v.otherDriver, v.itemOrigin = nil, nil end
   return list
 end
 
@@ -370,6 +381,8 @@ local function openData(src, loc, c, id)
     local offered, reason = true, nil
     if service == 'duplicate' and ctx.mode ~= 'physical' then
       offered, reason = false, L('Give virtual keys from your key ring')
+    elseif service == 'program' and ctx.mode == 'virtual' and loc.illegal ~= true then
+      offered, reason = false, L('Owners give keys from the key ring')
     end
     services[#services + 1] = {
       id = service,
@@ -427,7 +440,9 @@ local function refund(src, price, taken, reason)
 end
 
 --- Optional police alert of an illegal locksmith (the dispatch integration may be absent).
-local function maybeAlert(src, loc, v, service)
+--- entity: the vehicle when it is parked there. The police get the plate it WEARS (a fake
+--- plate stays fake, docs/CARLOCK.md §13), never the real one behind it.
+local function maybeAlert(src, loc, v, service, entity)
   if loc.illegal ~= true then return false end
   local chance = Utils.clamp(tonumber(loc.alertChance) or 0, 0, 100)
   if chance <= 0 or math.random(1, 100) > chance then return false end
@@ -437,14 +452,18 @@ local function maybeAlert(src, loc, v, service)
   local ped = pedOf(src)
   local dispatch = type(cfg().dispatch) == 'table' and cfg().dispatch or {}
   local codes = type(dispatch.codes) == 'table' and dispatch.codes or {}
+  local there = isVehicle(entity)
+  local shown = there and Utils.plate(GetVehicleNumberPlateText(entity)) or nil
   local ok, err = pcall(alertFn, src, {
     kind = 'locksmith',
     code = codes.locksmith,
     title = L('Illegal key cutting'),
-    message = L('Keys are being made for a vehicle that may be stolen ({plate})', { plate = v.plate }),
+    message = shown and L('Keys are being made for a vehicle that may be stolen ({plate})', { plate = shown })
+      or L('Keys are being made for a vehicle that may be stolen'),
     coords = ped and GetEntityCoords(ped) or nil,
-    plate = v.plate,
-    model = v.model,
+    plate = shown,
+    model = there and v.model or nil,
+    modelHash = there and GetEntityModel(entity) or nil,
     service = service,
   })
   if not ok then lib.print.warn(('[nayzeee-garages] locksmith: dispatch alert failed: %s'):format(tostring(err))) end
@@ -472,18 +491,41 @@ end
 
 local function kindWord(kind) return kind == 'fob' and L('fob') or L('key') end
 
+--- A key item of `plate` (opts = { kind, model, origin? }). An item with an origin (a crime's
+--- key) is cut from the core's signed metadata (NZ.CarLock.keyMetadata) with the origin
+--- written next to it; every other key goes through NZ.CarLock.giveKeyItem.
+local function giveKey(src, plate, opts)
+  if opts.origin == nil then return CarLock.giveKeyItem(src, plate, opts) end
+  if not NZ.Inventory.supportsMetadata() then return false, L('Your inventory cannot hold vehicle keys') end
+  if CarLock.mode() ~= 'physical' then return false, L('This server does not use key items') end
+  local md = CarLock.keyMetadata(plate, { kind = opts.kind, model = opts.model, origin = opts.origin })
+  if not md then return false, L('Something went wrong') end
+  md.origin = opts.origin
+  if not NZ.Inventory.addItem(src, CarLock.itemName(md.kind), 1, md) then return false, L('You cannot carry the key') end
+  -- the client's key cache (client/carlock/lock.lua) learns about the new key
+  TriggerClientEvent('nz:client:carlock:keys', src, { plate = plate })
+  return true, nil
+end
+
 --- Run the service itself (money and materials already taken). Returns ok, message.
 local function run(src, ctx, service, v)
   local mode = ctx.mode
   local opts = { kind = v.keyType, model = v.model, reason = 'locksmith' }
+  if ctx.loc.illegal == true and service ~= 'rekey' then
+    -- a back-alley key: opens the vehicle, but no tracker and no owner's nickname
+    opts.origin = 'locksmith'
+  elseif service == 'duplicate' then
+    -- a copy keeps the origin of the key it copies (a found or back-alley key stays one)
+    opts.origin = v.itemOrigin
+  end
   if service == 'duplicate' then
-    local ok, err = CarLock.giveKeyItem(src, v.plate, opts)
+    local ok, err = giveKey(src, v.plate, opts)
     if not ok then return false, err end
     return true, L('Spare {kind} for {plate} cut', { kind = kindWord(v.keyType), plate = v.plate })
   end
   if service == 'program' then
     if mode == 'physical' then
-      local ok, err = CarLock.giveKeyItem(src, v.plate, opts)
+      local ok, err = giveKey(src, v.plate, opts)
       if not ok then return false, err end
       return true, L('New {kind} for {plate} programmed', { kind = kindWord(v.keyType), plate = v.plate })
     end
@@ -494,16 +536,15 @@ local function run(src, ctx, service, v)
   local old = mode == 'physical' and oldKeyItems(src, v.plate) or {}
   local version = CarLock.rekey(v.plate, ctx.identifier)
   if not version then return false, L('Something went wrong') end
+  -- (owner only, blockOf): in virtual mode the owner keeps the key ownership gives
   if mode == 'physical' then
     removeOldKeys(src, old)
-    local ok = CarLock.giveKeyItem(src, v.plate, opts)
+    local ok = CarLock.giveKeyItem(src, v.plate, { kind = v.keyType, model = v.model, reason = 'locksmith' })
     if not ok then
-      -- the locks are changed already: never leave the customer without a key
-      CarLock.grantTemp(src, v.plate, 'locksmith')
+      -- the locks are changed already: never leave the customer without a key (the owner's)
+      CarLock.grantTemp(src, v.plate, 'rekey')
       return true, L('Locks of {plate} changed. You cannot carry the new key: you got a temporary key instead', { plate = v.plate })
     end
-  elseif not v.isOwner then
-    CarLock.grantTemp(src, v.plate, 'locksmith')
   end
   return true, L('Locks of {plate} changed: every other key stops working', { plate = v.plate })
 end
@@ -551,7 +592,8 @@ local function perform(src, loc, c, id, service, plate)
     return Utils.fail(okRun and message or L('Something went wrong'))
   end
 
-  local alerted = maybeAlert(src, loc, v, service)
+  -- only a vehicle parked at the shop is seen (a duplicate needs no vehicle)
+  local alerted = maybeAlert(src, loc, v, service, v.nearby and entity or nil)
   log('vehicle.locksmith', src, { plate = plate, service = service, location = loc.name, illegal = loc.illegal == true,
     price = price, owner = v.isOwner, alert = alerted or nil })
   return Utils.ok({ message = message, data = openData(src, loc, c, id) })
@@ -568,7 +610,7 @@ lib.callback.register('nz:carlock:locksmith:open', Utils.safe(function(source, p
   if limited(src, 'open') then return Utils.fail(L('Please wait a moment')) end
   local loc, c, id = locationOf(payload.id)
   if not loc then return Utils.fail(L('Invalid request')) end
-  if not atCounter(src, c) then return Utils.fail(L('You are too far from the locksmith')) end
+  if not atCounter(src, c, loc) then return Utils.fail(L('You are too far from the locksmith')) end
   return Utils.ok(openData(src, loc, c, id))
 end))
 
@@ -581,7 +623,7 @@ lib.callback.register('nz:carlock:locksmith:service', Utils.safe(function(source
   local service = type(payload.service) == 'string' and SERVICE_SET[payload.service] and payload.service or nil
   local plate = normPlate(payload.plate)
   if not loc or not service or not plate then return Utils.fail(L('Invalid request')) end
-  if not atCounter(src, c) then return Utils.fail(L('You are too far from the locksmith')) end
+  if not atCounter(src, c, loc) then return Utils.fail(L('You are too far from the locksmith')) end
   if busy[src] then return Utils.fail(L('Please wait a moment')) end
   busy[src] = true
   local ok, res = pcall(perform, src, loc, c, id, service, plate)

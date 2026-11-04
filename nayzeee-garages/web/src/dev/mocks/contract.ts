@@ -1,10 +1,13 @@
 /**
  * Sale contract mocks (browser dev only). Scenario ids:
- *   contract-draft, contract-draft-alone, contract-review, contract-review-broke,
- *   contract-review-late, contract-review-expired, contract-review-withdrawn,
- *   contract-view, contract-view-unverified.
+ *   contract-draft, contract-draft-alone, contract-draft-sent, contract-draft-declined,
+ *   contract-draft-expired, contract-review,
+ *   contract-review-broke, contract-review-topup, contract-review-late, contract-review-expired,
+ *   contract-review-withdrawn, contract-view, contract-view-unverified.
  * Sending a draft: buyer Jade Ortiz (7) declines after 2.5 s, Priya Nair (21) signs after 3 s,
- * Tomás Reyes (12) never answers (the countdown runs out).
+ * Tomás Reyes (12) never answers (the countdown runs out, then the server's 'expired'). After a
+ * "no" that buyer waits RESEND_IN s for a new contract. contract-review-topup: the buyer
+ * has the money at the first balance check (5 s); contract-review-broke never does.
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui } from '../../lib/nui';
@@ -89,10 +92,25 @@ const SELLER = { name: 'Marcus Hale', serverId: 3 };
 const TERMS = 'Sold as seen, without warranty.\nAll keys are handed over on signing.\nNew tyres fitted in October; the spare is in the boot.';
 
 const open = (data: ContractOpenData): NuiMessage => ({ action: 'open', data: { app: 'contract', data } });
-const status = (value: 'declined' | 'signed' | 'expired' | 'withdrawn' | 'cancelled' | 'failed'): NuiMessage => ({
+/** Config.Contracts.resendCooldown of the mocks */
+const RESEND_IN = 60;
+
+const status = (
+  value: 'declined' | 'signed' | 'expired' | 'withdrawn' | 'cancelled' | 'failed',
+  copy = false,
+): NuiMessage => ({
   action: 'update',
-  data: { app: 'contract', data: { status: value } },
+  data: {
+    app: 'contract',
+    data: { status: value, copy, resendIn: value === 'declined' || value === 'expired' ? RESEND_IN : null },
+  },
 });
+
+/** buyers who said no in this page session (the server refuses a new contract to them) */
+const sendRefused = new Set<number>();
+
+/** contract ids of the review scenarios that never get the money */
+const BROKE_ID = '9B1D3E77';
 
 const draft = (buyers: PlayerOption[] = BUYERS): ContractOpenData => ({
   mode: 'draft',
@@ -102,6 +120,26 @@ const draft = (buyers: PlayerOption[] = BUYERS): ContractOpenData => ({
   maxPrice: 10000000,
   account: 'bank',
   expireSeconds: 120,
+});
+
+/** The seller used a blank contract again while their contract waits for Priya Nair. */
+const draftSent = (): ContractOpenData => ({
+  mode: 'draft',
+  seller: SELLER,
+  vehicles: [ELEGY],
+  buyers: [BUYERS[2]],
+  maxPrice: 10000000,
+  account: 'bank',
+  expireSeconds: 120,
+  sent: {
+    id: '7C30E5A2',
+    expiresIn: 71,
+    buyer: BUYERS[2],
+    plate: ELEGY.plate,
+    price: 48500,
+    terms: TERMS,
+    signature: signature(0.4, 6),
+  },
 });
 
 const review = (patch: Partial<Extract<ContractOpenData, { mode: 'review' }>> = {}): ContractOpenData => ({
@@ -145,14 +183,23 @@ mockNui('contract:refresh', async () => {
 mockNui('contract:send', async ({ buyer, price }) => {
   await wait(700);
   if (price > 10000000) return { ok: false, error: 'Enter a price between $1 and $10,000,000' };
-  if (buyer === 7) setTimeout(() => emitNuiMessage(status('declined')), 2500);
-  if (buyer === 21) setTimeout(() => emitNuiMessage(status('signed')), 3000);
+  if (sendRefused.has(buyer)) {
+    return { ok: false, error: `${BUYERS.find((b) => b.serverId === buyer)?.name ?? 'The buyer'} turned down your last contract: wait 52 s before sending another` };
+  }
+  if (buyer === 7) setTimeout(() => (sendRefused.add(7), emitNuiMessage(status('declined'))), 2500);
+  if (buyer === 21) setTimeout(() => emitNuiMessage(status('signed', true)), 3000);
+  if (buyer === 12) setTimeout(() => (sendRefused.add(12), emitNuiMessage(status('expired'))), 25300);
   return { contractId: '4F2A91C0', expiresIn: buyer === 12 ? 25 : 120 };
 });
 
 mockNui('contract:sign', async () => {
   await wait(900);
-  return { signedAt: now() };
+  return { signedAt: now(), key: 'item', copy: true };
+});
+
+mockNui('contract:balance', async ({ contractId }) => {
+  await wait(150);
+  return { canAfford: contractId !== BROKE_ID };
 });
 
 mockNui('contract:decline', async () => {
@@ -162,12 +209,31 @@ mockNui('contract:decline', async () => {
 
 registerMock({ id: 'contract-draft', group: 'Contract', label: 'Draft (seller)', messages: [open(draft())] });
 registerMock({ id: 'contract-draft-alone', group: 'Contract', label: 'Draft, nobody nearby', messages: [open(draft([]))] });
+registerMock({ id: 'contract-draft-sent', group: 'Contract', label: 'Draft reopened, waiting', messages: [open(draftSent())] });
+registerMock({
+  id: 'contract-draft-declined',
+  group: 'Contract',
+  label: 'Draft, buyer declined',
+  messages: [open(draftSent()), status('declined')],
+});
+registerMock({
+  id: 'contract-draft-expired',
+  group: 'Contract',
+  label: 'Draft, contract expired',
+  messages: [open(draftSent()), status('expired')],
+});
 registerMock({ id: 'contract-review', group: 'Contract', label: 'Review (buyer)', messages: [open(review())] });
 registerMock({
   id: 'contract-review-broke',
   group: 'Contract',
   label: 'Review, cannot afford',
-  messages: [open(review({ canAfford: false, price: 148500, terms: '' }))],
+  messages: [open(review({ contractId: BROKE_ID, canAfford: false, price: 148500, terms: '' }))],
+});
+registerMock({
+  id: 'contract-review-topup',
+  group: 'Contract',
+  label: 'Review, money arrives',
+  messages: [open(review({ contractId: '5E81A0D4', canAfford: false }))],
 });
 registerMock({ id: 'contract-review-late', group: 'Contract', label: 'Review, 24 s left', messages: [open(review({ expiresIn: 24 }))] });
 registerMock({ id: 'contract-review-expired', group: 'Contract', label: 'Review, expired', messages: [open(review({ expiresIn: 0 }))] });
