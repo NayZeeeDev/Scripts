@@ -655,9 +655,108 @@ export interface AdminVehiclePatch {
   service?: ServiceEntry[];
 }
 
+/* ───────────────────────── car lock: key ring, locksmith, contracts ───────────────────────── */
+
+/** How the player holds a key (docs/CARLOCK.md §3). */
+export type KeyKind = 'owner' | 'item' | 'fob' | 'temp' | 'virtual';
+
+export interface KeyEntry extends VehicleLabel {
+  plate: string;
+  model: string;
+  hash: number;
+  vehicleType: VehicleType;
+  nickname: string | null;
+  kind: KeyKind;
+  /** security profile id and label ('standard' / 'highend' ...) */
+  profile: string;
+  profileLabel: string;
+  /** electronic fob: remote locking from ranges.fob */
+  remote: boolean;
+  /** unix seconds (temporary keys), else null */
+  expiresAt: number | null;
+  isOwner: boolean;
+  /** the vehicle exists in the player's routing bucket */
+  spawned: boolean;
+  netId: number | null;
+  locked: boolean | null;
+  /** metres from the player (client computed), null when not spawned */
+  distance: number | null;
+  /** tracker eligible and spawned */
+  trackable: boolean;
+  /** virtual: give a key to a nearby player; physical: hand the item over */
+  canShare: boolean;
+  /** virtual key holders (owner only) */
+  holders: number;
+}
+
+export interface KeysOpenData {
+  mode: 'physical' | 'virtual';
+  keys: KeyEntry[];
+  nearbyPlayers: PlayerOption[];
+  ranges: { key: number; fob: number };
+}
+
+export interface KeyHolder { identifier: string; name: string; grantedBy: string | null; at: number }
+
+export type LocksmithServiceId = 'duplicate' | 'program' | 'rekey';
+
+export interface LocksmithService {
+  id: LocksmithServiceId;
+  enabled: boolean;
+  price: number;
+  materials: { item: string; label: string; count: number; have: number }[];
+}
+
+export interface LocksmithVehicle extends VehicleLabel {
+  plate: string;
+  model: string;
+  hash: number;
+  vehicleType: VehicleType;
+  nickname: string | null;
+  isOwner: boolean;
+  hasKey: boolean;
+  /** within range of the locksmith (program / rekey need the vehicle nearby) */
+  nearby: boolean;
+  distance: number | null;
+}
+
+export interface LocksmithOpenData {
+  id: number;
+  name: string;
+  illegal: boolean;
+  account: 'cash' | 'bank';
+  services: LocksmithService[];
+  vehicles: LocksmithVehicle[];
+}
+
+export interface ContractVehicle extends VehicleLabel {
+  plate: string;
+  model: string;
+  hash: number;
+  vehicleType: VehicleType;
+  nickname: string | null;
+  /** kilometres */
+  mileage: number;
+  engine: number;
+  body: number;
+}
+
+export interface ContractParty { name: string; serverId?: number }
+
+/** Signature = SVG path data ("M x y L x y ..."), at most 4000 characters, in a 400x140 box. */
+export type Signature = string;
+
+export type ContractOpenData =
+  | { mode: 'draft'; seller: ContractParty; vehicles: ContractVehicle[]; buyers: PlayerOption[]; maxPrice: number; account: 'bank' | 'cash' }
+  | { mode: 'review'; contractId: string; vehicle: ContractVehicle; seller: ContractParty; buyer: ContractParty; price: number; terms: string;
+      sellerSignature: Signature; expiresAt: number; canAfford: boolean; account: 'bank' | 'cash' }
+  | { mode: 'view'; vehicle: ContractVehicle; seller: ContractParty; buyer: ContractParty; price: number; terms: string;
+      sellerSignature: Signature; buyerSignature: Signature; signedAt: number };
+
 /* ───────────────────────── NUI protocol ───────────────────────── */
 
-export type AppName = 'garage' | 'impound' | 'impoundForm' | 'forSale' | 'admin' | 'creator' | 'setup' | 'interior';
+export type AppName = 'garage' | 'impound' | 'impoundForm' | 'forSale' | 'admin' | 'creator' | 'setup' | 'interior'
+  | 'keys' | 'locksmith' | 'contract';
 
 export interface AppDataMap {
   garage: GarageOpenData;
@@ -668,6 +767,9 @@ export interface AppDataMap {
   creator: CreatorData;
   setup: SetupData;
   interior: InteriorPanelData;
+  keys: KeysOpenData;
+  locksmith: LocksmithOpenData;
+  contract: ContractOpenData;
 }
 
 /** Lua -> NUI messages ({ action, data }). */
@@ -781,6 +883,20 @@ export interface NuiCallbacks {
   'admin:vehicle:update': Cb<{ plate: string; patch: AdminVehiclePatch }, AdminVehicleDetail>;
   'admin:vehicle:delete': Cb<{ plate: string }, null>;
   'admin:vehicle:activity': Cb<{ plate: string; page: number }, Paged<VehicleActivity>>;
+
+  'keys:refresh': Cb<Record<string, never>, KeysOpenData>;
+  'keys:lock': Cb<{ plate: string }, { locked: boolean }>;
+  'keys:locate': Cb<{ plate: string }, null>;
+  'keys:alarm': Cb<{ plate: string }, null>;
+  'keys:share': Cb<{ plate: string; target: number }, null>;
+  'keys:holders': Cb<{ plate: string }, KeyHolder[]>;
+  'keys:revoke': Cb<{ plate: string; identifier: string }, null>;
+
+  'locksmith:service': Cb<{ locksmithId: number; service: LocksmithServiceId; plate: string }, { message: string }>;
+
+  'contract:send': Cb<{ plate: string; buyer: number; price: number; terms: string; signature: Signature }, { contractId: string }>;
+  'contract:sign': Cb<{ contractId: string; signature: Signature }, null>;
+  'contract:decline': Cb<{ contractId: string }, null>;
 }
 
 export type NuiCallbackName = keyof NuiCallbacks;

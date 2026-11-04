@@ -20,6 +20,9 @@ import { ForSaleApp } from './apps/forsale/ForSaleApp';
 import { SetupApp } from './apps/setup/SetupApp';
 import { CreatorApp } from './apps/creator/CreatorApp';
 import { AdminApp } from './apps/admin/AdminApp';
+import { KeysApp } from './apps/keys/KeysApp';
+import { LocksmithApp } from './apps/locksmith/LocksmithApp';
+import { ContractApp } from './apps/contract/ContractApp';
 
 export function App() {
   const anyOpen = useUi((s) => Object.values(s.apps).some((a) => a.open));
@@ -41,6 +44,9 @@ export function App() {
       <ImpoundFormApp />
       <ForSaleApp />
       <AdminApp />
+      <KeysApp />
+      <LocksmithApp />
+      <ContractApp />
       <Toasts />
     </div>
   );

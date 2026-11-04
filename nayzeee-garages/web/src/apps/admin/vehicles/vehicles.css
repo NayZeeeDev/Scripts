@@ -1881,15 +1881,15 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dos-cond__facts { margin-top: 2px; }
 
 /* records: when the stored damage was saved, the last service (links to Activity / History) */
-.nz-dos-cond__records { display: flex; flex-direction: column; gap: 9px; margin-top: auto; padding-top: 4px; }
+.nz-dos-cond__records { margin-top: auto; padding-top: 6px; }
 .nz-dos-recs { display: flex; flex-direction: column; gap: 6px; }
 
 .nz-dos-rec {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   min-width: 0;
-  padding: 8px 12px 8px 9px;
+  padding: 8px 10px 8px 9px;
   text-align: left;
   border-radius: var(--r-sm);
   border: 1px solid var(--line-soft);
@@ -1916,18 +1916,7 @@ button.nz-aveh-pcard:focus-visible .nz-aveh-pcard__open { color: var(--teal); }
 .nz-dos-rec__text b { font-size: 12px; font-weight: 600; color: var(--white); }
 .nz-dos-rec__text > span { font-size: 11px; font-weight: 300; color: var(--ink-2); }
 
-.nz-dos-rec__go {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 5px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  transition: color var(--fast);
-}
+.nz-dos-rec__go { display: grid; flex: none; place-items: center; color: var(--ink-3); transition: color var(--fast); }
 
 .nz-dos-legend { display: flex; align-items: center; gap: 11px; font-size: 10.5px; color: var(--ink-3); white-space: nowrap; }
 
@@ -2582,6 +2571,7 @@ button.nz-dos-act__head:hover,
   .nz-dos-cond__facts .nz-dos-fact { min-height: 24px; padding: 2px 0; }
   /* cars list every door, window and tyre: no room left for the records at this height */
   .nz-dos-cond.is-car .nz-dos-cond__records { display: none; }
-  .nz-dos-rec { padding: 6px 10px 6px 8px; }
+  .nz-dos-rec { padding: 6px 8px 6px 7px; }
+  .nz-dos-rec__icon { width: 26px; height: 26px; }
   .nz-dos-facts.is-dense .nz-dos-fact.is-optional { display: none; }
 }

@@ -145,7 +145,6 @@ export function ConditionTab({ detail, data, damage, needsService, serviceBelow,
           </div>
 
           <div className="nz-dos-cond__records">
-            <Heading className="nz-dos-h--gap">{t('Records')}</Heading>
             <div className="nz-dos-recs">
               <Record
                 icon="parking"
@@ -190,7 +189,7 @@ export function ConditionTab({ detail, data, damage, needsService, serviceBelow,
 /** A compact link card: icon, one-line title and detail, the tab it opens. */
 function Record({ icon, title, sub, hint, action, onClick }: { icon: IconName; title: ReactNode; sub: ReactNode; hint?: string; action: string; onClick: () => void }) {
   return (
-    <button type="button" className="nz-dos-rec" onClick={onClick} title={hint}>
+    <button type="button" className="nz-dos-rec" onClick={onClick} title={hint ? `${hint} · ${action}` : action}>
       <span className="nz-dos-rec__icon">
         <Icon name={icon} size={14} strokeWidth={1.7} />
       </span>
@@ -198,9 +197,8 @@ function Record({ icon, title, sub, hint, action, onClick }: { icon: IconName; t
         <b className="nz-aveh-ellipsis">{title}</b>
         <span className="nz-aveh-ellipsis">{sub}</span>
       </span>
-      <span className="nz-dos-rec__go">
-        {action}
-        <Icon name="arrowRight" size={12} strokeWidth={1.8} />
+      <span className="nz-dos-rec__go" aria-label={action}>
+        <Icon name="arrowRight" size={13} strokeWidth={1.8} />
       </span>
     </button>
   );

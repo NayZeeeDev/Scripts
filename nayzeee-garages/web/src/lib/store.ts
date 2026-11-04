@@ -40,6 +40,9 @@ const emptySlots = (): Slots => ({
   creator: { open: false, data: null },
   setup: { open: false, data: null },
   interior: { open: false, data: null },
+  keys: { open: false, data: null },
+  locksmith: { open: false, data: null },
+  contract: { open: false, data: null },
 });
 
 export interface UiState {
