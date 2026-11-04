@@ -52,8 +52,14 @@ end
 
 local function L(key, ...) return NZA.L('hospital.' .. key, ...) end
 
+-- outlines are for objects only: drawing one on a ped (the NPC ghost, the lying patient) or a vehicle can
+-- crash the game client, so those get no outline (their alpha shows valid / invalid instead)
+local function canOutline(ent)
+    return ent and ent ~= 0 and SetEntityDrawOutline and DoesEntityExist(ent) and IsEntityAnObject(ent)
+end
+
 local function setOutline(ent, valid)
-    if not ent or ent == 0 or not SetEntityDrawOutline then return end
+    if not canOutline(ent) then return end
     pcall(SetEntityDrawOutline, ent, true)
     if SetEntityDrawOutlineColor then
         local c = valid and (bcfg().markerColour or { 8, 175, 162 }) or (bcfg().badColour or { 229, 72, 77 })
@@ -421,7 +427,7 @@ local function bedAnchor(ent)
 end
 
 local function clearOutline(ent)
-    if ent and ent ~= 0 and DoesEntityExist(ent) and SetEntityDrawOutline then pcall(SetEntityDrawOutline, ent, false) end
+    if canOutline(ent) then pcall(SetEntityDrawOutline, ent, false) end
 end
 
 local function cancelPressed()
