@@ -276,11 +276,11 @@ Config.ATM = {
         -- rather than set by hand, so moving the camera cannot leave
         -- it pointing somewhere else.
         camera = {
-            back = 0.50,    -- metres out from the screen: close in on the machine
-            up   = 0.08,    -- metres above it
+            back = 0.70,    -- metres out from the screen: the whole screen and its side buttons in view
+            up   = 0.10,    -- metres above it
             side = -0.04,   -- metres left or right
             tilt = -0.06,   -- aim this far below the middle of the glass
-            fov  = 42.0,
+            fov  = 45.0,
 
             sensitivity = 4.0,
             lookUp      = 20.0,   -- how far up from the start

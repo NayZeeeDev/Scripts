@@ -332,7 +332,7 @@ The screen itself has no cursor and no way to reach Lua. The client works out wh
 | `Config.ATM.screen.island` | per model | Where the page lands on the texture |
 | `Config.ATM.screen.outside` | `'#000000'` | The rest of the sheet |
 | `Config.ATM.screen.aim` | vec3 | The middle of the screen, from the prop's origin |
-| `Config.ATM.screen.camera` | table | `back`, `up`, `side`, `tilt`, `fov`. Close in by default (`back = 0.50`); the player's own body is hidden from them during the session |
+| `Config.ATM.screen.camera` | table | `back`, `up`, `side`, `tilt`, `fov`. Close in by default (`back = 0.70`); the player's own body is hidden from them during the session |
 | `Config.ATM.screen.camera.sensitivity` | `4.0` | Mouse speed |
 | `Config.ATM.screen.camera.lookUp` / `lookDown` / `lookSide` | `20` / `46` / `26` | Degrees of travel from the starting angle |
 | `Config.ATM.buttons.proximity` | `0.030` | How close to the middle of your view a button must be |

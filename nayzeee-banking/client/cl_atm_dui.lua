@@ -918,6 +918,7 @@ function Bank.useATMScreen(entity, model, card, data)
       -- the camera sits where the player's head would be; their own body is
       -- hidden from them for the session so nothing stands in front of the glass
       SetEntityLocallyInvisible(me)
+      SetPlayerInvisibleLocally(PlayerId(), true)
 
       -- ── what am I looking at ──
       local found = not busyElsewhere and buttonUnderCrosshair() or nil
