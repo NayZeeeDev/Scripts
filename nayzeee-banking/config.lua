@@ -39,6 +39,35 @@ Config.Inventory = 'ox_inventory'      -- ox_inventory / qs-inventory / qb-inven
                                        -- QBCore keeps cash as money, not an item: use 'framework' there unless your
                                        -- inventory turns cash into an item (ox_inventory on Qbox does)
 Config.MoneyItem = 'money'             -- Cash item name, ignored on 'esx'
+
+-- PHYSICAL CASH (optional)
+-- Every dollar is a real banknote in the inventory. Paying picks the best notes
+-- for the amount (exact if the player has it, otherwise the smallest overpay)
+-- and hands the change straight back in notes. Every cash move in this bank
+-- (ATMs, tellers, deposits, wages, investments) uses them, and other resources
+-- can pay with them through the exports in the README.
+-- Needs ox_inventory, qs-inventory or qb-inventory, and the six items from
+-- install/items.md. Off by default.
+Config.Cash = {
+    enabled = false,
+
+    -- add, remove or rename notes here; the order does not matter
+    notes = {
+        { item = 'cash_100', value = 100 },
+        { item = 'cash_50',  value = 50  },
+        { item = 'cash_20',  value = 20  },
+        { item = 'cash_10',  value = 10  },
+        { item = 'cash_5',   value = 5   },
+        { item = 'cash_1',   value = 1   },
+    },
+
+    -- loose cash (Config.MoneyItem) a player carries is changed into notes when they load in
+    convertOnJoin = true,
+
+    -- payments up to this look for an exact set of notes before overpaying and
+    -- taking change; above it the largest notes go first (just as quick in practice)
+    exactUpTo = 5000,
+}
 Config.AccountPrefix = 'NZB'           -- Account numbers read NZB-PSL-A1B2C3D4
 
 Config.Target         = 'ox_target'    -- ox_target / qb-target / none (key press)
@@ -144,9 +173,10 @@ Config.Teller = {
     machineProp    = 'bkr_prop_money_counter',   -- the counting machine on the counter
     cashProp       = 'prop_anim_cash_pile_01',   -- the notes
     machine        = vec3(0.50, 0.40, 0.05),     -- the machine, at the teller's side
-    machineHeading = 180.0,                      -- turned this far from the teller's own heading
+    machineHeading = 0.0,                        -- turned this far from the teller's own heading (0 = facing the teller)
     machineTop     = 0.22,                       -- how high above the machine's base the notes sit
-    counter        = vec3(0.00, 0.70, 0.05),     -- the middle of the counter, where cash changes hands
+    notesHeading   = 90.0,                       -- how the notes lie on the machine, from the machine's heading
+    counter        = vec3(0.00, 0.95, 0.05),     -- the middle of the counter, where cash changes hands
 
     countSeconds   = 4.1,      -- how long the machine runs (the length of web/sounds/counter.ogg)
     collectSeconds = 60,       -- how long the cash waits on the counter before the teller puts it away

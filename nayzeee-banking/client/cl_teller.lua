@@ -34,8 +34,8 @@ local function branchCfg(i)
     local per = (T.banks and T.banks[i]) or {}
     return {
         machine        = per.machine or T.machine or vec3(0.5, 0.4, 0.05),
-        machineHeading = per.machineHeading or T.machineHeading or 180.0,
-        counter        = per.counter or T.counter or vec3(0.0, 0.7, 0.05),
+        machineHeading = per.machineHeading or T.machineHeading or 0.0,
+        counter        = per.counter or T.counter or vec3(0.0, 0.95, 0.05),
     }
 end
 
@@ -176,7 +176,11 @@ local function count(ped, machine, notes)
     if machine and DoesEntityExist(machine) then
         faceTo(ped, GetEntityCoords(machine))
         local top = GetOffsetFromEntityInWorldCoords(machine, 0.0, 0.0, T.machineTop or 0.22)
-        if notes then SetEntityCoordsNoOffset(notes, top.x, top.y, top.z, false, false, false) end
+        if notes then
+            SetEntityCoordsNoOffset(notes, top.x, top.y, top.z, false, false, false)
+            -- lined up with the machine's feed, not with the teller
+            SetEntityHeading(notes, GetEntityHeading(machine) + (T.notesHeading or 90.0))
+        end
     end
     anim(ped, T.anims and T.anims.count, -1, 1)
     if Bank.atmSound then Bank.atmSound('counter', 1.0) end
@@ -286,6 +290,7 @@ local function withdraw(info)
     SetEntityHeading(ped, home)
     anim(ped, T.anims and T.anims.give, 1400, 0)
     Wait(350)
+    SetEntityHeading(notes, home)
     slide(notes, GetEntityCoords(notes), mid, 700)
     settle(ped, home)
 

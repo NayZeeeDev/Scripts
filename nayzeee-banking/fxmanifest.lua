@@ -28,6 +28,7 @@ server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/sv_framework.lua',     -- ESX / QBCore / Qbox, before anything else
     'server/sv_core.lua',
+    'server/sv_cash.lua',          -- physical banknotes (Config.Cash), after the plain cash helpers
     'server/sv_multijob.lua',
     'server/sv_accounts.lua',
     'server/sv_teller.lua',

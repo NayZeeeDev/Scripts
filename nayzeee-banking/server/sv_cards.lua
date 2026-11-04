@@ -767,15 +767,6 @@ CreateThread(function()
     end
 end)
 
-Bank.callback('nz_bank:atmCards', function(src)
-    -- a card left in by a session that never closed comes back before choosing
-    returnCard(src)
-    retryStuck(src)
-    local list, declined = usableCards(src)
-    local out = {}
-    for _, u in ipairs(list) do out[#out + 1] = cardInfo(u) end
-    return { cards = out, declined = declined }
-end)
 
 --- Hand the card back. Called when the ATM closes, and on disconnect so a
 --- card is never swallowed by a crash.
@@ -860,6 +851,16 @@ Framework.onPlayerLoaded(function(src, xPlayer)
         end
         if #left > 0 then SetResourceKvp(key, json.encode(left)) else DeleteResourceKvp(key) end
     end)
+end)
+
+Bank.callback('nz_bank:atmCards', function(src)
+    -- a card left in by a session that never closed comes back before choosing
+    returnCard(src)
+    retryStuck(src)
+    local list, declined = usableCards(src)
+    local out = {}
+    for _, u in ipairs(list) do out[#out + 1] = cardInfo(u) end
+    return { cards = out, declined = declined }
 end)
 
 --- The player stood at a machine and put a card in. The server checks they

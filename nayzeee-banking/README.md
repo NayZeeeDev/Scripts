@@ -93,6 +93,8 @@ Existing money is not migrated. If you're moving off another banking script, run
 
 **ATMs** — a cut-down terminal: balance, deposit, withdraw, transfer, bills. Card and PIN gated.
 
+**Physical cash** (optional) — every dollar a real $1–$100 banknote, with smart payment and automatic change, and exports for shops, jobs, robberies and fines.
+
 **Tellers** — cash at a branch goes over the counter: the teller counts it through a money counter and slides it across for you to pick up, or takes your deposit and counts it.
 
 ---
@@ -413,13 +415,64 @@ The bank window steps aside while it happens so you can see the counter.
 | `Config.Teller.machineProp` | `bkr_prop_money_counter` | The counting machine |
 | `Config.Teller.cashProp` | `prop_anim_cash_pile_01` | The notes |
 | `Config.Teller.machine` | `vec3(0.50, 0.40, 0.05)` | Where the machine sits, from the teller |
-| `Config.Teller.counter` | `vec3(0.00, 0.70, 0.05)` | The middle of the counter, where cash changes hands |
+| `Config.Teller.counter` | `vec3(0.00, 0.95, 0.05)` | The middle of the counter, where cash changes hands |
+| `Config.Teller.machineHeading` | `0.0` | Which way the machine faces, from the teller (`180` turns it round) |
+| `Config.Teller.notesHeading` | `90.0` | How the notes lie on top of the machine |
 | `Config.Teller.countSeconds` | `4.1` | How long the machine runs |
 | `Config.Teller.collectSeconds` | `60` | How long the cash waits before the teller puts it away |
 | `Config.Teller.banks` | `{}` | Per-branch overrides of `machine` / `counter`, by position in `Config.Banks` |
 | `Config.Teller.anims` | table | The counting, handing over and picking up animations |
 
 Positions are in metres from the teller: `x` to their right, `y` toward the customer. Each point is dropped onto the surface under it, so the counter's height takes care of itself. Needs `Config.SpawnPeds`; with no teller standing there the cash is handed over at once.
+
+---
+
+## 💴 Physical cash (optional)
+
+Switch on `Config.Cash.enabled` and every dollar is a real banknote in the inventory: **$1, $5, $10, $20, $50 and $100** notes (`install/items.md`).
+
+- **Smart payment.** Paying hands over the exact notes when the player has them, using the fewest notes (it finds that three $20s pay $60 even with a $50 in the pocket). When no exact set exists it pays the smallest overpay, largest notes first.
+- **Automatic change.** The change comes straight back in the fewest notes, and the player is told what they paid and got back.
+- **All or nothing.** Notes are taken, then change is given; if the change will not fit, the notes go back and nothing is paid.
+- **Everywhere in the bank.** ATMs, tellers, deposits, wages, investments and every other cash move use notes on their own, with no other setting.
+- **Switching it on later.** Loose cash (`Config.MoneyItem`) a player carries is changed into notes when they load in (`convertOnJoin`).
+
+| Setting | Default | Description |
+|---|---|---|
+| `Config.Cash.enabled` | `false` | Every dollar is a banknote |
+| `Config.Cash.notes` | six notes | Item names and values; add, remove or rename freely |
+| `Config.Cash.convertOnJoin` | `true` | Turn loose cash into notes when a player loads in |
+| `Config.Cash.exactUpTo` | `5000` | Payments up to this look for an exact set of notes first |
+
+### Using it from other resources
+
+Shops, jobs, robberies and fines take and hand out cash through these server exports. They work whether physical cash is on or off, so a resource written against them works on either kind of server.
+
+```lua
+-- take $45 from a player, choosing the notes and giving change
+local ok, info = exports['nayzeee-banking']:payCash(source, 45)
+if not ok then
+    -- info is 'not_enough', 'no_room' (no space for the change) or 'inventory'
+    return
+end
+-- info.paid = { cash_50 = 1 }, info.change = 5, info.given = { cash_5 = 1 }
+
+-- pay a player $1 250 (wages, a robbery haul, a refund)
+exports['nayzeee-banking']:addCash(source, 1250)
+
+-- what they carry
+local total, notes = exports['nayzeee-banking']:getCash(source)
+
+-- how an amount breaks into notes, without moving anything
+local set = exports['nayzeee-banking']:cashNotes(380)   -- { cash_100 = 3, cash_50 = 1, cash_20 = 1, cash_10 = 1 }
+
+-- is physical cash on here?
+local physical = exports['nayzeee-banking']:physicalCash()
+```
+
+{% hint style="warning" %}
+With physical cash on, scripts that take money with the framework's own calls (`xPlayer.removeMoney`, `Player.Functions.RemoveMoney('cash')`) or by removing the `money` item no longer see the player's cash, because it is now notes. Point those at `payCash` / `addCash` above.
+{% endhint %}
 
 ---
 

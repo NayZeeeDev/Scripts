@@ -1,6 +1,6 @@
 # 💳 Card items
 
-*Printed papers (receipts, statements, credit reports) are further down: [Paper items](#paper-items).*
+*Printed papers (receipts, statements, credit reports) are further down: [Paper items](#paper-items). Banknotes for physical cash: [Cash items](#cash-items).*
 
 Only needed when `Config.Cards.physicalItem = true`. One item per card type in `Config.CardTypes` — add or remove entries here to match if you change that list.
 
@@ -173,3 +173,35 @@ The default ESX inventory cannot carry metadata, so papers are switched off ther
 {% endhint %}
 
 Rename the items with `Config.Paper.items`, or charge for printing with `Config.Paper.price`.
+
+---
+
+## Cash items
+
+Only needed when `Config.Cash.enabled = true`: every dollar is then a banknote. Six notes, **stackable**, images `cash_1.png` … `cash_100.png` in `install/images/`. Rename or add notes in `Config.Cash.notes`.
+
+### ox_inventory
+
+```lua
+['cash_1']   = { label = '$1 Note',   weight = 1, stack = true, close = false, description = 'One dollar.' },
+['cash_5']   = { label = '$5 Note',   weight = 1, stack = true, close = false, description = 'Five dollars.' },
+['cash_10']  = { label = '$10 Note',  weight = 1, stack = true, close = false, description = 'Ten dollars.' },
+['cash_20']  = { label = '$20 Note',  weight = 1, stack = true, close = false, description = 'Twenty dollars.' },
+['cash_50']  = { label = '$50 Note',  weight = 1, stack = true, close = false, description = 'Fifty dollars.' },
+['cash_100'] = { label = '$100 Note', weight = 1, stack = true, close = false, description = 'One hundred dollars.' },
+```
+
+### qb-inventory / qs-inventory
+
+```lua
+['cash_1']   = { name = 'cash_1',   label = '$1 Note',   weight = 1, type = 'item', image = 'cash_1.png',   unique = false, useable = false, shouldClose = false, description = 'One dollar.' },
+['cash_5']   = { name = 'cash_5',   label = '$5 Note',   weight = 1, type = 'item', image = 'cash_5.png',   unique = false, useable = false, shouldClose = false, description = 'Five dollars.' },
+['cash_10']  = { name = 'cash_10',  label = '$10 Note',  weight = 1, type = 'item', image = 'cash_10.png',  unique = false, useable = false, shouldClose = false, description = 'Ten dollars.' },
+['cash_20']  = { name = 'cash_20',  label = '$20 Note',  weight = 1, type = 'item', image = 'cash_20.png',  unique = false, useable = false, shouldClose = false, description = 'Twenty dollars.' },
+['cash_50']  = { name = 'cash_50',  label = '$50 Note',  weight = 1, type = 'item', image = 'cash_50.png',  unique = false, useable = false, shouldClose = false, description = 'Fifty dollars.' },
+['cash_100'] = { name = 'cash_100', label = '$100 Note', weight = 1, type = 'item', image = 'cash_100.png', unique = false, useable = false, shouldClose = false, description = 'One hundred dollars.' },
+```
+
+{% hint style="info" %}
+Physical cash needs an inventory that holds items: ox_inventory, qs-inventory or qb-inventory. With `Config.Inventory = 'framework'` or the default ESX inventory it stays off and the console says so.
+{% endhint %}
