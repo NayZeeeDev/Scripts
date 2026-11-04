@@ -557,6 +557,8 @@ export interface AdminOpenData {
   framework: 'qb' | 'qbx' | 'esx' | 'standalone';
   gangsSupported: boolean;
   importSources: { key: string; label: string; available: boolean }[];
+  /** Config.Peds defaults (the location editor's NPC fields); older servers leave it out. */
+  peds?: { defaultModel: string; defaultScenario: string };
 }
 
 /** Props passed by AdminApp (shell) to every page component. */

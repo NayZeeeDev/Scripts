@@ -170,8 +170,20 @@ local function entityFromNetId(netId)
   return nil
 end
 
-local function plateOf(entity)
+--- The plate text the vehicle shows (a fake plate included): what officers see.
+local function shownPlateOf(entity)
   return Utils.plate(GetVehicleNumberPlateText(entity))
+end
+
+--- The registration of a vehicle: the real plate under a fake plate (NZ.FakePlates), else the
+--- plate text. Every row lookup and tracked-entity match uses it.
+local function plateOf(entity)
+  local fake = NZ.FakePlates
+  if type(fake) == 'table' and type(fake.realPlateOf) == 'function' then
+    local okReal, real = pcall(fake.realPlateOf, entity)
+    if okReal and real then return real end
+  end
+  return shownPlateOf(entity)
 end
 
 --- True when any player sits in the vehicle.
@@ -791,6 +803,7 @@ register('nz:impound:formData', function(src, payload)
   if not allowed then return fail(L('You are not allowed to impound vehicles')) end
 
   local plate = nil
+  local registration = nil -- the real plate under a fake plate (row lookup only, never shown)
   if payload.plate ~= nil then
     plate = readPlate(payload.plate)
     if not plate then return fail(L('Invalid plate')) end
@@ -802,7 +815,10 @@ register('nz:impound:formData', function(src, payload)
     local entity = entityFromNetId(netId)
     if entity then
       if not withinRange(src, entity, FORM_RANGE) then return fail(L('You are too far from the vehicle')) end
-      plate = plateOf(entity) or plate
+      -- officers see the plate the vehicle shows (a fake plate stays fake: docs/CARLOCK.md §13);
+      -- the database row is found by its registration, and the submit accepts either form
+      registration = plateOf(entity)
+      plate = shownPlateOf(entity) or registration or plate
     else
       netId = nil
     end
@@ -810,7 +826,7 @@ register('nz:impound:formData', function(src, payload)
   if not plate then return fail(L('No vehicle nearby')) end
 
   -- Category of the vehicle (its row, else the entity): offer the impounds that take it.
-  local row = NZ.DB.getVehicle(plate)
+  local row = NZ.DB.getVehicle(registration or plate)
   local vtype = row and vehicleTypeOf(row) or nil
   local formEntity = (not vtype and netId) and entityFromNetId(netId) or nil
   if formEntity then
@@ -883,7 +899,10 @@ register('nz:impoundForm:submit', function(src, payload)
     if not withinRange(src, entity, FORM_RANGE) then return fail(L('You are too far from the vehicle')) end
     local entityPlate = plateOf(entity)
     if not entityPlate then return fail(L('This vehicle has no plate')) end
-    if plate and plate ~= entityPlate then return fail(L('The plate does not match this vehicle')) end
+    -- the form shows the plate the vehicle shows (a fake plate); its registration is accepted too
+    if plate and plate ~= entityPlate and plate ~= shownPlateOf(entity) then
+      return fail(L('The plate does not match this vehicle'))
+    end
     if playerInside(entity) then return fail(L('Someone is using this vehicle')) end
     plate = entityPlate
   else

@@ -19,10 +19,12 @@ An original, all-in-one garage system for FiveM (QBCore, Qbox, ESX Legacy):
 
 - Public, job, gang, private (purchasable / assigned), house garages and impounds.
 - Every type supports `car`, `sea` and `air` vehicles.
-- Garage menu (grid + list): thumbnails, search, filters (All / Favourites / Parked here /
-  Impounded / Shared), sort, capacity meter, rename, favourites, transfer (garage or player),
-  share (without changing ownership), sell to player, finance payments, track (waypoint),
-  recover lost vehicles, "Go inside".
+- Garage menu ("Showroom", two panes): grouped collection with search, filters (All /
+  Favourites / Parked here / Impounded / Shared), sort and capacity meter on the left; vehicle
+  stage, status strip, condition with damage diagram, performance, upgrades, finance /
+  impound / trailer and an action dock on the right. Rename, favourites, transfer (garage or
+  player), share (without changing ownership), sell to player, finance payments, track
+  (waypoint), recover lost vehicles, "Go inside".
 - Multiplayer garage interiors (routing buckets): walk around your vehicles, sit in them
   (stats HUD), drive straight out, invite friends, members visit together, control panel.
 - In-game admin panel: create/edit/disable/delete every location without touching code,
@@ -39,6 +41,11 @@ An original, all-in-one garage system for FiveM (QBCore, Qbox, ESX Legacy):
 - Security: duplication protection, spawn pile-up protection, server-side validation of
   every action, proximity checks, rate limiting, logging (Discord + console).
 - Performance: no per-frame loops when idle; `lib.points` for proximity; caches on server.
+- Added later (each documented below and in its own doc): notification bridge, target /
+  prompt / NPC interaction, housing loaders for 11 scripts, phone garage apps, the built-in
+  car lock with crime tools, locksmiths, key ring and tracker (`docs/CARLOCK.md`), the impound
+  tow truck, sale contracts, fake plates, police dispatch and inventory bridges, listener
+  files. Integration files and exports: `docs/INTEGRATIONS.md`.
 
 We do NOT copy any other product's code, names, art or assets.
 
@@ -59,9 +66,26 @@ nayzeee-garages/
   bridge/server/{qb,qbx,esx,common}.lua (bridge agent)      NZ.Bridge (server)
   bridge/client/{qb,qbx,esx,common}.lua (bridge agent)      NZ.Bridge (client)
   bridge/client/{keys,fuel,target}.lua (integrations agent) NZ.Keys / NZ.Fuel / NZ.Target
-  bridge/server/{keys,housing}.lua    (integrations agent)  NZ.KeysServer / NZ.Housing
-  bridge/client/housing.lua           (integrations agent)  compat events
+  bridge/client/notify.lua            NZ.Notify (notification integrations, §6)
+  bridge/server/keys.lua              NZ.KeysServer (built-in car lock or server-side key systems)
+  bridge/server/housing.lua + bridge/server/housing/<script>.lua
+                                      NZ.Housing core + one loader per housing script
+                                      (qb, ps, qs, esx, loaf, vms, bcs, tk, rtx, rx, nolag)
+  bridge/client/housing.lua           compat events, refresh hints, OpenHouseGarage /
+                                      StoreHouseGarage / RefreshHouseGarages exports
+  bridge/{server,client}/inventory.lua NZ.Inventory (items, metadata, usable items)
+  bridge/{server,client}/dispatch.lua NZ.Dispatch (police alerts)
+  bridge/{server,client}/listeners.lua usable items + other key scripts' events / exports
   server/logs.lua                     (integrations agent)  NZ.Logs
+  server/phone.lua                    NZ.Phone (phone garage app exports, §5.7)
+  config/carlock.lua, shared/carlock.lua, server/carlock/{keys,main,crime,locksmith,tracker,exports}.lua,
+  client/carlock/{lock,ignition,crime,locksmith,tracker,keysapp}.lua
+                                      NZ.CarLock (built-in car lock, docs/CARLOCK.md)
+  server/towtruck.lua, client/towtruck.lua   NZ.Tow (impound flatbed tow)
+  server/contracts.lua, client/contracts.lua NZ.Contracts (sale contracts)
+  server/fakeplates.lua, client/fakeplates.lua NZ.FakePlates (fake plates)
+  client/peds.lua                     NZ.Peds (garage NPCs, target interaction)
+  install/housing/, install/phone/, install/items/   files to copy into other resources
   server/db.lua, server/migrations.lua (db agent)           NZ.DB
   server/settings.lua, server/locations.lua, server/access.lua,
   server/exports.lua, server/main.lua  (server-core agent)
@@ -92,12 +116,14 @@ Never create new global variables except the ones listed here: `NZ`, `Config`,
 ### 3.1 Namespaces (declared in shared/init.lua — just add functions to them)
 
 ```
-Shared : NZ.Utils, NZ.Framework (string), NZ.ResourceName
+Shared : NZ.Utils, NZ.Framework (string), NZ.ResourceName, NZ.IsServer
+Both   : NZ.CarLock, NZ.Inventory, NZ.Dispatch, NZ.Contracts, NZ.FakePlates, NZ.Tow
+         (one table per side, same name)
 Server : NZ.Bridge, NZ.KeysServer, NZ.Housing, NZ.Logs, NZ.DB, NZ.Settings, NZ.Locations,
          NZ.Access, NZ.Vehicles, NZ.Actions, NZ.Impound, NZ.Jobs, NZ.Private,
-         NZ.Interiors, NZ.Admin, NZ.Import
-Client : NZ.Bridge, NZ.Keys, NZ.Fuel, NZ.Target, NZ.NUI, NZ.Points, NZ.Garage,
-         NZ.ImpoundClient, NZ.JobsClient, NZ.PrivateClient, NZ.Veh, NZ.Damage,
+         NZ.Interiors, NZ.Admin, NZ.Import, NZ.Phone
+Client : NZ.Bridge, NZ.Keys, NZ.Fuel, NZ.Target, NZ.Notify, NZ.Peds, NZ.NUI, NZ.Points,
+         NZ.Garage, NZ.ImpoundClient, NZ.JobsClient, NZ.PrivateClient, NZ.Veh, NZ.Damage,
          NZ.Placement, NZ.Camera, NZ.Interior, NZ.Creator, NZ.AdminClient,
          NZ.State (client runtime state: locations, settings, groups, houses)
 ```
@@ -214,6 +240,10 @@ LocationBase = {
   storePoints = { { coords = {x,y,z}, radius = 4.0 }, ... }, -- used when ^ is false
   returnToEntrance = false,                      -- after storing, teleport to openPoints[1]
   blip = { enabled = true, sprite = 357, color = 3, scale = 0.7 },
+  interaction = { mode = 'default'|'prompt'|'target'|'both',  -- 'default' / nil: settings.interface.interaction
+                  ped = { model, scenario } | nil } | nil,   -- NPC carrying the target options
+     -- model ^[%w_]+$ (max 32, '' = Config.Peds.defaultModel), scenario ^[%w_]*$ (max 64,
+     -- '' = none). Normalised by NZ.Locations.normalize and included in clientView.
 }
 GarageLocation (kind 'garage', public) = LocationBase + {
   source = 'personal'|'spawner',   -- personal vehicles, or a public spawner (rentals/free)
@@ -246,9 +276,13 @@ SpawnerVehicle = {
 }
 ```
 
-House garages are runtime-only (from housing integrations, §6.2):
-`{ id = 'H<houseId>', kind = 'house', name, vehicleType = 'car', spawnPoints = {vec4},
-openPoints = {{coords, radius}}, useOpenForStore = true, storePoints = {}, ... }`.
+House garages are runtime-only (housing integrations, §5.3):
+`{ id = 'H<houseId>', kind = 'house', houseId, name, vehicleType = 'car', spawnPoints = {vec4},
+openPoints = {{coords, radius}}, useOpenForStore = true (false when a separate store point is
+given), storePoints = {} | {{coords, radius}}, hidden = true|nil, ... }`. `hidden`: the housing
+script draws the garage interaction and calls OpenHouseGarage / StoreHouseGarage; no marker,
+prompt or target is drawn. House ids are `'<prefix>:<id>'` (qb, ps, qs, esx, loaf, vms, bcs,
+tk, rtx, rx, nolag) or any id given to RegisterHouseGarage.
 
 ### 4.3 Interior (table `nz_interiors`)
 
@@ -300,6 +334,9 @@ may drive every vehicle stored in the group garage (ownership never changes).
 
 Exact shape and defaults: `Config.DefaultSettings` in `config/config.lua` (mirrored by
 the `Settings` TS type). `NZ.Settings.get('vehicles.saveDamage')` reads a path.
+`interface.interaction` = `'prompt'|'target'|'both'` (locations may override it, §4.2).
+Other `nz_settings` keys: `carlock_secret` (key item signing secret, §5.8) and `migration_v1`
+(one-time backfill guard).
 
 ---------------------------------------------------------------------------------------
 
@@ -328,9 +365,12 @@ NZ.Bridge.searchCharacters(query, limit, offset) -> rows {identifier,name}, tota
 NZ.Bridge.isAdmin(src) -> boolean   -- ace 'nayzeee-garages.admin' OR ServerConfig.AdminGroups
 NZ.Bridge.getJobs() -> { { name, label, grades = { { grade, label, isBoss } } } }
 NZ.Bridge.getGangs() -> same | {}
-NZ.Bridge.notify(src, message, type)  -- framework fallback notify (we normally use NUI toasts)
+NZ.Bridge.notify(src, message, kind?, title?)  -- 'nz:client:notify' -> NZ.Notify.show on that client
+   -- (drawn inside the interface while a window holds NUI focus, otherwise through
+   -- Config.Integrations.notify, ox_lib as the fallback); src 0 = console, -1 = everyone
 -- fires TriggerEvent('nz:server:playerLoaded', src) / ('nz:server:playerUnloaded', src)
 ```
+Adapters, fallbacks and how to add a framework: `docs/INTEGRATIONS.md` §1.
 
 ### 5.2 NZ.DB — db agent (`server/db.lua`, `server/migrations.lua`)
 
@@ -412,7 +452,7 @@ NZ.Locations.resolveKey(garageKey) -> { kind='L'|'G'|'H', location, group|nil, h
 NZ.Locations.keyName(garageKey) -> string|nil      -- "Legion Square", group label, house label
 NZ.Locations.capacity(location, garageKey, identifier) -> CapacityInfo|nil
    -- { mode, appliesTo, used, total } (nil when unlimited)
-NZ.Locations.registerHouse(houseId, { name, coords=vec4, spawn=vec4|nil }) ; removeHouse(houseId)
+NZ.Locations.registerHouse(houseId, { name, coords=vec4, spawn=vec4|nil, store=vec4|nil, hidden=boolean|nil }) ; removeHouse(houseId)
 
 NZ.Access.jobAllowed(src, rules, kind 'job'|'gang') -> boolean
 NZ.Access.canUse(src, location) -> boolean, reason  -- restriction / job / gang / house / group
@@ -426,18 +466,46 @@ NZ.Access.isAdmin(src) -> boolean
 ```
 Integrations (integrations agent):
 ```
-NZ.Housing.boot()                          -- load qb-houses / ps-housing garages, start refresh
-NZ.Housing.hasAccess(identifier, houseId) -> boolean
-NZ.Housing.viewsFor(identifier) -> { clientView }   -- house garages this player may use
-NZ.Housing.register(houseId, data) ; NZ.Housing.remove(houseId) ; NZ.Housing.setAccess(houseId, identifiers)
-NZ.KeysServer.give(src, netId, plate)     -- server-side key systems (e.g. qbx_vehiclekeys)
+NZ.Housing.boot()                               -- run every loader Config.Integrations.housing allows; 5 min refresh + hints
+NZ.Housing.addLoader(def)                       -- bridge/server/housing/<script>.lua: { prefix, resources, load, check?,
+                                                --   authoritative?, blocked?, anchors?, hook = 'never'|'whenUsed'|'always',
+                                                --   create?, trustCoords?, numericIds?, interval?, autoSkip?, startDelay? }
+NZ.Housing.refresh(which|nil) -> boolean        -- throttled reload of one loader (prefix / resource name) or all
+NZ.Housing.hint(prefix|nil, delayMs?, minGap?)  -- reload hint from a server-side housing event
+NZ.Housing.netHint(src, prefix, delayMs?)       -- same for client-triggerable events (5 s per player, 30 s per loader)
+NZ.Housing.hasAccess(identifier, houseId, src?) -> boolean   -- blocked? -> live check -> cached owners / key holders / hook grants
+NZ.Housing.viewsFor(identifier) -> { clientView }            -- house garages this player may use
+NZ.Housing.register(houseId, data) ; remove(houseId) ; setAccess(houseId, identifiers) ; onPlayerDropped(src)
+NZ.KeysServer.builtIn() -> boolean ; NZ.KeysServer.resource() -> 'nayzeee' | key resource | nil
+NZ.KeysServer.give(src, netId, plate, opts?) / remove(src, netId, plate)
+                                                -- built-in car lock hand-out, or server-side key systems (qbx_vehiclekeys)
+NZ.KeysServer.clientSide() -> boolean   -- a CLIENT-side key resource is in charge (phone valet keys then go through 'nz:client:giveKeys')
 NZ.Logs.add(event, src|nil, data)          -- event names: 'vehicle.retrieve', 'vehicle.store',
    -- 'vehicle.transfer', 'vehicle.share', 'vehicle.sell', 'vehicle.recover', 'impound.add',
-   -- 'impound.release', 'impound.retrieve', 'garage.purchase', 'garage.members',
-   -- 'admin.<action>', 'security.<what>' (prefix picks the webhook channel)
+   -- 'impound.release', 'impound.retrieve', 'impound.tow', 'garage.purchase', 'garage.members',
+   -- car lock: 'vehicle.keyItem', 'vehicle.keyShare', 'vehicle.keyHandOver', 'vehicle.keyLend',
+   -- 'vehicle.keyRevoke', 'vehicle.rekey', 'vehicle.remoteAlarm', 'vehicle.locksmith',
+   -- 'vehicle.lockpick', 'vehicle.hotwire', 'vehicle.search', 'vehicle.robbery',
+   -- 'vehicle.assist', 'vehicle.deadDriver'; 'vehicle.contract', 'vehicle.fakeplate',
+   -- 'admin.<action>' (admin.giveKey ...), 'security.<what>' (security.tow, security.keys,
+   -- security.contract, security.fakeplate, security.sell, security.crimeTooFast,
+   -- security.model ...). The prefix picks the webhook channel.
 ```
-Callbacks: `nz:keys:give { netId, plate }` / `nz:keys:remove { netId, plate }` (client asks the server to give or remove keys when the key
-resource is server-side), `nz:housing:refresh {}` → client views of the player's houses.
+Callbacks: `nz:keys:give { netId, plate }` / `nz:keys:remove { netId, plate }` (client asks the
+server to give or remove keys when the key resource is server-side), `nz:housing:refresh {}` →
+client views of the player's houses, `nz:housing:hook { houseId, action = 'open'|'store', name? }`
+→ `{ houseId, garageKey, action, views }` (checks access live; for hook-driven loaders it
+registers the garage, hidden, at the player's server-side position within
+`nayzeee_housing_hook_range` of the property and keeps it in KVP `nz_housing:spot:<houseId>`).
+
+A loader read that fails keeps the houses loaded before. An empty read, or a house missing from
+a read, is only trusted when a read at least a minute later confirms it (incomplete loaders such
+as nolag mark deleted houses `gone` and get the same confirmation). Hook garage positions
+(resource KVP) are placed after every read, even for ids the loader does not report; only a
+confirmed removal or RemoveHouseGarage forgets them. A successful OpenHouseGarage /
+StoreHouseGarage call keeps the house in the player's list for 30 minutes only when the access
+came from the script's live check alone; when the owners / key holders read from the script
+include the player, they alone decide. Per-script details: `install/housing/README.md`.
 
 Bootstrap callback (server-core): `nz:state:bootstrap {}` →
 `{ settings, locations = { clientView... (incl. houses for this player) }, groups = { [locationId]=true }, isAdmin }`.
@@ -524,18 +592,105 @@ Callbacks: `nz:garage:goInside`, `nz:forSale:tour`, `nz:interior:page`, `nz:inte
 `nz:interior:leave`, `nz:interior:invite`, `nz:interior:inviteRespond`, `nz:interior:kick`,
 `nz:interior:players`, `nz:admin:*` (§8 admin list), `nz:creator:save`.
 
+### 5.7 Phone (server/phone.lua)
+
+```
+NZ.Phone.vehicles(src) -> PhoneVehicle[] | nil, err
+NZ.Phone.claim(src, plate) -> ValetData | nil, err
+NZ.Phone.release(src, plate, why) -> bool, err
+NZ.Phone.spawned(src, plate, netId) -> bool, err
+NZ.Phone.pending(plate) -> { src, at, expiresAt } | nil
+NZ.Phone.watch() ; NZ.Phone.recover() ; NZ.Phone.boot()
+```
+Exports `GetPhoneVehicles` / `ClaimVehicleForValet` / `ReleaseValetClaim` / `MarkValetSpawned`
+and the net events `nz:phone:spawned (plate, netId)` / `nz:phone:failed (plate)` (§9). A valet
+claim marks the row out (`lastOut` = claim time) and registers an out entry tagged with the
+claim token (`phone = <token>`, `spawner = false`, no netId until the car is reported). The
+vehicle is accepted only when plate AND model match: reports, the 2 s watchdog adoption and the
+stray check all compare the model, and `NZ.Vehicles.markSpawned` refuses an entity of another
+model than the row. A report that waits for a server-created vehicle's plate holds the claim at
+most 15 s past `Config.Phone.claimTimeout`. Undelivered claims are written to the resource KVP
+`nz_phone_claim:<plate>` before the database write and deleted when the claim ends. After a
+resource restart `Phone.recover()` resumes the claims the row still shows (out, same lastOut, no
+copy in the world) and puts them back when their original timeout runs out (at once when the
+claimant is offline). On a full server start `garages.outOnRestart` decides first. Data shapes
+and phone files: `install/phone/README.md`.
+
+### 5.8 Car lock, tow, contracts, fake plates (docs/CARLOCK.md)
+
+The built-in car lock and its features have their own document, `docs/CARLOCK.md` (server API,
+callbacks, events, rules). In short:
+
+```
+NZ.CarLock (server, server/carlock/*.lua)  key store + rules, locks, alarms, crime sessions,
+   locksmiths, tracker; callbacks nz:carlock:* (toggleLock, engine, hasKey, keys, share, revoke,
+   holders, compat, tracker, trackerAlarm, nearbyPlayers, keyHolders, keyRevoke, lockpick,
+   hotwire, search, npcRob, npcAssist, deadDriver, locksmith:open, locksmith:service)
+NZ.Tow (server/towtruck.lua)       start(entity, officerSrc?) / startByNetId(netId, officerSrc?)
+   -> started, reason ; isTowing(entity) ; release(entity) ; stopAll(reason?)
+   callback nz:tow:progress { id, stage = node|spawned|arrived|load|attached|loaded|leaving|tick|done|failed, ... }
+   (rate limit 50 ms per player plus 150 ms between two reports of a job's runner)
+NZ.Contracts (server/contracts.lua) useItem(src, item, slot, metadata, key) ; pending() ; onPlayerDropped(src)
+   callbacks nz:contract:refresh, send, sign, balance, decline
+NZ.FakePlates (server/fakeplates.lua) realPlateOf(entity) ; isFake(entity) ; plateOf(entity) ;
+   lookup(text) -> entity, { real, fake, at } (internal; not exported: other resources only see
+   the fake plate) ; onStore(src, entity) ; useItem(src)
+   callbacks nz:fakeplates:start { netId, action }, nz:fakeplates:finish { token, cancel? }
+NZ.Actions.sellVehicle(row, seller, buyer, { via, price, account?, payAccount?, history? }) -> ok, err, ...
+NZ.Actions.handBuyerKey(buyerSrc, plate, model, reason) -> 'item'|'temp'|nil
+NZ.Actions.garageAccessibleBy(garageKey, player) -> boolean
+```
+Every garage flow that changes an owner (sale, transfer, admin edit, contract) calls
+`NZ.CarLock.rekey(plate, newOwner)` while the built-in car lock runs. Every lookup of a vehicle
+by its plate text in impound, phone, jobs and admin code uses the registration
+(`NZ.FakePlates.realPlateOf`) first, so fake-plated cars stay found.
+
+### 5.9 Integration bridges (docs/INTEGRATIONS.md)
+
+```
+NZ.Inventory (server)  name(), supportsMetadata(), itemDefined(item), items(src), find(src, item, fn?),
+   count, hasItem, getSlot, canCarry, addItem, removeItem, setMetadata,
+   registerUsable(item, fn, { fallthrough? }), usableItems(), protect(item)
+NZ.Dispatch (server)   alert(src|nil, alert) -> boolean ; system() ; build(src, alert) ; receivers(jobs)
+   callbacks nz:dispatch:failed { id, reason? } / nz:dispatch:sent { id } (client-delivered alerts
+   report back; a failure sends that alert through 'internal')
+Listener files         bridge/server/listeners.lua registers the usable items (key, fob, crime tools,
+   fake plate, contracts) and answers other key scripts' server events / export shims while
+   they are not running; bridge/client/listeners.lua does the same for client events / exports.
+```
+
 ---------------------------------------------------------------------------------------
 
 ## 6. Client module APIs
 
 ```
 NZ.Bridge (client): isLoggedIn(), getIdentifier(), getJob() -> {name,label,grade,gradeLabel,onDuty,isBoss}|nil,
-   getGang() -> same|nil, notify(msg, type)
+   getGang() -> same|nil, notify(msg, type?, title?)   -- notify = NZ.Notify.show
 NZ.Keys.give(vehicle, plate) ; NZ.Keys.remove(vehicle, plate)          -- integrations agent
-NZ.Fuel.get(vehicle) -> 0-100 ; NZ.Fuel.set(vehicle, value)            -- integrations agent
-NZ.Target.addSphere(id, coords, radius, options) ; NZ.Target.remove(id)
-NZ.Target.addVehicleOption(id, option) ; NZ.Target.available() -> boolean
-   options = { { label, icon, onSelect=function() end, canInteract=function() return true end } }
+NZ.Keys.builtIn() -> boolean ; NZ.Keys.resource() -> 'nayzeee' | key resource | nil
+NZ.Fuel.get(vehicle) -> 0-100 ; NZ.Fuel.set(vehicle, value) ; NZ.Fuel.resource()
+NZ.Target.addSphere(id, coords, radius, options) ; NZ.Target.addLocalEntity(id, entity, options)
+NZ.Target.addVehicleOption(id, option) ; NZ.Target.remove(id)   -- remove: zones, entities and vehicle options
+NZ.Target.available() -> boolean ; NZ.Target.resource() -> 'ox_target'|'qb-target'|nil
+   options = { { label, icon, distance?, onSelect=function({ entity, coords, distance }) end,
+                 canInteract=function(entity, distance, coords) return true end } }
+NZ.Peds.sync(specs) ; NZ.Peds.clear() ; NZ.Peds.entity(id) -> ped|nil
+   -- garage NPCs: local (never networked), within Config.Peds.spawnDistance, frozen, invincible,
+   -- carrying the target options of the first open point; a model that cannot load -> sphere zone
+NZ.Notify.show(kind, message, title?, duration?) -> boolean ; NZ.Notify.current() -> adapter
+NZ.Notify.custom(kind, message, title, duration)  -- editable hook for Config.Integrations.notify = 'custom'
+   -- text made plain (control characters stripped, < > -> ‹ ›, image syntax broken), message max
+   -- 300 code points, title max 60, duration clamped to 1000-30000 ms, the same notification is
+   -- shown once within 1.5 s; drawn inside the interface (NZ.NUI.toast) while a window holds NUI
+   -- focus and Config.Notify.inInterface ~= false, else the integration, ox_lib as the fallback
+NZ.Inventory.name() ; NZ.Inventory.count(item) ; NZ.Inventory.hasItem(item, count?)   -- hints only
+NZ.Dispatch.streetAt(coords) ; NZ.Dispatch.modelLabel(hash)
+NZ.CarLock (client)  plateOf, cachedKey, queryKey, hasKey, hasKeyFast, keyPlates, expectKey, playFob,
+   toggleLock, toggleEngine, driverState, refreshIgnition, hotwire, searchVehicle, lockpick,
+   onLockpickEvent, requestVehicle, searchDriver, openKeyRing, openLocksmith, trackerStatus,
+   remoteAlarm, locate, stopLocate, locating   -- docs/CARLOCK.md
+NZ.Tow.isTowing(entity) ; NZ.Tow.activeCount()  -- client guard: nobody enters / drives towed vehicles or trucks
+NZ.Contracts.current() ; NZ.FakePlates.wearsFake(vehicle) ; NZ.FakePlates.run('install'|'remove', vehicle)
 
 NZ.State = { locations = { [id] = clientView }, settings = table, groups = { [locationId]=true },
              houses = { [houseId] = view }, job = {...}, gang = {...}, ready = false }
@@ -545,13 +700,20 @@ NZ.NUI.open(app, data, focus=true)  -- sends 'open', sets focus, remembers open 
 NZ.NUI.close(app|nil)               -- sends 'close', releases focus if no app needs it
 NZ.NUI.isOpen(app|nil) -> boolean
 NZ.NUI.register(name, handler)      -- RegisterNUICallback; handler(data) -> result table
-NZ.NUI.forward(name)                -- 1:1 forward to server 'nz:'..name (+ enrichDeep)
-NZ.NUI.notify(type, message, title) -- toast (also exported as event 'nz:client:notify')
+NZ.NUI.forward(name, followUp?)     -- 1:1 forward to server 'nz:'..name (+ enrichDeep)
+NZ.NUI.notify(type, message, title) / NZ.NUI.notify({ type, message, title?, duration? })
+                                    -- -> NZ.Notify.show (event 'nz:client:notify' lands here too)
+NZ.NUI.toast(n)                     -- draws { type, message, title?, duration } inside the interface
+                                    -- (NUI 'notify'); only NZ.Notify.show calls it, while focused
+NZ.NUI.hasFocus() -> boolean ; NZ.NUI.onClose(app, fn)
 NZ.NUI.prompt(label|nil, key='E')   -- show/hide interaction prompt
 NZ.NUI.hint(data|nil)               -- show/hide key hint bar
 NZ.NUI.hud(vehicle|nil)             -- interior stats HUD
 
-NZ.Points.rebuild()   -- (re)create lib.points / target zones / blips for NZ.State.locations
+NZ.Points.rebuild()   -- (re)create lib.points / target zones / NPCs / blips for NZ.State.locations
+NZ.Points.clear()     -- removes points, zones and NPCs
+NZ.Points.canStoreVehicle(vehicle) -> boolean ; NZ.Points.storeVehicle(vehicle) -> boolean  -- target "Store vehicle"
+NZ.Points.nearestLocation(filter?, maxDist?) -> location|nil ; NZ.Points.current() -> { action, location }|nil
 NZ.Points.incapacitated() -> boolean   -- dead / downed / cuffed / escorted (client mirror of the server check)
 NZ.Garage.alert(data, seconds) -> boolean|nil   -- lib.alertDialog that waits for other dialogs; nil = no answer
 NZ.Garage.open(locationId, extra) ; NZ.Garage.store(location) ; NZ.Garage.retrieve(plate, opts)
@@ -590,7 +752,7 @@ NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
 
 ### 7.1 Retrieve ("Drive")
 1. NUI `garage:drive {plate}` **[client, garage.lua]**: find free spawn with
-   `NZ.Veh.findFreeSpawn(location.spawnPoints)` (none → toast "All parking spots are
+   `NZ.Veh.findFreeSpawn(location.spawnPoints)` (none → notification "All parking spots are
    occupied"); compute `entityType = NZ.Veh.entityTypeOf(hash)`.
 2. `lib.callback.await('nz:garage:retrieve', false, { plate, spawnIndex, entityType })`.
 3. Server `NZ.Vehicles.retrieve`: `requireSession` (+distance), rate limit, load row,
@@ -601,8 +763,11 @@ NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
      returns `{ netId, spawn, vehicle }`, or
    - client spawn: returns `{ spawn, vehicle = { plate, hash, model, props, damage, fuel,
      engine, body, mileage, trailer } }`.
-4. Client `NZ.Veh.spawn{...}`; reports `nz:garage:spawned {plate, netId}`. Keys via
-   `NZ.Keys.give`, fuel via `NZ.Fuel.set`, ped warped unless `vehicles.spawnOutside`.
+4. Client `NZ.Veh.spawn{...}`; reports `nz:garage:spawned {plate, netId}`. The server's
+   `NZ.Vehicles.markSpawned` refuses an entity whose model is not the row's model, then hands
+   out keys (`NZ.KeysServer.give`: the built-in car lock or a server-side key system; client-side
+   key scripts through `NZ.Keys.give`). Fuel via `NZ.Fuel.set`, ped warped unless
+   `vehicles.spawnOutside`.
 5. Server keeps `NZ.Vehicles.out[plate]`. Retrieving an out vehicle whose entity still
    exists is **refused** (dupe protection). Out vehicles whose entity is gone show
    `canRecover` in the menu (fee = `garages.recoverFee`).
@@ -630,10 +795,13 @@ NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
 ```
 
 ### 7.4 Impound
-- Staff (job in any impound's `jobs`) use ox_target vehicle option / `/impound` →
+- Staff (job in any impound's `jobs`) use the "Impound vehicle" target option / `/impound` →
   `nz:impound:formData` → NUI `impoundForm` → `impoundForm:submit` → server
-  `NZ.Impound.impound` (owned: state `impounded` + ImpoundInfo, entity deleted; NPC
-  vehicles: just deleted).
+  `NZ.Impound.impound` (owned: state `impounded` + ImpoundInfo; NPC vehicles: no row). The
+  entity is collected by the NPC flatbed (`NZ.Tow`, `docs/CARLOCK.md` §11) when
+  `Config.Tow.enabled` and the tow can run, else deleted at once. Admin-panel and
+  `ImpoundVehicle` export impounds always delete at once. The form shows the plate the vehicle
+  wears; the row is found by its registration (fake plates, §5.8).
 - Owner at impound: `nz:impound:open` lists their impounded vehicles at that impound.
   `impound:retrieve` → allowed when `retrievable` and `releaseAt <= now`, pays `fee` (to
   `society` when set), spawns at the impound spawn point (flow §7.1 with `fromImpound`).
@@ -647,8 +815,13 @@ NZ.NUI.setFocus(app, focus) / NUI.syncFocus() / NUI.await(name, payload)
   back to their last garage; `impound` → impounded at `garages.restartImpound` with
   `recoverFee`; `keep` → stay out (recoverable from the menu). Rows without `nz_garage`
   (framework-managed) are returned too; qb depot rows (`depotprice > 0`) count as impounded.
-- Players who log out or crash inside an interior keep a KVP marker (`nz_interior_return`)
-  and are moved back outside on their next load.
+- Players who log out or crash inside an interior keep a KVP marker (`nz_interior_return`;
+  `nz_creator_return` for the interior creator) and are moved back outside on their next load.
+- Resource restart only (same server session): temporary keys, in-memory key versions, real
+  plates, locks and access-out entries (KVP `nz:carlock:session`), fake plates
+  (`nz:fakeplates:session`), undelivered phone valet claims (`nz_phone_claim:<plate>`) and hook
+  house garage spots (`nz_housing:spot:<houseId>`, kept across server restarts too) survive.
+  Tows in progress end (vehicles, trucks and drivers deleted).
 
 ### 7.6 Placement tool (admin + creator)
 Ghost entity (alpha 180, no collision, `SetEntityDrawOutline` teal), placed on the ground
@@ -688,11 +861,12 @@ changes (drive out, page change). Walking to `exit` → `nz:interior:leave`.
 | `hud`    | `HudVehicle|nil` | interior stats HUD (no focus) |
 | `prompt` | `{ key = 'E', label = 'Open garage' }|nil` | interaction prompt (no focus) |
 | `hint`   | `{ title?, keys = { { keys = {'W','A','S','D'}, label = 'Move' } } }|nil` | key hint bar |
-| `notify` | `{ type = 'success'|'error'|'info'|'warning', title?, message, duration? }` | toast |
+| `notify` | `{ type = 'success'|'error'|'info'|'warning', message, title?, duration }` | a notification drawn inside the interface (`<Toasts />`). Sent only by `NZ.NUI.toast`, i.e. while one of our windows holds NUI focus (`Config.Notify.inInterface`); everything else goes through the notify integration. `title` only when explicit; text already plain and capped |
 
-`AppName` = `garage | impound | impoundForm | forSale | admin | creator | setup | interior`.
-Focus: every app except none needs `SetNuiFocus(true, true)`; `hud`/`prompt`/`hint`/
-`notify` never take focus.
+`AppName` = `garage | impound | impoundForm | forSale | admin | creator | setup | interior |
+keys | locksmith | contract`.
+Focus: every app needs `SetNuiFocus(true, true)`; `hud` / `prompt` / `hint` / `notify` never
+take focus.
 
 ### 8.2 NUI → Lua callbacks (request → response `data`)
 [client] = handled on the client; otherwise forwarded to server `nz:<name>`.
@@ -700,6 +874,9 @@ Focus: every app except none needs `SetNuiFocus(true, true)`; `hud`/`prompt`/`hi
 Common
 - `ready {}` → null [client]
 - `close { app }` → null [client] (release focus, app-specific cleanup)
+- `notify { type: 'success'|'error'|'info'|'warning', message (≤ 300 characters), title? (≤ 60) }`
+  → null [client]. Validated, at most 8 per 3 s, then `NZ.Notify.show` decides where it is
+  drawn (the web `toast()` always goes through here; `request()` errors too).
 
 Garage
 - `garage:refresh {}` → GarageOpenData
@@ -777,6 +954,30 @@ Admin (all forwarded unless [client])
 - `admin:vehicle:assign { identifier, model, plate|'', garageKey }` → AdminVehicleRow
 - `admin:vehicle:update { plate, patch }` → AdminVehicleDetail
 - `admin:vehicle:delete { plate }` → null
+- `admin:vehicle:activity { plate, page }` → Paged<VehicleActivity> (dossier Activity tab; nz_logs
+  rows of that plate, needs `ServerConfig.DatabaseLogs`)
+
+Key ring (`keys`, all [client], client/carlock/keysapp.lua → server)
+- `keys:refresh {}` → KeysOpenData (`nz:carlock:tracker {}`)
+- `keys:lock { plate }` → `{ plate, locked?, refused? = 'range', message? }` (`nz:carlock:toggleLock`)
+- `keys:locate { plate, stop? }` → `{ distance }` (`nz:carlock:tracker { plate }` → waypoint + blip)
+- `keys:alarm { plate, on? }` → `{ alarm, seconds, cooldown, refused? = 'cooldown', message? }` (`nz:carlock:trackerAlarm`)
+- `keys:players {}` → KeyRingPlayer[] (`nz:carlock:nearbyPlayers`)
+- `keys:share { plate, target }` → null (`nz:carlock:share`)
+- `keys:holders { plate }` → KeyHolder[] (`nz:carlock:keyHolders`)
+- `keys:revoke { plate, id }` → KeyHolder[] (`nz:carlock:keyRevoke`)
+
+Locksmith (`locksmith`, [client], client/carlock/locksmith.lua → server)
+- `locksmith:refresh { locksmithId }` → LocksmithOpenData (`nz:carlock:locksmith:open { id }`)
+- `locksmith:service { locksmithId, service = 'duplicate'|'program'|'rekey', plate }` →
+  `{ message, data: LocksmithOpenData }` (`nz:carlock:locksmith:service { id, service, plate }`)
+
+Contract (`contract`, forwarded 1:1 to `nz:contract:*`)
+- `contract:refresh {}` → `{ vehicles: ContractVehicle[], buyers: PlayerOption[] }`
+- `contract:send { plate, buyer, price, terms, signature }` → `{ contractId, expiresIn }`
+- `contract:sign { contractId, signature }` → `{ signedAt, key?: 'item'|'temp'|'external'|null, copy? }`
+- `contract:balance { contractId }` → `{ canAfford }` (buyer's review, polled every 5 s)
+- `contract:decline { contractId }` → null (the buyer declines, or the seller withdraws)
 
 Exact TypeScript request/response types: `NuiCallbacks` in `web/src/lib/types.ts`.
 
@@ -789,7 +990,8 @@ Server → client:
 - `nz:client:settings (settings)`
 - `nz:client:groups ({ [locationId] = true })` — private locations the player belongs to.
 - `nz:client:houses (views)` — house garages this player can use (integrations; replaces NZ.State.houses).
-- `nz:client:notify (toast)` — `{ type, message, title? }`.
+- `nz:client:notify` — a notification, three call shapes: `({ type, message, title?, duration? })`,
+  `(type, message, title?)` or a lone string (info). Lands in `NZ.NUI.notify` → `NZ.Notify.show`.
 - `nz:client:sellOffer ({ offerId, plate, label, price, sellerName })` → client
   `lib.alertDialog` → callback `nz:garage:sellRespond { offerId, accept }`.
 - `nz:client:interior:invite ({ inviteId, fromName, garageName })` → alert → `nz:interior:inviteRespond { inviteId, accept }`.
@@ -799,19 +1001,103 @@ Server → client:
   player leave (teleported away); clear the state without teleporting.
 - `nz:client:openGarage ({ locationId })` / `nz:client:openAdmin ({ page })` (commands)
 - `nz:client:impoundForm ()` (command `/impound`)
+- `nz:client:giveKeys (netId, plate)` — keys of a vehicle another script delivered (phone valet)
+  through a CLIENT-side key resource (`NZ.Keys.give`).
+- Car lock (docs/CARLOCK.md §3): `nz:client:carlock:keys ({ plate? })` (key cache flush),
+  `nz:client:carlock:used ({ netId, plate, locked, kind })` (fob animation),
+  `nz:client:carlock:fx ({ netId, locked })` (lock feedback for players nearby),
+  `nz:client:carlock:keyRing ({ plate? })` (open the key ring), `nz:client:carlock:crime
+  ({ action = 'lockpick'|'hotwire', netId, tool?, slot })` (server item use),
+  `nz:client:carlock:npc ({ step, ... })` (NPC step for the client that owns the ped).
+- Dispatch: `nz:client:dispatch (alert)` (offender's client, client-side systems),
+  `nz:client:dispatch:alert (alert)` (`internal`: officers' notification + blip).
+- Tow: `nz:client:tow:start ({ id, netId, model, timeout, truck?, driver?, officer })`,
+  `nz:client:tow:attach ({ id, netId, truck, seconds })`, `nz:client:tow:stop ({ id })`,
+  `nz:client:tow:fade (netIds)` (`officer = true`: the runner is the impounding officer and shows a
+  blip on its truck).
+- Contracts: `nz:client:contract:open (ContractOpenData)`, `nz:client:contract:status
+  ({ contractId, status, copy?, resendIn? })`, `nz:client:contract:keys ({ netId, plate, give })`.
+- Fake plates: `nz:client:fakeplates:use ()` (item use), `nz:client:fakeplates:keys ({ netId, plate })`
+  (keys for the fake text with an external key resource).
+
+Client → server events (exceptions to "callbacks only"):
+- `nz:phone:spawned (plate, netId)` / `nz:phone:failed (plate)` — for phone client files that
+  cannot use our lib.callback. Validated: the sender must be the claimant; plate and model must
+  match; a failure is refused while any copy exists.
+- Other key scripts' server events answered by `bridge/server/listeners.lua` while those scripts
+  are not running (docs/INTEGRATIONS.md §6), with the car lock's compat rules.
+
+Local events: `nz:client:playerLoaded` / `playerUnloaded` / `jobUpdated` / `gangUpdated` (client
+bridge), `nz:server:playerLoaded` / `playerUnloaded (src)` (server bridge),
+`nz:client:carlock:keysChanged (plate|nil)`, `nz:client:carlock:driver ({ vehicle, netId, plate,
+allowed } | nil)`.
+
+### 9.1 State bags
+
+| Bag | Entity | Written by | Meaning |
+|---|---|---|---|
+| `nzInit` | vehicle | server (server spawn, phone valet) | saved props / damage / fuel / mileage the owner client applies |
+| `nzPlate` | vehicle | server | the real plate (garage vehicles, fake plates); for clients only, the server never trusts it |
+| `nzMileage` | vehicle | the owner client (every 10 s while driving) | kilometres driven, read when the vehicle is stored |
+| `nzSpawner` | vehicle | server, not replicated | job / rental spawner slot (survives a resource restart) |
+| `nzLocked` | vehicle | server | door lock of the built-in car lock; every client applies it, a client change is put back |
+| `nzAlarm` | vehicle | server | `{ id, mode = 'native'|'custom', seconds }` or false; clients near the vehicle play it |
+| `nzSearched` | vehicle | server | the vehicle was searched (no-key driver flow) |
+| `nzFakePlate` | vehicle | server | the fake plate text (target options); a client change is put back |
+| `nzTowing` | vehicle | server | on its way to the impound: nobody enters or drives it |
+| `nzTowTruck` / `nzTowDriver` | truck / ped | server | the NPC flatbed and its driver (client guard only) |
+| `fuel` | vehicle | fuel resources (ox_fuel, Renewed-Fuel) | read / written by `NZ.Fuel` |
+| `GlobalState.nzCarLockOther` | global | server | key resource in charge instead of the built-in car lock (`false` = none) |
+
+The lock feedback is not a bag (server event `nz:client:carlock:fx`). The server identifies tow
+entities and key holders from its own data; the bags only drive what clients show and allow.
+`set sv_stateBagStrictMode true` stops clients writing bags at all (optional; it breaks other
+scripts that write entity bags from clients).
+
+### 9.2 Convars
+
+| Convar | Default | Meaning |
+|---|---|---|
+| `nz_carlock_secret` | (none) | key item signing secret (≥ 16 characters); set the same value on servers sharing a database, else the value in `nz_settings` is used |
+| `nayzeee_housing_hooked` | `''` | housing scripts whose own garage interaction is routed to nayzeee-garages (comma separated); hides our points for them |
+| `nayzeee_housing_hook_range` | `200` | metres between a hook garage and its property (0 = no check) |
+| `nayzeee_housing_loaf_keys` | `1` | `0` = loaf_housing `AllowGarageKey = false` (owners only) |
+| `nayzeee_housing_nolag_lockdown` | `1` | `0` = a nolag police lockdown does not close the garage |
+| `nayzeee_housing_nolag_society` | `0` | `1` = every member of the owning job may use a nolag society property's garage |
+| `sv_entityLockdown` | (FiveM) | read by the interiors: each interior bucket copies the server-wide mode; the tow truck works with any mode |
+
+### 9.3 Resource KVP and settings keys
+
+Server KVP: `nz_first_import` (first-start import done), `nz:vtype:<hash>` (learnt vehicle
+category), `nz:carlock:session` (temporary keys, versions, plates, locks across a resource
+restart), `nz:carlock:secret` (local copy of the signing secret while the database is
+unreachable), `nz:fakeplates:session`, `nz_phone_claim:<plate>`, `nz_phone_seen:<phone>`,
+`nz_housing:spot:<houseId>` (hook garage positions). Client KVP: `nz_interior_return`,
+`nz_creator_return`. `nz_settings` keys: `settings`, `carlock_secret`, `migration_v1`.
+Database tables of the car lock: `nz_keys` (virtual keys) and the vehicle table columns
+`nz_key_version`, `nz_key_owner` (see `install/nayzeee-garages.sql`).
 
 ---------------------------------------------------------------------------------------
 
 ## 10. Exports
 
-Server (`exports['nayzeee-garages']:X`): `GetVehicle(plate)`, `GetPlayerVehicles(identifier)`,
-`AddVehicle(identifier, model, plate, props, garageKey)`, `SetVehicleGarage(plate, garageKey)`,
-`ImpoundVehicle(plate, opts)`, `AddServiceRecord(plate, entry)`, `AddOwnershipRecord(plate, entry)`,
-`IsVehicleOut(plate)`, `GetLocations(kind)`, `RegisterHouseGarage(houseId, data)`,
-`RemoveHouseGarage(houseId)`, `SetHouseAccess(houseId, identifiers)`.
+Complete reference with arguments, return values and examples: `docs/INTEGRATIONS.md` §12.
 
-Client: `OpenGarage(locationId)`, `OpenImpound(locationId)`, `OpenImpoundForm()`,
-`StoreVehicle(locationId)`, `OpenAdmin(page)`, `IsInsideInterior()`.
+Server (`exports['nayzeee-garages']:X`): `GetVehicle`, `GetPlayerVehicles`, `AddVehicle`,
+`SetVehicleGarage`, `ImpoundVehicle`, `AddServiceRecord`, `AddOwnershipRecord`, `IsVehicleOut`,
+`GetLocations`, `RegisterHouseGarage`, `RemoveHouseGarage`, `SetHouseAccess`, `RefreshHousing`
+(`server/exports.lua`); `GetPhoneVehicles`, `ClaimVehicleForValet`, `ReleaseValetClaim`,
+`MarkValetSpawned` (`server/phone.lua`); `HasKey`, `GiveKey`, `RemoveKey`, `GiveKeyItem`,
+`GetKeyVersion`, `Rekey`, `SetVehicleLocked`, `IsVehicleLocked`, `SendDispatch`
+(`server/carlock/exports.lua`); `StartTow` (`server/towtruck.lua`); `useNzItem` (ox_inventory
+item hook, `bridge/server/inventory.lua`).
+
+Client: `OpenGarage`, `StoreVehicle`, `OpenImpound`, `OpenImpoundForm`, `OpenAdmin`,
+`IsInsideInterior`, `OpenHouseGarage`, `StoreHouseGarage`, `RefreshHouseGarages`, `HasKey`,
+`ToggleLock`, `ToggleEngine`, `GiveKey`, `OpenKeys`.
+
+While the built-in car lock runs, the listener files also answer other key scripts' export
+names when those scripts are not running (docs/INTEGRATIONS.md §6).
 
 ---------------------------------------------------------------------------------------
 

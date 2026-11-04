@@ -6,7 +6,8 @@
     GiveKey(src, vehicle, hours?) -> boolean               temporary key (reason 'export')
     RemoveKey(src, vehicle) -> boolean                     temporary key of that player
     GiveKeyItem(src, vehicle) -> boolean, error?           physical mode: signed key / fob item
-    GetKeyVersion(plate) -> integer|nil                    nil: the database cannot be read
+    GetKeyVersion(plate) -> integer|nil                    nil: invalid plate or the database
+                                                            cannot be read
     Rekey(plate, keepIdentifier?) -> integer|nil           new version: older keys stop working,
                                                             virtual / temporary keys of others removed.
                                                             Call it when your script changes a
@@ -98,7 +99,7 @@ end))
 
 exports('GetKeyVersion', safe('GetKeyVersion', function(plate)
   plate = Utils.plate(plate)
-  if not plate then return 0 end
+  if not plate or #plate > 16 then return nil end
   return CarLock.keyVersion(plate)
 end))
 

@@ -72,6 +72,15 @@ function KeysServer.resource()
   return nil
 end
 
+--- Is the key resource in use a CLIENT-side one (qb-vehiclekeys, wasabi_carlock, ...)? Those
+--- are reached through the player's client (bridge/client/keys.lua: the garage client gives keys
+--- itself; 'nz:client:giveKeys' for vehicles another script delivered, e.g. a phone valet).
+---@return boolean
+function KeysServer.clientSide()
+  local resource = KeysServer.resource()
+  return resource ~= nil and resource ~= 'nayzeee' and not SERVER_SIDE[resource]
+end
+
 local function validPlayer(src)
   src = tonumber(src)
   if not src or src <= 0 or src ~= math.floor(src) then return nil end
@@ -133,7 +142,8 @@ local function entitled(src, plate)
   end
   local out = type(NZ.Vehicles.out) == 'table' and NZ.Vehicles.out[plate] or nil
   if type(out) == 'table' then
-    if out.src == src then return true end
+    -- the same server id only counts for the same character (sold on, or a reused id)
+    if out.src == src and (out.identifier == nil or out.identifier == identifier) then return true end
     if identifier and out.identifier == identifier then return true end
   end
   if identifier and type(NZ.DB.getVehicle) == 'function' then

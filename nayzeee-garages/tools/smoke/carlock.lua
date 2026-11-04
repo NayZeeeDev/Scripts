@@ -2,7 +2,7 @@
   Headless test for the built-in car lock core (no FiveM needed).
 
   Loads the real shared files, bridge/server/{inventory,keys,listeners}.lua and
-  server/carlock/{keys,main,exports}.lua in a stubbed server runtime with an in-memory vehicle
+  server/carlock/{keys,main,tracker,exports}.lua in a stubbed server runtime with an in-memory vehicle
   database, a fake ox_inventory (metadata) and a fake world (players, vehicles, seats,
   population types, state bags, KVP), then traces the flows end to end:
 
@@ -490,6 +490,7 @@ local function loadServer()
   load_('bridge/server/listeners.lua')
   load_('server/carlock/keys.lua')
   load_('server/carlock/main.lua')
+  load_('server/carlock/tracker.lua') -- NZ.CarLock.keyHolderList (nz:carlock:holders)
   load_('server/carlock/exports.lua')
 end
 loadServer()
@@ -643,14 +644,18 @@ check(res.ok and nzKeys.FOB777 and nzKeys.FOB777.CID002 ~= nil, 'virtual key sto
 has, kind = hasKey(2, 'FOB777')
 check(has and kind == 'virtual', 'the shared player has a virtual key')
 res = cb('nz:carlock:holders', 1, { plate = 'FOB777' })
-check(res.ok and #res.data == 1 and res.data[1].identifier == 'CID002' and res.data[1].kind == 'virtual', 'holders list')
+check(res.ok and #res.data == 1 and type(res.data[1].id) == 'string' and res.data[1].id ~= ''
+  and res.data[1].identifier == nil and res.data[1].grantedBy == nil and res.data[1].kind == 'virtual',
+  'holders list: opaque ids, no identifiers (NZ.CarLock.keyHolderList)')
 res = cb('nz:carlock:holders', 2, { plate = 'FOB777' })
 check(not res.ok, 'only the owner sees the holders')
 res = cb('nz:carlock:share', 2, { plate = 'FOB777', target = 3 })
 check(not res.ok, 'only the owner shares virtual keys')
-local pushesBefore = clientEventsFor('nz:client:carlock:keys', 2)
 res = cb('nz:carlock:revoke', 1, { plate = 'FOB777', identifier = 'CID002' })
-check(res.ok and not hasKey(2, 'FOB777'), 'revoke removes the virtual key')
+check(not res.ok and hasKey(2, 'FOB777'), 'revoke by raw identifier: admins only (the owner uses keyRevoke)')
+local pushesBefore = clientEventsFor('nz:client:carlock:keys', 2)
+res = cb('nz:carlock:revoke', 3, { plate = 'FOB777', identifier = 'CID002' })
+check(res.ok and not hasKey(2, 'FOB777'), 'admin revoke removes the virtual key')
 check(clientEventsFor('nz:client:carlock:keys', 2) > pushesBefore, 'revoke pushed to the holder')
 res = cb('nz:carlock:keys', 1, {})
 local plates = {}

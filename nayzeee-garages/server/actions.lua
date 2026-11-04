@@ -717,6 +717,14 @@ register('nz:garage:unshare', function(src, payload)
   end
 
   if not NZ.DB.shares.remove(plate, identifier) then return fail(L('Something went wrong')) end
+  -- built-in car lock: a temporary key the share gave ends at the removed player's next key
+  -- check (now, not after the 15 s access cache); their client drops its cached key
+  local carLock = NZ.CarLock
+  if type(carLock) == 'table' and type(carLock.enabled) == 'function' and carLock.enabled() then
+    if type(carLock.invalidate) == 'function' then pcall(carLock.invalidate, plate) end
+    local holderSrc = NZ.Bridge.getSourceByIdentifier(identifier)
+    if holderSrc then TriggerClientEvent('nz:client:carlock:keys', holderSrc, { plate = plate }) end
+  end
   if isOwner then
     local removed = NZ.Bridge.getSourceByIdentifier(identifier)
     if removed then notify(removed, 'info', L('You no longer have access to {plate}', { plate = plate })) end

@@ -201,7 +201,8 @@ function FakePlates.plateOf(entity)
   return textOf(entity)
 end
 
---- The vehicle wearing the fake plate `text` and its record (police / MDT integrations).
+--- The vehicle wearing the fake plate `text` and its record (internal; not exported: other
+--- resources only see the fake plate).
 ---@param text string
 ---@return number|nil entity, table|nil record { real, fake, at }
 function FakePlates.lookup(text)

@@ -37,6 +37,8 @@ export function viaLabel(via: string): string {
       return t('Transfer');
     case 'sale':
       return t('Player sale');
+    case 'contract':
+      return t('Sale contract');
     case 'purchase':
       return t('Purchase');
     case 'gift':

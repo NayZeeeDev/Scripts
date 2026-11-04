@@ -1129,6 +1129,27 @@ do -- 18. the impound form hook (owned and NPC vehicles; admin / export impounds
   trace()
 end
 
+do -- 18b. a fake-plated vehicle (NZ.FakePlates): officers see the plate it shows, the real
+  -- registration is found and impounded (docs/CARLOCK.md section 13)
+  local NZ = scenario('impound fake plate', { { src = 1, x = 0.0, y = -6.0 } })
+  local faked = car('sultan', 5.0, 0.0, 1)
+  local shown = ent(faked).plate
+  W.rows.REAL0001 = { plate = 'REAL0001', owner = 'CID1', vehicleType = 'car', state = 'out' }
+  NZ.FakePlates.realPlateOf = function(e) if e == faked then return 'REAL0001' end return nil end
+  local form = W.callbacks['nz:impound:formData'](1, { netId = ent(faked).netId })
+  check(form.ok == true and form.data.plate == shown and form.data.owned == true,
+    'fake plate: the form shows the plate the vehicle shows, the row is found by its registration')
+  local submit = W.callbacks['nz:impoundForm:submit']
+  local r = submit(1, { impoundId = 1, netId = ent(faked).netId, plate = 'NOPE01' })
+  check(r.ok == false, 'fake plate: a plate the vehicle neither shows nor is registered under is refused')
+  run(2500) -- form rate limit
+  r = submit(1, { impoundId = 1, netId = ent(faked).netId, plate = shown })
+  check(r.ok == true and W.updated and W.updated.plate == 'REAL0001' and W.updated.fields.state == 'impounded',
+    'fake plate: the shown plate is accepted and the registration is impounded')
+  stopResource()
+  trace()
+end
+
 do -- 19. entity lockdown (relaxed / strict): clients cannot create entities, the server does
   local NZ = scenario('lockdown', { { src = 1, x = 0.0, y = -6.0 } })
   W.lockdown = true

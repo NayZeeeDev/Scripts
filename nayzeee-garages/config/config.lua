@@ -22,13 +22,16 @@ Config.Debug = false
 
 -- Integrations: 'auto' picks the first running resource it knows. See bridge/client/*.lua
 Config.Integrations = {
-  -- Keys: 'auto' = the built-in car lock (config/carlock.lua) when Config.CarLock.enabled, else the
-  -- first running resource of: qbx_vehiclekeys | qb-vehiclekeys | wasabi_carlock | MrNewbVehicleKeys |
-  -- qs-vehiclekeys | Renewed-Vehiclekeys | vehicles_keys. Or force one of those, 'nayzeee' or 'none'.
+  -- Keys: 'auto' = the built-in car lock (config/carlock.lua) when Config.CarLock.enabled and none
+  -- of these runs, else the first running one: qbx_vehiclekeys | qb-vehiclekeys | wasabi_carlock |
+  -- MrNewbVehicleKeys | qs-vehiclekeys | Renewed-Vehiclekeys | vehicles_keys (one that starts while
+  -- the server boots also takes over). 'nayzeee' forces the built-in car lock; or force one of
+  -- those, or 'none'.
   keys = 'auto',
-  -- Inventory (car lock key items, tools, contracts, fake plates): ox_inventory | qb-inventory |
-  -- qs-inventory | codem-inventory | tgiann-inventory | origen_inventory | core_inventory |
-  -- ps-inventory | lj-inventory | framework (items without metadata) | custom | none
+  -- Inventory (car lock key items, tools, contracts, fake plates): 'auto' = first started of
+  -- ox_inventory | qs-inventory-pro | qs-inventory | codem-inventory | tgiann-inventory |
+  -- origen_inventory | core_inventory | ps-inventory | lj-inventory | qb-inventory, else framework
+  -- items; or force one of those, framework (items without metadata), custom, none
   inventory = 'auto',
   fuel = 'auto',    -- ox_fuel | LegacyFuel | cdn-fuel | ps-fuel | lj-fuel | okokGasStation | qs-fuelstations | Renewed-Fuel | ti_fuel | native
   target = 'auto',  -- ox_target | qb-target | none
@@ -93,6 +96,18 @@ Config.AutoImportOnFirstStart = true
 
 -- First routing bucket used for garage interiors. Each live interior instance gets its own.
 Config.BucketBase = 7400
+
+-- Phone garage apps (install/phone/README.md). These are the defaults server/phone.lua uses
+-- when a value is missing.
+Config.Phone = {
+  valet = true,                 -- allow phone valet ("bring my car") claims
+  valetTypes = { car = true },  -- categories a valet may deliver: car | sea | air
+  claimTimeout = 60,            -- seconds (15-300) to deliver before the vehicle goes back to its garage
+  applyData = true,             -- re-apply saved damage / fuel / mileage to the delivered vehicle
+  maxPending = 2,               -- undelivered valet claims per player
+  listShared = true,            -- phone lists include vehicles shared with the player
+  hints = true,                 -- console hint at start for an installed phone with no adapter
+}
 
 -- Vehicles you never want stored (spawn names). Job spawner vehicles are handled separately.
 Config.BlacklistedModels = {}

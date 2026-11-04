@@ -28,7 +28,7 @@ Server exports (`exports['nayzeee-garages']:X`):
 |---|---|---|
 | `GetPhoneVehicles(source)` | `PhoneVehicle[]` or `nil, error` | The player's vehicles plus vehicles shared with them. Rate limited (1 s; a repeat inside 3 s gets the previous answer). |
 | `ClaimVehicleForValet(source, plate)` | `ValetData` or `nil, error` | Same rules as taking the vehicle out of its garage: owner or shared access, not blocked / impounded / out, finance not overdue, access to the garage it is parked in (house access, private-garage membership, job/gang restrictions, garage not closed or deleted). Fleet vehicles, vehicles with a saved trailer and categories outside `valetTypes` are refused. Marks it **out** and starts a delivery claim. Rate limited (2 s), at most `maxPending` undelivered claims per player. |
-| `MarkValetSpawned(source, plate, netId)` | `true` or `false, error` | The phone created the vehicle: it is tracked like a normal retrieve (keys from server-side key systems, duplicate protection, mileage, storing it later). Plate and model must match; waits up to 10 s for a server-created vehicle's plate. |
+| `MarkValetSpawned(source, plate, netId)` | `true` or `false, error` | The phone created the vehicle: it is tracked like a normal retrieve (keys from the built-in car lock or the key script in use, duplicate protection, mileage, storing it later). Plate and model must match; waits up to 10 s for a server-created vehicle's plate. |
 | `ReleaseValetClaim(source, plate)` | `true` or `false, error` | The phone could not deliver: the vehicle goes back to its garage. Refused while any copy exists in the world. |
 
 Net events for phone **client** files (the reporting player must be the claimant):
@@ -118,13 +118,14 @@ phone's stock garage code (see "Other phones") can set `hints = false`.
 
 Keep lb-phone's `Config.Valet` as you like (price, driver ped, `Config.ServerSideSpawn`).
 
-Keys for a valet vehicle: lb-phone's client `GiveVehicleKey`
-(client/custom/functions/functions.lua) still runs (`vehiclekeys:client:SetOwner` =
-qb-vehiclekeys), and with qbx_vehiclekeys nayzeee gives the keys on the server. Other
-client-side key scripts (wasabi_carlock, MrNewbVehicleKeys, qs-vehiclekeys,
-Renewed-Vehiclekeys, ...) are **not** reached by a phone delivery the way a normal garage
-retrieve reaches them: edit lb-phone's `GiveVehicleKey` for them, as you would without
-nayzeee-garages.
+Keys for a valet vehicle: once the delivered vehicle is tracked, nayzeee hands out the keys
+like a normal garage retrieve: the built-in car lock and qbx_vehiclekeys on the server, and
+client-side key scripts (qb-vehiclekeys, wasabi_carlock, MrNewbVehicleKeys, qs-vehiclekeys,
+Renewed-Vehiclekeys, vehicles_keys) through the claimant's client (`nz:client:giveKeys`).
+lb-phone's stock `GiveVehicleKey` (client/custom/functions/functions.lua; qb-vehiclekeys
+`SetOwner`) still runs; that is harmless. If you edited `GiveVehicleKey` for another key script
+(the previous advice), undo that edit: nayzeee now gives those keys itself, and item-based key
+scripts (qs-vehiclekeys) could hand out two keys.
 
 Impounded vehicles show the impound, reason, fee and officer; the release time is only sent
 when the owner may get the vehicle out (none for a police hold).
@@ -168,9 +169,6 @@ escrowed files whose names could not be checked. Two options:
    valet's take-out query with `NayzeeePhone.claim(source, plate)`. See the file header.
 
 ## Limits
-
-- A valet delivery gets keys only from server-side key systems and from the phone's own key
-  code (see lb-phone above); nayzeee's client key bridge is not involved.
 
 - No lock / unlock, engine or door control from the phone (lb-phone's `toggleLocked` is still
   its own stub).

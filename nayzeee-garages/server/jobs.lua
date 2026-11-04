@@ -102,7 +102,14 @@ local function isVehicleEntity(entity)
   return type(entity) == 'number' and entity ~= 0 and DoesEntityExist(entity) and GetEntityType(entity) == 2
 end
 
+--- The registration of a vehicle: the real plate under a fake plate (NZ.FakePlates), else
+--- the plate text.
 local function plateOf(entity)
+  local fake = NZ.FakePlates
+  if type(fake) == 'table' and type(fake.realPlateOf) == 'function' then
+    local okReal, real = pcall(fake.realPlateOf, entity)
+    if okReal and real then return real end
+  end
   return Utils.plate(GetVehicleNumberPlateText(entity))
 end
 

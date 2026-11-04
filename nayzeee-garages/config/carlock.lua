@@ -269,6 +269,10 @@ Config.CarLock = {
   },
   locksmithAccount = 'cash',       -- 'cash' | 'bank'
 
+  -- Share picker of the key ring (players within ranges.give): character names of strangers
+  -- are metagaming on most servers, so it lists server ids ('Player 12') unless this is true.
+  sharePicker = { names = false },
+
   -- Tracker (security profiles with tracker = true): locate the vehicles you have a key for
   -- from the key ring (waypoint + live distance, same routing bucket) and sound their alarm.
   tracker = {

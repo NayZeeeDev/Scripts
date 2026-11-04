@@ -88,7 +88,9 @@ local handlers, netHandlers, clientEvents = {}, {}, {}
 function AddEventHandler(name, fn) handlers[name] = handlers[name] or {} table.insert(handlers[name], fn) return name end
 function RegisterNetEvent(name, fn) netHandlers[name] = fn end
 function TriggerEvent(name, ...) for _, fn in ipairs(handlers[name] or {}) do fn(...) end end
-function TriggerClientEvent(name, target, payload) clientEvents[#clientEvents + 1] = { name = name, target = target, payload = payload } end
+function TriggerClientEvent(name, target, payload, ...)
+  clientEvents[#clientEvents + 1] = { name = name, target = target, payload = payload, extra = { ... } }
+end
 
 --- Fire a net event as player `src` (the handler sees the global `source`).
 local function fireNet(name, src, ...)
@@ -338,6 +340,15 @@ NZ.Bridge.isAdmin = function() return false end
 
 local keysGiven = {}
 NZ.KeysServer.give = function(src, netId, plate) keysGiven[#keysGiven + 1] = { src = src, netId = netId, plate = plate } end
+local keysClientSide = false -- a client-side key resource (qb-vehiclekeys, ...) is in use
+NZ.KeysServer.clientSide = function() return keysClientSide end
+local function giveKeysEvents(plate)
+  local list = {}
+  for _, ev in ipairs(clientEvents) do
+    if ev.name == 'nz:client:giveKeys' and (plate == nil or ev.extra[1] == plate) then list[#list + 1] = ev end
+  end
+  return list
+end
 
 NZ.Private.role = function() return nil end
 NZ.Private.groupsFor = function() return {} end
@@ -577,6 +588,7 @@ check(entry and entry.entity == car and entry.netId == carNet, 'reported entity 
 check(stateOf(car).nzPlate == 'ABC123', 'nzPlate state bag set')
 check(type(stateOf(car).nzInit) == 'table' and stateOf(car).nzInit.damage ~= nil, 'nzInit (saved damage / fuel) attached')
 check(#keysGiven == 1 and keysGiven[1].plate == 'ABC123' and keysGiven[1].netId == carNet, 'server-side keys given')
+check(#giveKeysEvents() == 0, 'no client key event while keys are given on the server')
 check(NZ.Phone.pending('ABC123') == nil, 'claim finished')
 check(kvp['nz_phone_claim:ABC123'] == nil, 'delivered claim forgotten in the KVP')
 
@@ -601,13 +613,18 @@ check(db.ABC123.state == 'garaged' and db.ABC123.garageKey == 'L1' and entities[
 ---------------------------------------------------------------------------------------
 
 waitRate()
+keysClientSide = true -- client-side key resource: the keys reach the claimant's client
 data = call('ClaimVehicleForValet', 1, 'DEF456')
 check(type(data) == 'table', 'claim 2 accepted')
-local car2 = spawnEntity('DEF456', 'sultan')
+local car2, car2Net = spawnEntity('DEF456', 'sultan')
 advance(2500)
 entry = Vehicles.out.DEF456
 check(entry and entry.entity == car2, 'watchdog adopted the unreported valet car')
 check(NZ.Phone.pending('DEF456') == nil and stateOf(car2).nzPlate == 'DEF456', 'adopted: claim finished, nzPlate set')
+local keyEvents = giveKeysEvents()
+check(#keyEvents == 1 and keyEvents[1].target == 1 and keyEvents[1].payload == car2Net
+  and keyEvents[1].extra[1] == 'DEF456', 'client-side key resource: nz:client:giveKeys sent to the claimant')
+keysClientSide = false
 
 ---------------------------------------------------------------------------------------
 -- 4. Timeout rollback (no copy ever appears) + player notification
@@ -1189,6 +1206,35 @@ NZ.Phone.boot()
 check(#printed.info == 0, 'Config.Phone.hints = false: no hint')
 Config.Phone = nil
 online[2] = 'CID002'
+
+---------------------------------------------------------------------------------------
+-- Valet of a vehicle still on its way to the impound on the NPC tow truck (NZ.Tow): released,
+-- not deleted raw and not logged as a duplicate
+---------------------------------------------------------------------------------------
+
+addRow('TOW001')
+local towedCar = spawnEntity('TOW001', 'sultan')
+local towedSet = { [towedCar] = true }
+NZ.Tow.isTowing = function(e) return towedSet[e] == true end
+NZ.Tow.release = function(e)
+  if not towedSet[e] then return false end
+  towedSet[e] = nil
+  DeleteEntity(e)
+  return true
+end
+local function countLogs(event)
+  local n = 0
+  for _, l in ipairs(logs) do if l.event == event then n = n + 1 end end
+  return n
+end
+local dupesBefore = countLogs('security.dupe')
+waitRate()
+local towClaim = call('ClaimVehicleForValet', 1, 'TOW001')
+check(type(towClaim) == 'table' and entities[towedCar] == nil and towedSet[towedCar] == nil
+  and countLogs('security.dupe') == dupesBefore, 'valet of a vehicle on the tow truck: NZ.Tow.release, no dupe log')
+NZ.Tow.isTowing, NZ.Tow.release = nil, nil
+waitRate()
+call('ReleaseValetClaim', 1, 'TOW001')
 
 check(#printed.error == 0, 'no lib.print.error: ' .. table.concat(printed.error, ' | '))
 

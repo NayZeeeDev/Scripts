@@ -174,7 +174,14 @@ local function isVehicleEntity(entity)
   return type(entity) == 'number' and entity ~= 0 and DoesEntityExist(entity) and GetEntityType(entity) == 2
 end
 
+--- The registration of a vehicle: the real plate under a fake plate (NZ.FakePlates), else
+--- the plate text.
 local function plateOf(entity)
+  local fake = NZ.FakePlates
+  if type(fake) == 'table' and type(fake.realPlateOf) == 'function' then
+    local okReal, real = pcall(fake.realPlateOf, entity)
+    if okReal and real then return real end
+  end
   return Utils.plate(GetVehicleNumberPlateText(entity))
 end
 
@@ -633,13 +640,28 @@ local function restore(plate, claim)
   return true, restored
 end
 
+--- Keys of a delivered valet vehicle through a CLIENT-side key resource (qb-vehiclekeys,
+--- wasabi_carlock, ...). The built-in car lock and server-side systems got them from
+--- NZ.Vehicles.markSpawned (NZ.KeysServer.give).
+local function clientKeys(plate, claim, entity)
+  if claim.dropped or not claim.src or not isVehicleEntity(entity) then return end
+  if setting('vehicles.giveKeys', true) == false then return end
+  local keys = NZ.KeysServer
+  if type(keys) ~= 'table' or type(keys.clientSide) ~= 'function' then return end
+  local okSide, side = pcall(keys.clientSide)
+  if not okSide or side ~= true then return end
+  TriggerClientEvent('nz:client:giveKeys', claim.src, NetworkGetNetworkIdFromEntity(entity), plate)
+end
+
 --- The valet vehicle exists and is tracked: hand nayzeee's saved data to its owner client.
-local function finish(plate, claim, entity)
+--- marked = NZ.Vehicles.markSpawned accepted it for the claimant (keys go to them).
+local function finish(plate, claim, entity, marked)
   if not endClaim(plate, claim) then return end
   if option('applyData') ~= false and type(claim.init) == 'table' and isVehicleEntity(entity) then
     local success, err = pcall(function() Entity(entity).state:set('nzInit', claim.init, true) end)
     if not success then warnOnce('nzInit', ('could not attach the saved vehicle data: %s'):format(tostring(err))) end
   end
+  if marked then clientKeys(plate, claim, entity) end
   Utils.debug('phone valet delivered', plate)
 end
 
@@ -710,8 +732,15 @@ local function doClaim(src, plate, identifier, resource)
       log('security.dupe', src, { plate = plate, reason = 'phone valet while an occupied copy exists' })
       return fail(L('Vehicle is already out'))
     end
-    DeleteEntity(stray)
-    log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before a phone valet' })
+    -- still on its way to the impound on the NPC tow truck: not a duplicate (NZ.Tow.release
+    -- deletes it and the truck leaves empty)
+    local tow = NZ.Tow
+    local released = type(tow) == 'table' and type(tow.isTowing) == 'function' and type(tow.release) == 'function'
+      and tow.isTowing(stray) and tow.release(stray)
+    if not released then
+      DeleteEntity(stray)
+      log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before a phone valet' })
+    end
   end
 
   local now = os.time()
@@ -880,7 +909,7 @@ function Phone.spawned(src, plate, netId)
 
   local marked, err = NZ.Vehicles.markSpawned(src, plate, netId)
   if not marked then return false, err end
-  finish(plate, claim, entity)
+  finish(plate, claim, entity, true)
   return true
 end
 
@@ -895,7 +924,7 @@ local function adopt(plate, claim, entity)
   -- The claimant left (or changed character): track the vehicle, no keys for that source.
   local marked = not claim.dropped and netId and netId ~= 0 and NZ.Vehicles.markSpawned(claim.src, plate, netId)
   if marked == true then
-    finish(plate, claim, entity)
+    finish(plate, claim, entity, true)
     return
   end
   -- markSpawned refused (player gone, state changed): track it only while the claim still
@@ -991,7 +1020,8 @@ local function tick()
       -- a report waiting for its plate holds the claim, at most WAIT_GRACE seconds longer
       local overdue = age >= timeout and ((claim.waiting or 0) == 0 or age >= timeout + WAIT_GRACE)
       if tracked then
-        finish(plate, claim, tracked)
+        -- reported through the generic nz:garage:spawned by the claimant (markSpawned accepted it)
+        finish(plate, claim, tracked, true)
       elseif found[plate] then
         adopt(plate, claim, found[plate])
       elseif claim.dropped or overdue then

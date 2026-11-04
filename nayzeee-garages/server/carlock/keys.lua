@@ -654,7 +654,9 @@ local function descriptionOf(plate, opts)
 end
 
 --- Signed metadata of a new key item for the current version of `plate`.
---- opts = { kind = 'key'|'fob', model = spawn name, label = model label }
+--- opts = { kind = 'key'|'fob', model = spawn name, label = model label, origin = 'search'|'locksmith'|nil }
+--- origin marks a crime's key (server-written, not part of the signature): it opens the vehicle
+--- but gives no tracker access and no owner's nickname (server/carlock/tracker.lua).
 ---@param plate string
 ---@param opts table|nil
 ---@return table|nil metadata
@@ -680,6 +682,7 @@ function CarLock.keyMetadata(plate, opts)
     sig = signature(plate, version, kind, id),
     label = CarLock.keyLabel(kind, plate),
     description = descriptionOf(plate, { label = opts.label, model = model }),
+    origin = type(opts.origin) == 'string' and opts.origin:sub(1, 16) or nil,
     display = false, -- qb-inventory: show only the description, not every field
   }
 end
@@ -744,7 +747,7 @@ function CarLock.keyItemsOf(src, plate)
 end
 
 --- Give a physical key / fob item for the current version of `plate`.
---- opts = { kind = 'key'|'fob', model, label, reason }
+--- opts = { kind = 'key'|'fob', model, label, reason, origin? } (origin: see keyMetadata)
 ---@param src number
 ---@param plate string
 ---@param opts table|nil
@@ -760,14 +763,14 @@ function CarLock.giveKeyItem(src, plate, opts)
     local row = rowOf(plate)
     model = row and row.model or nil
   end
-  local md = CarLock.keyMetadata(plate, { kind = opts.kind, model = model, label = opts.label })
+  local md = CarLock.keyMetadata(plate, { kind = opts.kind, model = model, label = opts.label, origin = opts.origin })
   if not md then return false, L('Something went wrong') end
   local item = CarLock.itemName(md.kind)
   if not NZ.Inventory.addItem(src, item, 1, md) then
     return false, L('You cannot carry the key')
   end
   push(src, plate)
-  log('vehicle.keyItem', src, { plate = plate, kind = md.kind, version = md.version, reason = opts.reason })
+  log('vehicle.keyItem', src, { plate = plate, kind = md.kind, version = md.version, reason = opts.reason, origin = md.origin })
   return true, nil
 end
 

@@ -247,6 +247,20 @@ function Keys.give(vehicle, plate)
   return run('give', vehicle, plate)
 end
 
+-- A vehicle another script delivered for this player (phone valet, server/phone.lua) while a
+-- CLIENT-side key resource is in use: the keys follow, as on a garage retrieve. The built-in car
+-- lock and server-side systems give keys on the server (NZ.KeysServer.give in markSpawned).
+RegisterNetEvent('nz:client:giveKeys', function(netId, plate)
+  plate = Utils.plate(plate)
+  if not plate or #plate > 16 then return end
+  netId = tonumber(netId)
+  local vehicle = (netId and NetworkDoesNetworkIdExist(netId)) and NetworkGetEntityFromNetworkId(netId) or 0
+  -- plate-based key resources do not need the entity in scope; when it is, it must match
+  if isVehicle(vehicle) and Utils.plate(GetVehicleNumberPlateText(vehicle)) ~= plate then return end
+  if not isVehicle(vehicle) then vehicle = nil end
+  pcall(Keys.give, vehicle, plate)
+end)
+
 --- Remove the local player's keys of a vehicle (best effort, same resolution as give).
 ---@param vehicle number|nil vehicle entity
 ---@param plate string|nil plate; read from the entity when nil

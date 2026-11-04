@@ -47,7 +47,7 @@ local CarLock = NZ.CarLock
 local Utils = NZ.Utils
 
 local ACCESS_RANGE = 3.5       -- m: vehicle centre to the server ped (doors)
-local BIG_ACCESS_RANGE = 7.0   -- m: the same for buses, trucks, industrial / service vehicles
+local BIG_ACCESS_RANGE = 7.0   -- m: the same for buses, trucks, industrial / service vehicles (not taxis)
 local ITEM_RANGE = 2.5         -- m: a used tool picks a vehicle this close, in front of the player
 local BIG_CLASSES = { [10] = true, [17] = true, [20] = true } -- industrial, service, commercial
 local BODY_RANGE = 3.5         -- m: a dead driver's body to the server ped
@@ -56,8 +56,9 @@ local ASSIST_RANGE = 6.0       -- m: officer to the vehicle
 local SLACK = 2.0              -- m: extra allowed at 'finish' (peds and vehicles move a little)
 local GRACE_MS = 400           -- network latency allowance on minimum durations
 -- ox_lib skill checks: the target area starts at least 120° after the indicator, so the
--- earliest pass is a third of a turn. One turn at speed 1: 2000 ms (ox_lib 3.33+), older
--- versions 1° per interval tick (4 ms in CEF) = 1440 ms. 10 % slack.
+-- earliest pass is a third of a turn. One turn at speed 1: 2000 ms (ox_lib 3.32.3+ (communityox)
+-- / 3.33+ (overextended): requestAnimationFrame), older versions 1° per interval tick (4 ms in
+-- CEF) = 1440 ms. 10 % slack.
 local CHECK_SHARE = 0.9 / 3
 local CHECK_SPEED = { easy = 1.0, medium = 1.5, hard = 1.75 }
 local TURN_MS, TURN_MS_OLD = 2000, 1440
@@ -72,6 +73,8 @@ local MAX_MEMORY = 4000        -- searched plates kept per server session
 local POP_AMBIENT = { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
 local function u32(hash) return math.floor(tonumber(hash) or 0) % 4294967296 end
 local UNARMED = u32(joaat('WEAPON_UNARMED'))
+-- class 17 (service) models the size of a car: the normal reach and facing rules
+local CAR_SIZED = { [u32(joaat('taxi'))] = true, [u32(joaat('vivanite2'))] = true }
 
 --- Does the player hold a weapon (server view; true when the native is not available)?
 local function armed(ped)
@@ -182,9 +185,9 @@ local function ambientPed(ped)
   return ambientEntity(ped)
 end
 
---- Bus, truck, industrial / service vehicle (doors far from the centre)?
+--- Bus, truck, industrial / service vehicle (doors far from the centre)? Taxis are car-sized.
 local function bigVehicle(entity)
-  return BIG_CLASSES[CarLock.classOf(entity) or -1] == true
+  return BIG_CLASSES[CarLock.classOf(entity) or -1] == true and not CAR_SIZED[u32(GetEntityModel(entity))]
 end
 
 --- How far from a vehicle's centre its doors can be worked on.
@@ -329,16 +332,17 @@ local function loadModelNames()
 end
 
 --- Model label: shared vehicle list, else the owned row's model, else the label the client
---- sent (display only), else nil (clients fill it in from the model hash).
+--- sent (display only), else nil (clients fill it in from the model hash). The second value is
+--- true when the label is the client's (officers' clients then look it up themselves).
 local function modelOf(entity, plate, clientLabel)
   local hash = GetEntityModel(entity)
   if modelNames == nil then pcall(loadModelNames) end
-  if modelNames and modelNames[hash] then return modelNames[hash] end
+  if modelNames and modelNames[hash] then return modelNames[hash], false end
   local row = plate and CarLock.vehicleRow(plate) or nil
   if row and type(row.model) == 'string' and row.model ~= '' then
-    return row.model:sub(1, 1):upper() .. row.model:sub(2)
+    return row.model:sub(1, 1):upper() .. row.model:sub(2), false
   end
-  return clientLabel
+  return clientLabel, clientLabel ~= nil
 end
 
 --- Police alert for a crime on `entity` (rolled by the caller). One alert per player and
@@ -364,14 +368,19 @@ function CarLock.crimeAlert(src, kind, entity, session)
   local coords = GetEntityCoords(entity)
   local visible = Utils.plate(GetVehicleNumberPlateText(entity))
   session = type(session) == 'table' and session or {}
+  local model, modelFromClient = modelOf(entity, CarLock.realPlate(entity), session.label)
   local ok, sent = pcall(NZ.Dispatch.alert, src, {
     kind = kind,
     coords = { x = coords.x + 0.0, y = coords.y + 0.0, z = coords.z + 0.0 },
     plate = visible,
-    model = modelOf(entity, CarLock.realPlate(entity), session.label),
+    model = model,
     modelHash = GetEntityModel(entity),
     color = colourOf(entity),
     street = session.street,
+    -- text the offender's client sent: officers' clients replace it with their own lookup
+    -- (server coordinates / model hash); server-side systems keep it (no street names here)
+    streetFromClient = session.street ~= nil or nil,
+    modelFromClient = modelFromClient or nil,
   })
   return ok and sent == true
 end
@@ -540,13 +549,21 @@ local turnMs = nil
 local function indicatorTurnMs()
   if turnMs then return turnMs end
   local ok, version = pcall(GetResourceMetadata, 'ox_lib', 'version', 0)
-  local major, minor = nil, nil
-  if ok and type(version) == 'string' then major, minor = version:match('^%s*v?(%d+)%.(%d+)') end
-  major, minor = tonumber(major), tonumber(minor)
+  local major, minor, patch = nil, nil, nil
+  if ok and type(version) == 'string' then major, minor, patch = version:match('^%s*v?(%d+)%.(%d+)%.?(%d*)') end
+  major, minor, patch = tonumber(major), tonumber(minor), tonumber(patch) or 0
+  -- communityox 3.32.3 and overextended 3.33.0 moved to requestAnimationFrame (2000 ms a turn);
   -- unknown version: the older (faster) timing, so honest players are never refused
-  turnMs = (major and minor and (major > 3 or (major == 3 and minor >= 33))) and TURN_MS or TURN_MS_OLD
+  local modern = major ~= nil and minor ~= nil
+    and (major > 3 or (major == 3 and (minor > 32 or (minor == 32 and patch >= 3))))
+  turnMs = modern and TURN_MS or TURN_MS_OLD
   return turnMs
 end
+
+-- an updated ox_lib (restarted) may change the timing: read its version again
+AddEventHandler('onResourceStart', function(name)
+  if name == 'ox_lib' then turnMs = nil end
+end)
 
 --- Earliest pass of one check ('easy' | 'medium' | 'hard' | { areaSize, speedMultiplier }).
 local function checkMinMs(check)
@@ -765,7 +782,7 @@ local function rollLoot(src, plate, entity)
     local given = false
     if search.spareKeyItem ~= false and CarLock.mode() == 'physical' then
       local _, profile = CarLock.profileOfEntity(entity)
-      given = CarLock.giveKeyItem(src, plate, { kind = CarLock.keyKindOf(profile), reason = 'search' }) == true
+      given = CarLock.giveKeyItem(src, plate, { kind = CarLock.keyKindOf(profile), reason = 'search', origin = 'search' }) == true
     end
     if not given then given = CarLock.grantTemp(src, plate, 'search') end
     if given then found[#found + 1] = L('a spare key') end
@@ -939,6 +956,16 @@ local function deadDriverStart(src, payload)
   local record = drivers[entity]
   local recorded = record ~= nil and record.ped == ped
   if not recorded and not ambientPed(ped) then return Utils.fail(L('There is no key on this body')) end
+  -- an unrecorded driver only counts in a TRAFFIC vehicle (population 1/3/4/5, kept when the
+  -- driver dies): never a random parked car (2) or a script vehicle (7) with an ambient
+  -- pedestrian a modified client warped into the seat
+  if not recorded and section('npc').ambientOnly ~= false then
+    local okPop, vpop = pcall(GetEntityPopulationType, entity)
+    vpop = okPop and tonumber(vpop) or -1
+    if not (vpop == 1 or vpop == 3 or vpop == 4 or vpop == 5) then
+      return Utils.fail(L('There is no key on this body'))
+    end
+  end
   if not wasDriver(entity, ped) then return Utils.fail(L('This person did not drive that vehicle')) end
   if section('npc').ownedVehicles ~= true and ownedPlate(plate) then return Utils.fail(L('There is no key on this body')) end
   local player = pedOf(src)

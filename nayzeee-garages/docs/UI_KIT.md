@@ -5,7 +5,7 @@ and `docs/design/nayzeee-ui-design.html` — read both). The owner chose a **mix
 
 - **From v5:** Lexend font, the window frame with the **chamfered bottom-right corner**
   (clip-path), subtle film grain overlay, teal rail on the title bar, the teal chamfer
-  **brand mark**, tags/badges, toasts, tables, empty states, skeleton loaders, v5 nav item
+  **brand mark**, tags/badges, tables, empty states, skeleton loaders, v5 nav item
   (teal wash + glowing left bar).
 - **From the design sheet:** solid-teal toggles (white knob → dark knob when on),
   pill segmented controls with a white active segment, chips, **uppercase section
@@ -26,8 +26,16 @@ Hard rules (FiveM CEF):
 - Text must never overflow its box: ellipsis on names, wrap on descriptions.
 - All UI copy goes through `t('English text')` from `@/lib/i18n`.
 
-This is an **original** design. The reference screenshots (below) show *which features and
-information* each screen needs — never copy another product's look, names or branding.
+This is an **original** design. Never copy another product's look, names or branding. The
+current screens (garage Showroom, admin Map command and Dossier, Key ring, Locksmith, Contract)
+are the reference for new work; the old reference screenshots in §5 are historical.
+
+Notifications are **not** a kit component. `<Toasts />` (`src/components/Toasts.tsx`) is
+mounted once in `App.tsx` and only draws what Lua sends with the `notify` message, which
+happens only while one of our windows holds NUI focus (FiveM then draws our page above every
+other resource's NUI, so the configured notify resource would be hidden behind the window).
+Everything else is shown by the notify integration (`bridge/client/notify.lua`). Apps raise a
+notification with `toast()` from `@/lib/store`, never by rendering one themselves.
 
 ---------------------------------------------------------------------------------------
 
@@ -131,7 +139,9 @@ local components inside their own folders). Every component accepts an optional
 <Tooltip content: ReactNode side?: 'top'|'bottom'|'left'|'right'>trigger</Tooltip>
 <InfoDot text />                                                  // (i) with tooltip
 <Menu items: { label: string; icon?: IconName; onSelect(): void; danger?: boolean;
-       disabled?: boolean }[] trigger?: ReactNode align?: 'left'|'right' />  // "⋯" menu
+       disabled?: boolean; hint?: string }[] trigger?: ReactNode align?: 'left'|'right'
+       side?: 'top'|'bottom' label? />  // "⋯" menu; side 'top' opens above the trigger
+                                       // (action bars at the bottom of a window)
 <Avatar name size? />                                             // initials tile
 <BrandMark size?: 'sm'|'md'|'lg' />                               // teal chamfer mark
 <KeyHint keys: string[] label />                                  // keycaps + label
@@ -155,10 +165,15 @@ type IconName =
 Utilities exported from `@/components/ui` as well: `cx` (clsx re-export).
 
 Global helpers already provided by the foundation (do not rewrite):
-- `@/lib/nui`: `fetchNui(name, data)`, `request(name, data, { toastError })` (auto error
-  toast), `mockNui(name, handler)`, `isBrowser`.
+- `@/lib/nui`: `fetchNui(name, data)`, `request(name, data, { toastError })` (a failed request
+  raises an error notification through `toast()`; `toastError: false` turns it off),
+  `mockNui(name, handler)`, `isBrowser`.
 - `@/lib/store`: `useApp(app)` → `{ open, data, close, update, replace }`, `useUi`,
   `useSettings()`, `toast({ type, message, title? })`, `closeApp(app)`.
+  `toast()` always posts to Lua's `notify` callback (message ≤ 300 characters, title ≤ 60) and
+  Lua decides where it is drawn: inside the interface (`<Toasts />`) while a window holds
+  focus, otherwise the configured notify integration. In the browser dev harness it draws the
+  toast locally and logs it with `console.info`.
 - `@/lib/escape`: `useEscape(handler, active)` (Escape key stack).
 - `@/lib/i18n`: `t(text, vars)`.
 - `@/lib/format`: `money`, `distance`, `distanceValue`, `toKm`, `percent`, `date`,
@@ -178,13 +193,25 @@ Global helpers already provided by the foundation (do not rewrite):
 | Garage (W2) | `src/apps/garage/**`, `src/apps/impound/**`, `src/apps/forsale/**`, `src/dev/mocks/{garage,impound,forsale}.ts` |
 | World (W3) | `src/apps/interior/**` (InteriorHud, InteriorPanelApp), `src/apps/setup/**`, `src/apps/creator/**`, `src/dev/mocks/{interior,setup,creator}.ts` |
 | Admin A (W4) | `src/apps/admin/AdminApp.tsx`, `src/apps/admin/admin.css`, `src/apps/admin/shared/**`, `src/apps/admin/pages/{GaragesPage,JobGaragesPage,PrivateGaragesPage,ImpoundsPage}.tsx`, `src/apps/admin/locations/**`, `src/dev/mocks/admin.ts` |
-| Admin B (W5) | `src/apps/admin/pages/{InteriorsPage,PlayerVehiclesPage,SettingsPage}.tsx`, `src/apps/admin/vehicles/**`, `src/apps/admin/interiors/**`, `src/apps/admin/settings/**`, `src/dev/mocks/adminVehicles.ts` |
+| Admin B (W5) | `src/apps/admin/pages/{InteriorsPage,PlayerVehiclesPage,SettingsPage}.tsx`, `src/apps/admin/vehicles/**` (incl. the vehicle Dossier, `vehicles/dossier/**`), `src/apps/admin/interiors/**`, `src/apps/admin/settings/**`, `src/dev/mocks/adminVehicles.ts` |
+| Key ring | `src/apps/keys/**` (`KeysApp`, KeyRail, KeyShow, ShareModal, glyphs, `model.ts`, `keys.css`), `src/dev/mocks/keys.ts` |
+| Locksmith | `src/apps/locksmith/**` (`LocksmithApp`, `locksmith.css`), `src/dev/mocks/locksmith.ts` |
+| Contract | `src/apps/contract/**` (`ContractApp`, ContractDocument, `signature.tsx` pad, `contract.css`), `src/dev/mocks/contract.ts` |
+
+Shared pieces between apps: the garage owner's Showroom parts live in `src/apps/garage/showroom/`
+(Rail, Stage, SlotStrip, blocks, DamageGlyph, keyboard `keys.ts`) and are also imported by the
+impound app; the admin Dossier imports `glyphShape` / `GlyphShape` from
+`src/apps/garage/showroom/DamageGlyph.tsx` (keep those exports stable). The Key ring and
+Locksmith follow the Showroom's two-pane layout. Admin location pages ("Map command") share
+`src/apps/admin/shared/**` (map, inspector, command CSS).
 
 Fixed entry exports (imported by `src/App.tsx` / `AdminApp.tsx` — keep names & paths):
 `GarageApp`, `ImpoundApp`, `ImpoundFormApp`, `ForSaleApp`, `SetupApp`, `CreatorApp`,
-`InteriorHud`, `InteriorPanelApp`, `AdminApp`, `Prompt`, `Hint`, `Toasts`, and admin pages
-`GaragesPage`, `JobGaragesPage`, `PrivateGaragesPage`, `ImpoundsPage`, `InteriorsPage`,
-`PlayerVehiclesPage`, `SettingsPage` (each `(props: AdminPageProps)`).
+`InteriorHud`, `InteriorPanelApp`, `AdminApp`, `KeysApp`, `LocksmithApp`, `ContractApp`,
+`Prompt`, `Hint`, and admin pages `GaragesPage`, `JobGaragesPage`, `PrivateGaragesPage`,
+`ImpoundsPage`, `InteriorsPage`, `PlayerVehiclesPage`, `SettingsPage` (each
+`(props: AdminPageProps)`). `App.tsx` also mounts `Toasts` (`src/components/Toasts.tsx`, owned
+by the UI kit agent but not exported from `@/components/ui`).
 
 Each app owns a CSS file next to it (e.g. `src/apps/garage/garage.css`) imported by its
 root component. Prefix classes with the app (`nz-garage__…`). Never style another
@@ -198,6 +225,13 @@ agent's classes.
 - Mock scenarios: `registerMock({ id, group, label, messages })` from `@/dev/registry`, and
   `mockNui(name, handler)` from `@/lib/nui` to answer callbacks. Open with `?mock=<id>`;
   add `&panel=0` to hide the dev panel for screenshots. Kit gallery: `?kit=1`.
+  Scenarios of the newer screens: `hud-toasts`, `hud-toasts-stack`, `hud-toasts-window`
+  (in-interface notifications), `keys-*` (physical, virtual, temp, tracking, range, share,
+  towing, hotwired, backalley, names, empty), `locksmith-*` (legal, illegal, materials, broke,
+  virtual, unregistered, shared, empty), `contract-*` (draft, draft-alone, draft-sent,
+  draft-declined, draft-expired, review, review-broke, review-topup, review-late,
+  review-expired, review-withdrawn, view, view-unverified), `admin-vehicles-bike` / `-boat` /
+  `-heli` (dossier condition outlines).
 - Screenshot with the pre-installed Playwright (`require('playwright')`, chromium):
   viewport 1920×1080 (the in-game size) and also 1280×720 (small screens must still fit).
   Look at your screenshots and fix what looks off.
@@ -206,7 +240,13 @@ agent's classes.
 
 ---------------------------------------------------------------------------------------
 
-## 5. Reference screenshots (features & information to show — not the look)
+## 5. Reference screenshots (historical — do not use for these screens)
+
+> **Historical.** These screenshots were the first brief, before the redesign. The garage,
+> impound, admin location pages, vehicle manager, key ring, locksmith and contract screens
+> have since been rebuilt (Showroom, Map command, Dossier). Do not use the list below to design
+> or check those screens; use the current screens and the mock scenarios (`?mock=<id>`)
+> instead. It only remains as a record of which information each screen was asked to show.
 
 All under `/root/.claude/uploads/939d8efe-994e-5a21-be29-bbf4e311b951/`:
 

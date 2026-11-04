@@ -24,7 +24,7 @@ local Utils = NZ.Utils
 
 -- A used lockpick is for the car in front of the player (same rule as the server's item use):
 local ITEM_RANGE = 2.5         -- m: vehicle centre
-local BIG_ITEM_RANGE = 7.0     -- m: the same for buses, trucks, industrial / service vehicles
+local BIG_ITEM_RANGE = 7.0     -- m: the same for buses, trucks, industrial / service vehicles (not taxis)
 local BIG_CLASSES = { [10] = true, [17] = true, [20] = true }
 local AIM_POLL_MS = 150
 local AIM_HOLD = 2             -- polls aiming at the same driver before the hold-up starts
@@ -37,6 +37,7 @@ local PROMPT_RANGE = 2.2
 local LAST_DRIVER_RANGE = 15.0 -- m: a vehicle's last driver counts as its driver this close (server rule)
 local TRIED_MS = 30000         -- a driver you tried to rob is not asked again for this long
 local ENGINE_WAIT_MS = 4000
+local ITEM_IDLE_WAIT_MS = 1500 -- a used tool waits this long for another script's progress bar
 
 local ANIMS = {
   lockpick = { dict = 'veh@break_in@0h@p_m_one@', clip = 'low_force_entry_ds', flag = 1 },
@@ -48,6 +49,8 @@ local ANIMS = {
 
 --- Hashes compared as unsigned 32-bit (natives and joaat may differ in sign).
 local function u32(hash) return math.floor(tonumber(hash) or 0) % 4294967296 end
+-- class 17 (service) models the size of a car: the normal reach and facing rules (server rule)
+local CAR_SIZED = { [u32(joaat('taxi'))] = true, [u32(joaat('vivanite2'))] = true }
 
 local NO_ROB_GROUPS = {}
 for _, group in ipairs({ 'GROUP_UNARMED', 'GROUP_MELEE', 'GROUP_THROWN', 'GROUP_PETROLCAN', 'GROUP_FIREEXTINGUISHER',
@@ -55,6 +58,7 @@ for _, group in ipairs({ 'GROUP_UNARMED', 'GROUP_MELEE', 'GROUP_THROWN', 'GROUP_
   NO_ROB_GROUPS[u32(joaat(group))] = true
 end
 local POP_AMBIENT = { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true }
+local POP_TRAFFIC = { [1] = true, [3] = true, [4] = true, [5] = true } -- not 2 (random parked)
 
 local busy = false
 local hintShown = false
@@ -389,7 +393,7 @@ local function nearestLocked(tool)
     local d = entry.coords - coords
     local dist = #d
     if dist < bestDist and isVehicle(vehicle) then
-      local big = BIG_CLASSES[GetVehicleClass(vehicle)] == true
+      local big = BIG_CLASSES[GetVehicleClass(vehicle)] == true and not CAR_SIZED[u32(GetEntityModel(vehicle))]
       local flat = math.sqrt(d.x * d.x + d.y * d.y)
       local facing = flat < 0.01 and 1.0 or (d.x * fx + d.y * fy) / flat
       local driver = GetPedInVehicleSeat(vehicle, -1)
@@ -416,16 +420,28 @@ function CarLock.onLockpickEvent(isAdvanced)
   CarLock.lockpick(vehicle, tool)
 end
 
+--- The inventory already counted the item use as handled: wait a moment for another script's
+--- progress bar / skill check / NUI focus to end instead of losing the use silently.
+local function waitIdle(ms)
+  local deadline = GetGameTimer() + ms
+  while not idle() and GetGameTimer() < deadline do Wait(100) end
+  return idle()
+end
+
 -- The server's item use found a vehicle for this tool (server/carlock/crime.lua).
 RegisterNetEvent('nz:client:carlock:crime', function(data)
   if type(data) ~= 'table' then return end
   local vehicle = entityOf(data.netId)
   if not isVehicle(vehicle) then return end
-  if data.action == 'lockpick' then
-    CreateThread(function() CarLock.lockpick(vehicle, type(data.tool) == 'string' and data.tool or nil, data.slot) end)
-  elseif data.action == 'hotwire' then
-    CreateThread(function() CarLock.hotwire(data.slot) end)
-  end
+  if data.action ~= 'lockpick' and data.action ~= 'hotwire' then return end
+  CreateThread(function()
+    if not waitIdle(ITEM_IDLE_WAIT_MS) then return notify('error', L('You are busy')) end
+    if data.action == 'lockpick' then
+      CarLock.lockpick(vehicle, type(data.tool) == 'string' and data.tool or nil, data.slot)
+    else
+      CarLock.hotwire(data.slot)
+    end
+  end)
 end)
 
 ---------------------------------------------------------------------------------------
@@ -587,15 +603,23 @@ local function searchableBody(ped)
   return npcCfg().ambientOnly == false or robbedFrom[ped] ~= nil or POP_AMBIENT[GetEntityPopulationType(ped)] == true
 end
 
+--- Does `vehicle` keep its dead driver's key (server rule)? A traffic vehicle (population
+--- 1/3/4/5), or the driver we held up; never a random parked car or a script vehicle.
+local function keepsBodyKey(vehicle, ped)
+  return npcCfg().ambientOnly == false or robbedFrom[ped] ~= nil or POP_TRAFFIC[GetEntityPopulationType(vehicle)] == true
+end
+
 --- Vehicle a dead NPC drove (still in the seat, the vehicle's last driver, or one we robbed).
 local function bodyVehicle(ped)
   if not searchableBody(ped) then return nil end
   local vehicle = GetVehiclePedIsIn(ped, false)
-  if isVehicle(vehicle) and GetPedInVehicleSeat(vehicle, -1) == ped then return vehicle end
+  if isVehicle(vehicle) and GetPedInVehicleSeat(vehicle, -1) == ped then
+    return keepsBodyKey(vehicle, ped) and vehicle or nil
+  end
   vehicle = GetVehiclePedIsIn(ped, true)
   if isVehicle(vehicle) and GetLastPedInVehicleSeat(vehicle, -1) == ped
     and #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) <= LAST_DRIVER_RANGE then
-    return vehicle
+    return keepsBodyKey(vehicle, ped) and vehicle or nil
   end
   vehicle = robbedFrom[ped]
   if isVehicle(vehicle) then return vehicle end
@@ -769,7 +793,10 @@ RegisterNetEvent('nz:client:carlock:npc', function(data)
     local threat = 0
     local player = tonumber(data.robber) and GetPlayerFromServerId(math.floor(tonumber(data.robber))) or -1
     if player and player ~= -1 then threat = GetPlayerPed(player) end
-    takeControl(ped, 1000)
+    -- task natives on a ped this client does not own only change the local clone
+    if not takeControl(ped, 1000) then
+      return Utils.debug(('carlock: npc step %s: no control of the ped'):format(data.step))
+    end
     local ok, err = pcall(STEPS[data.step], ped, vehicle, threat or 0, data)
     if not ok then Utils.debug(('carlock: npc step %s failed: %s'):format(data.step, tostring(err))) end
   end)
@@ -805,7 +832,7 @@ end
 local function deadDriverIn(vehicle)
   if not isVehicle(vehicle) then return nil end
   local ped = GetPedInVehicleSeat(vehicle, -1)
-  if ped == 0 or not searchableBody(ped) then return nil end
+  if ped == 0 or not searchableBody(ped) or not keepsBodyKey(vehicle, ped) then return nil end
   return ped
 end
 

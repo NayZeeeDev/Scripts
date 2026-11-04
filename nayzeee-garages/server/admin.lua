@@ -191,9 +191,20 @@ end
 -- Vehicle entities
 ---------------------------------------------------------------------------------------
 
+--- The registration of a vehicle: the real plate under a fake plate (NZ.FakePlates), else
+--- the plate text.
+local function registrationOf(entity)
+  local fake = NZ.FakePlates
+  if type(fake) == 'table' and type(fake.realPlateOf) == 'function' then
+    local okReal, real = pcall(fake.realPlateOf, entity)
+    if okReal and real then return real end
+  end
+  return Utils.plate(GetVehicleNumberPlateText(entity))
+end
+
 local function findEntityByPlate(plate)
   for _, entity in ipairs(GetAllVehicles() or {}) do
-    if DoesEntityExist(entity) and Utils.plate(GetVehicleNumberPlateText(entity)) == plate then return entity end
+    if DoesEntityExist(entity) and registrationOf(entity) == plate then return entity end
   end
   return nil
 end
@@ -406,6 +417,11 @@ function Admin.openData()
     framework = NZ.Framework,
     gangsSupported = hasGangs,
     importSources = importSources(),
+    -- Config.Peds defaults shown by the location editor's NPC fields
+    peds = {
+      defaultModel = type(Config.Peds) == 'table' and Config.Peds.defaultModel or nil,
+      defaultScenario = type(Config.Peds) == 'table' and Config.Peds.defaultScenario or nil,
+    },
   }
 end
 
@@ -837,6 +853,13 @@ local function applyPatch(src, plate, patch)
   if ownerEvent then
     ownerEvent.at = os.time()
     NZ.DB.events.add(plate, 'owner', ownerEvent)
+  end
+  -- built-in car lock: keys cut for the old owner stop working now (before a plate change)
+  local carLock = NZ.CarLock
+  if (ownerChangedTo or ownerEvent) and type(carLock) == 'table' and type(carLock.enabled) == 'function'
+    and type(carLock.rekey) == 'function' and carLock.enabled() then
+    local okRekey, rekeyErr = pcall(carLock.rekey, plate, ownerChangedTo or row.owner)
+    if not okRekey then lib.print.warn(('[nayzeee-garages] rekey of %s failed: %s'):format(plate, tostring(rekeyErr))) end
   end
   if service and not NZ.DB.events.replace(plate, 'service', service) then
     return fail(L('Could not save the service history'))

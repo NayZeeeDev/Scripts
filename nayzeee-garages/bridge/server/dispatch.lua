@@ -6,6 +6,8 @@
     src    the offender (player source) or nil for alerts without one (trusted server code)
     alert  { kind = 'theft'|'lockpick'|'hotwire'|'search'|'robbery'|'alarm'|'locksmith'|'fakeplate'|...,
              code?, title?, message?, coords?, plate?, model?, modelHash?, color?, street?,
+             streetFromClient?, modelFromClient? (street / model are the offender's client's text:
+             officers' clients use their own lookup instead, see bridge/client/dispatch.lua),
              priority? (1 high .. 3 low), jobs? (default Config.CarLock.dispatch.jobs),
              blip? = { sprite, color, scale, seconds, radius, flash } }
     Missing fields come from Config.CarLock.dispatch (codes, blip, jobs) and the kind
@@ -26,10 +28,11 @@
     server side (TriggerEvent / exports): wasabi_mdt ('wasabi_mdt:createExternalDispatch'),
       rcore_dispatch ('rcore_dispatch:server:sendAlert'), core_dispatch (sendAlert, addCall),
       qs-dispatch ('qs-dispatch:server:CreateDispatchCall').
+      ps-dispatch 3.x (SendTargetedAlert to the on-duty receivers, offender or not).
     on the OFFENDER's client ('nz:client:dispatch' with the payload built here; their client
-      APIs need it): ps-dispatch (CustomAlert), cd_dispatch (GetPlayerInfo + AddNotification).
-      Without an offender these use their server paths: ps-dispatch 3.x SendTargetedAlert,
-      ps-dispatch 2.x 'ps-dispatch:server:notify', cd_dispatch's server event.
+      APIs need it): ps-dispatch 2.x (CustomAlert), cd_dispatch (GetPlayerInfo + AddNotification).
+      Without an offender these use their server paths: ps-dispatch 2.x
+      'ps-dispatch:server:notify', cd_dispatch's server event.
     Display text (street, model, message ...) is stripped of markup before it reaches any of
     them.
     Any error (or a client that reports its system failed, once per alert id) falls back to
@@ -297,6 +300,8 @@ function Dispatch.build(src, alert)
     modelHash = math.tointeger(tonumber(alert.modelHash)) or nil,
     color = text(alert.color, 32),
     street = text(alert.street, 64),
+    streetFromClient = alert.streetFromClient == true or nil,
+    modelFromClient = alert.modelFromClient == true or nil,
     priority = math.floor(number(alert.priority, 1, 3, PRIORITY[kind] or 2)),
     jobs = jobsOf(alert.jobs),
     blip = blipOf(kind, alert.blip),
@@ -336,6 +341,7 @@ local function sendInternal(alert)
   local payload = {
     kind = alert.kind, code = alert.code, title = alert.title, message = alert.message, coords = alert.coords,
     street = alert.street, plate = alert.plate, model = alert.model, modelHash = alert.modelHash,
+    streetFromClient = alert.streetFromClient, modelFromClient = alert.modelFromClient,
     color = alert.color, priority = alert.priority, blip = alert.blip, sound = cfg().sound ~= false,
   }
   for _, target in ipairs(list) do TriggerClientEvent('nz:client:dispatch:alert', target, payload) end
@@ -479,9 +485,16 @@ SERVER.custom = function(alert, src)
 end
 
 -- Systems whose alert is sent from the offender's client when there is one (their alert API
--- needs it: ps-dispatch CustomAlert, cd_dispatch GetPlayerInfo). Everything else, qs-dispatch
--- included, is sent here on the server, where a modified client cannot drop it.
+-- needs it: ps-dispatch 2.x CustomAlert, cd_dispatch GetPlayerInfo). Everything else, qs-dispatch
+-- and ps-dispatch 3.x (SendTargetedAlert) included, is sent here on the server, where a modified
+-- client cannot drop it.
 local CLIENT = { ['ps-dispatch'] = true, cd_dispatch = true }
+
+local function viaOffenderClient(system)
+  if system == 'custom' then return CUSTOM.client == true end
+  if not CLIENT[system] then return false end
+  return not (system == 'ps-dispatch' and psVersion() >= 3)
+end
 
 ---------------------------------------------------------------------------------------
 -- Entry point
@@ -514,7 +527,7 @@ function Dispatch.alert(src, alert)
     built.id = counter
     Utils.debug(('dispatch: %s alert "%s" via %s'):format(built.kind, built.title, system))
 
-    local viaClient = src ~= nil and (CLIENT[system] or (system == 'custom' and CUSTOM.client == true))
+    local viaClient = src ~= nil and viaOffenderClient(system)
     if viaClient then
       built.system = system
       built.resource = resourceOf(system)

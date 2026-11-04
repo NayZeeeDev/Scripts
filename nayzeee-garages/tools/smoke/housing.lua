@@ -1238,6 +1238,9 @@ Housing.remove('loaf:3')
 advance(11000)
 reloadAll()
 check(passed and passed.store and near(passed.store.x, 1005.0) and near(passed.coords.x, 1000.0), 'loaf: exit passed as the store point')
+local loafHouse = house('loaf:3')
+check(loafHouse and #loafHouse.storePoints == 1 and loafHouse.useOpenForStore == false
+  and near(loafHouse.storePoints[1].coords.x, 1005.0), 'loaf: store point at the exit (registerHouse store)')
 NZ.Locations.registerHouse = registerHouse
 
 -- (e) Interval loaders whose reads fail are re-read at their interval, not on every tick.

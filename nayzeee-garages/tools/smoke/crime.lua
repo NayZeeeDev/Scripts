@@ -358,6 +358,7 @@ local qbCore = {
     sultan = { name = 'Sultan', brand = 'Karin', model = 'sultan', category = 'sedans', hash = joaat_('sultan') },
     zentorno = { name = 'Zentorno', brand = 'Pegassi', model = 'zentorno', category = 'super', hash = joaat_('zentorno') },
     coach = { name = 'Dashound', brand = 'Brute', model = 'coach', category = 'service', hash = joaat_('coach') },
+    taxi = { name = 'Taxi', brand = 'Vapid', model = 'taxi', category = 'service', hash = joaat_('taxi') },
   }, Items = {} },
 }
 
@@ -523,15 +524,16 @@ local function stopRes(name)
   TriggerEvent('onResourceStop', name)
 end
 
--- ps-dispatch: offender's client; without an offender 3.x targeted / 2.x notify event
+-- ps-dispatch: 3.x from the server (SendTargetedAlert), offender or not; 2.x on the offender's
+-- client (CustomAlert), without an offender the 2.x notify event
 startRes('ps-dispatch')
-metadata['ps-dispatch:version'] = '3.0.0'
+metadata['ps-dispatch:version'] = '2.2.1'
 check(NZ.Dispatch.system() == 'ps-dispatch', 'auto: ps-dispatch detected after it started')
 run(NZ.Dispatch.alert, 1, { kind = 'hotwire', plate = 'XY1' })
 local toClient = lastClient('nz:client:dispatch', 1)
 check(toClient and toClient.payload.system == 'ps-dispatch' and toClient.payload.resource == 'ps-dispatch'
   and type(toClient.payload.id) == 'number' and toClient.payload.jobs[1] == 'police',
-  'ps-dispatch: sent to the offender\'s client with the server-built payload')
+  'ps-dispatch 2.x: sent to the offender\'s client with the server-built payload')
 local okFb = cb('nz:dispatch:failed', 3, { id = toClient.payload.id })
 check(okFb.ok and okFb.data == false, 'another player cannot replay an alert id')
 local before = alertsTo(2)
@@ -539,6 +541,12 @@ okFb = cb('nz:dispatch:failed', 1, { id = toClient.payload.id, reason = 'no expo
 check(okFb.data == true and alertsTo(2) == before + 1, 'client failure: the alert goes out through internal')
 okFb = cb('nz:dispatch:failed', 1, { id = toClient.payload.id })
 check(okFb.data == false and alertsTo(2) == before + 1, 'client failure fallback: once per alert id')
+metadata['ps-dispatch:version'] = '3.0.0'
+local psClientBefore, psTargetedBefore = countClient('nz:client:dispatch', 1), #psTargeted
+run(NZ.Dispatch.alert, 1, { kind = 'hotwire', plate = 'XY2' })
+check(countClient('nz:client:dispatch', 1) == psClientBefore and #psTargeted == psTargetedBefore + 1
+  and psTargeted[#psTargeted].data.plate == 'XY2' and psTargeted[#psTargeted].targets[1] == 2,
+  'ps-dispatch 3.x with an offender: SendTargetedAlert from the server (a modified client cannot drop it)')
 run(NZ.Dispatch.alert, nil, { kind = 'alarm', coords = vec3(1, 2, 3), plate = 'XY1' })
 local targeted = psTargeted[#psTargeted]
 check(targeted and #targeted.targets == 1 and targeted.targets[1] == 2 and targeted.data.addToList == true
@@ -701,6 +709,26 @@ check(not hasKey(1, 'NPC100'), 'lockpicking gives no key')
 res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'lockpick' })
 check(not res.ok and res.error == 'This vehicle is not locked', 'unlocked vehicle: nothing to pick')
 
+-- communityox ox_lib 3.32.3 already turns the indicator with requestAnimationFrame (2000 ms a
+-- turn); 3.32.2 and older use the 1 ms interval (1440 ms). Read again when ox_lib (re)starts.
+CarLock.setLocked(car, true)
+metadata['ox_lib:version'] = '3.32.3'
+TriggerEvent('onResourceStart', 'ox_lib')
+res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'lockpick', slot = lpSlot })
+advance(2300)
+fin = cb('nz:carlock:lockpick', 1, { step = 'finish', id = res.data.id, success = true })
+check(fin.ok and fin.data.success == false and CarLock.isLocked(car),
+  'ox_lib 3.32.3 (communityox): 2000 ms a turn, a pass after 2.3 s is refused')
+metadata['ox_lib:version'] = '3.32.2'
+TriggerEvent('onResourceStart', 'ox_lib')
+res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'lockpick', slot = lpSlot })
+advance(2300)
+fin = cb('nz:carlock:lockpick', 1, { step = 'finish', id = res.data.id, success = true })
+check(fin.ok and fin.data.success == true and not CarLock.isLocked(car),
+  'ox_lib 3.32.2: the older 1440 ms turn, a pass after 2.3 s is accepted')
+metadata['ox_lib:version'] = '3.42.1'
+TriggerEvent('onResourceStart', 'ox_lib')
+
 CarLock.setLocked(car, true)
 chances(standard.accessTools[1], { breakChance = 100, alarmChance = 100, alertChance = 0 })
 C.alarm.alertChance = 100
@@ -773,6 +801,18 @@ playerPos[1] = vec3(0, 0, 0)
 DeleteEntity(coach)
 DeleteEntity(far)
 
+-- taxis are service class (17) but car-sized: the normal reach and facing rules
+playerPos[1] = vec3(0, 20, 0)
+local a70 = math.rad(70)
+local cab17, cab17Net = spawnVehicle('NPC152', 'taxi', vec3(5.5 * math.cos(a70), 20 + 5.5 * math.sin(a70), 0))
+check(CarLock.classOf(cab17) == 17, 'taxi: service class')
+check(run(CarLock.useAccessTool, 1, 'lockpick', nil, {}, 'lockpick') == false,
+  'item use: a taxi 5.5 m away at 70 degrees stays with the owner script')
+res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = cab17Net, tool = 'lockpick' })
+check(not res.ok and res.error == 'You are too far from the vehicle', 'taxi: no 7 m reach (car-sized)')
+DeleteEntity(cab17)
+playerPos[1] = vec3(0, 0, 0)
+
 ---------------------------------------------------------------------------------------
 -- 3. Hotwire
 ---------------------------------------------------------------------------------------
@@ -840,10 +880,13 @@ check(res2.ok and res2.data.success == false and stateOf(van).nzSearched == nil,
 res = cb('nz:carlock:search', 1, { step = 'start', netId = vanNet })
 advance(7000)
 fin = cb('nz:carlock:search', 1, { step = 'finish', id = res.data.id, success = true })
-local spare = false
-for _, item in pairs(inv[1]) do if item.name == 'vehicle_key' and item.metadata.plate == 'NPC200' then spare = true end end
+local spare, spareOrigin = false, nil
+for _, item in pairs(inv[1]) do
+  if item.name == 'vehicle_key' and item.metadata.plate == 'NPC200' then spare, spareOrigin = true, item.metadata.origin end
+end
 check(fin.data.success and #fin.data.found == 3 and money[#money].amount == 50 and money[#money].account == 'cash'
   and count(1, 'water') == 2 and spare and hasKey(1, 'NPC200'), 'search loot: money, items and a spare key item (physical mode)')
+check(spareOrigin == 'search', 'a found spare key item is a crime key (metadata.origin = search: no tracker, no nickname)')
 check(stateOf(van).nzSearched == true, 'searched vehicles are marked for the hint')
 CarLock.revokeTemp(1, 'NPC200')
 for slot, item in pairs(inv[1]) do if item.name == 'vehicle_key' then inv[1][slot] = nil end end
@@ -1007,7 +1050,7 @@ CarLock.revokeTemp(1, 'NPC300')
 res = cb('nz:carlock:deadDriver', 1, { step = 'start', netId = taxiNet, pedNetId = driverNet })
 check(not res.ok and res.error == 'This body was already searched', 'a body is searched once')
 
-local bus, busNet = spawnVehicle('NPC400', 'sultan', vec3(6, 3, 0), { lock = 1 })
+local bus, busNet = spawnVehicle('NPC400', 'sultan', vec3(6, 3, 0), { lock = 1, pop = 5 }) -- traffic
 local busDriver, busDriverNet = spawnPed(vec3(6, 3, 0), { health = 0 })
 seatIn(busDriver, bus)
 res = cb('nz:carlock:deadDriver', 1, { step = 'start', netId = busNet, pedNetId = busDriverNet })
@@ -1031,8 +1074,20 @@ seatIn(mission, bus)
 res = cb('nz:carlock:deadDriver', 1, { step = 'start', netId = busNet, pedNetId = missionNet })
 check(not res.ok and res.error == 'There is no key on this body', 'a dead mission ped at the wheel has no key (npc.ambientOnly)')
 seatIn(mission, nil)
+-- an ambient pedestrian warped into the seat of a random parked car (population 2) or a script
+-- vehicle (7) and killed there: no key. Traffic vehicles (1/3/4/5, the bus above) keep it.
+for _, pop in ipairs({ 2, 7 }) do
+  local parked, parkedNet = spawnVehicle(('PARK0%d'):format(pop), 'sultan', vec3(6, 2, 0), { lock = 1, pop = pop })
+  local victim, victimNet = spawnPed(vec3(6, 2, 0), { health = 0 })
+  seatIn(victim, parked)
+  res = cb('nz:carlock:deadDriver', 1, { step = 'start', netId = parkedNet, pedNetId = victimNet })
+  check(not res.ok and res.error == 'There is no key on this body',
+    ('an unrecorded dead driver in a population %d vehicle has no key'):format(pop))
+  seatIn(victim, nil)
+  DeleteEntity(parked)
+end
 -- the vehicle's last driver counts only near the vehicle
-local van2, van2Net = spawnVehicle('NPC401', 'sultan', vec3(55, 3, 0), { lock = 1 })
+local van2, van2Net = spawnVehicle('NPC401', 'sultan', vec3(55, 3, 0), { lock = 1, pop = 5 })
 local walker, walkerNet = spawnPed(vec3(6, 3, 0), { health = 0 })
 seatIn(walker, van2)
 seatIn(walker, nil)
@@ -1093,6 +1148,8 @@ check(internal.payload.kind == 'lockpick' and internal.payload.plate == 'FAKE99'
   and internal.payload.color == 'Red' and internal.payload.street == 'Strawberry Ave' and internal.payload.coords.y == -2,
   'alert: visible plate (fake plate), model label, colour, street, vehicle position')
 check(internal.payload.modelHash == joaat_('sultan'), 'alert: model hash for clients')
+check(internal.payload.streetFromClient == true and internal.payload.modelFromClient == nil,
+  'alert: the street is marked as client text, the model label from the shared list is not')
 
 -- display text from a modified client: no markup reaches police MDT / dispatch UIs
 local marked, markedNet = spawnVehicle('MARK01', 'mysterymodel', vec3(2, 2, 0), { colour = 28 })
@@ -1106,6 +1163,8 @@ check(internal.payload.plate == 'MARK01' and type(street) == 'string' and type(m
   and not street:find('[<>&"\'`\\]') and not model:find('[<>&"\'`\\]') and model:find('Bob\u{2019}s', 1, true) ~= nil
   and street:find('Grove St', 1, true) ~= nil and not internal.payload.message:find('[<>]'),
   'alert: markup stripped from the street and the model label a client sent (quotes made typographic)')
+check(internal.payload.streetFromClient == true and internal.payload.modelFromClient == true,
+  'alert: a model label only the client knew is marked as client text (officers look it up)')
 CarLock.setLocked(marked, false)
 DeleteEntity(marked)
 local _ = markedNet

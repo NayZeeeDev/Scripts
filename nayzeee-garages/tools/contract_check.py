@@ -44,9 +44,9 @@ CLIENT_TO_SERVER = {
     'garage:directions': 'nz:garage:nearestWithSpace', 'forSale:tour': 'nz:forSale:tour',
     'forSale:buy': 'nz:forSale:buy', 'impound:retrieve': 'nz:impound:retrieve',
     'creator:save': 'nz:creator:save',
-    'keys:refresh': 'nz:carlock:keys', 'keys:lock': 'nz:carlock:toggleLock', 'keys:locate': 'nz:carlock:tracker',
+    'keys:refresh': 'nz:carlock:tracker', 'keys:lock': 'nz:carlock:toggleLock', 'keys:locate': 'nz:carlock:tracker',
     'keys:alarm': 'nz:carlock:trackerAlarm', 'keys:players': 'nz:carlock:nearbyPlayers', 'keys:share': 'nz:carlock:share',
-    'keys:holders': 'nz:carlock:holders', 'keys:revoke': 'nz:carlock:revoke',
+    'keys:holders': 'nz:carlock:keyHolders', 'keys:revoke': 'nz:carlock:keyRevoke',
     'locksmith:refresh': 'nz:carlock:locksmith:open', 'locksmith:service': 'nz:carlock:locksmith:service',
 }
 APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior', 'keys', 'locksmith', 'contract'}

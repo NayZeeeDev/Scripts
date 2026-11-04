@@ -1346,8 +1346,15 @@ local function doRetrieve(src, plate, session, opts)
       log('security.dupe', src, { plate = plate, reason = 'retrieve while an occupied copy exists' })
       return fail(L('Vehicle is already out'))
     end
-    deleteVehicle(stray)
-    log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before retrieve' })
+    -- still on its way to the impound on the NPC tow truck: not a duplicate (NZ.Tow.release
+    -- deletes it and the truck leaves empty)
+    local tow = NZ.Tow
+    local released = type(tow) == 'table' and type(tow.isTowing) == 'function' and type(tow.release) == 'function'
+      and tow.isTowing(stray) and tow.release(stray)
+    if not released then
+      deleteVehicle(stray)
+      log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before retrieve' })
+    end
   end
 
   local points = session.location.spawnPoints

@@ -12,8 +12,11 @@
     nz:carlock:keys       {} -> { mode, keys = NZ.CarLock.keysOf(src) }
     nz:carlock:share      { plate, target } -> null   virtual: persistent key (owner only);
                           physical: hands one key item over (server copy of the metadata)
-    nz:carlock:revoke     { plate, identifier } -> null   owner / admin
-    nz:carlock:holders    { plate } -> { { identifier, name, kind, grantedBy, at, expires } }
+    nz:carlock:revoke     { plate, identifier } -> null   admins only (staff tools; players revoke
+                          through nz:carlock:keyRevoke with the key ring's opaque holder ids)
+    nz:carlock:holders    { plate } -> NZ.CarLock.keyHolderList: { { id, name, kind, reason?, masked?,
+                          at?, expires? } }   owner / admin; opaque ids, crime keys masked,
+                          the owner's own keys left out (same list as nz:carlock:keyHolders)
     nz:carlock:compat     { action = 'acquire'|'remove'|'lend', netId?, plate?, target?, export? }
                           other scripts' CLIENT events / exports (bridge/client/listeners.lua):
                           temporary keys only, NZ.CarLock.canAcquire rules (a key allowed
@@ -258,6 +261,8 @@ end))
 lib.callback.register('nz:carlock:revoke', Utils.safe(function(source, payload)
   local src = validSrc(source)
   if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  -- takes a raw identifier: staff only. Owners use nz:carlock:keyRevoke (opaque holder ids).
+  if not NZ.Access.isAdmin(src) then return Utils.fail(L('Invalid request')) end
   if limited(src, 'revoke') then return Utils.fail(L('Please wait a moment')) end
   local plate = normPlate(payload.plate)
   local identifier = type(payload.identifier) == 'string' and #payload.identifier <= 64 and payload.identifier or nil
@@ -276,12 +281,9 @@ lib.callback.register('nz:carlock:holders', Utils.safe(function(source, payload)
   if not CarLock.isOwner(src, plate) and not NZ.Access.isAdmin(src) then
     return Utils.fail(L('Only the owner can manage the keys of this vehicle'))
   end
-  local out = {}
-  for _, h in ipairs(CarLock.holders(plate)) do
-    out[#out + 1] = { identifier = h.identifier, name = h.name, kind = h.kind, grantedBy = h.grantedBy,
-      at = h.at, expires = h.expires }
-  end
-  return Utils.ok(out)
+  -- the key ring's masked list (server/carlock/tracker.lua): identifiers never leave the server
+  if type(CarLock.keyHolderList) ~= 'function' then return Utils.fail(L('Something went wrong')) end
+  return Utils.ok(CarLock.keyHolderList(src, plate))
 end))
 
 ---------------------------------------------------------------------------------------

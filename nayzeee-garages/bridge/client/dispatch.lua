@@ -4,15 +4,17 @@
 
   Two server events, both carrying an alert the SERVER built (bridge/server/dispatch.lua):
     'nz:client:dispatch'        on the offender's client, for dispatch resources whose API is
-                                client side (ps-dispatch CustomAlert, cd_dispatch GetPlayerInfo +
-                                AddNotification, custom). The payload decides the system, the
-                                jobs and the position; this file only adds the street name and
-                                the model label. A system that fails here is reported back once
-                                ('nz:dispatch:failed') and the server sends the alert through
-                                'internal' instead. (qs-dispatch and the others are sent by the
-                                server: bridge/server/dispatch.lua.)
+                                client side (ps-dispatch 2.x CustomAlert, cd_dispatch
+                                GetPlayerInfo + AddNotification, custom). The payload decides the
+                                system, the jobs and the position; this file only adds the street
+                                name and the model label. A system that fails here is reported
+                                back once ('nz:dispatch:failed') and the server sends the alert
+                                through 'internal' instead. (qs-dispatch, ps-dispatch 3.x and the
+                                others are sent by the server: bridge/server/dispatch.lua.)
     'nz:client:dispatch:alert'  'internal' system, on the clients of on-duty officers: a
-                                notification and a temporary map blip (+ radius, sound).
+                                notification and a temporary map blip (+ radius, sound). Street
+                                and model text the offender's client sent is replaced by this
+                                client's own lookup (streetFromClient / modelFromClient).
 ]]
 
 local Dispatch = NZ.Dispatch
@@ -78,10 +80,30 @@ function Dispatch.modelLabel(hash)
   return label
 end
 
---- Fill the details a client knows better than the server (street, model label).
+--- Fill the details a client knows better than the server (street, model label). Text the
+--- offender's client sent (streetFromClient / modelFromClient) is replaced by this client's own
+--- lookup at the server's position and model hash whenever it finds one.
 local function complete(alert)
-  alert.street = alert.street or Dispatch.streetAt(alert.coords)
-  alert.model = alert.model or Dispatch.modelLabel(alert.modelHash)
+  if alert.streetFromClient or not alert.street then
+    alert.street = Dispatch.streetAt(alert.coords) or alert.street
+  end
+  if alert.modelFromClient or not alert.model then
+    local own = Dispatch.modelLabel(alert.modelHash)
+    if own and type(alert.model) == 'string' and alert.model ~= '' and own ~= alert.model
+      and type(alert.message) == 'string' then
+      -- the server built the message with the offender's label: show ours there too. The
+      -- message reads '{color} {model} · plate {plate}', so search after the colour (a crafted
+      -- label that matches part of the colour must not rewrite the colour)
+      local from = 1
+      if type(alert.color) == 'string' and alert.color ~= '' then
+        local _, ce = alert.message:find(alert.color, 1, true)
+        if ce then from = ce + 1 end
+      end
+      local i, j = alert.message:find(alert.model, from, true)
+      if i then alert.message = alert.message:sub(1, i - 1) .. own .. alert.message:sub(j + 1) end
+    end
+    alert.model = own or alert.model
+  end
   return alert
 end
 

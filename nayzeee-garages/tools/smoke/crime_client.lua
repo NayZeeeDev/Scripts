@@ -96,7 +96,7 @@ local ents = {
   [203] = { kind = 'veh', net = 53, coords = vec3(4, 0, 0), lock = 1, seats = {}, speed = 2.0 },   -- NPC driven
   [301] = { kind = 'ped', net = 61, coords = vec3(4, 0, 0), pop = 5, dead = false },               -- NPC driver of 203
   [302] = { kind = 'ped', net = 62, coords = vec3(1, 1, 0), pop = 5, dead = true, last = 204 },    -- body
-  [204] = { kind = 'veh', net = 54, coords = vec3(5, 5, 0), lock = 1, seats = {}, lastDriver = 302, speed = 0.0 },
+  [204] = { kind = 'veh', net = 54, coords = vec3(5, 5, 0), lock = 1, seats = {}, lastDriver = 302, speed = 0.0, pop = 5 }, -- traffic
 }
 ents[203].seats[-1] = 301
 local seated = nil
@@ -415,9 +415,26 @@ check(notes[#notes - 1].message == 'Your tool broke', 'broken tool reported')
 fire('nz:client:carlock:crime', { action = 'lockpick', netId = 51, tool = 'screwdriver', slot = 3 })
 advance(2000)
 check(lp[3].tool == 'screwdriver' and lp[3].slot == 3, 'item use event: lockpick with that tool and slot')
+-- the item use arrives while another script's progress bar runs: it waits for it (1.5 s at most)
+progressRunning = true
+local lpBusy = #lp
+fire('nz:client:carlock:crime', { action = 'lockpick', netId = 51, tool = 'screwdriver', slot = 4 })
+advance(600)
+check(#lp == lpBusy, 'item use while another progress bar runs: waits')
+progressRunning = false
+advance(2000)
+check(lp[lpBusy + 1] and lp[lpBusy + 1].step == 'start' and lp[lpBusy + 1].slot == 4,
+  'item use: starts once the other progress bar ends')
+progressRunning = true
+lpBusy = #lp
+fire('nz:client:carlock:crime', { action = 'lockpick', netId = 51, tool = 'screwdriver', slot = 4 })
+advance(2000)
+check(#lp == lpBusy and lastNote().message == 'You are busy', 'item use still busy after 1.5 s: told, not lost silently')
+progressRunning = false
+local lpMark = #lp
 CarLock.onLockpickEvent(true)
 advance(2000)
-check(lp[5] and lp[5].tool == 'advancedLockpick', 'qb lockpick event (advanced) on a locked car nearby')
+check(lp[lpMark + 1] and lp[lpMark + 1].tool == 'advancedLockpick', 'qb lockpick event (advanced) on a locked car nearby')
 ents[201].coords = vec3(30, 0, 0)
 local n = #lp
 CarLock.onLockpickEvent(false)
@@ -489,6 +506,11 @@ check(oxTarget.entities[302] == nil, 'a dead mission / script ped gets no "Searc
 ents[302].pop = 5
 advance(1100)
 check(oxTarget.entities[302] ~= nil, 'the traffic driver\'s body gets it back')
+ents[204].pop = 2
+advance(1100)
+check(oxTarget.entities[302] == nil, 'the last driver of a random parked car (population 2) gets no option (server rule)')
+ents[204].pop = 5
+advance(1100)
 
 -- without ox_target / qb-target: [E] prompts
 Config.Integrations.target = 'none'
@@ -498,6 +520,9 @@ ents[302].coords = vec3(30, 0, 0)
 ents[202].coords = vec3(50, 0, 0)
 ents[304] = { kind = 'ped', net = 64, coords = vec3(2, 0, 0), pop = 5, dead = true }
 ents[201].seats[-1] = 304
+advance(1100)
+check(prompts[#prompts] ~= 'Take the key from the driver', 'no prompt at a dead driver in a parked car (population 0 / 2)')
+ents[201].pop = 4 -- the same car as traffic
 advance(1100)
 check(prompts[#prompts] == 'Take the key from the driver', 'no target resource: [E] prompt at a dead driver still at the wheel')
 local bodySearch = nil
@@ -509,6 +534,7 @@ pressE = true
 advance(500)
 check(bodySearch and bodySearch.netId == 51 and bodySearch.pedNetId == 64, '[E]: searches the driver at the wheel of that car')
 ents[201].seats[-1] = nil
+ents[201].pop = nil
 ents[304] = nil
 ents[302].coords = vec3(1, 1, 0)
 ents[202].coords = vec3(0, 0, 0)
@@ -524,6 +550,13 @@ fire('nz:client:carlock:npc', { step = 'holdup', ped = 61, vehicle = 53, robber 
 advance(200)
 check(called('TaskVehicleTempAction') == before + 1 and called('TaskPlayAnim') > 0 and called('SetBlockingOfNonTemporaryEvents') > 0,
   'holdup: brakes, hands up')
+-- control of the ped never arrives (another client owns it): no step on the local clone
+local hasControl = NetworkHasControlOfEntity
+NetworkHasControlOfEntity = function() return false end -- luacheck: ignore 121
+fire('nz:client:carlock:npc', { step = 'flee', ped = 61, vehicle = 53, robber = 1 })
+advance(1500)
+check(called('TaskVehicleDriveWander') == 0, 'npc step without control of the ped: not run on the local clone')
+NetworkHasControlOfEntity = hasControl -- luacheck: ignore 121
 fire('nz:client:carlock:npc', { step = 'flee', ped = 61, vehicle = 53, robber = 1 })
 advance(200)
 check(called('TaskVehicleDriveWander') == 1, 'flee: drives off')
@@ -576,6 +609,27 @@ check(called('AddBlipForCoord') == blipsBefore + 1 and called('AddBlipForRadius'
   'internal alert: notification with street, blip + radius, sound')
 advance(12000)
 check(removedBlips >= 2, 'internal alert: blips removed after their time')
+
+-- street / model text the offender's client sent: the officer's client uses its own lookup
+fire('nz:client:dispatch:alert', { kind = 'lockpick', code = '10-60', title = 'Vehicle break-in',
+  message = 'Red Fake Car · plate AB 12', coords = { x = 1, y = 2, z = 3 }, street = 'Nowhere Lane',
+  model = 'Fake Car', modelHash = 123, streetFromClient = true, modelFromClient = true,
+  blip = { sprite = 225, color = 1, scale = 1.0, seconds = 10, radius = 0.0, flash = false }, sound = false })
+check(lastNote().message:find('Forum Drive', 1, true) ~= nil and lastNote().message:find('Nowhere Lane', 1, true) == nil
+  and lastNote().message:find('Red Sultan', 1, true) ~= nil and lastNote().message:find('Fake Car', 1, true) == nil,
+  'internal alert: street and model the offender sent are replaced by the officer client\'s lookup')
+-- a crafted label that matches part of the colour must replace the model, not the colour
+fire('nz:client:dispatch:alert', { kind = 'lockpick', code = '10-60', title = 'Vehicle break-in',
+  message = 'Metallic Black Black · plate AB 12', coords = { x = 1, y = 2, z = 3 }, street = 'Nowhere Lane',
+  model = 'Black', color = 'Metallic Black', modelHash = 123, streetFromClient = true, modelFromClient = true,
+  blip = { sprite = 225, color = 1, scale = 1.0, seconds = 10, radius = 0.0, flash = false }, sound = false })
+check(lastNote().message:find('Metallic Black Sultan', 1, true) ~= nil
+  and lastNote().message:find('Metallic Sultan', 1, true) == nil,
+  'internal alert: a model label that matches part of the colour rewrites the model, not the colour')
+fire('nz:client:dispatch:alert', { kind = 'theft', code = '10-60', title = 'Vehicle theft', message = 'Sultan',
+  coords = { x = 1, y = 2, z = 3 }, street = 'Server Street',
+  blip = { sprite = 225, color = 1, scale = 1.0, seconds = 10, radius = 0.0, flash = false }, sound = false })
+check(lastNote().message:find('Server Street', 1, true) ~= nil, 'internal alert: a street not from the offender is kept')
 
 for _, f in ipairs(failures) do print('FAIL ' .. f) end
 if #failures > 0 then

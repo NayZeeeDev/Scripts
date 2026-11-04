@@ -6,10 +6,9 @@
  * Browser-only keys while a world action runs: Enter confirms, Esc / Backspace cancels.
  */
 import { emitNuiMessage, mockNui } from '../../lib/nui';
-import { useUi } from '../../lib/store';
+import { toast, useUi } from '../../lib/store';
 import type { CameraPoint, CreatorData, Interior, IplProfile, Vec3, Vec4 } from '../../lib/types';
 import { registerMock } from '../registry';
-import { toast } from '../../lib/store';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const r3 = (n: number) => Math.round(n * 1000) / 1000;

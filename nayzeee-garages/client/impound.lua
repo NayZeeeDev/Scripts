@@ -228,7 +228,11 @@ function Impound.setupTarget()
       if type(entity) ~= 'number' or entity == 0 or not DoesEntityExist(entity) then entity = nil end
       CreateThread(function() Impound.openForm(entity) end)
     end,
-    canInteract = function()
+    canInteract = function(entity)
+      -- a vehicle already on its way to the impound (NPC flatbed) is not offered again
+      if type(entity) == 'number' and type(NZ.Tow.isTowing) == 'function' and NZ.Tow.isTowing(entity) then
+        return false
+      end
       return NZ.State.ready == true and Impound.isStaff()
     end,
   })

@@ -109,6 +109,7 @@ locksmiths, `/givekey` gives a temporary key instead, or
 | `sig` | server signature of plate / version / kind / id |
 | `label` | item label shown by ox_inventory ("Vehicle key · ABC123") |
 | `description` | "Sultan · Plate ABC123" (shown by ox_inventory and qb-inventory) |
+| `origin` | only on a crime's key: `locksmith` (cut by a back-alley locksmith, or copied from such a key) or `search` (spare key found in a vehicle). It opens the vehicle but gives no tracker access and no owner's nickname. Written by the server, not part of the signature |
 | `display = false` | qb-inventory: show only the description, not every field |
 
 A key opens the vehicle when its `plate` matches, its `version` is the vehicle's current

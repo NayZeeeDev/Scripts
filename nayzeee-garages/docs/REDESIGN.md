@@ -36,7 +36,10 @@ excellent empty / loading / error states.
 
 ## 1. Garage menu → "Showroom" (src/apps/garage/**, src/apps/impound/**)
 
-A two-pane showroom instead of a card grid. Window ≈ 1240×760 (clamp to 94vw × 92vh).
+A two-pane showroom instead of a card grid. Window `min(1240px, 94vw)` × `min(930px, 92vh)`
+(garage and impound). The stage takes spare height (up to 400px) when the detail sections are
+short; an in-flow "Upgrades · Details ↓" / "Back to top" bar appears only when the sections
+overflow.
 
 **Header:** brand mark, garage name (+ kind subtitle: Public garage / Hangar / Marina /
 Private garage · group label / Job garage · job label). headerExtra: capacity as a **slot
