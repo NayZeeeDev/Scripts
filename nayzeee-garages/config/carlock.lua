@@ -6,7 +6,10 @@
 
 Config.CarLock = {
   -- Master switch. When false nothing in this file is used and Config.Integrations.keys picks
-  -- an external keys resource as before.
+  -- an external keys resource as before. With Config.Integrations.keys = 'auto' the built-in
+  -- car lock also stays off while another key resource runs (qbx_vehiclekeys, qb-vehiclekeys,
+  -- wasabi_carlock, MrNewbVehicleKeys, qs-vehiclekeys, Renewed-Vehiclekeys, vehicles_keys):
+  -- remove that resource, or set Config.Integrations.keys = 'nayzeee' to force this one.
   enabled = true,
 
   -- 'auto' = physical keys when an inventory with item metadata is detected, else virtual keys
@@ -37,6 +40,9 @@ Config.CarLock = {
   -- (bridge/server/listeners.lua, bridge/client/listeners.lua). Only for key resources that
   -- are NOT running. Client-side events can only ever give a temporary key to a vehicle the
   -- player sits in or stands next to.
+  -- Qbox without qbx_vehiclekeys: keep compat and compatExports on; qbx_core (/car, vehicle
+  -- persistence), qbx_vehicleshop and qbx_police call exports.qbx_vehiclekeys unconditionally
+  -- and throw "No such export" without them.
   compat = true,
   -- Also answer exports['qb-vehiclekeys'] / qbx_vehiclekeys / wasabi_carlock / MrNewbVehicleKeys /
   -- qs-vehiclekeys / Renewed-Vehiclekeys / vehicles_keys calls of other scripts while those
@@ -46,6 +52,11 @@ Config.CarLock = {
   -- rental / mission cars), never to parked or driving NPC cars (stops a cheater from skipping
   -- lockpicking with a fake event). Server-side calls are always trusted.
   compatAmbient = false,
+  -- exports['nayzeee-garages']:GiveKey(vehicle) on the CLIENT (other scripts' client code asks
+  -- the server for a temporary key of a vehicle the player sits in / stands next to, same
+  -- rules as compat events). false = closed (with compat = false nothing client-side can ask
+  -- for a key any more).
+  clientGiveKeyExport = true,
 
   -- Virtual mode: how many players an owner can give a persistent key of one vehicle.
   maxVirtualKeys = 10,
@@ -241,7 +252,7 @@ Config.Tow = {
   plate = 'IMPOUND',               -- plate text of the tow truck (8 characters at most, '' = random)
   spawnDistance = { min = 80.0, max = 150.0 }, -- metres from the vehicle, on a road, out of sight when possible
   timeout = 150,                   -- seconds before falling back to deleting the vehicle
-  loadSeconds = 6,                 -- the driver works the bed controls while the vehicle is pulled on
+  loadSeconds = 6,                 -- the driver works the bed controls while the vehicle is pulled on (1-20)
   speed = 14.0,                    -- m/s on the way to the vehicle and when leaving (about 50 km/h)
   drivingStyle = 786603,           -- law-abiding (786469 = goes around traffic and ignores lights)
   despawnDistance = 150.0,         -- after loading: removed once every player is farther than this ...

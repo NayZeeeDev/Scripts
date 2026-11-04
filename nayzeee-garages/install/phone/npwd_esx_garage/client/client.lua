@@ -19,7 +19,8 @@ local coordsByParking = {}
 
 local function notify(message, kind)
     local shown = false
-    if type(ESX) == 'table' and type(ESX.ShowNotification) == 'function' then
+    -- ESX object members read from another resource are callable references, not plain functions
+    if type(ESX) == 'table' and ESX.ShowNotification ~= nil then
         shown = pcall(ESX.ShowNotification, message)
     end
     if not shown then

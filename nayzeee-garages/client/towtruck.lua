@@ -3,31 +3,38 @@
 
   Impound flatbed tow truck (docs/CARLOCK.md §11), client side. The server (server/towtruck.lua)
   stays the authority: it locks the impounded vehicle, picks one player client (the "runner")
-  to play the scene, follows every step through the `nz:tow:progress` callback, hands the job
-  to another player when needed and deletes the vehicle, the truck and the driver at the end or
-  on any failure. Nothing here decides anything valuable.
+  to play the scene, creates the truck + driver itself, follows every step through the
+  `nz:tow:progress` callback, hands the job to another player when needed and removes the
+  vehicle, the truck and the driver at the end or on any failure. Nothing here decides
+  anything valuable, and this client never creates an entity.
 
   - Runner (`nz:client:tow:start`): checks the vehicle fits on the bed (class, type, size from
-    GetModelDimensions), finds a road node Config.Tow.spawnDistance away (out of sight and away
-    from players when possible), creates the networked flatbed + driver (mission entities),
-    drives to a parking spot in line with the vehicle (long range, then a slow final approach;
-    re-paths when stuck, skips ahead unseen as a last resort), the driver steps out, walks to
-    the bed controls and works them while the vehicle is pulled onto the bed, gets back in and
-    wanders off. A job handed over from another player (truck / driver net ids in the event)
-    adopts the NPCs instead of spawning new ones.
+    GetModelDimensions), picks a road node Config.Tow.spawnDistance away (out of sight and
+    away from players when possible) and proposes it (`node`; the next best one when the
+    server answers 'retry': another tow or a player is there); the server creates the flatbed
+    + driver there and hands them to the client that simulates them (normally this one). The
+    runner adopts them, drives to a parking spot in line with the vehicle, beyond it so the
+    truck arrives rear first (long range, then a slow final approach; re-paths when stuck,
+    skips ahead unseen as a last resort; loads only with the vehicle behind the bed: a truck
+    that stops beside it carries on to the spot, one that stops the wrong way round drives past
+    the vehicle to the spot on its other side, or is turned while nobody watches), the driver
+    steps out, walks to the bed controls and works them while the vehicle is pulled onto the
+    bed, gets back in and wanders off. A job handed over from another player (truck / driver
+    net ids in the event) adopts the NPCs the same way.
   - Attacher (`nz:client:tow:attach`): the client that owns the impounded vehicle pulls it onto
     the bed (attachments are synced by the attached entity's owner).
+  - `nz:client:tow:fade`: entities this client simulates fade out before the server deletes them.
   - Every client: players cannot enter or drive a vehicle being towed (state bag `nzTowing`) or
     the tow truck (`nzTowTruck`).
-  - `nz:client:tow:stop` ends the local part of a job; resource stop removes what this client
-    created.
+  - `nz:client:tow:stop` ends the local part of a job; resource stop removes the blips (the
+    server removes the entities).
 ]]
 
 local Tow = NZ.Tow
 local Utils = NZ.Utils
 
 local TARGET_WAIT_MS = 4000      -- the impounded vehicle must exist on this client within this time
-local NET_WAIT_MS = 3000         -- created entities must be networked within this time
+local ADOPT_WAIT_MS = 3000       -- the truck + driver must exist here, simulated by this client
 local POLL_MS = 400
 local TICK_EVERY_MS = 8000       -- keep-alive report while no step is reported (server: 25 s)
 local NEAR_RANGE = 22.0          -- metres from the parking spot: slow final approach
@@ -37,12 +44,16 @@ local NEAR_TIMEOUT_MS = 15000
 local STUCK_MS = 10000           -- no progress for this long: stuck
 local PROGRESS_STEP = 3.0        -- metres closer that count as progress
 local MAX_REPATH = 3             -- the last attempt skips ahead unseen
+local RECOVERED_DIST = 30.0      -- metres of progress after a re-path that count as unstuck
+local HEADING_TOLERANCE = 35.0   -- degrees between the parked truck and its spot
+local MAX_TURNS = 3              -- wrong-way stops corrected before giving up
 local NEAR_SPEED = 5.0           -- m/s on the final approach
 local AVOID_STYLE = 786469       -- goes around traffic and obstacles
 local SPOT_GAP = 1.5             -- metres between the vehicle and the truck's rear
 local MOVED_RANGE = 5.0          -- the vehicle moved this far: new parking spot
 local MOVED_LIMIT = 80.0         -- this far from where it was impounded: give up
 local PLAYER_CLEARANCE = 45.0    -- spawn nodes this close to a player are avoided
+local PLAYER_MIN = 8.0           -- ... and never this close (the server refuses them)
 local NODE_CLEARANCE = 6.0       -- no vehicle this close to a spawn node
 local SPOT_CLEARANCE = 3.5       -- no other vehicle this close to the parking spot
 local RESERVE_MS = 15000         -- a picked spawn node is not used by another job meanwhile
@@ -50,9 +61,14 @@ local EXIT_TIMEOUT_MS = 6000
 local WALK_TIMEOUT_MS = 9000
 local ENTER_TIMEOUT_MS = 12000
 local ATTACH_EXTRA_MS = 12000    -- waiting for another client's attachment: loadSeconds + this
+local REMOTE_MARGIN_MS = 1000    -- another client pulls the vehicle on: its pull ends this much later
 local DONE_GRACE_MS = 20000
 local GUARD_MS = 150
 local RAMP_SHARE = 0.35          -- share of the loading time spent lining up behind the truck
+local SIDE_SHARE = 0.15          -- ... of it backing out along the truck's side first (stood beside it)
+local NODE_TRIES = 4             -- spawn nodes proposed (the server refuses a taken one: 'retry')
+local LOAD_MAX_SECONDS = 20      -- Config.Tow.loadSeconds is clamped to 1..this (both sides)
+local MAX_FADE = 8               -- entities per fade event
 
 local jobs = {}                  -- [id] = runner job
 local attaching = {}             -- [id] = { cancelled } while this client pulls a vehicle on
@@ -114,6 +130,10 @@ local function warnOnce(key, message)
   lib.print.warn(('[nayzeee-garages] tow: %s'):format(message))
 end
 
+local function loadSeconds(value)
+  return number(value, 6, 1, LOAD_MAX_SECONDS)
+end
+
 local function exists(entity)
   return type(entity) == 'number' and entity ~= 0 and truthy(DoesEntityExist(entity))
 end
@@ -168,12 +188,6 @@ local function loadModel(hash, kind)
   return success and truthy(HasModelLoaded(hash))
 end
 
-local function deleteIfOwned(entity)
-  if not owns(entity) then return end
-  SetEntityAsMissionEntity(entity, true, true)
-  DeleteEntity(entity)
-end
-
 ---------------------------------------------------------------------------------------
 -- Jobs and reports
 ---------------------------------------------------------------------------------------
@@ -187,19 +201,11 @@ local function removeBlip(job)
   job.blip = nil
 end
 
---- NPCs the server does not know about yet (never reported, or refused) are this client's to
---- delete; registered ones are deleted by the server.
-local function deleteUnregistered(job)
-  if job.registered then return end
-  deleteIfOwned(job.driver)
-  deleteIfOwned(job.truck)
-end
-
---- End the local part of a job (server stop, new start for the same id, resource stop).
+--- End the local part of a job (server stop, new start for the same id, resource stop). The
+--- truck and driver are the server's: removed there, or adopted by the next runner.
 local function cancel(job)
   job.cancelled = true
   removeBlip(job)
-  deleteUnregistered(job)
   if jobs[job.id] == job then jobs[job.id] = nil end
 end
 
@@ -237,7 +243,7 @@ local function step(job, stage, data)
   return true, result
 end
 
---- Something failed on this client: the server falls back to deleting the vehicle.
+--- Something failed on this client: the server falls back to removing the vehicle.
 local function giveUp(job, reason)
   if active(job) then report(job, 'failed', { reason = reason }) end
   job.cancelled = true
@@ -287,8 +293,9 @@ local function anyoneInside(vehicle)
   return (tonumber(GetVehicleNumberOfPassengers(vehicle)) or 0) > 0
 end
 
---- Why this vehicle cannot go on the bed, or nil.
-local function unsuitable(vehicle)
+--- Why this vehicle cannot go on the bed, or nil. `ownTruck`: the truck of a handed-over job
+--- (the vehicle may already hang on its bed).
+local function unsuitable(vehicle, ownTruck)
   local cfg = config()
   local model = GetEntityModel(vehicle)
   local class = GetVehicleClass(vehicle)
@@ -305,7 +312,9 @@ local function unsuitable(vehicle)
     or size.height > number(limit.height, 3.4, 0.5, 10.0) then
     return 'size'
   end
-  if truthy(IsEntityAttached(vehicle)) then return 'attached' end
+  if truthy(IsEntityAttached(vehicle)) and not (ownTruck and truthy(IsEntityAttachedToEntity(vehicle, ownTruck))) then
+    return 'attached'
+  end
   if truthy(IsVehicleAttachedToTrailer(vehicle)) then return 'trailer' end
   if anyoneInside(vehicle) then return 'occupied' end
   return nil
@@ -339,16 +348,23 @@ local function nearestPlayer(players, pos)
   return best
 end
 
---- No vehicle (other than the given ones) within `radius` of `pos`.
-local function spotFree(pos, radius, ignoreA, ignoreB)
+--- Positions of the vehicles around (one walk over the pool), without the given ones; nil
+--- when the pool cannot be read.
+local function vehiclePositions(ignoreA, ignoreB)
   local success, pool = pcall(GetGamePool, 'CVehicle')
-  if not success or type(pool) ~= 'table' then
-    return not truthy(IsAnyVehicleNearPoint(pos.x, pos.y, pos.z, radius + 0.0))
-  end
+  if not success or type(pool) ~= 'table' then return nil end
+  local list = {}
   for _, vehicle in ipairs(pool) do
-    if vehicle ~= ignoreA and vehicle ~= ignoreB and Utils.dist(GetEntityCoords(vehicle), pos) < radius then
-      return false
-    end
+    if vehicle ~= ignoreA and vehicle ~= ignoreB then list[#list + 1] = GetEntityCoords(vehicle) end
+  end
+  return list
+end
+
+--- No vehicle (from `vehicles`, see vehiclePositions) within `radius` of `pos`.
+local function spotFree(pos, radius, vehicles)
+  if not vehicles then return not truthy(IsAnyVehicleNearPoint(pos.x, pos.y, pos.z, radius + 0.0)) end
+  for i = 1, #vehicles do
+    if Utils.dist(vehicles[i], pos) < radius then return false end
   end
   return true
 end
@@ -408,17 +424,20 @@ local function roadNodes(center, minD, maxD)
   return list
 end
 
---- Best node: free, out of sight of this client, away from players, mid-range.
+--- Best node: free, out of sight of this client, away from players, mid-range. The scoring
+--- never yields (the vehicle pool is read once), so two jobs never reserve the same node.
 local function pickNode(center, minD, maxD, hiddenOnly)
+  local nodes = roadNodes(center, minD, maxD)
   local players = playerPositions()
+  local vehicles = vehiclePositions()
   local best, bestScore = nil, math.huge
-  for _, c in ipairs(roadNodes(center, minD, maxD)) do
-    if spotFree(c.pos, NODE_CLEARANCE) and not isReserved(c.pos) then
+  for _, c in ipairs(nodes) do
+    local near = nearestPlayer(players, c.pos)
+    if near >= PLAYER_MIN and spotFree(c.pos, NODE_CLEARANCE, vehicles) and not isReserved(c.pos) then
       local visible = truthy(IsSphereVisible(c.pos.x, c.pos.y, c.pos.z + 1.5, 4.0))
       if not (hiddenOnly and visible) then
         local score = math.abs(c.dist - (minD + maxD) / 2)
         if visible then score = score + 1000.0 end
-        local near = nearestPlayer(players, c.pos)
         if near < PLAYER_CLEARANCE then score = score + 500.0 + (PLAYER_CLEARANCE - near) end
         if score < bestScore then best, bestScore = c, score end
       end
@@ -433,13 +452,34 @@ local function spawnNode(job)
   local minD = number(range.min, 80.0, 20.0, 400.0)
   local maxD = math.max(minD + 10.0, number(range.max, 150.0, 30.0, 450.0))
   local center = GetEntityCoords(job.target)
-  -- the server accepts a truck up to spawnDistance.max + 80 m from the vehicle
+  -- the server accepts nodes up to spawnDistance.max + 40 m (+ a little slack) from the vehicle
   return pickNode(center, minD, maxD, false) or pickNode(center, math.max(30.0, minD * 0.5), maxD + 40.0, false)
 end
 
---- Where the truck parks: in line with the vehicle, in front of it (same heading, loads nose
---- first) or behind it (opposite heading, loads tail first), whichever is free / on the road.
-local function parkingSpot(job)
+--- Propose spawn nodes until the server accepts one and creates the truck + driver there. It
+--- refuses a node another tow (another runner's reservations are not visible here) or a player
+--- is on with code 'retry': pickNode reserved that node, so the next one differs. Returns the
+--- accepted result; nil + reason to give up; nil when the job ended or moved to another client
+--- (the job is cancelled then).
+local function proposeNode(job)
+  for _ = 1, NODE_TRIES do
+    local node = spawnNode(job)
+    if not active(job) then return nil end
+    if not node then return nil, 'node' end
+    local result = report(job, 'node', { x = node.pos.x, y = node.pos.y, z = node.pos.z, heading = node.heading })
+    if result.ok then return result end
+    if result.code ~= 'retry' or not active(job) then
+      job.cancelled = true
+      return nil
+    end
+    Utils.debug(('tow %d: spawn node taken, trying another one'):format(job.id))
+  end
+  return nil, 'node'
+end
+
+--- The two places the truck can load from, in line with the vehicle: ahead of it (same
+--- heading: loads nose first) and behind it (opposite heading: loads tail first).
+local function parkingSpots(job)
   local pos, heading = GetEntityCoords(job.target), GetEntityHeading(job.target)
   local fwd = Utils.v3(GetEntityForwardVector(job.target)) or { x = 0.0, y = 1.0, z = 0.0 }
   local tMin, tMax = job.targetSize.min, job.targetSize.max
@@ -447,19 +487,46 @@ local function parkingSpot(job)
   local function at(distance, h)
     return { pos = vector3(pos.x + fwd.x * distance, pos.y + fwd.y * distance, pos.z), heading = h % 360.0 }
   end
-  local spots = {
+  return {
     at(tMax.y + SPOT_GAP + truckRear, heading),
     at(-(-tMin.y + SPOT_GAP + truckRear), heading + 180.0),
   }
-  local truckPos = exists(job.truck) and GetEntityCoords(job.truck) or pos
-  local best, bestScore = spots[1], math.huge
-  for _, spot in ipairs(spots) do
+end
+
+--- Where the truck parks, and the other spot. A spot counts as reachable when the truck gets
+--- there driving along the spot's heading: it passes the vehicle and stops beyond it, rear
+--- towards it. Coming from the other side it would stop facing the vehicle.
+local function parkingSpot(job)
+  local spots = parkingSpots(job)
+  local truckPos = exists(job.truck) and GetEntityCoords(job.truck) or GetEntityCoords(job.target)
+  local vehicles = vehiclePositions(job.truck, job.target)
+  local bestIndex, bestScore = 1, math.huge
+  for i, spot in ipairs(spots) do
     local score = Utils.dist(truckPos, spot.pos)
-    if not spotFree(spot.pos, SPOT_CLEARANCE, job.truck, job.target) then score = score + 1000.0 end
+    local h = math.rad(spot.heading)
+    if (spot.pos.x - truckPos.x) * -math.sin(h) + (spot.pos.y - truckPos.y) * math.cos(h) < 0 then
+      score = score + 500.0
+    end
+    if not spotFree(spot.pos, SPOT_CLEARANCE, vehicles) then score = score + 1000.0 end
     if not truthy(IsPointOnRoad(spot.pos.x, spot.pos.y, spot.pos.z, 0)) then score = score + 60.0 end
-    if score < bestScore then best, bestScore = spot, score end
+    if score < bestScore then bestIndex, bestScore = i, score end
   end
-  return best
+  return spots[bestIndex], spots[3 - bestIndex]
+end
+
+--- The truck faces the spot's way (the vehicle then is behind its bed).
+local function aligned(job, spot)
+  return math.abs(headingDiff(GetEntityHeading(job.truck), spot.heading)) <= HEADING_TOLERANCE
+end
+
+--- The vehicle stands behind the truck, in line with it (ready to be pulled on).
+local function behindTruck(job)
+  local at = GetEntityCoords(job.target)
+  local here = Utils.v3(GetOffsetFromEntityGivenWorldCoords(job.truck, at.x, at.y, at.z))
+  if not here then return false end
+  local relative = math.abs(headingDiff(GetEntityHeading(job.target), GetEntityHeading(job.truck)))
+  return here.y < job.truckSize.min.y and math.abs(here.x) < 2.5
+    and (relative <= HEADING_TOLERANCE or relative >= 180.0 - HEADING_TOLERANCE)
 end
 
 --- Gap between the truck's rear and the vehicle (metres, footprints approximated).
@@ -473,53 +540,34 @@ end
 -- Truck and driver
 ---------------------------------------------------------------------------------------
 
-local function waitNetworked(job, entity)
-  local untilAt = GetGameTimer() + NET_WAIT_MS
-  while GetGameTimer() < untilAt do
-    if not exists(entity) then return false end
-    if truthy(NetworkGetEntityIsNetworked(entity)) and (tonumber(NetworkGetNetworkIdFromEntity(entity)) or 0) > 0 then
-      return true
-    end
-    if job.cancelled then return false end
-    Wait(50)
-  end
-  return false
-end
-
-local function spawnNpcs(job, truckModel, driverModel)
-  local node = spawnNode(job)
-  if not node then return false, 'node' end
-  local truck = CreateVehicle(truckModel, node.pos.x, node.pos.y, node.pos.z + 0.5, node.heading + 0.0, true, true)
-  job.truck = exists(truck) and truck or nil
-  if not job.truck then return false, 'spawn' end
-  if not waitNetworked(job, truck) then return false, 'network' end
-  local driver = CreatePedInsideVehicle(truck, 4, driverModel, -1, true, true)
-  job.driver = exists(driver) and driver or nil
-  if not job.driver then return false, 'spawn' end
-  if not waitNetworked(job, driver) then return false, 'network' end
-  SetEntityAsMissionEntity(truck, true, true)
-  SetEntityAsMissionEntity(driver, true, true)
-  SetVehicleOnGroundProperly(truck)
-  local plate = config().plate
-  if type(plate) == 'string' and plate ~= '' then SetVehicleNumberPlateText(truck, plate:sub(1, 8)) end
-  job.truckNet = NetworkGetNetworkIdFromEntity(truck)
-  job.driverNet = NetworkGetNetworkIdFromEntity(driver)
-  return true
-end
-
---- Take over the NPCs of a handed-over job (the server only offers them when this client
---- already simulates both).
+--- Take over the truck + driver the server created (or a handed-over job's). This client must
+--- simulate the driver: the tasks are given here. Returns false + reason on failure; false
+--- without a reason when another client simulates them (the server hands the job over).
 local function adoptNpcs(job)
-  local truck, driver = entityOf(job.adoptTruck), entityOf(job.adoptDriver)
-  if not truck or not driver or not owns(truck) or not owns(driver) then return false, 'adopt' end
+  local untilAt = GetGameTimer() + ADOPT_WAIT_MS
+  local truck, driver
+  while true do
+    truck, driver = entityOf(job.adoptTruck), entityOf(job.adoptDriver)
+    if truck and driver and owns(truck) and owns(driver) then break end
+    if GetGameTimer() >= untilAt or not active(job) then break end
+    Wait(100)
+  end
+  if not active(job) then return false end
+  if not truck or not driver then return false, 'adopt' end
+  if not owns(driver) then
+    job.cancelled = true
+    return false
+  end
+  if not owns(truck) then warnOnce('truckOwner', 'the tow truck is simulated by another client than its driver') end
   job.truck, job.driver = truck, driver
   job.truckNet, job.driverNet = job.adoptTruck, job.adoptDriver
-  job.registered = true -- the server knows them: it deletes them, never this client
   return true
 end
 
 local function prepareNpcs(job)
   local driver, truck = job.driver, job.truck
+  SetEntityAsMissionEntity(truck, true, true)
+  SetEntityAsMissionEntity(driver, true, true)
   SetBlockingOfNonTemporaryEvents(driver, true)
   SetPedKeepTask(driver, true)
   SetPedCanBeDraggedOut(driver, false)
@@ -533,6 +581,13 @@ local function prepareNpcs(job)
   SetVehicleHasBeenOwnedByPlayer(truck, false)
   SetVehicleNeedsToBeHotwired(truck, false)
   SetVehicleDoorsLockedForAllPlayers(truck, true)
+  if job.fresh then
+    -- just created out of sight: seat the driver when the server's seat request did not land
+    if not truthy(IsPedInVehicle(driver, truck, false)) then SetPedIntoVehicle(driver, truck, -1) end
+    local plate = config().plate
+    if type(plate) == 'string' and plate ~= '' then SetVehicleNumberPlateText(truck, plate:sub(1, 8)) end
+    SetVehicleOnGroundProperly(truck)
+  end
 end
 
 local function addBlip(job)
@@ -589,32 +644,54 @@ local function halt(job)
   end
 end
 
---- Last resort when stuck: move the truck while nobody watches (to the parking spot when it
---- is hidden and free, else to a hidden free road node closer to the vehicle).
-local function skipAhead(job, spot)
+--- Move the truck onto `spot` while nobody watches; false when it is on screen or the spot is
+--- taken.
+local function placeUnseen(job, spot)
   if truthy(IsEntityOnScreen(job.truck)) then return false end
-  local dest, heading
-  if not truthy(IsSphereVisible(spot.pos.x, spot.pos.y, spot.pos.z + 1.0, 5.0))
-    and spotFree(spot.pos, SPOT_CLEARANCE, job.truck, job.target) then
-    dest, heading = spot.pos, spot.heading
-  else
-    local node = pickNode(GetEntityCoords(job.target), 25.0, 60.0, true)
-    if node then dest, heading = node.pos, node.heading end
+  if truthy(IsSphereVisible(spot.pos.x, spot.pos.y, spot.pos.z + 1.0, 5.0)) and spot.visibleOk ~= true then
+    return false
   end
-  if not dest then return false end
-  SetEntityCoords(job.truck, dest.x, dest.y, dest.z + 0.5, false, false, false, false)
-  SetEntityHeading(job.truck, heading + 0.0)
+  if not spotFree(spot.pos, SPOT_CLEARANCE, vehiclePositions(job.truck, job.target)) then return false end
+  SetEntityCoords(job.truck, spot.pos.x, spot.pos.y, spot.pos.z + 0.5, false, false, false, false)
+  SetEntityHeading(job.truck, spot.heading + 0.0)
   SetVehicleOnGroundProperly(job.truck)
   return true
 end
 
---- Drive to the parking spot. Returns true when parked close enough to load, else false +
---- reason ('targetGone' | 'moved' | 'npc' | 'stuck'); false without a reason when the job ended.
+--- Last resort when stuck: move the truck while nobody watches (to the parking spot when it
+--- is hidden and free, else to a hidden free road node closer to the vehicle).
+local function skipAhead(job, spot)
+  if truthy(IsEntityOnScreen(job.truck)) then return false end
+  if placeUnseen(job, spot) then return true end
+  local node = pickNode(GetEntityCoords(job.target), 25.0, 60.0, true)
+  if not node then return false end
+  SetEntityCoords(job.truck, node.pos.x, node.pos.y, node.pos.z + 0.5, false, false, false, false)
+  SetEntityHeading(job.truck, node.heading + 0.0)
+  SetVehicleOnGroundProperly(job.truck)
+  return true
+end
+
+--- The truck stopped by the vehicle the wrong way round (TASK_VEHICLE_* can end facing either
+--- way). Off screen it is turned in place: true. On screen: false + the spot on the vehicle's
+--- other side (driving there from here ends with the right heading: the truck passes the
+--- vehicle), or nil when that spot is taken.
+local function realign(job, spot, other)
+  local unseen = { pos = spot.pos, heading = spot.heading, visibleOk = true }
+  if placeUnseen(job, unseen) then return true end
+  if other and spotFree(other.pos, SPOT_CLEARANCE, vehiclePositions(job.truck, job.target)) then
+    return false, other
+  end
+  return false, nil
+end
+
+--- Drive to the parking spot. Returns true when parked in line with the vehicle, close enough
+--- to load, else false + reason ('targetGone' | 'moved' | 'npc' | 'stuck' | 'heading'); false
+--- without a reason when the job ended.
 local function approach(job)
   local speed, style = driveSettings()
-  local spot = parkingSpot(job)
+  local spot, other = parkingSpot(job)
   local phase = 'far'
-  local repaths = 0
+  local repaths, repathDist, turns = 0, math.huge, 0
   local anchor = GetEntityCoords(job.target)
   local best, lastProgress = math.huge, GetGameTimer()
   local nearSince = 0
@@ -644,29 +721,53 @@ local function approach(job)
     if Utils.dist(targetPos, anchor) > MOVED_RANGE then
       -- pushed or bumped: new spot from where it stands now
       anchor = targetPos
-      spot = parkingSpot(job)
+      spot, other = parkingSpot(job)
       best, lastProgress = math.huge, now
       drive(repaths > 1)
     end
 
     local d = Utils.dist(GetEntityCoords(job.truck), spot.pos)
     if d < best - PROGRESS_STEP then best, lastProgress = d, now end
+    -- driving well again after a re-path (a red light, a jam): back to the normal style
+    if repaths > 0 and repaths < MAX_REPATH and d < repathDist - RECOVERED_DIST then
+      repaths, repathDist = 0, math.huge
+      drive(false)
+    end
     if phase == 'far' and d <= NEAR_RANGE then
       phase, nearSince, lastProgress, best = 'near', now, now, d
       drive(false)
     end
     if phase == 'near' then
       local gap = rearGap(job)
-      if d <= PARKED_RANGE or (gap <= GOOD_GAP and truthy(IsVehicleStopped(job.truck)) and now - nearSince > 4000) then
-        halt(job)
-        return active(job)
+      local stopped = d <= PARKED_RANGE
+        or (gap <= GOOD_GAP and truthy(IsVehicleStopped(job.truck)) and now - nearSince > 4000)
+      if not stopped and now - nearSince > NEAR_TIMEOUT_MS then
+        -- close and the vehicle behind the bed: load from here; else stuck (below)
+        if gap <= GOOD_GAP + 4.0 and behindTruck(job) then stopped = true else lastProgress = 0 end
       end
-      if now - nearSince > NEAR_TIMEOUT_MS then
-        if gap <= GOOD_GAP + 4.0 then
-          halt(job)
-          return active(job)
+      if stopped then
+        halt(job)
+        if not active(job) then return false end
+        -- never load a vehicle that is not behind the bed: it would be dragged through the truck
+        local inLine = aligned(job, spot)
+        if inLine and behindTruck(job) then return true end
+        turns = turns + 1
+        if turns > MAX_TURNS then return false, 'heading' end
+        if inLine and Utils.dist(GetEntityCoords(job.truck), spot.pos) > PARKED_RANGE then
+          -- the right way round but beside or short of the vehicle (passing it, waiting in
+          -- traffic): carry on to the spot
+          Utils.debug(('tow %d: stopped beside the vehicle, carries on to the spot (%d)'):format(job.id, turns))
+          nearSince, lastProgress, best = now, now, math.huge
+          drive(true)
+        else
+          local turned, nextSpot = realign(job, spot, other)
+          if turned then return active(job) end
+          if not nextSpot then return false, 'heading' end
+          Utils.debug(('tow %d: wrong way round, parks on the other side (%d)'):format(job.id, turns))
+          spot, other = nextSpot, spot
+          nearSince, lastProgress, best = now, now, math.huge
+          drive(true) -- around the vehicle
         end
-        lastProgress = 0 -- counts as stuck right below
       end
     end
 
@@ -675,11 +776,12 @@ local function approach(job)
       if repaths > MAX_REPATH then return false, 'stuck' end
       if repaths == MAX_REPATH then
         if not skipAhead(job, spot) then return false, 'stuck' end
-        spot = parkingSpot(job)
+        spot, other = parkingSpot(job)
         phase = 'far'
       end
       Utils.debug(('tow %d: stuck, re-path %d'):format(job.id, repaths))
       best, lastProgress, nearSince = math.huge, now, now
+      repathDist = Utils.dist(GetEntityCoords(job.truck), spot.pos)
       drive(repaths >= 2)
     end
   end
@@ -705,9 +807,12 @@ local function measureSurface(truck, boneLocal, bedY)
   return surface
 end
 
---- Poses (relative to the truck bone) of the vehicle: where it stands now, lined up behind the
---- bed and on the bed. Its size decides where it sits (centred on the bed, wheels on the deck).
-local function bedPoses(truck, target)
+--- How the vehicle gets onto the bed, as poses relative to the truck bone: from where it stands
+--- (`current`) along `path` to `final` (centred on the bed, wheels on the deck; its size
+--- decides where it sits). Normally lined up behind the bed, then up the ramp; already hanging
+--- on the truck (handed-over job): straight on; not behind the bed (the truck stopped beside
+--- or ahead of it): lifted over the truck, never dragged through it.
+local function bedPlan(truck, target)
   local bed = type(config().bed) == 'table' and config().bed or {}
   local bone = GetEntityBoneIndexByName(truck, type(bed.bone) == 'string' and bed.bone or 'bodyshell')
   if not bone or bone < 0 then bone = 0 end
@@ -732,7 +837,31 @@ local function bedPoses(truck, target)
   local at = GetEntityCoords(target)
   local here = Utils.v3(GetOffsetFromEntityGivenWorldCoords(truck, at.x, at.y, at.z)) or { x = 0.0, y = 0.0, z = 0.0 }
   local current = { x = here.x - boneLocal.x, y = here.y - boneLocal.y, z = here.z - boneLocal.z, h = relative }
-  return bone, current, ramp, final
+
+  local path
+  if truthy(IsEntityAttachedToEntity(target, truck)) then
+    path = { { pose = final, share = 1.0 } }
+  elseif current.y > ramp.y + size.length then
+    local lift = truckSize.max.z - boneLocal.z + 0.5 - size.min.z
+    path = {
+      { pose = { x = current.x, y = current.y, z = math.max(lift, current.z), h = current.h }, share = 0.3 },
+      { pose = { x = final.x, y = final.y, z = math.max(lift, current.z), h = final.h }, share = 0.4 },
+      { pose = final, share = 0.3 },
+    }
+  else
+    path = {
+      { pose = ramp, share = RAMP_SHARE },
+      { pose = final, share = 1.0 - RAMP_SHARE, climb = true },
+    }
+    -- beside the bed (the truck stopped next to it): straight back along the truck's side
+    -- first, then across behind the bed, never diagonally through its rear corner
+    local clear = (truckSize.max.x - truckSize.min.x) / 2 + size.width / 2 - 0.2
+    if math.abs(current.x) > clear and current.y + size.length / 2 > rear then
+      path[1].share = RAMP_SHARE - SIDE_SHARE
+      table.insert(path, 1, { pose = { x = current.x, y = ramp.y, z = ramp.z, h = current.h }, share = SIDE_SHARE })
+    end
+  end
+  return { bone = bone, current = current, final = final, path = path }
 end
 
 local function smooth(t)
@@ -749,6 +878,25 @@ local function lerpPose(a, b, t)
   }
 end
 
+--- Pose at `t` (0..1) along the plan.
+local function poseAt(plan, t)
+  local from, start = plan.current, 0.0
+  for i, leg in ipairs(plan.path) do
+    if t <= start + leg.share or i == #plan.path then
+      local u = math.max(0.0, math.min(1.0, (t - start) / leg.share))
+      local pose = lerpPose(from, leg.pose, smooth(u))
+      if leg.climb then
+        -- up the ramp: the vehicle rises sooner than it moves forward
+        pose.z = from.z + (leg.pose.z - from.z) * math.sin(math.min(1.0, u * 1.6) * math.pi / 2)
+      end
+      return pose
+    end
+    start = start + leg.share
+    from = leg.pose
+  end
+  return plan.final
+end
+
 local function attachAt(target, truck, bone, pose, final)
   AttachEntityToEntity(target, truck, bone, pose.x + 0.0, pose.y + 0.0, pose.z + 0.0, 0.0, 0.0, pose.h + 0.0,
     false, false, false, false, 2, true)
@@ -763,27 +911,19 @@ end
 ---@return boolean attached
 local function pullOntoBed(target, truck, seconds, ended)
   if not exists(target) or not exists(truck) or not owns(target) then return false end
-  local bone, current, ramp, final = bedPoses(truck, target)
-  local duration = math.floor(number(seconds, 6, 1, 30) * 1000)
-  local direct = Utils.dist(current, final) < 1.0 -- already on the bed (handed-over job)
+  local plan = bedPlan(truck, target)
+  local duration = math.floor(loadSeconds(seconds) * 1000)
+  local direct = Utils.dist(plan.current, plan.final) < 1.0 -- already on the bed (handed-over job)
   local started = GetGameTimer()
   while not direct do
     if ended() or not exists(target) or not exists(truck) or not owns(target) then return false end
     local t = (GetGameTimer() - started) / duration
     if t >= 1.0 then break end
-    local pose
-    if t < RAMP_SHARE then
-      pose = lerpPose(current, ramp, smooth(t / RAMP_SHARE))
-    else
-      local u = (t - RAMP_SHARE) / (1.0 - RAMP_SHARE)
-      pose = lerpPose(ramp, final, smooth(u))
-      pose.z = ramp.z + (final.z - ramp.z) * math.sin(math.min(1.0, u * 1.6) * math.pi / 2)
-    end
-    attachAt(target, truck, bone, pose, false)
+    attachAt(target, truck, plan.bone, poseAt(plan, t), false)
     Wait(0)
   end
-  if ended() or not owns(target) then return false end
-  attachAt(target, truck, bone, final, true)
+  if ended() or not exists(target) or not exists(truck) or not owns(target) then return false end
+  attachAt(target, truck, plan.bone, plan.final, true)
   return truthy(IsEntityAttachedToEntity(target, truck))
 end
 
@@ -846,7 +986,7 @@ end
 --- Load the vehicle: this client pulls it on ('self') or waits for its owner ('remote').
 local function load(job, attacher, seconds)
   local started = GetGameTimer()
-  local attached = false
+  local attached
   if attacher == 'self' then
     attached = pullOntoBed(job.target, job.truck, seconds, function() return not active(job) end)
     if not attached and active(job) then
@@ -857,8 +997,9 @@ local function load(job, attacher, seconds)
   else
     attached = waitAttached(job, seconds * 1000 + ATTACH_EXTRA_MS)
   end
-  -- the driver keeps working the controls for the whole loading time
-  local left = seconds * 1000 - (GetGameTimer() - started)
+  -- the driver keeps working the controls for the whole loading time (another client's pull
+  -- started a moment after ours: give it that moment to reach the bed)
+  local left = seconds * 1000 - (GetGameTimer() - started) + (attacher == 'self' and 0 or REMOTE_MARGIN_MS)
   if attached and left > 0 and not sleep(job, left) then return false end
   return attached and active(job)
 end
@@ -917,35 +1058,46 @@ local function scene(job)
   if not active(job) then return end
   if not target or (job.model and toSigned(GetEntityModel(target)) ~= job.model) then return giveUp(job, 'target') end
   job.target = target
-  local why = unsuitable(target)
+  local why = unsuitable(target, job.adoptTruck and entityOf(job.adoptTruck) or nil)
   if why then return giveUp(job, why) end
   job.origin = GetEntityCoords(target)
   job.targetSize = dims(GetEntityModel(target))
 
-  -- 2. truck + driver (new, or adopted from the previous runner)
+  -- 2. truck + driver: created by the server on a road node this client picks, or adopted
   local truckModel = modelHash(cfg.truck or 'flatbed')
   local driverModel = modelHash(cfg.driver or 's_m_m_trucker_01')
   if not loadModel(truckModel, 'vehicle') or not loadModel(driverModel, 'ped') then return giveUp(job, 'model') end
-  if not active(job) then return end
   job.truckSize = dims(truckModel)
-  local ready, reason = false, nil
-  if job.adoptTruck and job.adoptDriver then ready, reason = adoptNpcs(job) end
-  if not ready then ready, reason = spawnNpcs(job, truckModel, driverModel) end
   SetModelAsNoLongerNeeded(truckModel)
   SetModelAsNoLongerNeeded(driverModel)
   if not active(job) then return end
-  if not ready then return giveUp(job, reason or 'spawn') end
+  if not job.adoptTruck or not job.adoptDriver then
+    local result, problem = proposeNode(job)
+    if not active(job) then return end
+    if not result then return giveUp(job, problem or 'node') end
+    local data = type(result.data) == 'table' and result.data or {}
+    job.adoptTruck, job.adoptDriver, job.fresh = toInt(data.truck, 1), toInt(data.driver, 1), true
+  end
+  local ready, reason = adoptNpcs(job)
+  if not active(job) then return end
+  if not ready then return giveUp(job, reason or 'adopt') end
   if not step(job, 'spawned', { truck = job.truckNet, driver = job.driverNet }) then return end
-  job.registered = true
   prepareNpcs(job)
   addBlip(job)
-  if not boardTruck(job) then return giveUp(job, npcProblem(job) or 'board') end
+  -- a handed-over job may find the truck parked and the driver already out at the bed
+  local parked = not job.fresh and not truthy(IsPedInVehicle(job.driver, job.truck, false))
+    and (truthy(IsEntityAttachedToEntity(job.target, job.truck))
+      or (rearGap(job) <= GOOD_GAP + 4.0 and behindTruck(job)))
+  if not parked and not boardTruck(job) then return giveUp(job, npcProblem(job) or 'board') end
 
   -- 3. drive to the vehicle
-  local parked, problem = approach(job)
-  if not active(job) then return end
-  if problem == 'targetGone' then return leaveEmpty(job) end
-  if not parked then return giveUp(job, problem or 'stuck') end
+  if not parked then
+    local problem
+    parked, problem = approach(job)
+    if not active(job) then return end
+    if problem == 'targetGone' then return leaveEmpty(job) end
+    if not parked then return giveUp(job, problem or 'stuck') end
+  end
   if not step(job, 'arrived') then return end
 
   -- 4. the driver works the controls while the vehicle is pulled onto the bed
@@ -957,7 +1109,7 @@ local function scene(job)
   local accepted, result = step(job, 'load')
   if not accepted then return stopWorking(job) end
   local attacher = type(result.data) == 'table' and result.data.attacher or 'remote'
-  local seconds = number(cfg.loadSeconds, 6, 1, 30)
+  local seconds = loadSeconds(cfg.loadSeconds)
   local loaded = load(job, attacher, seconds)
   stopWorking(job)
   if not active(job) then return end
@@ -1093,7 +1245,7 @@ end
 ---------------------------------------------------------------------------------------
 
 -- { id, netId, model, timeout, truck?, driver?, officer? }: run the tow (truck + driver given:
--- adopt them, the job was handed over).
+-- adopt them, the server created them for this client or the job was handed over).
 RegisterNetEvent('nz:client:tow:start', function(data)
   if stopping or type(data) ~= 'table' then return end
   local id, netId = toInt(data.id, 1), toInt(data.netId, 1)
@@ -1137,7 +1289,6 @@ end)
 RegisterNetEvent('nz:client:tow:stop', function(data)
   local id = type(data) == 'table' and toInt(data.id, 1) or nil
   if not id then return end
-  -- registered NPCs are the server's: deleted there, or adopted by the next runner
   local job = jobs[id]
   if job then cancel(job) end
   local token = attaching[id]
@@ -1147,15 +1298,25 @@ RegisterNetEvent('nz:client:tow:stop', function(data)
   end
 end)
 
+-- { netId, ... }: tow entities this client simulates fade out (the server deletes them a moment
+-- later). Only entities carrying a tow state bag.
+RegisterNetEvent('nz:client:tow:fade', function(netIds)
+  if type(netIds) ~= 'table' then return end
+  for i = 1, math.min(#netIds, MAX_FADE) do
+    local entity = entityOf(netIds[i])
+    if entity and owns(entity) then
+      local state = Entity(entity).state
+      if state.nzTowing == true or state.nzTowTruck == true or state.nzTowDriver == true then
+        pcall(NetworkFadeOutEntity, entity, false, true)
+      end
+    end
+  end
+end)
+
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= NZ.ResourceName then return end
   stopping = true
-  -- the server deletes the registered NPCs and the vehicles too; this covers the ones it never
-  -- heard about and a server that is already gone
-  for _, job in pairs(jobs) do
-    removeBlip(job)
-    deleteIfOwned(job.driver)
-    deleteIfOwned(job.truck)
-  end
+  -- the server deletes the vehicles, trucks and drivers (server-side: its own entities)
+  for _, job in pairs(jobs) do removeBlip(job) end
   for _, token in pairs(attaching) do token.cancelled = true end
 end)

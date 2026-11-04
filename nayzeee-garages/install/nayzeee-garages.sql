@@ -122,6 +122,8 @@ CREATE TABLE IF NOT EXISTS `nz_keys` (
 --   nz_last_out  INT          NULL       unix time the vehicle was last taken out
 --   nz_finance_total INT      NULL       total number of finance payments (progress display)
 --   nz_key_version INT        NOT NULL DEFAULT 0   car lock: key items of an older version stop working
+--   nz_key_owner VARCHAR(64)  NULL       car lock: owner (hashed owner / job / gang) the keys were
+--                                         cut for; a different owner gets a new key version
 --   nz_plate_norm VARCHAR(64) VIRTUAL    LEFT(UPPER(TRIM(plate)), 64), optional (a failure
 --                                         to create it is only a warning)
 --
@@ -144,4 +146,5 @@ CREATE TABLE IF NOT EXISTS `nz_keys` (
 --   ADD COLUMN IF NOT EXISTS `nz_blocked` TINYINT(1) NOT NULL DEFAULT 0,
 --   ADD COLUMN IF NOT EXISTS `nz_last_out` INT NULL,
 --   ADD COLUMN IF NOT EXISTS `nz_finance_total` INT NULL,
---   ADD COLUMN IF NOT EXISTS `nz_key_version` INT NOT NULL DEFAULT 0;
+--   ADD COLUMN IF NOT EXISTS `nz_key_version` INT NOT NULL DEFAULT 0,
+--   ADD COLUMN IF NOT EXISTS `nz_key_owner` VARCHAR(64) NULL;

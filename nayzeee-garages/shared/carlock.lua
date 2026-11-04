@@ -4,7 +4,13 @@
 
   Pure functions over Config.CarLock / Config.Integrations: whether the built-in system is
   active, the security profile of a model / class, item names, ranges, the key mode and the
-  key item metadata label. No side effects, no natives besides joaat.
+  key item metadata label. No side effects; natives: joaat, GetResourceState (once, at load).
+
+  Config.Integrations.keys = 'auto': the built-in car lock runs unless another key resource
+  (qbx_vehiclekeys, qb-vehiclekeys, wasabi_carlock, ...) is started when this resource loads
+  or starts after it while the server boots (no player connected yet); 'nayzeee' forces it.
+  The server decides and publishes the result in GlobalState.nzCarLockOther
+  (server/carlock/keys.lua) so every client agrees with it.
 ]]
 
 local CarLock = NZ.CarLock
@@ -33,15 +39,84 @@ function CarLock.cfg()
   return type(cfg) == 'table' and cfg or {}
 end
 
+-- Key resources that take over locks and the engine themselves (same list and order as
+-- bridge/server/keys.lua). With Config.Integrations.keys = 'auto' a running one wins.
+local OTHER_KEY_RESOURCES = {
+  'qbx_vehiclekeys', 'qb-vehiclekeys', 'wasabi_carlock', 'MrNewbVehicleKeys', 'qs-vehiclekeys',
+  'Renewed-Vehiclekeys', 'vehicles_keys',
+}
+
+--- First key resource of OTHER_KEY_RESOURCES that is started right now, or nil. Only
+--- 'started' counts: this resource is still 'starting' while it loads, so a `provide` of one
+--- of those names in our own manifest never matches.
+---@return string|nil
+function CarLock.detectOtherKeys()
+  for _, name in ipairs(OTHER_KEY_RESOURCES) do
+    local ok, state = pcall(GetResourceState, name)
+    if ok and state == 'started' then return name end
+  end
+  return nil
+end
+
+--- The list above (copy), for warnings and the listener file.
+---@return string[]
+function CarLock.otherKeyResources()
+  local out = {}
+  for i, name in ipairs(OTHER_KEY_RESOURCES) do out[i] = name end
+  return out
+end
+
+local function readGlobal()
+  local ok, value = pcall(function() return GlobalState.nzCarLockOther end)
+  if not ok then return nil end
+  return value
+end
+
+-- Decided at load. The server may hand over once more while it boots (a key resource that
+-- starts after this one before any player is connected, server/carlock/keys.lua); later a
+-- key resource starting only gets a warning. Clients take the server's decision
+-- (GlobalState) and detect locally only when it has not replicated yet.
+local otherKeys = nil
+do
+  local isServer = type(IsDuplicityVersion) == 'function' and IsDuplicityVersion() == true
+  local published = (not isServer) and readGlobal() or nil
+  if type(published) == 'string' and published ~= '' then
+    otherKeys = published
+  elseif published ~= false then
+    otherKeys = CarLock.detectOtherKeys()
+  end
+end
+
+--- Key resource that was running when this resource started (nil = none).
+---@return string|nil
+function CarLock.otherKeyResource()
+  return otherKeys
+end
+
+--- Hand keys over to another key resource (server boot window only: it started after this
+--- one before any player joined). Config.Integrations.keys = 'auto' then turns the built-in
+--- car lock off.
+---@param name string
+function CarLock.setOtherKeyResource(name)
+  if type(name) == 'string' and name ~= '' then otherKeys = name end
+end
+
+--- Config.Integrations.keys, lower case ('auto' when empty).
+---@return string
+function CarLock.keysSetting()
+  local keys = Config.Integrations and Config.Integrations.keys or 'auto'
+  if type(keys) ~= 'string' or keys == '' then keys = 'auto' end
+  return keys:lower()
+end
+
 --- Is the built-in car lock in charge of keys? Config.CarLock.enabled and
---- Config.Integrations.keys = 'auto' (built-in wins) or 'nayzeee'.
+--- Config.Integrations.keys = 'nayzeee', or 'auto' while no other key resource runs.
 ---@return boolean
 function CarLock.enabled()
   if CarLock.cfg().enabled ~= true then return false end
-  local keys = Config.Integrations and Config.Integrations.keys or 'auto'
-  if type(keys) ~= 'string' or keys == '' then keys = 'auto' end
-  keys = keys:lower()
-  return keys == 'auto' or keys == 'nayzeee'
+  local keys = CarLock.keysSetting()
+  if keys == 'nayzeee' then return true end
+  return keys == 'auto' and otherKeys == nil
 end
 
 --- Is compatibility with other key resources' events / exports on?

@@ -14,9 +14,13 @@
                           physical: hands one key item over (server copy of the metadata)
     nz:carlock:revoke     { plate, identifier } -> null   owner / admin
     nz:carlock:holders    { plate } -> { { identifier, name, kind, grantedBy, at, expires } }
-    nz:carlock:compat     { action = 'acquire'|'remove'|'lend', netId?, plate?, target? }
+    nz:carlock:compat     { action = 'acquire'|'remove'|'lend', netId?, plate?, target?, export? }
                           other scripts' CLIENT events / exports (bridge/client/listeners.lua):
-                          temporary keys only, NZ.CarLock.canAcquire rules
+                          temporary keys only, NZ.CarLock.canAcquire rules (a key allowed
+                          through a share / fleet access ends with it); 'lend' needs a key
+                          that is not temporary, in physical mode a key item is handed over
+                          (owners may lend a temporary key);
+                          export = true (client export GiveKey) needs clientGiveKeyExport
   Every callback is rate limited and works on server-side entities, positions and plates.
 
   Key item use (registered in bridge/server/listeners.lua): NZ.CarLock.useKeyItem toggles the
@@ -73,8 +77,9 @@ local function identifierOf(src)
   return nil
 end
 
-local function limited(src, bucket)
-  return not NZ.Access.rateLimit(src, 'carlock:' .. bucket, RATE[bucket] or 500)
+--- Rate limit of `bucket` (RATE ms); `key` names a finer bucket with the same interval.
+local function limited(src, bucket, key)
+  return not NZ.Access.rateLimit(src, 'carlock:' .. (key or bucket), RATE[bucket] or 500)
 end
 
 local function pedOf(src)
@@ -102,8 +107,10 @@ local function toggle(entity)
 end
 
 --- May the driver start this engine? -> allowed, kind ('temp'|'item'|'virtual'|'owner'|'job'|'bypass')
+--- The ignition runs on the client anyway (nothing is granted here), so the class the driver's
+--- client reports is used for the bypass classes.
 local function ignitionAllowed(src, entity, reportedClass)
-  local class = CarLock.classOf(entity) or reportedClass
+  local class = reportedClass or CarLock.classOf(entity)
   if CarLock.ignitionBypass(GetEntityModel(entity), class) then return true, 'bypass' end
   local plate = CarLock.realPlate(entity)
   if not plate then return false, nil end
@@ -154,6 +161,10 @@ lib.callback.register('nz:carlock:toggleLock', Utils.safe(function(source, paylo
   if #candidates == 0 then return Utils.fail(L('No vehicle nearby')) end
   local tooFar = false
   for _, c in ipairs(candidates) do
+    -- a vehicle on its way to the impound (tow truck) stays locked
+    if type(NZ.Tow.isTowing) == 'function' and NZ.Tow.isTowing(c.entity) then
+      return Utils.fail(L('This vehicle is being towed'))
+    end
     local plate = CarLock.realPlate(c.entity)
     local has, kind = false, nil
     if plate then has, kind = CarLock.hasKey(src, plate) end
@@ -277,10 +288,46 @@ end))
 -- Other scripts' client events / exports (bridge/client/listeners.lua)
 ---------------------------------------------------------------------------------------
 
---- Vehicle of a compat request: netId first, else the nearest vehicle wearing that plate.
+local COMPAT_BURST = 4          -- compat requests a player may send at once (truck + trailer, ...)
+local COMPAT_REFILL_MS = 400    -- one more every 400 ms
+local COMPAT_ENTITY_WAIT_MS = 2000
+local compatTokens = {}         -- [src] = { tokens, at }
+
+--- Token bucket of compat requests per player.
+local function compatToken(src)
+  local t = GetGameTimer()
+  local b = compatTokens[src]
+  if not b then
+    b = { tokens = COMPAT_BURST, at = t }
+    compatTokens[src] = b
+  end
+  local refill = (t - b.at) / COMPAT_REFILL_MS
+  if refill >= 1 then
+    b.tokens = math.min(COMPAT_BURST, b.tokens + math.floor(refill))
+    b.at = t
+  end
+  if b.tokens < 1 then return false end
+  b.tokens = b.tokens - 1
+  return true
+end
+
+AddEventHandler('playerDropped', function()
+  local src = tonumber(source)
+  if src then compatTokens[math.tointeger(src) or src] = nil end
+end)
+
+--- Vehicle of a compat request: netId first (scripts fire their events right after spawning:
+--- the vehicle may reach the server a moment later), else the nearest vehicle wearing that plate.
 local function compatVehicle(src, payload)
   if payload.netId ~= nil then
     local entity, dist, inside = CarLock.vehicleFromNet(src, payload.netId)
+    if not entity and coroutine.isyieldable() then
+      local deadline = GetGameTimer() + COMPAT_ENTITY_WAIT_MS
+      while not entity and GetGameTimer() < deadline do
+        Wait(50)
+        entity, dist, inside = CarLock.vehicleFromNet(src, payload.netId)
+      end
+    end
     if entity then return entity, dist, inside end
   end
   local plate = type(payload.plate) == 'string' and CarLock.plateFromText(payload.plate, src) or nil
@@ -304,23 +351,30 @@ function CarLock.compatRequest(src, payload, opts)
   src = validSrc(src)
   if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
   if not CarLock.enabled() then return Utils.ok(false) end
-  if not (type(opts) == 'table' and opts.noRate) and limited(src, 'compat') then
+  if not (type(opts) == 'table' and opts.noRate) and not compatToken(src) then
     return Utils.fail(L('Please wait a moment'))
   end
   local action = payload.action
 
   if action == 'acquire' then
-    -- payload.export: this resource's own client export GiveKey (works without compat)
-    if not CarLock.compatEnabled() and payload.export ~= true then return Utils.ok(false) end
+    if payload.export == true then
+      -- this resource's own client export GiveKey: works without compat, unless closed
+      if cfg().clientGiveKeyExport == false then return Utils.ok(false) end
+    elseif not CarLock.compatEnabled() then
+      return Utils.ok(false)
+    end
     local entity, dist, inside = compatVehicle(src, payload)
     if not entity then return Utils.fail(L('Vehicle not found')) end
-    local allowed, plate, err = CarLock.canAcquire(src, entity, dist, inside)
+    -- per vehicle: the same vehicle at most every 400 ms (other vehicles are not held back)
+    if limited(src, 'compat', 'compat:' .. tostring(entity)) then return Utils.fail(L('Please wait a moment')) end
+    local allowed, plate, err, viaAccess = CarLock.canAcquire(src, entity, dist, inside)
     if not allowed then
       Utils.debug(('carlock: compat key refused for %s (%s)'):format(tostring(plate), tostring(err)))
       return Utils.fail(err)
     end
     if CarLock.hasKey(src, plate) then return Utils.ok(true) end
-    return Utils.ok(CarLock.grantTemp(src, plate, payload.export == true and 'export' or 'compat'))
+    -- a key allowed through a share / fleet access ends with that access
+    return Utils.ok(CarLock.grantTemp(src, plate, payload.export == true and 'export' or 'compat', nil, viaAccess == true))
 
   elseif action == 'remove' then
     local plate = nil
@@ -340,11 +394,25 @@ function CarLock.compatRequest(src, payload, opts)
     local entity, dist, inside = compatVehicle(src, payload)
     if not entity or (not inside and dist > CarLock.range('compat')) then return Utils.fail(L('Vehicle not found')) end
     local plate = CarLock.realPlate(entity)
-    if not plate or not CarLock.hasKey(src, plate) then return Utils.fail(L('You do not have the keys of this vehicle')) end
+    local has, kind = false, nil
+    if plate then has, kind = CarLock.hasKey(src, plate) end
+    if not has then return Utils.fail(L('You do not have the keys of this vehicle')) end
+    -- a temporary key (hotwire, robbery, other scripts, garage hand-out) never makes more keys
+    if kind == 'temp' then return Utils.fail(L('You cannot lend a temporary key')) end
     local ped, targetPed = pedOf(src), pedOf(target)
     if not ped or not targetPed or GetPlayerRoutingBucket(tostring(src)) ~= GetPlayerRoutingBucket(tostring(target))
       or #(GetEntityCoords(ped) - GetEntityCoords(targetPed)) > math.max(CarLock.range('give'), 5.0) then
       return Utils.fail(L('That player is too far away'))
+    end
+    if CarLock.mode() == 'physical' then
+      -- keys are items here: a key item is handed over, an owner may lend a temporary key
+      if kind == 'item' then
+        local ok, err = CarLock.handOverKeyItem(src, target, plate)
+        if not ok then return Utils.fail(err or L('Something went wrong')) end
+        notify(target, L('You received the key of {plate}', { plate = plate }), 'success')
+        return Utils.ok(true)
+      end
+      if kind ~= 'owner' then return Utils.fail(L('Hand over the key item instead')) end
     end
     CarLock.grantTemp(target, plate, 'compat')
     notify(target, L('You received the key of {plate}', { plate = plate }), 'success')
@@ -439,6 +507,8 @@ if CarLock.enabled() and type(giveKeyCommand) == 'string' and giveKeyCommand ~= 
         return
       end
     end
+    -- another key resource took over while the server booted (shared/carlock.lua)
+    if not CarLock.enabled() then return reply(src, L('Vehicle keys are handled by another script'), 'error') end
     local target = src
     if type(args) == 'table' and args[1] ~= nil then target = tonumber(args[1]) or -1 end
     if target == 0 then

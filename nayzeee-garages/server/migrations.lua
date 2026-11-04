@@ -153,6 +153,7 @@ local EXT_COLUMNS = {
   { 'nz_last_out', 'INT NULL DEFAULT NULL' },
   { 'nz_finance_total', 'INT NULL DEFAULT NULL' }, -- total number of finance payments (progress display)
   { 'nz_key_version', 'INT NOT NULL DEFAULT 0' },   -- car lock: physical keys of older versions stop working
+  { 'nz_key_owner', 'VARCHAR(64) NULL DEFAULT NULL' }, -- car lock: owner the keys were cut for (an owner change retires them)
 }
 
 -- Optional extension columns: the resource works without them (MySQL < 5.7 / MariaDB < 10.2

@@ -10,3 +10,6 @@ import './setup';
 import './creator';
 import './admin';
 import './adminVehicles';
+import './keys';
+import './locksmith';
+import './contract';

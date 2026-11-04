@@ -23,6 +23,8 @@
   inventory's own path (ox: the 'useNzItem' export named in the item definition, plus the
   framework path for definitions without it; qs / origen: CreateUsableItem; others: the
   framework's usable items). Several paths may fire for one use: they are de-duplicated.
+  Items other scripts use too (opts.fallthrough: lockpick) are not taken over on
+  qb-inventory 2.2+ (an ItemUsed hook looks first and hands unhandled uses on).
 ]]
 
 local Inventory = NZ.Inventory
@@ -80,8 +82,10 @@ local function started(name)
 end
 
 --- pcall a third-party function; warn once per label on failure. Returns ok, results...
+--- Functions read from another resource's object (QBCore.Functions.*, ESX.*) are function
+--- references (callable tables, not 'function'): anything but nil is tried.
 local function try(label, fn, ...)
-  if type(fn) ~= 'function' then return false end
+  if fn == nil or fn == false then return false end
   local res = table.pack(pcall(fn, ...))
   if not res[1] then
     warnOnce('err:' .. label, ('%s failed: %s'):format(label, tostring(res[2])))
@@ -231,8 +235,10 @@ end
 
 local handlers = {}       -- [itemName] = fn(src, item, slot, metadata)
 local lastUse = {}        -- ['src:item:slot'] = GetGameTimer()
+local fallthrough = {}    -- [itemName] = true: a handler returning false hands the use to the item's previous handler
+local previous = {}       -- [itemName] = { fn, via } framework handler registered before ours (kept once per session)
 
-local function dispatch(src, name, slot, metadata, via)
+local function dispatch(src, name, slot, metadata, via, fallback)
   src = validSrc(src)
   local fn = type(name) == 'string' and handlers[name] or nil
   if not src or not fn then return false end
@@ -248,9 +254,13 @@ local function dispatch(src, name, slot, metadata, via)
   end
   metadata = type(metadata) == 'table' and metadata or {}
   CreateThread(function()
-    local ok, err = pcall(fn, src, name, slot and math.tointeger(slot) or slot, metadata)
+    local ok, res = pcall(fn, src, name, slot and math.tointeger(slot) or slot, metadata)
     if not ok then
-      lib.print.error(('[nayzeee-garages] inventory: use of %s (%s) failed: %s'):format(name, tostring(via), tostring(err)))
+      lib.print.error(('[nayzeee-garages] inventory: use of %s (%s) failed: %s'):format(name, tostring(via), tostring(res)))
+    elseif res == false and type(fallback) == 'function' then
+      -- nothing for us to do (e.g. no locked vehicle near a lockpick): the other script's use
+      local okPrev, err = pcall(fallback)
+      if not okPrev then Utils.debug(('inventory: previous use handler of %s failed: %s'):format(name, tostring(err))) end
     end
   end)
   return true
@@ -265,13 +275,35 @@ local function wrapUse(name, via)
     if itemName ~= name then itemName = name end
     local md = data.metadata
     if type(md) ~= 'table' then md = data.info end
-    dispatch(src, itemName, data.slot or data.id, md, via)
+    local fallback = nil
+    local prev = fallthrough[name] and previous[name] or nil
+    if prev and prev.via == via then
+      fallback = function() prev.fn(src, a, b) end
+    end
+    dispatch(src, itemName, data.slot or data.id, md, via, fallback)
+  end
+end
+
+--- QBCore keeps ONE use handler per item name: remember the one another script registered
+--- (qb-smallresources' lockpick -> house / store robberies) before ours replaces it, so a
+--- use we do not handle still reaches it. Captured once per session (a later look would
+--- find our own handler).
+local function capturePrevious(name, via, core)
+  if not fallthrough[name] or (previous[name] and previous[name].via == via) then return end
+  if via == 'qbx' then
+    local ok, prev = try('qbx_core CanUseItem', function() return exports.qbx_core:CanUseItem(name) end)
+    if ok and (type(prev) == 'function' or type(prev) == 'table') then previous[name] = { fn = prev, via = via } end
+  elseif via == 'qb' then
+    local can = core and core.Functions and core.Functions.CanUseItem
+    local ok, prev = try('QBCore CanUseItem', can, name)
+    if ok and type(prev) == 'table' and prev.func ~= nil then previous[name] = { fn = prev.func, via = via } end
   end
 end
 
 --- Framework usable items (QBCore, Qbox, ESX). Returns true when registered.
 local function frameworkUsable(name)
   if NZ.Framework == 'qbx' and started('qbx_core') then
+    capturePrevious(name, 'qbx')
     local ok = try('qbx_core CreateUseableItem', function()
       exports.qbx_core:CreateUseableItem(name, wrapUse(name, 'qbx'))
     end)
@@ -281,6 +313,7 @@ local function frameworkUsable(name)
     local core = qbCore()
     local create = core and core.Functions and core.Functions.CreateUseableItem
     if create then
+      capturePrevious(name, 'qb', core)
       local ok = try('QBCore CreateUseableItem', create, name, wrapUse(name, 'qb'))
       if ok then return true end
     end
@@ -360,6 +393,11 @@ adapters.ox_inventory = {
     local ok, res = try('ox_inventory CanCarryItem', function() return exports.ox_inventory:CanCarryItem(src, name, count, md) end)
     return ok and res == true
   end,
+  defined = function(name)
+    local ok, def = try('ox_inventory Items', function() return exports.ox_inventory:Items(name) end)
+    if not ok then return nil end
+    return type(def) == 'table'
+  end,
   -- The 'useNzItem' export (item definition) is always live; this adds the framework path
   -- (Qbox / ESX) for definitions written without an export.
   usable = function(name)
@@ -409,6 +447,10 @@ adapters['qb-inventory'] = {
     if not ok then return true end
     return res == true
   end,
+  defined = function(name)
+    if not qbCore() then return nil end
+    return qbSharedItem(name) ~= nil
+  end,
   box = itemBox('qb-inventory:client:ItemBox'),
 }
 
@@ -446,6 +488,10 @@ local function qbFork(resource, boxEvent)
     end,
     setMeta = function(src, _, slot, md) return qbSetInfo(src, slot, md) end,
     canCarry = function() return true end,
+    defined = function(name)
+      if not qbCore() then return nil end
+      return qbSharedItem(name) ~= nil
+    end,
     box = boxEvent and itemBox(boxEvent) or nil,
   }
 end
@@ -783,6 +829,19 @@ function Inventory.supportsMetadata()
   return a ~= nil and a.metadata == true
 end
 
+--- Is `item` defined in the inventory's item list? true / false, nil = cannot tell (the
+--- inventory has no item list we can read).
+---@param item string
+---@return boolean|nil
+function Inventory.itemDefined(item)
+  item = validName(item)
+  local a = adapter()
+  if not item or not a or type(a.defined) ~= 'function' then return nil end
+  local ok, res = try(Inventory.name() .. ' defined', a.defined, item)
+  if ok and type(res) == 'boolean' then return res end
+  return nil
+end
+
 --- Every item of a player, normalized: { { slot, name, count, metadata } }.
 ---@param src number
 ---@return table[]
@@ -979,9 +1038,13 @@ end
 local registeredWith = {}   -- [adapterName] = { [item] = true }
 local syncQueued = false
 
+local installHooks -- below
+local qbUseHook = nil      -- qb-inventory hook index (ItemUsed): shared items are not taken over
+
 local function syncUsables()
   local r = resolve()
   if not r then return end
+  installHooks()
   local done = registeredWith[r.name]
   if not done then
     done = {}
@@ -990,7 +1053,9 @@ local function syncUsables()
   for item in pairs(handlers) do
     if not done[item] then
       local ok
-      if type(r.adapter.usable) == 'function' then
+      if r.name == 'qb-inventory' and qbUseHook ~= nil and fallthrough[item] then
+        ok = true -- the ItemUsed hook sees every use; the item's QBCore handler stays its owner's
+      elseif type(r.adapter.usable) == 'function' then
         local called, res = try(r.name .. ' usable', r.adapter.usable, item, dispatch)
         ok = called and res ~= false
       else
@@ -1018,13 +1083,18 @@ end
 
 --- Register a usable item: fn(src, item, slot, metadata) runs on every use (the item is never
 --- consumed by this resource; the handler removes it when it should be).
+--- opts.fallthrough = true: an item other scripts use too (lockpick). QBCore / Qbox keep one
+--- handler per item: the previous one is remembered and runs when fn returns false (nothing
+--- for us to do), and it is put back when this resource stops.
 ---@param item string
 ---@param fn function
+---@param opts table|nil { fallthrough = boolean }
 ---@return boolean
-function Inventory.registerUsable(item, fn)
+function Inventory.registerUsable(item, fn, opts)
   item = validName(item)
   if not item or type(fn) ~= 'function' then return false end
   handlers[item] = fn
+  fallthrough[item] = type(opts) == 'table' and opts.fallthrough == true or nil
   queueSync(1000)  -- after every resource of this start finished loading
   return true
 end
@@ -1036,6 +1106,115 @@ function Inventory.usableItems()
   for item in pairs(handlers) do out[#out + 1] = item end
   table.sort(out)
   return out
+end
+
+---------------------------------------------------------------------------------------
+-- Protected items: their metadata only ever comes from the server
+---------------------------------------------------------------------------------------
+
+local protected = {}      -- [item] = true
+local qbHook = nil        -- qb-inventory hook index (ItemMoved)
+
+local function itemAtSlot(items, slot)
+  if type(items) ~= 'table' or not slot then return nil end
+  local it = items[slot] or items[tostring(slot)]
+  if type(it) == 'table' then return it end
+  for _, v in pairs(items) do
+    if type(v) == 'table' and tonumber(v.slot) == slot then return v end
+  end
+  return nil
+end
+
+--- qb-inventory 2.x gives an item to another player with the metadata the GIVER'S CLIENT
+--- sends ('qb-inventory:server:giveItem': remove from the slot, add with the client `info`):
+--- a modified client turns any key item into a copy of another key. Protected items cannot
+--- be given that way (players hand keys over with the key ring, which copies the server's
+--- metadata). The hook runs before anything is removed.
+local function qbGiveHook(kind, data)
+  if kind ~= 'given' or type(data) ~= 'table' or next(protected) == nil then return end
+  local from = type(data.fromInventory) == 'table' and data.fromInventory.items or nil
+  local slot = tonumber(data.fromSlot)
+  local it = itemAtSlot(from, slot)
+  local blocked = false
+  if it then
+    blocked = protected[it.name] == true
+  elseif type(from) == 'table' then
+    -- no slot (only a modified client omits it): refused while the giver carries one
+    for _, v in pairs(from) do
+      if type(v) == 'table' and protected[v.name] then blocked = true break end
+    end
+  end
+  if not blocked then return end
+  local src = validSrc(data.fromId)
+  if src and type(NZ.Bridge.notify) == 'function' then
+    pcall(NZ.Bridge.notify, src, L('Hand keys over with the key ring'), 'error')
+  end
+  return false
+end
+
+--- qb-inventory 2.2+: items other scripts use too (lockpick: qb-smallresources -> houses,
+--- stores) are NOT taken over in QBCore. This hook sees every use first: it cancels the
+--- original use, runs our handler and, when that has nothing to do (returns false), calls
+--- the item's QBCore handler itself. Nothing has to be given back when this resource stops
+--- (qb-inventory drops the hooks of a stopped resource), unlike a replaced QBCore handler,
+--- which qb-core may delete again right after we put it back (both run on onResourceStop).
+local function qbUsedHook(_, data)
+  if type(data) ~= 'table' or type(data.item) ~= 'table' then return end
+  local item = data.item
+  local name = item.name
+  if type(name) ~= 'string' or not fallthrough[name] or not handlers[name] then return end
+  local src = validSrc(data.source)
+  if not src then return end
+  local fallback = nil
+  local core = qbCore()
+  local okUse, usable = try('QBCore CanUseItem', core and core.Functions and core.Functions.CanUseItem, name)
+  local original = okUse and type(usable) == 'table' and usable.func or nil
+  if original ~= nil then fallback = function() original(src, item) end end
+  local md = item.info
+  if type(md) ~= 'table' then md = item.metadata end
+  dispatch(src, name, item.slot, md, 'qb-inventory', fallback)
+  return false
+end
+
+local function hasSharedItems()
+  for name in pairs(fallthrough) do
+    if handlers[name] then return true end
+  end
+  return false
+end
+
+installHooks = function()
+  local r = resolve()
+  if not r or r.name ~= 'qb-inventory' then return end
+  if not qbHook and next(protected) ~= nil then
+    local ok, id = try('qb-inventory AddHook', function()
+      return exports['qb-inventory']:AddHook('ItemMoved', qbGiveHook)
+    end)
+    if ok and id ~= nil then
+      qbHook = id
+    else
+      warnOnce('qbhook', 'qb-inventory has no AddHook (older than 2.2?): key items can be given from the inventory with metadata the giver\'s client makes up. Update qb-inventory.')
+    end
+  end
+  if not qbUseHook and hasSharedItems() then
+    -- older qb-inventory (no hooks): shared items are taken over in QBCore (fall-through)
+    local ok, id = try('qb-inventory AddHook', function()
+      return exports['qb-inventory']:AddHook('ItemUsed', qbUsedHook)
+    end)
+    if ok and id ~= nil then qbUseHook = id end
+  end
+end
+
+--- Mark an item whose metadata must only come from the server (vehicle keys): inventory
+--- paths that copy client-sent metadata refuse it (qb-inventory give).
+---@param item string
+---@return boolean
+function Inventory.protect(item)
+  item = validName(item)
+  if not item then return false end
+  protected[item] = true
+  queueSync(1000)
+  return true
 end
 
 -- Re-detect when an inventory or the framework (re)starts / stops: their usable item
@@ -1050,7 +1229,38 @@ AddEventHandler('onResourceStart', function(resource)
     registeredWith = {}
     if resource == 'qb-core' then qbCache.obj = nil end
     if resource == 'es_extended' then esxCache = nil end
+    if resource == 'qb-inventory' then qbHook, qbUseHook = nil, nil end
+    -- a fresh framework has a fresh item registry: look at the previous handlers again
+    if resource == 'qb-core' or resource == 'qbx_core' then previous = {} end
     queueSync(2000)
+  end
+end)
+
+-- This resource stops: give shared items (lockpick) back to their previous handler and drop
+-- the qb-inventory hooks. The handler put back is registered from this resource: qb-core's
+-- own onResourceStop deletes it again when it runs after this one (the order is not fixed),
+-- so the owner script (qb-smallresources) may need a restart then (install/items/README.md).
+-- qb-inventory 2.2+ never needs this (ItemUsed hook, nothing taken over).
+AddEventHandler('onResourceStop', function(resource)
+  if resource ~= RESOURCE then return end
+  for name, prev in pairs(previous) do
+    if prev.via == 'qbx' then
+      pcall(function() exports.qbx_core:CreateUseableItem(name, prev.fn) end)
+    elseif prev.via == 'qb' then
+      local core = qbCache.obj
+      local create = core and core.Functions and core.Functions.CreateUseableItem
+      if create then pcall(create, name, prev.fn) end
+    end
+  end
+  if qbHook then
+    local id = qbHook
+    qbHook = nil
+    pcall(function() exports['qb-inventory']:RemoveHook('ItemMoved', id) end)
+  end
+  if qbUseHook then
+    local id = qbUseHook
+    qbUseHook = nil
+    pcall(function() exports['qb-inventory']:RemoveHook('ItemUsed', id) end)
   end
 end)
 

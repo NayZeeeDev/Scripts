@@ -1614,7 +1614,8 @@ function DB.shares.clear(plate)
 end
 
 ---------------------------------------------------------------------------------------
--- Car lock: persistent virtual keys (nz_keys) and key versions (nz_key_version)
+-- Car lock: persistent virtual keys (nz_keys), key versions (nz_key_version) and the owner
+-- identity the keys were cut for (nz_key_owner)
 ---------------------------------------------------------------------------------------
 
 DB.keys = {}
@@ -1696,33 +1697,110 @@ function DB.keys.count(plate)
   return math.max(int(n, 0), 0)
 end
 
---- Key version of an owned vehicle. nil when the plate is not in the vehicle table (NPC /
---- spawned vehicles keep their version in memory) or the column is missing.
----@param plate string
----@return integer|nil
-function DB.keys.version(plate)
-  local p = Utils.plate(plate)
-  if not p or not ready() then return nil end
-  local raw = fetchRaw(p, { 'nz_key_version' })
-  if not raw then return nil end
-  if not has('nz_key_version') then return 0 end
-  return math.max(int(raw.nz_key_version, 0), 0)
+--- Raw key columns of a vehicle row (exact stored plate first, then the normalized plate).
+--- Returns the row, false when the plate is not in the vehicle table, or nil, 'error'.
+local function keyRow(p)
+  local cols = { 'v.`plate` AS `plate`', ('v.`%s` AS `owner`'):format(OWNER_COL) }
+  for _, name in ipairs({ 'nz_key_version', 'nz_key_owner', 'nz_job', 'nz_gang' }) do
+    if has(name) then cols[#cols + 1] = ('v.`%s` AS `%s`'):format(name, name) end
+  end
+  local base = ('SELECT %s FROM `%s` v WHERE '):format(table.concat(cols, ', '), VT)
+  local row, ok = run('single', base .. '(v.`plate` = ? OR v.`plate` = ?) LIMIT 1', { p, padded(p) })
+  if not ok then return nil, 'error' end
+  if not row then
+    row, ok = run('single', base .. normPlate('v') .. ' = ? LIMIT 1', { p })
+    if not ok then return nil, 'error' end
+  end
+  if type(row) ~= 'table' or type(row.plate) ~= 'string' then return false end
+  return row
 end
 
---- Increment the key version of an owned vehicle. Returns the new version, or nil when the
---- plate is not in the vehicle table (or the column is missing).
+--- Key state of an owned vehicle: { version, mark, owner, job, gang, markSupported }
+--- (mark = owner identity the keys were cut for, nz_key_owner; nil = never keyed). false when
+--- the plate is not in the vehicle table (NPC / spawned vehicles keep their version in
+--- memory); nil, 'error' when the database cannot be read.
 ---@param plate string
+---@return table|false|nil, string|nil
+function DB.keys.state(plate)
+  local p = Utils.plate(plate)
+  if not p or not ready() then return nil, 'error' end
+  local raw, err = keyRow(p)
+  if raw == nil then return nil, err end
+  if raw == false then return false end
+  return {
+    version = has('nz_key_version') and math.max(int(raw.nz_key_version, 0), 0) or 0,
+    mark = nonEmpty(raw.nz_key_owner),
+    owner = nonEmpty(raw.owner),
+    job = nonEmpty(raw.nz_job),
+    gang = nonEmpty(raw.nz_gang),
+    markSupported = has('nz_key_version') and has('nz_key_owner'),
+  }
+end
+
+--- Key version of an owned vehicle. nil when the plate is not in the vehicle table (NPC /
+--- spawned vehicles keep their version in memory); nil, 'error' on a database error.
+---@param plate string
+---@return integer|nil, string|nil
+function DB.keys.version(plate)
+  local st, err = DB.keys.state(plate)
+  if st == nil then return nil, err or 'error' end
+  if st == false then return nil end
+  return st.version
+end
+
+--- Record the owner identity `mark` the keys are cut for, with a new key version when it
+--- differs from the stored one: `initial` when the row was never keyed (nz_key_owner NULL),
+--- else version + 1. Only changes a row whose mark differs (concurrent calls change it once).
+--- Returns true when the row changed, false when it already had this mark, nil on an error.
+---@param plate string
+---@param mark string
+---@param initial integer
+---@return boolean|nil
+function DB.keys.claim(plate, mark, initial)
+  local p = Utils.plate(plate)
+  mark = str(mark, 64)
+  initial = math.max(int(initial, 1), 1)
+  if not p or not mark or not ready() or not has('nz_key_version') or not has('nz_key_owner') then return nil end
+  local raw = keyRow(p)
+  if raw == nil then return nil end
+  if raw == false then return false end
+  -- single-table UPDATE assignments run left to right: the IF() still sees the old mark
+  local affected, ok = run('update', ([[UPDATE `%s` SET
+      `nz_key_version` = IF(`nz_key_owner` IS NULL, ?, `nz_key_version` + 1),
+      `nz_key_owner` = ?
+    WHERE `plate` = ? AND (`nz_key_owner` IS NULL OR `nz_key_owner` <> ?)]]):format(VT),
+    { initial, mark, raw.plate, mark })
+  if not ok then return nil end
+  return (tonumber(affected) or 0) > 0
+end
+
+--- New key version of an owned vehicle (version + 1, or `initial` when it was never keyed),
+--- recording the owner identity `mark` when given. Returns the new version, or nil when the
+--- plate is not in the vehicle table, the column is missing or the database failed.
+---@param plate string
+---@param mark string|nil
+---@param initial integer|nil
 ---@return integer|nil
-function DB.keys.bumpVersion(plate)
+function DB.keys.bumpVersion(plate, mark, initial)
   local p = Utils.plate(plate)
   if not p or not ready() or not has('nz_key_version') then return nil end
-  local raw = fetchRaw(p, { 'nz_key_version' })
+  local raw = keyRow(p)
   if not raw then return nil end
-  local _, ok = run('update', ('UPDATE `%s` SET `nz_key_version` = `nz_key_version` + 1 WHERE `plate` = ?'):format(VT),
-    { raw.plate })
+  mark = has('nz_key_owner') and str(mark, 64) or nil
+  local sql, params
+  if mark then
+    sql = ([[UPDATE `%s` SET `nz_key_version` = IF(`nz_key_owner` IS NULL, ?, `nz_key_version` + 1),
+      `nz_key_owner` = ? WHERE `plate` = ?]]):format(VT)
+    params = { math.max(int(initial, 1), 1), mark, raw.plate }
+  else
+    sql = ('UPDATE `%s` SET `nz_key_version` = `nz_key_version` + 1 WHERE `plate` = ?'):format(VT)
+    params = { raw.plate }
+  end
+  local _, ok = run('update', sql, params)
   if not ok then return nil end
-  local after = fetchRaw(p, { 'nz_key_version' })
-  return math.max(int(after and after.nz_key_version, (int(raw.nz_key_version, 0) + 1)), 0)
+  local after = keyRow(p)
+  if type(after) ~= 'table' then return nil end
+  return math.max(int(after.nz_key_version, 0), 0)
 end
 
 local KEY_SECRET = 'carlock_secret'

@@ -15,8 +15,10 @@
   onto another entity than the tracked garage vehicle is never trusted.
 
   Locks: SetVehicleDoorsLocked (server RPC to the entity owner) + replicated state bags
-  'nzLocked' (bool), 'nzLockFx' ({ n, locked }) and 'nzAlarm' ({ id, mode, seconds } | false)
-  that every client applies (client/carlock/lock.lua).
+  'nzLocked' (bool) and 'nzAlarm' ({ id, mode, seconds } | false) that every client applies
+  (client/carlock/lock.lua); the lock feedback is a server event to nearby players
+  ('nz:client:carlock:fx'). The server keeps its own lock record and puts a bag value a
+  client changed back (`set sv_stateBagStrictMode true` stops clients writing bags at all).
 ]]
 
 local CarLock = NZ.CarLock
@@ -33,19 +35,21 @@ local SESSION_KVP = 'nz:carlock:session'
 local SECRET_KVP = 'nz:carlock:secret'
 local SIG_LENGTH = 24          -- hex characters of the HMAC kept in the item metadata
 
-local temp = {}                -- [holder] = { [plate] = { expires, reason, at } }
+local temp = {}                -- [holder] = { [plate] = { expires, reason, at, access? } } (access: ends with the share / fleet access)
 local unownedVersions = {}     -- [plate] = version of NPC / spawned vehicles
-local versionCache = {}        -- [plate] = { v, at }
+local versionCache = {}        -- [plate] = { v, owned, owner, job, gang, at }
+local lockState = {}           -- [entity] = locked, as last set by the server
 local rowCache = {}            -- [plate] = { row|false, at }
 local accessCache = {}         -- [plate] = { [identifier] = { access|false, at } }
 local virtualCache = {}        -- [identifier] = { set, at }
 local knownPlates = {}         -- [entity] = real plate recorded by the server
+local accessOut = {}           -- [entity] = identifier that took it out through a share / fleet access
 local classVotes = {}          -- [modelHash] = { votes = { [class] = { [src] = true } }, best }
 local classCount = 0
 local sigCache = {}            -- [sig] = 'plate|version|kind|id' of verified items
 local sigCount = 0
-local fxCounter = 0
 local alarmCounter = 0
+local warnedItems = {}         -- [item] = true once warned that it is not defined
 
 ---------------------------------------------------------------------------------------
 -- Small helpers
@@ -112,6 +116,51 @@ end
 local function now() return GetGameTimer() end
 
 ---------------------------------------------------------------------------------------
+-- Another key resource next to the built-in car lock (shared/carlock.lua decides at load)
+---------------------------------------------------------------------------------------
+
+pcall(function() GlobalState.nzCarLockOther = CarLock.otherKeyResource() or false end)
+
+local OTHER_KEYS = {}
+for _, name in ipairs(CarLock.otherKeyResources()) do OTHER_KEYS[name] = true end
+
+if CarLock.cfg().enabled == true then
+  local other = CarLock.otherKeyResource()
+  local setting = CarLock.keysSetting()
+  if other and setting == 'auto' then
+    lib.print.warn(('[nayzeee-garages] %s is running: the built-in car lock is off (Config.Integrations.keys = "auto"). Remove %s or set Config.Integrations.keys = "nayzeee".')
+      :format(other, other))
+  elseif other and setting == 'nayzeee' then
+    lib.print.warn(('[nayzeee-garages] %s is running next to the built-in car lock (Config.Integrations.keys = "nayzeee"): both will lock vehicles and block engines. Stop %s or set Config.Integrations.keys = "auto".')
+      :format(other, other))
+  end
+end
+
+-- A key resource started after us. During the server boot (no player connected yet: the
+-- start order inside a [category] of server.cfg is not guaranteed) 'auto' hands keys over to
+-- it, like when it starts first; clients take the decision from GlobalState when they join.
+-- Once players are online nothing flips under them: the change is only reported.
+AddEventHandler('onResourceStart', function(resource)
+  if not OTHER_KEYS[resource] or not CarLock.enabled() then return end
+  local setting = CarLock.keysSetting()
+  local okCount, players = pcall(GetNumPlayerIndices)
+  if setting == 'auto' and okCount and tonumber(players) == 0 then
+    CarLock.setOtherKeyResource(resource)
+    pcall(function() GlobalState.nzCarLockOther = resource end)
+    lib.print.warn(('[nayzeee-garages] %s started after nayzeee-garages: the built-in car lock is off (Config.Integrations.keys = "auto"). Start %s before nayzeee-garages in server.cfg.')
+      :format(resource, resource))
+    return
+  end
+  if setting == 'nayzeee' then
+    lib.print.warn(('[nayzeee-garages] %s started while the built-in car lock runs (Config.Integrations.keys = "nayzeee"): both will lock vehicles and block engines. Stop %s or set Config.Integrations.keys = "auto".')
+      :format(resource, resource))
+    return
+  end
+  lib.print.warn(('[nayzeee-garages] %s started while the built-in car lock runs: both will lock vehicles and block engines until nayzeee-garages restarts. Start %s before nayzeee-garages in server.cfg or set Config.Integrations.keys = "%s".')
+    :format(resource, resource, resource))
+end)
+
+---------------------------------------------------------------------------------------
 -- Signed key items (HMAC-SHA256, pure Lua 5.4)
 ---------------------------------------------------------------------------------------
 
@@ -173,7 +222,10 @@ local function hex(s)
   return (s:gsub('.', function(c) return ('%02x'):format(c:byte()) end))
 end
 
-local secret = nil
+local secret = nil              -- convar or database value (kept for the session)
+local fallbackSecret = nil      -- local KVP copy while the database cannot be read (never cached as `secret`)
+local secretRetryAt = -1        -- GetGameTimer() of the next database attempt after a failure
+local SECRET_RETRY_MS = 30000
 
 local function newSecret()
   local entropy = { tostring(os.time()), tostring(GetGameTimer()), tostring(os.clock()), tostring({}) }
@@ -181,9 +233,23 @@ local function newSecret()
   return hex(sha256(table.concat(entropy, '|')))
 end
 
+local function kvpSecret()
+  if fallbackSecret then return fallbackSecret end
+  local okRead, stored = pcall(GetResourceKvpString, SECRET_KVP)
+  if okRead and type(stored) == 'string' and #stored >= 32 then
+    fallbackSecret = stored
+  else
+    fallbackSecret = newSecret()
+    pcall(SetResourceKvp, SECRET_KVP, fallbackSecret)
+  end
+  return fallbackSecret
+end
+
 --- Server secret for key signatures: convar nz_carlock_secret (set the same value on servers
 --- that share one database), else the value stored in nz_settings (created on the first
---- start), else (database unreachable) this resource's KVP store.
+--- start). While the database cannot be read, this resource's KVP copy is used and the
+--- database is tried again every 30 s (key items signed meanwhile stop working once it is
+--- back; set the convar to avoid that).
 local function keySecret()
   if secret then return secret end
   local convar = GetConvar('nz_carlock_secret', '')
@@ -197,22 +263,22 @@ local function keySecret()
     while not NZ.Ready and GetGameTimer() < deadline do Wait(250) end
     if secret then return secret end
   end
-  if NZ.DB.keys and type(NZ.DB.keys.secret) == 'function' then
+  if GetGameTimer() >= secretRetryAt and NZ.DB.keys and type(NZ.DB.keys.secret) == 'function' then
     local ok, stored = pcall(NZ.DB.keys.secret, newSecret())
     if ok and type(stored) == 'string' and #stored >= 32 then
       secret = stored
+      if fallbackSecret then
+        sigCache, sigCount = {}, 0
+        lib.print.info('[nayzeee-garages] carlock: the key secret was read from the database again.')
+      end
       return secret
     end
+    secretRetryAt = GetGameTimer() + SECRET_RETRY_MS
+    if not fallbackSecret then
+      lib.print.warn('[nayzeee-garages] carlock: the key secret could not be read from the database; using the local KVP copy and retrying every 30 s. Key items signed meanwhile stop working when the database is back. Set the convar nz_carlock_secret to avoid this.')
+    end
   end
-  local okRead, stored = pcall(GetResourceKvpString, SECRET_KVP)
-  if okRead and type(stored) == 'string' and #stored >= 32 then
-    secret = stored
-  else
-    secret = newSecret()
-    pcall(SetResourceKvp, SECRET_KVP, secret)
-  end
-  lib.print.warn('[nayzeee-garages] carlock: the key secret could not be read from the database; using the local KVP copy. Key items may stop working when the database is back. Set the convar nz_carlock_secret to avoid this.')
-  return secret
+  return kvpSecret()
 end
 
 -- Load the secret once the database is migrated (server/main.lua sets NZ.Ready), so the first
@@ -422,6 +488,16 @@ function CarLock.learnClass(src, entity, class)
   if voters.n > entry.bestCount then entry.best, entry.bestCount = class, voters.n end
 end
 
+--- The learned class of a model, trusted only when two players agree or nobody disagrees.
+local function votedClass(entry)
+  if not entry or not entry.best then return nil end
+  if entry.bestCount >= 2 then return entry.best end
+  for class, voters in pairs(entry.votes) do
+    if class ~= entry.best and voters.n > 0 then return nil end
+  end
+  return entry.best
+end
+
 --- Best known GTA class of a vehicle entity (nil when unknown).
 ---@param entity number
 ---@return number|nil
@@ -430,8 +506,8 @@ function CarLock.classOf(entity)
   local hash = GetEntityModel(entity)
   if sharedClasses == nil then pcall(loadSharedClasses) end
   if sharedClasses and sharedClasses[hash] then return sharedClasses[hash] end
-  local entry = classVotes[hash]
-  if entry and entry.best then return entry.best end
+  local voted = votedClass(classVotes[hash])
+  if voted then return voted end
   local okType, vtype = pcall(GetVehicleType, entity)
   if okType and type(vtype) == 'string' and TYPE_CLASS[vtype] then return TYPE_CLASS[vtype] end
   return nil
@@ -460,30 +536,108 @@ end
 -- Mode, versions
 ---------------------------------------------------------------------------------------
 
---- Effective key mode: 'physical' (key items) or 'virtual'.
+local MODE_TTL = 60000          -- ms: cached "are the key items defined in the inventory?"
+local modeCache = { value = nil, at = -1e9 }
+
+--- Effective key mode: 'physical' (key items) or 'virtual'. Physical needs an inventory with
+--- item metadata AND the key / fob items defined in it (else every hand-out would fail).
 ---@return 'physical'|'virtual'
 function CarLock.mode()
   local ok, meta = pcall(NZ.Inventory.supportsMetadata)
-  return CarLock.resolveMode(ok and meta == true)
+  local mode = CarLock.resolveMode(ok and meta == true)
+  if mode ~= 'physical' then return mode end
+  if modeCache.value and now() - modeCache.at < MODE_TTL then return modeCache.value end
+  mode = 'physical'
+  if type(NZ.Inventory.itemDefined) == 'function' then
+    for _, item in pairs(CarLock.keyItems()) do
+      local okDef, defined = pcall(NZ.Inventory.itemDefined, item)
+      if okDef and defined == false then
+        mode = 'virtual'
+        if not warnedItems[item] then
+          warnedItems[item] = true
+          local okName, inv = pcall(NZ.Inventory.name)
+          lib.print.warn(('[nayzeee-garages] carlock: the item "%s" is not defined in %s: using virtual keys. Add the items of install/items/ to your inventory.')
+            :format(item, okName and tostring(inv) or 'the inventory'))
+        end
+        break
+      end
+    end
+  end
+  modeCache.value, modeCache.at = mode, now()
+  return mode
 end
 
---- Current key version of a plate (owned: nz_key_version; others: memory).
+--- Owner identity of a vehicle row / key state (owner, job, gang), hashed: stored with the key
+--- version (nz_key_owner) so an ownership change made by ANY script retires the old keys.
+local function ownerMarkOf(t)
+  return hex(sha256(('%s|%s|%s'):format(t.owner or '', t.job or '', t.gang or ''))):sub(1, 32)
+end
+
+--- First key version of a vehicle row (random: a deleted vehicle's plate given to a new
+--- vehicle never matches the old keys).
+local function initialVersion()
+  return math.random(1, 0x3fffffff)
+end
+
+local afterRekey -- defined with the change of locks below
+
+--- Read the key state of an owned plate from the database and reconcile it with the current
+--- owner: a row whose owner / job / gang differs from the one the keys were cut for (or that
+--- was never keyed) gets a new version first (old key items stop working, virtual and
+--- temporary keys of others are removed).
+--- Returns entry ({ v, owned, owner, job, gang }) or nil, 'error'.
+local function loadVersion(plate)
+  if not (NZ.DB.keys and type(NZ.DB.keys.state) == 'function') then return nil, 'error' end
+  local ok, st = pcall(NZ.DB.keys.state, plate)
+  if not ok or st == nil then return nil, 'error' end
+  if st == false then
+    return { v = unownedVersions[plate] or 0, owned = false }
+  end
+  local version = math.tointeger(tonumber(st.version) or 0) or 0
+  if st.markSupported then
+    local mark, previous = ownerMarkOf(st), st.mark
+    if previous ~= mark then
+      local okC, changed = pcall(NZ.DB.keys.claim, plate, mark, initialVersion())
+      if not okC or changed == nil then return nil, 'error' end
+      local ok2, st2 = pcall(NZ.DB.keys.state, plate)
+      if not ok2 or type(st2) ~= 'table' then return nil, 'error' end
+      st = st2
+      version = math.tointeger(tonumber(st.version) or 0) or 0
+      if changed then afterRekey(plate, st.owner, version, previous ~= nil and 'owner' or 'first') end
+    end
+  end
+  return { v = version, owned = true, owner = st.owner, job = st.job, gang = st.gang }
+end
+
+--- Is a cached version entry out of date with the (15 s cached) vehicle row?
+local function versionStale(hit, plate)
+  local row = rowOf(plate)
+  if hit.owned ~= (row ~= nil) then return true end
+  if row and (row.owner ~= hit.owner or row.job ~= hit.job or row.gang ~= hit.gang) then return true end
+  return false
+end
+
+--- Current key version of a plate (owned: nz_key_version; others: memory). `fresh` skips the
+--- cache. nil only when the database cannot be read and nothing is known yet (callers refuse
+--- keys then); on a database error the last known value is kept.
 ---@param plate string
----@return integer
-function CarLock.keyVersion(plate)
+---@param fresh boolean|nil
+---@return integer|nil
+function CarLock.keyVersion(plate, fresh)
   plate = normPlate(plate)
   if not plate then return 0 end
   local hit = versionCache[plate]
-  if hit and now() - hit.at < VERSION_TTL then return hit.v end
-  local v = nil
-  if NZ.DB.keys and type(NZ.DB.keys.version) == 'function' then
-    local ok, res = pcall(NZ.DB.keys.version, plate)
-    if ok then v = res end
+  if not fresh and hit and now() - hit.at < (hit.owned and VERSION_TTL or ROW_TTL) and not versionStale(hit, plate) then
+    return hit.v
   end
-  if v == nil then v = unownedVersions[plate] or 0 end
-  v = math.tointeger(v) or 0
-  versionCache[plate] = { v = v, at = now() }
-  return v
+  local entry = loadVersion(plate)
+  if not entry then
+    -- database error: keep the last known value, do not cache (the next call tries again)
+    return hit and hit.v or nil
+  end
+  entry.at = now()
+  versionCache[plate] = entry
+  return entry.v
 end
 
 ---------------------------------------------------------------------------------------
@@ -513,7 +667,8 @@ function CarLock.keyMetadata(plate, opts)
     local _, profile = CarLock.profileOfPlate(plate)
     kind = CarLock.keyKindOf(profile)
   end
-  local version = CarLock.keyVersion(plate)
+  local version = CarLock.keyVersion(plate, true) -- cut for the current owner's version
+  if not version then return nil end
   local id = randomId()
   local model = type(opts.model) == 'string' and opts.model:sub(1, 32) or nil
   return {
@@ -529,7 +684,8 @@ function CarLock.keyMetadata(plate, opts)
   }
 end
 
---- Is this key item metadata genuine and current? reason: 'invalid' | 'plate' | 'version'.
+--- Is this key item metadata genuine and current? reason: 'invalid' | 'plate' | 'version' |
+--- 'error' (the key version cannot be read right now).
 ---@param metadata table
 ---@param plate string|nil expected plate
 ---@return boolean valid, string|nil reason
@@ -541,9 +697,13 @@ function CarLock.verifyKeyItem(metadata, plate)
   local version = tonumber(metadata.version)
   local kind, id, sig = metadata.kind, metadata.id, metadata.sig
   if sig == nil and cfg().trustUnsignedKeys == true then
-    -- key items written by other scripts / inventory admin tools (no signature): owner's choice
-    version = math.tointeger(version or 0) or 0
-    if version ~= CarLock.keyVersion(p) then return false, 'version' end
+    -- key items written by other scripts / inventory admin tools (no signature): owner's
+    -- choice. A version, when written, must be the current one (GetKeyVersion); a key with
+    -- just a plate fits every version (a change of locks cannot retire it).
+    if version == nil then return true, nil end
+    local current = CarLock.keyVersion(p)
+    if current == nil then return false, 'error' end
+    if math.tointeger(version) ~= current then return false, 'version' end
     return true, nil
   end
   if not version or version ~= math.floor(version) or (kind ~= 'key' and kind ~= 'fob')
@@ -558,7 +718,9 @@ function CarLock.verifyKeyItem(metadata, plate)
     sigCache[sig] = fields
     sigCount = sigCount + 1
   end
-  if version ~= CarLock.keyVersion(p) then return false, 'version' end
+  local current = CarLock.keyVersion(p)
+  if current == nil then return false, 'error' end
+  if version ~= current then return false, 'version' end
   return true, nil
 end
 
@@ -599,7 +761,7 @@ function CarLock.giveKeyItem(src, plate, opts)
     model = row and row.model or nil
   end
   local md = CarLock.keyMetadata(plate, { kind = opts.kind, model = model, label = opts.label })
-  if not md then return false, L('Invalid request') end
+  if not md then return false, L('Something went wrong') end
   local item = CarLock.itemName(md.kind)
   if not NZ.Inventory.addItem(src, item, 1, md) then
     return false, L('You cannot carry the key')
@@ -627,17 +789,23 @@ end
 
 --- Give a temporary key (memory, expires after `hours`, default Config.CarLock.tempKeyHours).
 --- reason: 'hotwire'|'robbery'|'assist'|'admin'|'compat'|'spawner'|'garage'|'search'|'contract'|...
+--- access = true: the key was given because of a garage share / job or gang fleet access and
+--- ends as soon as the player loses that access (checked on every key check).
 ---@param src number
 ---@param plate string
 ---@param reason string|nil
 ---@param hours number|nil
+---@param access boolean|nil
 ---@return boolean
-function CarLock.grantTemp(src, plate, reason, hours)
+function CarLock.grantTemp(src, plate, reason, hours, access)
   src, plate = validSrc(src), normPlate(plate)
   if not src or not plate then return false end
   hours = tonumber(hours) or CarLock.tempHours()
   if hours ~= hours or hours <= 0 then hours = CarLock.tempHours() end
   hours = math.min(hours, 24 * 30)
+  -- claim the first key version of an owned row BEFORE the key exists: that first claim
+  -- removes every key of other players (a key stored before it would vanish at the next check)
+  CarLock.keyVersion(plate)
   local holder = holderOf(src)
   local list = temp[holder]
   if not list then
@@ -648,6 +816,7 @@ function CarLock.grantTemp(src, plate, reason, hours)
     expires = os.time() + math.max(math.floor(hours * 3600), 60),
     reason = type(reason) == 'string' and reason:sub(1, 24) or 'other',
     at = os.time(),
+    access = access == true or nil,
   }
   push(src, plate)
   Utils.debug(('carlock: temporary key %s -> %s (%s)'):format(plate, holder, tostring(reason)))
@@ -710,6 +879,9 @@ function CarLock.shareVirtual(ownerSrc, targetSrc, plate)
   if ownerId == targetId then return false, L('You already have this key') end
   local row = rowOf(plate)
   if not row or row.owner ~= ownerId then return false, L('Only the owner can share this key') end
+  -- claim the key version first: the first claim of a row (or the one after an ownership
+  -- change) removes every shared key, so it must happen before this key is stored
+  if CarLock.keyVersion(plate) == nil then return false, L('Something went wrong') end
   local max = math.max(math.floor(tonumber(cfg().maxVirtualKeys) or 10), 1)
   if virtualSet(targetId)[plate] then return true, nil end
   if NZ.DB.keys.count(plate) >= max then
@@ -793,8 +965,19 @@ end
 function CarLock.hasKey(src, plate)
   src, plate = validSrc(src), normPlate(plate)
   if not src or not plate then return false, nil end
+  CarLock.keyVersion(plate) -- an ownership change made by another script retires old keys first
   local holder = holderOf(src)
-  if tempEntry(holder, plate) then return true, 'temp' end
+  local entry = tempEntry(holder, plate)
+  if entry then
+    -- a temporary key handed out because of a share / fleet access ends with that access
+    if entry.access and not ownerAccess(src, plate) then
+      local list = temp[holder]
+      list[plate] = nil
+      if next(list) == nil then temp[holder] = nil end
+    else
+      return true, 'temp'
+    end
+  end
   local mode = CarLock.mode()
   if mode == 'physical' and #CarLock.keyItemsOf(src, plate) > 0 then return true, 'item' end
   local id = identifierOf(src)
@@ -875,29 +1058,16 @@ end
 -- Change of locks
 ---------------------------------------------------------------------------------------
 
---- New key version for `plate`: older key items stop working, every virtual key and every
---- temporary key (except `keepIdentifier`'s) is removed. Returns the new version.
----@param plate string
----@param keepIdentifier string|nil
----@return integer|nil
-function CarLock.rekey(plate, keepIdentifier)
-  plate = normPlate(plate)
-  if not plate then return nil end
-  local newVersion = nil
-  if NZ.DB.keys and type(NZ.DB.keys.bumpVersion) == 'function' then
-    local ok, res = pcall(NZ.DB.keys.bumpVersion, plate)
-    if ok then newVersion = res end
-  end
-  if newVersion == nil then
-    newVersion = (unownedVersions[plate] or CarLock.keyVersion(plate)) + 1
-    unownedVersions[plate] = newVersion
-  end
-  versionCache[plate] = { v = newVersion, at = now() }
-
+--- After a new key version: every virtual key and every temporary key except
+--- `keepIdentifier`'s is removed, caches of the plate are reset and the players are told.
+--- reason: 'rekey' (locksmith / export / owner change reported by a script), 'owner' (an
+--- ownership change noticed on the vehicle row), 'first' (first key version of a row).
+afterRekey = function(plate, keepIdentifier, newVersion, reason)
   local affected = {}
   if NZ.DB.keys and type(NZ.DB.keys.list) == 'function' then
-    for _, row in ipairs(NZ.DB.keys.list(plate) or {}) do affected[row.identifier] = true end
-    NZ.DB.keys.clear(plate)
+    local okList, list = pcall(NZ.DB.keys.list, plate)
+    for _, row in ipairs(okList and type(list) == 'table' and list or {}) do affected[row.identifier] = true end
+    if next(affected) ~= nil then pcall(NZ.DB.keys.clear, plate) end
   end
   for holder, list in pairs(temp) do
     if list[plate] and holder ~= keepIdentifier then
@@ -913,13 +1083,107 @@ function CarLock.rekey(plate, keepIdentifier)
   rowCache[plate], accessCache[plate] = nil, nil
   local row = rowOf(plate)
   if row and row.owner then pushIdentifier(row.owner, plate) end
-  log('vehicle.rekey', nil, { plate = plate, version = newVersion, resource = GetInvokingResource() })
+  if reason ~= 'first' then
+    log('vehicle.rekey', nil, { plate = plate, version = newVersion, reason = reason, resource = GetInvokingResource() })
+  end
+end
+
+--- New key version for `plate`: older key items stop working, every virtual key and every
+--- temporary key (except `keepIdentifier`'s) is removed. Returns the new version (nil on a
+--- database error). Call it after changing a vehicle's owner (sale, transfer, admin edit):
+--- `NZ.CarLock.rekey(plate, newOwnerIdentifier)`; a change nobody reports is noticed on the
+--- next key check of that plate (owner stored with the version, nz_key_owner).
+---@param plate string
+---@param keepIdentifier string|nil
+---@return integer|nil
+function CarLock.rekey(plate, keepIdentifier)
+  plate = normPlate(plate)
+  if not plate then return nil end
+  if type(keepIdentifier) ~= 'string' or keepIdentifier == '' then keepIdentifier = nil end
+  rowCache[plate], accessCache[plate] = nil, nil
+  local okState, st = false, nil
+  if NZ.DB.keys and type(NZ.DB.keys.state) == 'function' then okState, st = pcall(NZ.DB.keys.state, plate) end
+  if not okState or st == nil then
+    lib.print.warn(('[nayzeee-garages] carlock: rekey of %s failed: the database cannot be read'):format(plate))
+    return nil
+  end
+  local newVersion, entry
+  if type(st) == 'table' then
+    local mark = st.markSupported and ownerMarkOf(st) or nil
+    local okBump, res = pcall(NZ.DB.keys.bumpVersion, plate, mark, initialVersion())
+    newVersion = okBump and math.tointeger(tonumber(res)) or nil
+    if not newVersion then
+      lib.print.warn(('[nayzeee-garages] carlock: rekey of %s failed: the key version could not be saved'):format(plate))
+      return nil
+    end
+    entry = { v = newVersion, owned = true, owner = st.owner, job = st.job, gang = st.gang }
+  else
+    local hit = versionCache[plate]
+    newVersion = (unownedVersions[plate] or (hit and not hit.owned and hit.v) or 0) + 1
+    unownedVersions[plate] = newVersion
+    entry = { v = newVersion, owned = false }
+  end
+  entry.at = now()
+  versionCache[plate] = entry
+  afterRekey(plate, keepIdentifier, newVersion, 'rekey')
   return newVersion
 end
 
 ---------------------------------------------------------------------------------------
 -- Locks and alarm
 ---------------------------------------------------------------------------------------
+
+-- Values the server last wrote to the replicated state bags of a vehicle. Without
+-- sv_stateBagStrictMode the entity owner's client can write them too: a different value is
+-- put back (and the server never reads its decisions back from the bags).
+local bagWritten = { nzLocked = {}, nzAlarm = {} }   -- [key][entity] = value
+
+local function sameBag(a, b)
+  if type(a) == 'table' and type(b) == 'table' then return a.id == b.id and a.mode == b.mode end
+  return a == b
+end
+
+local function writeBag(entity, key, value)
+  bagWritten[key][entity] = value
+  Entity(entity).state:set(key, value, true)
+end
+
+for key, written in pairs(bagWritten) do
+  AddStateBagChangeHandler(key, nil, function(bagName, _, value)
+    local okE, entity = pcall(GetEntityFromStateBagName, bagName)
+    if not okE or type(entity) ~= 'number' or entity == 0 then return end
+    local mine = written[entity]
+    if mine == nil then
+      -- never written by the server: an alarm a client made up is switched off
+      if key == 'nzAlarm' and type(value) == 'table' then
+        SetTimeout(0, function() if isVehicle(entity) then writeBag(entity, key, false) end end)
+      end
+      return
+    end
+    if sameBag(mine, value) then return end
+    SetTimeout(0, function()
+      if isVehicle(entity) and written[entity] ~= nil then Entity(entity).state:set(key, written[entity], true) end
+    end)
+  end)
+end
+
+local FX_RANGE = 80.0          -- m: players who get the lock feedback (sound, chirp, lights)
+
+--- Lock feedback for the players near the vehicle (a server event: clients cannot fake it).
+local function lockFeedback(entity, locked)
+  local netId = NetworkGetNetworkIdFromEntity(entity)
+  if not netId or netId == 0 then return end
+  local coords = GetEntityCoords(entity)
+  local bucket = GetEntityRoutingBucket(entity)
+  for _, id in ipairs(GetPlayers() or {}) do
+    local src = tonumber(id)
+    local ped = src and GetPlayerPed(tostring(src)) or 0
+    if ped and ped ~= 0 and GetPlayerRoutingBucket(tostring(src)) == bucket
+      and #(GetEntityCoords(ped) - coords) <= FX_RANGE then
+      TriggerClientEvent('nz:client:carlock:fx', src, { netId = netId, locked = locked })
+    end
+  end
+end
 
 --- Lock / unlock a vehicle for everyone. fx = true plays the lock feedback (sound, lights,
 --- horn chirp) on nearby clients and stops a sounding alarm when unlocking.
@@ -930,22 +1194,24 @@ end
 function CarLock.setLocked(entity, locked, fx)
   if not isVehicle(entity) then return false end
   locked = locked == true
+  lockState[entity] = locked
   pcall(SetVehicleDoorsLocked, entity, locked and 2 or 1)
-  local bag = Entity(entity).state
-  bag:set('nzLocked', locked, true)
+  writeBag(entity, 'nzLocked', locked)
   if fx then
-    fxCounter = fxCounter + 1
-    bag:set('nzLockFx', { n = fxCounter, locked = locked }, true)
-    if not locked and bag.nzAlarm then bag:set('nzAlarm', false, true) end
+    pcall(lockFeedback, entity, locked)
+    if not locked and Entity(entity).state.nzAlarm then writeBag(entity, 'nzAlarm', false) end
   end
   return true
 end
 
---- Is the vehicle locked (state bag, else the native lock status)?
+--- Is the vehicle locked? The server's own record, else the state bag (a previous run of this
+--- resource), else the native lock status.
 ---@param entity number
 ---@return boolean
 function CarLock.isLocked(entity)
   if not isVehicle(entity) then return false end
+  local known = lockState[entity]
+  if known ~= nil then return known end
   local value = Entity(entity).state.nzLocked
   if value ~= nil then return value == true end
   local ok, status = pcall(GetVehicleDoorLockStatus, entity)
@@ -969,12 +1235,11 @@ function CarLock.alarm(entity, seconds, mode)
   seconds = Utils.clamp(math.floor(tonumber(seconds) or tonumber(alarmCfg.seconds) or 25), 1, 65)
   alarmCounter = alarmCounter + 1
   local id = alarmCounter
-  local bag = Entity(entity).state
-  bag:set('nzAlarm', { id = id, mode = mode, seconds = seconds }, true)
+  writeBag(entity, 'nzAlarm', { id = id, mode = mode, seconds = seconds })
   SetTimeout(seconds * 1000, function()
     if isVehicle(entity) then
-      local cur = Entity(entity).state.nzAlarm
-      if type(cur) == 'table' and cur.id == id then Entity(entity).state:set('nzAlarm', false, true) end
+      local cur = bagWritten.nzAlarm[entity]
+      if type(cur) == 'table' and cur.id == id then writeBag(entity, 'nzAlarm', false) end
     end
   end)
   return true
@@ -983,8 +1248,8 @@ end
 --- Silence a sounding alarm.
 ---@param entity number
 function CarLock.stopAlarm(entity)
-  if isVehicle(entity) and Entity(entity).state.nzAlarm then
-    Entity(entity).state:set('nzAlarm', false, true)
+  if isVehicle(entity) and (bagWritten.nzAlarm[entity] or Entity(entity).state.nzAlarm) then
+    writeBag(entity, 'nzAlarm', false)
   end
 end
 
@@ -1086,12 +1351,14 @@ local POP_MISSION = 7      -- GetEntityPopulationType: created by a script
 --- temporary key of `entity`? Server-side calls never come here. Rules: inside or within
 --- ranges.compat; nobody else drives it; a player-owned vehicle only for its owner / shared /
 --- fleet players or the one who took it out; with compatAmbient = false only script-spawned
---- (mission) vehicles or vehicles this resource tracks.
+--- (mission) vehicles or vehicles this resource tracks. viaAccess = true: a player-owned
+--- vehicle of someone else, allowed through a share / fleet access (pass it on to grantTemp:
+--- the key then ends with that access).
 ---@param src number
 ---@param entity number
 ---@param dist number|nil distance from the server ped (vehicleFromNet)
 ---@param inside boolean|nil
----@return boolean ok, string|nil plate, string|nil error (translated)
+---@return boolean ok, string|nil plate, string|nil error (translated), boolean|nil viaAccess
 function CarLock.canAcquire(src, entity, dist, inside)
   src = validSrc(src)
   if not src or not isVehicle(entity) then return false, nil, L('Vehicle not found') end
@@ -1105,17 +1372,24 @@ function CarLock.canAcquire(src, entity, dist, inside)
   if driver and driver ~= 0 and driver ~= ped and IsPedAPlayer(driver) then
     return false, plate, L('Someone else is driving this vehicle')
   end
+  -- temporary keys belong to a character: no character loaded, no key from another script
+  local id = identifierOf(src)
+  if not id then return false, plate, L('Invalid request') end
   local out = type(NZ.Vehicles.out) == 'table' and NZ.Vehicles.out[plate] or nil
   local tracked = type(out) == 'table' and (out.entity == nil or out.entity == entity)
-  if rowOf(plate) or (tracked and not out.spawner) then
-    local mine = tracked and (out.src == src or out.identifier == identifierOf(src))
-    if not mine and not ownerAccess(src, plate) then
+  -- the one who took it out: by character; the server id only when no character was recorded
+  local mine = tracked and (out.identifier == id or (out.identifier == nil and out.src == src))
+  local row = rowOf(plate)
+  if row or (tracked and not out.spawner) then
+    local access = ownerAccess(src, plate)
+    -- taken out through a share / fleet access: counts only while that access lasts
+    if mine and not access and accessOut[entity] == id then mine = false end
+    if not mine and not access then
       return false, plate, L('You do not have access to this vehicle')
     end
-    return true, plate, nil
+    return true, plate, nil, row ~= nil and row.owner ~= id and access ~= nil
   end
   if tracked and out.spawner then
-    local mine = out.src == src or out.identifier == identifierOf(src)
     if not mine then return false, plate, L('You do not have access to this vehicle') end
     return true, plate, nil
   end
@@ -1175,13 +1449,18 @@ function CarLock.onVehicleOut(src, entity, plate, opts)
   CarLock.setLocked(entity, false)
   local out = type(NZ.Vehicles.out) == 'table' and NZ.Vehicles.out[plate] or nil
   local spawner = (type(opts) == 'table' and opts.spawner == true) or (type(out) == 'table' and out.spawner == true)
+  accessOut[entity] = nil
   if spawner then return CarLock.grantTemp(src, plate, 'spawner') end
 
   local has, kind = CarLock.hasKey(src, plate)
+  local row = rowOf(plate)
+  local id = identifierOf(src)
+  -- not the owner, but a share / fleet access: keys from this hand-out end with that access
+  -- (unshare, leaving the job), also the ones other scripts ask for later (canAcquire)
+  local viaAccess = row ~= nil and id ~= nil and row.owner ~= id and ownerAccess(src, plate) ~= nil
+  accessOut[entity] = viaAccess and id or nil
   if CarLock.mode() == 'physical' then
     if has and kind ~= 'temp' then return true end
-    local row = rowOf(plate)
-    local id = identifierOf(src)
     if cfg().giveKeyOnRetrieve ~= false and row and id and row.owner == id then
       local given = CarLock.giveKeyItem(src, plate, { model = row.model, reason = 'garage' })
       if given then return true end
@@ -1189,7 +1468,7 @@ function CarLock.onVehicleOut(src, entity, plate, opts)
     end
   end
   if has then return true end
-  return CarLock.grantTemp(src, plate, 'garage')
+  return CarLock.grantTemp(src, plate, 'garage', nil, viaAccess)
 end
 
 ---------------------------------------------------------------------------------------
@@ -1210,16 +1489,24 @@ local function snapshot()
       for plate, entry in pairs(list) do
         if entry.expires > nowTs then
           keys[holder] = keys[holder] or {}
-          keys[holder][plate] = { expires = entry.expires, reason = entry.reason, at = entry.at }
+          keys[holder][plate] = { expires = entry.expires, reason = entry.reason, at = entry.at, access = entry.access }
         end
       end
     end
   end
-  local plates = {}
+  local plates, locks = {}, {}
   for entity, plate in pairs(knownPlates) do
     if isVehicle(entity) then plates[tostring(NetworkGetNetworkIdFromEntity(entity))] = plate end
   end
-  return { boot = serverBoot(), temp = keys, versions = unownedVersions, plates = plates }
+  for entity, locked in pairs(lockState) do
+    if isVehicle(entity) then locks[tostring(NetworkGetNetworkIdFromEntity(entity))] = locked end
+  end
+  local viaAccess = {}
+  for entity, identifier in pairs(accessOut) do
+    if isVehicle(entity) then viaAccess[tostring(NetworkGetNetworkIdFromEntity(entity))] = identifier end
+  end
+  return { boot = serverBoot(), temp = keys, versions = unownedVersions, plates = plates, locks = locks,
+    accessOut = viaAccess }
 end
 
 local function restore()
@@ -1236,7 +1523,8 @@ local function restore()
       local expires = type(entry) == 'table' and tonumber(entry.expires) or nil
       if p and expires and expires > nowTs and type(holder) == 'string' then
         temp[holder] = temp[holder] or {}
-        temp[holder][p] = { expires = expires, reason = tostring(entry.reason or 'other'), at = tonumber(entry.at) or nowTs }
+        temp[holder][p] = { expires = expires, reason = tostring(entry.reason or 'other'), at = tonumber(entry.at) or nowTs,
+          access = entry.access == true or nil }
         count = count + 1
       end
     end
@@ -1249,6 +1537,19 @@ local function restore()
     local entity = NetworkGetEntityFromNetworkId(math.tointeger(tonumber(netId) or 0) or 0)
     local p = normPlate(plate)
     if p and isVehicle(entity) then knownPlates[entity] = p end
+  end
+  for netId, locked in pairs(type(data.locks) == 'table' and data.locks or {}) do
+    local entity = NetworkGetEntityFromNetworkId(math.tointeger(tonumber(netId) or 0) or 0)
+    if isVehicle(entity) and type(locked) == 'boolean' then
+      lockState[entity] = locked
+      bagWritten.nzLocked[entity] = locked
+    end
+  end
+  for netId, identifier in pairs(type(data.accessOut) == 'table' and data.accessOut or {}) do
+    local entity = NetworkGetEntityFromNetworkId(math.tointeger(tonumber(netId) or 0) or 0)
+    if isVehicle(entity) and type(identifier) == 'string' and identifier ~= '' and #identifier <= 64 then
+      accessOut[entity] = identifier
+    end
   end
   if count > 0 then lib.print.info(('[nayzeee-garages] carlock: %d temporary key(s) kept across the restart'):format(count)) end
 end
@@ -1265,7 +1566,10 @@ AddEventHandler('onResourceStop', function(resource)
 end)
 
 AddEventHandler('entityRemoved', function(entity)
-  if knownPlates[entity] then knownPlates[entity] = nil end
+  knownPlates[entity] = nil
+  accessOut[entity] = nil
+  lockState[entity] = nil
+  bagWritten.nzLocked[entity], bagWritten.nzAlarm[entity] = nil, nil
 end)
 
 AddEventHandler('playerDropped', function()
@@ -1273,8 +1577,19 @@ AddEventHandler('playerDropped', function()
   if not src then return end
   temp['src:' .. tostring(math.tointeger(src) or src)] = nil
   for _, entry in pairs(classVotes) do
+    local changed = false
     for _, voters in pairs(entry.votes) do
-      if voters[src] then voters[src] = nil end
+      if voters[src] then
+        voters[src] = nil
+        voters.n = voters.n - 1
+        changed = true
+      end
+    end
+    if changed then
+      entry.best, entry.bestCount = nil, 0
+      for class, voters in pairs(entry.votes) do
+        if voters.n > entry.bestCount then entry.best, entry.bestCount = class, voters.n end
+      end
     end
   end
 end)
