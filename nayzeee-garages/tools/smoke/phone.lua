@@ -883,7 +883,8 @@ data = call('ClaimVehicleForValet', 1, 'TRK001')
 check(type(data) == 'table', 'claim 10 accepted')
 local blista, blistaNet = spawnEntity('TRK001', 'blista')
 local genericOk = run(Vehicles.markSpawned, 1, 'TRK001', blistaNet)
-check(genericOk == true and Vehicles.out.TRK001.entity == blista, 'generic callback (plate-only) took the other model')
+-- Vehicles.markSpawned compares the model with the vehicle row: another model is refused there
+check(genericOk ~= true and (not Vehicles.out.TRK001 or Vehicles.out.TRK001.entity ~= blista), 'generic callback (plate-only) refuses the other model')
 local realCar, realNet = spawnEntity('TRK001', 'sultan')
 fireNet('nz:phone:spawned', 1, 'TRK001', realNet)
 check(entities[realCar] ~= nil and Vehicles.out.TRK001 and Vehicles.out.TRK001.entity == realCar

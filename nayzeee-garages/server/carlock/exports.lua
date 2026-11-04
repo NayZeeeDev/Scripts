@@ -13,11 +13,16 @@
                                                             vehicle's owner (sale, transfer).
     SetVehicleLocked(netId|entity, locked) -> boolean
     IsVehicleLocked(netId|entity) -> boolean
+    SendDispatch(src|nil, alert) -> boolean                police alert through the configured
+                                                            dispatch system (NZ.Dispatch.alert,
+                                                            docs/CARLOCK.md §6); src = offender
+                                                            (nil / 0: no offender, alert.coords
+                                                            required). SendDispatch(alert) works too.
 
   Server code is trusted: no distance checks here (the calling script decides). Plates are
   real plates; a fake plate text read from a vehicle near the player is mapped to the real
   one. Every export is protected: a bad argument returns false / nil, never an error.
-  SendDispatch / StartTow live with their modules.
+  StartTow lives with its module.
 ]]
 
 local CarLock = NZ.CarLock
@@ -114,4 +119,10 @@ exports('IsVehicleLocked', safe('IsVehicleLocked', function(netId)
   local entity = vehicleOf(netId, true)
   if not entity then return false end
   return CarLock.isLocked(entity)
+end))
+
+exports('SendDispatch', safe('SendDispatch', function(src, alert)
+  if type(src) == 'table' and alert == nil then src, alert = nil, src end
+  if type(alert) ~= 'table' or type(NZ.Dispatch.alert) ~= 'function' then return false end
+  return NZ.Dispatch.alert(src, alert) == true
 end))

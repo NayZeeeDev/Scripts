@@ -453,12 +453,15 @@ function CarLock.useKeyItem(src, item, slot, metadata)
   local plate = normPlate(metadata.plate)
   local entity, dist = CarLock.findVehicle(plate, src)
   if not entity then
+    -- a fob out of range opens the key ring on that vehicle (locate / alarm through the tracker)
+    if kind == 'fob' and type(CarLock.openKeyRing) == 'function' then return CarLock.openKeyRing(src, plate) end
     notify(src, L('The vehicle of this key is not nearby'), 'error')
     return false
   end
   local ped = pedOf(src)
   local inside = ped ~= nil and GetVehiclePedIsIn(ped, false) == entity
   if not inside and (dist or math.huge) > CarLock.lockRangeOf(entity, kind == 'fob') then
+    if kind == 'fob' and type(CarLock.openKeyRing) == 'function' then return CarLock.openKeyRing(src, plate) end
     notify(src, L('The vehicle is too far away'), 'error')
     return false
   end

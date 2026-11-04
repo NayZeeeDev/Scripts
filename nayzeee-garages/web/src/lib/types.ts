@@ -657,67 +657,139 @@ export interface AdminVehiclePatch {
 
 /* ───────────────────────── car lock: key ring, locksmith, contracts ───────────────────────── */
 
-/** How the player holds a key (docs/CARLOCK.md §3). */
+/** How the player holds a key (docs/CARLOCK.md §3): 'owner' = through ownership / a garage share
+ *  / fleet access (a virtual key), 'item' / 'fob' = a physical key item, 'temp' = a temporary key,
+ *  'virtual' = a persistent key someone gave you. */
 export type KeyKind = 'owner' | 'item' | 'fob' | 'temp' | 'virtual';
+
+/** Where a key sits on the ring: your vehicles, keys others shared with you, temporary keys,
+ *  key items of vehicles you do not own. */
+export type KeyGroup = 'owned' | 'shared' | 'temp' | 'items';
 
 export interface KeyEntry extends VehicleLabel {
   plate: string;
+  /** spawn name, '' when unknown */
   model: string;
+  /** model hash, 0 when unknown (a temporary key of a vehicle that is not out) */
   hash: number;
   vehicleType: VehicleType;
   nickname: string | null;
   kind: KeyKind;
+  group: KeyGroup;
+  /** physical key of the vehicle's security profile */
+  keyType: 'key' | 'fob';
   /** security profile id and label ('standard' / 'highend' ...) */
   profile: string;
   profileLabel: string;
   /** electronic fob: remote locking from ranges.fob */
   remote: boolean;
-  /** unix seconds (temporary keys), else null */
-  expiresAt: number | null;
+  /** temporary keys: seconds left when the data was sent, else null */
+  expiresIn: number | null;
+  /** why a temporary key was given ('hotwire', 'robbery', 'garage', 'locksmith' ...) */
+  reason: string | null;
   isOwner: boolean;
   /** the vehicle exists in the player's routing bucket */
   spawned: boolean;
   netId: number | null;
   locked: boolean | null;
-  /** metres from the player (client computed), null when not spawned */
+  /** metres from the player (this client, or the tracker for trackable vehicles), null when unknown */
   distance: number | null;
-  /** tracker eligible and spawned */
+  /** the security profile carries a tracker */
+  tracker: boolean;
+  /** tracker eligible and spawned (locate, remote alarm) */
   trackable: boolean;
-  /** virtual: give a key to a nearby player; physical: hand the item over */
+  /** on the impound tow truck: nothing works */
+  towing: boolean;
+  /** the alarm sounds right now */
+  alarm: boolean;
+  /** virtual: give a key to a nearby player (owner); physical: hand the item over */
   canShare: boolean;
-  /** virtual key holders (owner only) */
-  holders: number;
+  /** key holders (owner, loaded with keys:holders), null = not loaded */
+  holders: number | null;
+}
+
+/** What this client sees itself, pushed every second while the key ring is open. */
+export interface KeyLive { distance: number | null; locked: boolean | null; alarm?: boolean }
+
+/** Live readout of the located vehicle (tracker). */
+export interface KeyTracking {
+  plate: string;
+  distance: number | null;
+  /** true: measured on this client; false: the tracker's last server position */
+  live: boolean;
+  /** the signal is gone (stored, towed, left the routing bucket) */
+  lost?: boolean;
+  /** the blip stopped following it */
+  stopped?: boolean;
+  towing?: boolean;
 }
 
 export interface KeysOpenData {
   mode: 'physical' | 'virtual';
   keys: KeyEntry[];
-  nearbyPlayers: PlayerOption[];
-  ranges: { key: number; fob: number };
+  nearbyPlayers: KeyRingPlayer[];
+  ranges: { key: number; fob: number; give: number };
+  /** the vehicle tracker is switched on */
+  tracker: boolean;
+  /** plate to select (a fob used far from its vehicle, OpenKeys(plate)) */
+  focus?: string | null;
+  /** plate of the vehicle the player sits in (false / null: on foot) */
+  seatPlate?: string | false | null;
+  live?: Record<string, KeyLive> | null;
+  tracking?: KeyTracking | null;
 }
 
-export interface KeyHolder { identifier: string; name: string; grantedBy: string | null; at: number }
+/** A nearby player for the share picker (server distance in metres). */
+export interface KeyRingPlayer extends PlayerOption { distance?: number }
+
+export interface KeyHolder {
+  identifier: string;
+  name: string;
+  kind: 'virtual' | 'temp';
+  grantedBy: string | null;
+  /** seconds since the key was given (server clock), null when unknown */
+  agoSeconds: number | null;
+  /** temporary keys: seconds left */
+  expiresIn: number | null;
+}
 
 export type LocksmithServiceId = 'duplicate' | 'program' | 'rekey';
 
+export interface LocksmithMaterial { item: string; label: string; count: number; have: number }
+
 export interface LocksmithService {
   id: LocksmithServiceId;
+  /** offered at this location (config) */
   enabled: boolean;
+  /** available in this key mode (virtual: no duplicate) */
+  offered: boolean;
+  reason?: string | null;
   price: number;
-  materials: { item: string; label: string; count: number; have: number }[];
+  materials: LocksmithMaterial[];
 }
 
 export interface LocksmithVehicle extends VehicleLabel {
   plate: string;
-  model: string;
-  hash: number;
+  model?: string | null;
+  hash?: number | null;
   vehicleType: VehicleType;
-  nickname: string | null;
+  nickname?: string | null;
   isOwner: boolean;
+  /** a row in the vehicle table (a player's vehicle) */
+  owned: boolean;
   hasKey: boolean;
+  keyKind?: 'owner' | 'item' | 'temp' | 'virtual' | null;
+  /** valid key items of this plate the player carries */
+  keyItems: number;
+  /** what a key cut for it is */
+  keyType: 'key' | 'fob';
   /** within range of the locksmith (program / rekey need the vehicle nearby) */
   nearby: boolean;
-  distance: number | null;
+  /** metres from the locksmith */
+  distance?: number | null;
+  towing: boolean;
+  /** per service: why it is not possible (translated); missing = available */
+  blocked: Partial<Record<LocksmithServiceId, string>>;
 }
 
 export interface LocksmithOpenData {
@@ -725,6 +797,13 @@ export interface LocksmithOpenData {
   name: string;
   illegal: boolean;
   account: 'cash' | 'bank';
+  mode: 'physical' | 'virtual';
+  /** balance of `account` */
+  money: number;
+  /** temporary key lifetime (virtual program) */
+  tempHours: number;
+  /** metres: vehicles this close to the locksmith count as nearby */
+  range: number;
   services: LocksmithService[];
   vehicles: LocksmithVehicle[];
 }
@@ -734,11 +813,16 @@ export interface ContractVehicle extends VehicleLabel {
   model: string;
   hash: number;
   vehicleType: VehicleType;
-  nickname: string | null;
+  nickname?: string | null;
   /** kilometres */
   mileage: number;
+  /** percent 0-100 */
   engine: number;
   body: number;
+  /** draft: metres from the seller (server measured) */
+  distance?: number | null;
+  /** draft: why this vehicle cannot be sold right now (translated); absent when it can */
+  blocked?: string | null;
 }
 
 export interface ContractParty { name: string; serverId?: number }
@@ -746,12 +830,65 @@ export interface ContractParty { name: string; serverId?: number }
 /** Signature = SVG path data ("M x y L x y ..."), at most 4000 characters, in a 400x140 box. */
 export type Signature = string;
 
-export type ContractOpenData =
-  | { mode: 'draft'; seller: ContractParty; vehicles: ContractVehicle[]; buyers: PlayerOption[]; maxPrice: number; account: 'bank' | 'cash' }
-  | { mode: 'review'; contractId: string; vehicle: ContractVehicle; seller: ContractParty; buyer: ContractParty; price: number; terms: string;
-      sellerSignature: Signature; expiresAt: number; canAfford: boolean; account: 'bank' | 'cash' }
-  | { mode: 'view'; vehicle: ContractVehicle; seller: ContractParty; buyer: ContractParty; price: number; terms: string;
-      sellerSignature: Signature; buyerSignature: Signature; signedAt: number };
+/** Outcome of a sent contract, pushed into the open window ('update' { status }). */
+export type ContractStatus = 'pending' | 'signed' | 'declined' | 'expired' | 'withdrawn' | 'cancelled' | 'failed';
+
+/** The seller drafts a contract (blank contract item used next to their vehicle). */
+export interface ContractDraftData {
+  mode: 'draft';
+  seller: ContractParty;
+  vehicles: ContractVehicle[];
+  buyers: PlayerOption[];
+  maxPrice: number;
+  /** the buyer pays from / the seller is paid into */
+  account: 'bank' | 'cash';
+  /** seconds the buyer has to sign once the contract is sent */
+  expireSeconds: number;
+  /** set by Lua after sending (outcome of the sent contract) */
+  status?: ContractStatus;
+}
+
+/** The buyer reads, signs and pays. */
+export interface ContractReviewData {
+  mode: 'review';
+  contractId: string;
+  vehicle: ContractVehicle;
+  seller: ContractParty;
+  buyer: ContractParty;
+  price: number;
+  terms: string;
+  sellerSignature: Signature;
+  /** unix seconds (server) */
+  createdAt: number;
+  /** seconds left to sign when the message was sent (count down from receipt: no clock skew) */
+  expiresIn: number;
+  canAfford: boolean;
+  account: 'bank' | 'cash';
+  status?: ContractStatus;
+}
+
+/** A signed copy (signed_contract item), read-only. */
+export interface ContractViewData {
+  mode: 'view';
+  contractId: string;
+  /** whose copy this item is */
+  copy?: 'seller' | 'buyer' | null;
+  vehicle: ContractVehicle;
+  seller: ContractParty;
+  buyer: ContractParty;
+  price: number;
+  account?: 'bank' | 'cash';
+  terms: string;
+  sellerSignature: Signature;
+  buyerSignature: Signature;
+  createdAt?: number;
+  /** unix seconds */
+  signedAt: number;
+  /** the ownership history of the plate holds this contract */
+  verified: boolean;
+}
+
+export type ContractOpenData = ContractDraftData | ContractReviewData | ContractViewData;
 
 /* ───────────────────────── NUI protocol ───────────────────────── */
 
@@ -885,17 +1022,21 @@ export interface NuiCallbacks {
   'admin:vehicle:activity': Cb<{ plate: string; page: number }, Paged<VehicleActivity>>;
 
   'keys:refresh': Cb<Record<string, never>, KeysOpenData>;
-  'keys:lock': Cb<{ plate: string }, { locked: boolean }>;
-  'keys:locate': Cb<{ plate: string }, null>;
-  'keys:alarm': Cb<{ plate: string }, null>;
+  'keys:lock': Cb<{ plate: string }, { plate: string; locked: boolean }>;
+  'keys:locate': Cb<{ plate: string; stop?: boolean }, { distance: number | null }>;
+  'keys:alarm': Cb<{ plate: string; on?: boolean }, { alarm: boolean; seconds: number | null; cooldown: number }>;
+  'keys:players': Cb<Record<string, never>, KeyRingPlayer[]>;
   'keys:share': Cb<{ plate: string; target: number }, null>;
   'keys:holders': Cb<{ plate: string }, KeyHolder[]>;
-  'keys:revoke': Cb<{ plate: string; identifier: string }, null>;
+  'keys:revoke': Cb<{ plate: string; identifier: string }, KeyHolder[] | null>;
 
-  'locksmith:service': Cb<{ locksmithId: number; service: LocksmithServiceId; plate: string }, { message: string }>;
+  'locksmith:refresh': Cb<{ locksmithId: number }, LocksmithOpenData>;
+  'locksmith:service': Cb<{ locksmithId: number; service: LocksmithServiceId; plate: string }, { message: string; data: LocksmithOpenData }>;
 
-  'contract:send': Cb<{ plate: string; buyer: number; price: number; terms: string; signature: Signature }, { contractId: string }>;
-  'contract:sign': Cb<{ contractId: string; signature: Signature }, null>;
+  'contract:refresh': Cb<Record<string, never>, { vehicles: ContractVehicle[]; buyers: PlayerOption[] }>;
+  'contract:send': Cb<{ plate: string; buyer: number; price: number; terms: string; signature: Signature }, { contractId: string; expiresIn: number }>;
+  'contract:sign': Cb<{ contractId: string; signature: Signature }, { signedAt: number }>;
+  /** the buyer declines, or the seller withdraws a sent contract */
   'contract:decline': Cb<{ contractId: string }, null>;
 }
 

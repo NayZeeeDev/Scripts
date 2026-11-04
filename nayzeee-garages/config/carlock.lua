@@ -78,6 +78,8 @@ Config.CarLock = {
     lock = 'L',            -- toggle the lock of your vehicle / the nearest vehicle you have a key for
     engine = 'G',          -- toggle the engine (driver seat)
     keyRing = 'F7',        -- open the key ring
+    hotwire = 'H',         -- no-key driver: hotwire the vehicle
+    search = 'Z',          -- no-key driver: search the vehicle (once)
   },
 
   commands = {
@@ -130,6 +132,23 @@ Config.CarLock = {
     Security profiles. A vehicle uses the profile of its model override, else its class, else
     'standard'. Each profile picks the key item, the access tools that open its doors, the
     hotwire method and whether it carries a tracker.
+
+    accessTools: items that open the locked doors (use the item standing at the vehicle and
+    facing it, or the "Pick the lock" target option). item = a Config.CarLock.items entry (or
+    an item name).
+      difficulty   ox_lib skill checks, one entry per check: 'easy' | 'medium' | 'hard' or
+                   { areaSize = 50, speedMultiplier = 1.5 }
+      inputs       keys of the skill checks, e.g. { 'w', 'a', 's', 'd' } (nil = ox_lib's 'E')
+      breakChance  % the tool breaks on a failed attempt
+      alarmChance  % the alarm goes off on a failed attempt
+      alertChance  % the police get an alert (every attempt, success or not)
+    hotwire: the no-key driver flow (driver seat, no key). method:
+      'skillcheck' skill checks (difficulty, inputs)
+      'progress'   a progress bar of `duration` ms
+      'hack'       skill checks + the `item` in the inventory (breakChance: % it breaks on a
+                   failed attempt)
+      alertChance / alarmChance as above. Success gives a temporary key ('hotwire').
+    alarm: 'native' (GTA alarm) | 'custom' (horn + lights for alarm.seconds) | 'none'.
   ]]
   profiles = {
     standard = {
@@ -141,7 +160,7 @@ Config.CarLock = {
         { item = 'screwdriver', difficulty = { 'medium', 'medium', 'medium' }, breakChance = 10, alarmChance = 60, alertChance = 40 },
         { item = 'advancedLockpick', difficulty = { 'easy', 'easy' }, breakChance = 5, alarmChance = 20, alertChance = 20 },
       },
-      hotwire = { method = 'skillcheck', difficulty = { 'easy', 'medium', 'medium' }, duration = 6000, alertChance = 25 },
+      hotwire = { method = 'skillcheck', difficulty = { 'easy', 'medium', 'medium' }, duration = 6000, alertChance = 25, alarmChance = 0 },
       tracker = false,
       alarm = 'native',                -- 'native' | 'custom' | 'none'
     },
@@ -151,9 +170,9 @@ Config.CarLock = {
       remote = true,
       accessTools = {
         { item = 'advancedLockpick', difficulty = { 'medium', 'hard', 'hard' }, breakChance = 15, alarmChance = 80, alertChance = 70 },
-        { item = 'hackingDevice', difficulty = { 'medium', 'medium', 'hard', 'hard' }, breakChance = 0, alarmChance = 40, alertChance = 50 },
+        { item = 'hackingDevice', difficulty = { 'medium', 'medium', 'hard', 'hard' }, inputs = { 'w', 'a', 's', 'd' }, breakChance = 0, alarmChance = 40, alertChance = 50 },
       },
-      hotwire = { method = 'hack', item = 'hackingDevice', difficulty = { 'medium', 'hard', 'hard', 'hard' }, duration = 9000, alertChance = 60 },
+      hotwire = { method = 'hack', item = 'hackingDevice', difficulty = { 'medium', 'hard', 'hard', 'hard' }, inputs = { 'w', 'a', 's', 'd' }, duration = 9000, alertChance = 60, alarmChance = 30, breakChance = 10 },
       tracker = true,
       alarm = 'custom',
     },
@@ -166,40 +185,62 @@ Config.CarLock = {
     -- ['sultanrs'] = 'standard',
   },
 
-  -- No-key driver flow: search the vehicle once for a chance at money, items or a spare key.
+  -- No-key driver flow: search the vehicle once (per vehicle) for a chance at money, items or
+  -- a spare key. Every loot entry is rolled on its own; `items` names inventory items.
   search = {
     enabled = true,
-    duration = 7000,
+    duration = 7000,             -- ms (progress bar)
     alertChance = 10,
+    cooldown = 30,               -- seconds between successful searches per player
+    ambientOnly = true,          -- only traffic / parked GTA vehicles (never script- or player-spawned ones)
     money = { chance = 35, min = 20, max = 250, account = 'cash' },
     spareKeyChance = 8,
+    spareKeyItem = true,         -- physical key mode: the spare key is a key item (else a temporary key)
+    ownedVehicles = false,       -- also search players' vehicles (false: vehicles nobody owns only)
     items = {
       { item = 'water', chance = 20, min = 1, max = 2 },
       { item = 'phone', chance = 3, min = 1, max = 1 },
     },
   },
 
+  -- NPC drivers: aim a weapon at a driver (stopped or slow) to rob the key; search the body
+  -- of the original driver; authorized jobs ask for the vehicle.
   npc = {
     robbery = true,
     robTime = 3500,              -- ms aiming before they hand the key over
     maxSpeed = 8.0,              -- m/s: faster drivers ignore you
+    range = 6.0,                 -- metres between you and the vehicle
     resistChance = 20,           -- % they flee with the car or fight back
     fightChance = 35,            -- % of resisting drivers that fight instead of fleeing
-    deadDriverKeys = true,       -- search the body of the original driver for the key
+    fightWeapon = 'WEAPON_PISTOL', -- what a fighting driver pulls out ('' = fists)
+    deadDriverKeys = true,       -- search the body of the original (traffic) driver for the key
     alertChance = 60,
     cooldown = 60,               -- seconds between robberies per player
-    -- Players with these jobs can ask NPC drivers for their vehicle (no robbery, no alert).
+    ambientOnly = true,          -- only traffic peds (never NPCs another script spawned: jobs, missions)
+    ownedVehicles = false,       -- also NPCs driving a player's vehicle
+    -- Players with these jobs (on duty) can ask NPC drivers for their vehicle (no robbery, no alert).
     assistJobs = { 'police', 'sheriff', 'state' },
+    assistCooldown = 10,         -- seconds between requests per player
   },
 
+  -- Locksmiths (ped + blip + target option / press-E prompt, following the interface's
+  -- interaction setting). Legal shops serve owners and key holders; illegal shops work on any
+  -- vehicle parked within `range` and may alert the police (alertChance %, NZ.Dispatch).
+  -- Services: duplicate (copy a key item: physical keys only), program (a new key for a
+  -- vehicle parked nearby; virtual mode: a temporary key), rekey (change the locks: every
+  -- other key stops working). materials: { item = Config.CarLock.items key or item name,
+  -- count, label? }. Checked on the atlas map: Davis Ave (south LS shops) and the Terminal
+  -- container port quay (docks); the ped is put on the ground at spawn.
   locksmiths = {
     {
       name = 'Los Santos Locksmith',
       coords = vec4(170.58, -1799.68, 29.32, 320.0),
       ped = 's_m_m_autoshop_01',
+      scenario = 'WORLD_HUMAN_CLIPBOARD',   -- '' = none
       blip = { enabled = true, sprite = 134, color = 3, scale = 0.7 },
       illegal = false,
       alertChance = 0,
+      range = 25.0,                         -- metres: vehicles parked this close count as nearby
       services = {
         duplicate = { enabled = true, price = 250, materials = {} },
         program = { enabled = true, price = 500, materials = { { item = 'blank', count = 1 } } },
@@ -210,9 +251,11 @@ Config.CarLock = {
       name = 'Back-alley Keys',
       coords = vec4(1186.32, -3263.45, 6.03, 90.0),
       ped = 'g_m_y_mexgoon_02',
+      scenario = 'WORLD_HUMAN_SMOKING',
       blip = { enabled = false },
-      illegal = true,              -- programs keys for any vehicle within range
+      illegal = true,                       -- programs keys for any vehicle within range
       alertChance = 15,
+      range = 20.0,
       services = {
         duplicate = { enabled = true, price = 600, materials = {} },
         program = { enabled = true, price = 3500, materials = {} },
@@ -222,21 +265,41 @@ Config.CarLock = {
   },
   locksmithAccount = 'cash',       -- 'cash' | 'bank'
 
+  -- Tracker (security profiles with tracker = true): locate the vehicles you have a key for
+  -- from the key ring (waypoint + live distance, same routing bucket) and sound their alarm.
   tracker = {
     enabled = true,
     alarmSeconds = 20,             -- remote alarm length
+    alarmCooldown = 60,            -- seconds before the same vehicle's alarm can be triggered again
+    locateSeconds = 120,           -- the map blip of a located vehicle follows it this long
+    blip = { sprite = 225, color = 5, scale = 0.85 },
   },
 
   dispatch = {
-    -- 'auto' | 'wasabi_mdt' | 'ps-dispatch' | 'cd_dispatch' | 'rcore_dispatch' | 'internal' | 'none' | 'custom'
+    -- 'auto' | 'wasabi_mdt' | 'rcore_dispatch' | 'cd_dispatch' | 'qs-dispatch' | 'core_dispatch' |
+    -- 'ps-dispatch' | 'internal' | 'none' | 'custom'. 'auto' = the first one running, else
+    -- 'internal' (notification + blip for on-duty players of `jobs`).
     system = 'auto',
     jobs = { 'police', 'sheriff', 'state' },
-    blip = { sprite = 225, color = 1, scale = 1.0, seconds = 90 },
-    codes = { theft = '10-60', robbery = '10-31', alarm = '10-66', locksmith = '10-31', fakeplate = '10-28' },
+    -- Map blip (seconds on the map, converted for every system; radius 0 = exact position).
+    blip = { sprite = 225, color = 1, scale = 1.0, seconds = 90, radius = 0.0, flash = true },
+    blips = {                      -- per alert kind, merged over `blip`
+      robbery = { sprite = 229, color = 1 },
+      alarm = { sprite = 225, color = 5, seconds = 60, radius = 60.0 },
+    },
+    codes = {
+      theft = '10-60', lockpick = '10-60', hotwire = '10-60', search = '10-60',
+      robbery = '10-31', alarm = '10-66', locksmith = '10-31', fakeplate = '10-28',
+    },
+    -- wasabi_mdt dispatch type per alert kind ('default' for the rest).
+    wasabiTypes = { default = 'robbery', alarm = 'disturbance', locksmith = 'disturbance', fakeplate = 'disturbance' },
+    cooldown = 30,                 -- seconds: one alert per player and vehicle (one incident, one call)
+    sound = true,                  -- 'internal': play a sound with the alert
   },
 
   alarm = {
-    seconds = 25,                  -- custom alarm length
+    seconds = 25,                  -- custom alarm length (native alarms: 65 s at most)
+    alertChance = 40,              -- % a crime that sets the alarm off alerts the police (when the action's own roll did not)
   },
 }
 
@@ -272,24 +335,30 @@ Config.Tow = {
   blip = { enabled = true, sprite = 68, color = 17, scale = 0.8 },
 }
 
--- Car sale contracts.
+-- Car sale contracts (docs/CARLOCK.md §12). Use a blank vehicle_contract next to one of your
+-- vehicles: pick it, a buyer standing nearby, the price and the terms, then sign. The buyer
+-- reads, signs and pays; ownership, keys and money move only when the server agrees.
 Config.Contracts = {
   enabled = true,
-  maxDistance = 10.0,              -- buyer and vehicle within this range of the seller
-  expireSeconds = 120,
-  account = 'bank',                -- buyer pays from 'bank' | 'cash'
-  signedCopies = true,             -- both parties keep a signed_contract item
+  maxDistance = 10.0,              -- metres: buyer and vehicle within this range of the seller (sending and signing)
+  expireSeconds = 120,             -- the buyer has this long to sign
+  account = 'bank',                -- the buyer pays from, and the seller is paid into: 'bank' | 'cash'
+  signedCopies = true,             -- both parties keep a signed_contract item (use it to read the contract; needs item metadata)
   maxPrice = 10000000,
 }
 
--- Fake plates.
+-- Fake plates (docs/CARLOCK.md §13). Install or remove one at the rear of a vehicle (target
+-- option, or use the fake_plate item next to it). Keys, locks and garages keep using the real
+-- plate; everyone else, police plate checks included, sees the fake one.
 Config.FakePlates = {
   enabled = true,
-  requireScrewdriver = true,
-  screwdriverBreakChance = 5,
+  requireScrewdriver = true,       -- installing and removing need the screwdriver (not consumed)
+  screwdriverBreakChance = 5,      -- % the screwdriver breaks on each install / removal
   installSeconds = 6,
   removeSeconds = 5,
-  returnOnStore = true,            -- storing in a garage removes the fake plate and returns the item
-  pattern = '11AAA111',            -- 1 = digit, A = letter
-  alertChance = 0,
+  returnOnStore = true,            -- storing in a garage removes the fake plate and gives the item back
+  pattern = '11AAA111',            -- 1 = digit, A = letter, anything else as written (8 at most); never a registered plate
+  alertChance = 0,                 -- % the police get an alert (Config.CarLock.dispatch) when one is installed
+  distance = 2.0,                  -- metres from the rear of the vehicle
+  animation = { dict = 'anim@amb@clubhouse@tutorial@bkr_tut_ig3@', clip = 'machinic_loop_mechandplayer' },
 }

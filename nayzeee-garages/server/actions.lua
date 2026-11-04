@@ -176,6 +176,15 @@ local function keyAccessibleBy(garageKey, player)
   return true
 end
 
+--- Public form of keyAccessibleBy (sale contracts check it before a vehicle changes hands).
+---@param garageKey string
+---@param player table { source, identifier }
+---@return boolean
+function Actions.garageAccessibleBy(garageKey, player)
+  if type(garageKey) ~= 'string' or type(player) ~= 'table' or not player.identifier then return false end
+  return keyAccessibleBy(garageKey, player)
+end
+
 --- Common prologue: open session (with distance check), rate limit and identifier.
 local function begin(src, bucket, ms)
   local session, err = NZ.Access.requireSession(src, maxDistance())
@@ -194,15 +203,91 @@ local function register(name, handler)
   end))
 end
 
---- Shares cleared, old owner's favourite removed, ownership history entry added.
-local function afterOwnerChange(row, newOwner, via, price)
+--- New key version for the new owner (built-in car lock): old key items stop working, virtual
+--- and temporary keys of everyone else are removed.
+local function rekeyFor(plate, identifier)
+  local carLock = NZ.CarLock
+  if type(carLock) ~= 'table' or type(carLock.rekey) ~= 'function' then return end
+  local okOn, on = pcall(carLock.enabled)
+  if not okOn or on ~= true then return end
+  local okRekey, err = pcall(carLock.rekey, plate, identifier)
+  if not okRekey then lib.print.warn(('[nayzeee-garages] rekey of %s failed: %s'):format(plate, tostring(err))) end
+end
+
+--- Shares cleared, old owner's favourite removed, ownership history entry added, the tracked
+--- out entry follows the new owner and the locks are changed for them.
+--- `extra` = more fields for the history entry (contractId, from, fromName).
+local function afterOwnerChange(row, newOwner, via, price, extra)
   NZ.DB.shares.clear(row.plate)
   if row.owner then NZ.DB.favourites.set(row.owner, row.plate, false) end
   local entry = { identifier = newOwner.identifier, name = newOwner.name, via = via, at = os.time() }
   if price then entry.price = price end
+  if type(extra) == 'table' then
+    for k, v in pairs(extra) do
+      if entry[k] == nil then entry[k] = v end
+    end
+  end
   NZ.DB.events.add(row.plate, 'owner', entry)
   local tracked = NZ.Vehicles.out and NZ.Vehicles.out[row.plate]
   if tracked then tracked.identifier = newOwner.identifier end
+  if NZ.CarLock and type(NZ.CarLock.invalidate) == 'function' then pcall(NZ.CarLock.invalidate, row.plate) end
+  rekeyFor(row.plate, newOwner.identifier)
+end
+
+--- Sell `row` from `seller` to `buyer` (both { source, identifier, name }, online) for
+--- `opts.price`: the buyer is charged, the owner changes, the seller is paid; a step that
+--- fails undoes the ones before it. Then afterOwnerChange (shares, favourite, ownership
+--- history entry `opts.via`, keys). The caller validates the sale and holds
+--- NZ.Vehicles.withLock(row.plate). Used by the garage sale and the sale contracts.
+--- opts = {
+---   via = 'sale'|'contract',  price = integer >= 0,
+---   account = nil (settings.economy.account through NZ.Bridge.pay) | 'cash' | 'bank',
+---   payAccount = 'cash'|'bank' (default 'bank': the seller's account),
+---   history = { ... } extra fields of the ownership history entry,
+--- }
+--- Returns true, nil, accountUsed | false, translated error, code ('afford' | 'error').
+---@param row table NZVehicleRow
+---@param seller table
+---@param buyer table
+---@param opts table
+---@return boolean ok, string|nil error, string|nil codeOrAccount
+function Actions.sellVehicle(row, seller, buyer, opts)
+  opts = type(opts) == 'table' and opts or {}
+  local price = math.max(0, math.floor(tonumber(opts.price) or 0))
+  local via = type(opts.via) == 'string' and opts.via or 'sale'
+  local reason = 'nayzeee-garages:vehicle-' .. via
+  if type(row) ~= 'table' or type(seller) ~= 'table' or type(buyer) ~= 'table'
+    or not buyer.identifier or not seller.identifier then
+    return false, L('Something went wrong'), 'error'
+  end
+
+  local paid, account
+  if opts.account == 'cash' or opts.account == 'bank' then
+    account = opts.account
+    paid = price <= 0 or NZ.Bridge.removeMoney(buyer.source, account, price, reason)
+  else
+    paid, account = charge(buyer.source, price, reason)
+  end
+  if not paid then return false, L('You cannot afford this ({amount})', { amount = money(price) }), 'afford' end
+
+  if not NZ.DB.updateVehicle(row.plate, { owner = buyer.identifier }) then
+    refund(buyer.source, price, account, reason .. '-refund')
+    return false, L('Something went wrong'), 'error'
+  end
+
+  local payAccount = (opts.payAccount == 'cash' or opts.payAccount == 'bank') and opts.payAccount or 'bank'
+  if price > 0 and not NZ.Bridge.addMoney(seller.source, payAccount, price, reason) then
+    NZ.DB.updateVehicle(row.plate, { owner = seller.identifier })
+    refund(buyer.source, price, account, reason .. '-refund')
+    log('security.sell', buyer.source, {
+      plate = row.plate, seller = seller.identifier, price = price, via = via,
+      reason = 'seller payout failed, sale reverted',
+    })
+    return false, L('Something went wrong'), 'error'
+  end
+
+  afterOwnerChange(row, buyer, via, price, opts.history)
+  return true, nil, account
 end
 
 ---------------------------------------------------------------------------------------
@@ -354,28 +439,15 @@ local function completeSale(src, offer)
   end
 
   local price = offer.price
-  local paid, account = charge(src, price, 'nayzeee-garages:vehicle-purchase')
-  if not paid then
-    notify(seller, 'error', L('{name} could not afford {plate}', { name = buyer.name, plate = offer.plate }))
-    return fail(L('You cannot afford this ({amount})', { amount = money(price) }))
+  local sellerInfo = { source = seller, identifier = offer.sellerIdentifier, name = offer.sellerName }
+  local sold, err, code = Actions.sellVehicle(row, sellerInfo, buyer, { via = 'sale', price = price })
+  if not sold then
+    if code == 'afford' then
+      notify(seller, 'error', L('{name} could not afford {plate}', { name = buyer.name, plate = offer.plate }))
+    end
+    return fail(err)
   end
 
-  if not NZ.DB.updateVehicle(offer.plate, { owner = buyer.identifier }) then
-    refund(src, price, account, 'nayzeee-garages:vehicle-purchase-refund')
-    return fail(L('Something went wrong'))
-  end
-
-  if not NZ.Bridge.addMoney(seller, 'bank', price, 'nayzeee-garages:vehicle-sale') then
-    NZ.DB.updateVehicle(offer.plate, { owner = offer.sellerIdentifier })
-    refund(src, price, account, 'nayzeee-garages:vehicle-purchase-refund')
-    log('security.sell', src, {
-      plate = offer.plate, seller = offer.sellerIdentifier, price = price,
-      reason = 'seller payout failed, sale reverted',
-    })
-    return fail(L('Something went wrong'))
-  end
-
-  afterOwnerChange(row, buyer, 'sale', price)
   notify(seller, 'success', L('You sold {plate} to {name} for {amount}', {
     plate = offer.plate, name = buyer.name, amount = money(price),
   }))

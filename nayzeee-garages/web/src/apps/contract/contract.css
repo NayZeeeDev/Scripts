@@ -1,0 +1,1024 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Sale contract: draft (form + live document), review (document + sign & pay),
+   view (signed copy). The document reads like paper in the dark NayZeee style:
+   letterhead with the brand mark, perforated rules, uppercase headings, chamfered corner,
+   signature lines and a rubber stamp for the outcome.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.nz-contract .nz-contract__body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.nz-contract__split {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 376px minmax(0, 1fr);
+}
+
+.nz-contract__form {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px 18px;
+  background: var(--side);
+  border-right: 1px solid var(--line-soft);
+}
+
+.nz-contract__form.is-locked .nz-section { opacity: .62; }
+
+.nz-contract__paper,
+.nz-contract__scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 26px 26px;
+  background:
+    radial-gradient(70% 55% at 50% 0%, rgba(var(--teal-rgb), .06), rgba(var(--teal-rgb), 0) 70%),
+    var(--base);
+}
+
+.nz-contract__scroll { flex: 1 1 auto; }
+
+/* ── actions strip ─────────────────────────────────────────────────────── */
+
+.nz-contract__actions {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding: 12px 20px 12px 18px;
+  background: var(--inset);
+  border-top: 1px solid var(--line-soft);
+}
+
+.nz-contract__spacer { flex: 1 1 auto; }
+
+.nz-contract__checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nz-contract__checks button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--fast);
+}
+
+.nz-contract__checks button:hover { color: var(--ink-2); }
+.nz-contract__checks li.is-ok button { color: var(--ink); }
+.nz-contract__checks li.is-ok svg { color: var(--teal); }
+
+.nz-contract__foot-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.nz-contract__foot-note svg { flex: none; color: var(--ink-3); }
+.nz-contract__foot-note.is-teal svg { color: var(--teal); }
+
+.nz-contract__pay {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.nz-contract__pay > svg {
+  flex: none;
+  box-sizing: content-box;
+  padding: 8px;
+  border-radius: var(--r-sm);
+  color: var(--teal);
+  background: var(--teal-wash);
+  border: 1px solid var(--teal-edge);
+}
+
+.nz-contract__pay > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nz-contract__pay b { font-size: 13px; font-weight: 600; color: var(--white); font-variant-numeric: tabular-nums; }
+.nz-contract__pay small { font-size: 11px; font-weight: 300; color: var(--ink-3); }
+.nz-contract__pay.is-short > svg { color: var(--red); background: var(--red-wash); border-color: var(--red-edge); }
+.nz-contract__pay.is-short b { color: var(--red); }
+
+/* ── header timer ──────────────────────────────────────────────────────── */
+
+.nz-contract__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--inset);
+  border: 1px solid var(--line-soft);
+}
+
+.nz-contract__timer b {
+  min-width: 34px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-contract__timer small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.nz-contract__timer.is-amber { border-color: var(--amber-edge); background: var(--amber-wash); }
+.nz-contract__timer.is-amber b { color: var(--amber); }
+.nz-contract__timer.is-red { border-color: var(--red-edge); background: var(--red-wash); }
+.nz-contract__timer.is-red b { color: var(--red); }
+
+/* ── form: options ─────────────────────────────────────────────────────── */
+
+/* scroll target of the "ready to send" checklist (top of a form section) */
+.nz-contract__anchor {
+  display: block;
+  height: 0;
+  scroll-margin-top: 60px;
+}
+
+.nz-contract__opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nz-contract__opt {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px 7px 7px;
+  border-radius: var(--r-md);
+  background: var(--inset);
+  border: 1px solid var(--line-soft);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--fast), border-color var(--fast), box-shadow var(--fast);
+}
+
+.nz-contract__opt:hover:not(:disabled) { border-color: var(--line); background: var(--panel); }
+
+.nz-contract__opt.is-selected {
+  border-color: var(--teal-edge);
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), .12), rgba(var(--teal-rgb), .04)), var(--inset);
+  box-shadow: inset 2px 0 0 var(--teal);
+}
+
+.nz-contract__opt:disabled { cursor: default; }
+.nz-contract__opt.is-blocked { opacity: .62; }
+.nz-contract__opt.is-blocked .nz-contract__opt-img { filter: grayscale(1); opacity: .6; }
+
+.nz-contract__opt-img {
+  flex: none;
+  width: 68px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  border: 1px solid var(--line-hair);
+}
+
+.nz-contract__opt-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nz-contract__opt-text > b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.nz-contract__opt-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nz-contract__opt-dist {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-contract__opt-why {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--amber);
+}
+
+.nz-contract__opt-why svg { flex: none; margin-top: 1px; }
+
+.nz-contract__opt-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  color: var(--on-teal);
+  transition: background var(--fast), border-color var(--fast);
+}
+
+.nz-contract__opt.is-selected .nz-contract__opt-check { background: var(--teal); border-color: var(--teal); }
+
+.nz-contract__opt--person { gap: 9px; padding: 6px 10px 6px 6px; }
+.nz-contract__opts--people { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.nz-contract__opt--person .nz-contract__opt-text { gap: 2px; }
+.nz-contract__opt--person .nz-contract__opt-text > b { font-size: 12.5px; }
+
+.nz-contract__note,
+.nz-contract__hint {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.nz-contract__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line);
+}
+
+.nz-contract__note svg { flex: none; margin-top: 2px; }
+.nz-contract__hint { margin-top: 8px; }
+
+.nz-contract__count {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-contract__count.is-over { color: var(--red); }
+
+.nz-contract__textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 86px;
+  padding: 9px 11px;
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  border: 1px solid var(--line-soft);
+  color: var(--white);
+  font-family: var(--font);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  resize: none;
+  outline: none;
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+
+.nz-contract__textarea::placeholder { color: var(--ink-3); font-weight: 300; }
+.nz-contract__textarea:hover:not(:disabled) { border-color: var(--line); }
+.nz-contract__textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.nz-contract__textarea:disabled { opacity: .7; }
+
+.nz-contract__clauses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.nz-contract__clauses .nz-chip {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ── the document ──────────────────────────────────────────────────────── */
+
+.nz-contract__doc {
+  position: relative;
+  max-width: 720px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, 0) 160px),
+    var(--panel);
+  box-shadow: var(--sh-2), inset 0 1px 0 var(--lift);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%);
+  animation: nz-contract-in 240ms var(--ease) both;
+}
+
+@keyframes nz-contract-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* teal rail along the letterhead */
+.nz-contract__doc::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--teal), rgba(var(--teal-rgb), .25) 45%, rgba(var(--teal-rgb), 0) 80%);
+}
+
+/* faint brand silhouette in the corner, like a watermark on letter paper */
+.nz-contract__doc-mark {
+  position: absolute;
+  right: -38px;
+  bottom: -46px;
+  width: 210px;
+  height: 210px;
+  border-radius: 22px;
+  background: var(--white);
+  opacity: .022;
+  pointer-events: none;
+  clip-path: polygon(0 0, 100% 0, 100% 56%, 56% 100%, 0 100%);
+}
+
+.nz-contract__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px 18px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.nz-contract__head-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nz-contract__eyebrow {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+.nz-contract__head h3 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  color: var(--white);
+}
+
+.nz-contract__head-meta {
+  flex: none;
+  display: flex;
+  gap: 18px;
+  margin: 0;
+}
+
+.nz-contract__head-meta div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.nz-contract__head-meta dt,
+.nz-contract__label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-contract__head-meta dd {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nz-contract__mono { font-family: var(--mono); letter-spacing: .04em; }
+
+.nz-contract__sec {
+  position: relative;
+  padding: 15px 24px 16px;
+  border-top: 1px solid var(--line-hair);
+}
+
+.nz-contract__head + .nz-contract__sec,
+.nz-contract__banner + .nz-contract__sec { border-top: 0; }
+
+.nz-contract__h {
+  margin: 0 0 11px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-contract__small {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+/* parties */
+.nz-contract__parties {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.nz-contract__party {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nz-contract__party-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nz-contract__party-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nz-contract__party-text b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.nz-contract__party-text small {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-contract__party.is-empty .nz-contract__party-text b { color: var(--ink-3); font-weight: 400; }
+
+.nz-contract__party-blank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--line);
+  color: var(--ink-3);
+}
+
+.nz-contract__arrow {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-top: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--line-soft);
+  background: var(--inset);
+  color: var(--teal);
+}
+
+/* vehicle */
+.nz-contract__vehicle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.nz-contract__vehicle.is-empty {
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line);
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.nz-contract__vimg {
+  flex: none;
+  width: 112px;
+  height: 62px;
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  border: 1px solid var(--line-hair);
+}
+
+.nz-contract__vtext {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nz-contract__make {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+
+.nz-contract__vtext b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--white);
+}
+
+.nz-contract__vtext small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+  font-weight: 300;
+  color: var(--ink-2);
+}
+
+.nz-contract__plate {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 108px;
+  padding: 4px 12px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--raise), var(--inset));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 -1px 0 rgba(var(--teal-rgb), .45), 0 8px 18px rgba(0, 0, 0, .5);
+}
+
+.nz-contract__plate small {
+  padding: 1px 0 3px;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .32em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-contract__plate b {
+  font-family: var(--mono);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  line-height: 1.15;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.nz-contract__specs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-soft);
+  background: var(--line-hair);
+}
+
+.nz-contract__spec,
+.nz-contract__cond {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px 11px;
+  background: var(--inset);
+}
+
+.nz-contract__spec b {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-contract__cond-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-contract__cond-top b {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-contract__cond-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, .07);
+}
+
+.nz-contract__cond-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+}
+
+.nz-contract__cond.is-fair .nz-contract__cond-bar i { background: var(--amber); }
+.nz-contract__cond.is-poor .nz-contract__cond-bar i { background: var(--red); }
+.nz-contract__cond.is-fair .nz-contract__cond-top svg { color: var(--amber); }
+.nz-contract__cond.is-poor .nz-contract__cond-top svg { color: var(--red); }
+
+/* price */
+.nz-contract__sec--price {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(90deg, rgba(var(--teal-rgb), .07), rgba(var(--teal-rgb), 0) 70%);
+}
+
+.nz-contract__sec--price .nz-contract__h { margin-bottom: 5px; }
+
+.nz-contract__price {
+  flex: none;
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -.03em;
+  line-height: 1;
+  color: var(--white);
+  font-variant-numeric: tabular-nums;
+}
+
+.nz-contract__price.is-empty { color: var(--ink-3); }
+
+/* terms */
+.nz-contract__terms {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+}
+
+.nz-contract__terms p {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+/* signatures */
+.nz-contract__signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.nz-contract__sign {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nz-contract__sign-box {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 400 / 140;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: var(--inset);
+  border: 1px dashed var(--line);
+  border-bottom: 0;
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+
+.nz-contract__sign.is-active .nz-contract__sign-box {
+  border-color: rgba(var(--teal-rgb), .55);
+  border-style: solid;
+  background:
+    radial-gradient(80% 90% at 50% 100%, rgba(var(--teal-rgb), .08), rgba(var(--teal-rgb), 0) 70%),
+    var(--inset);
+  box-shadow: 0 0 0 3px var(--teal-wash);
+}
+
+.nz-contract__sign-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 7px;
+  border-top: 1px solid var(--ink-3);
+}
+
+.nz-contract__sign.is-active .nz-contract__sign-line { border-top-color: var(--teal); }
+
+.nz-contract__sign-line b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.nz-contract__sign-line span {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-contract__sign-cap {
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-weight: 300;
+  color: var(--ink-3);
+}
+
+.nz-contract__sign-wait {
+  padding: 0 12px;
+  font-size: 11.5px;
+  font-weight: 300;
+  font-style: italic;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.nz-contract__sig-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.nz-contract__ink {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* signature pad */
+.nz-contract__pad {
+  position: absolute;
+  inset: 0;
+}
+
+.nz-contract__pad-svg {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.nz-contract__pad.is-disabled .nz-contract__pad-svg { cursor: default; }
+
+.nz-contract__pad-hint {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.nz-contract__pad-hint::before {
+  content: '\00D7';
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--teal);
+}
+
+.nz-contract__pad-hint::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  margin-top: 4px;
+  background: repeating-linear-gradient(90deg, var(--line) 0 6px, rgba(0, 0, 0, 0) 6px 11px);
+}
+
+.nz-contract__pad-clear {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  background: var(--raise);
+  border: 1px solid var(--line-soft);
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--fast), border-color var(--fast);
+}
+
+.nz-contract__pad-clear:hover { color: var(--white); border-color: var(--line); }
+
+.nz-contract__pad-full {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  right: 8px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--amber);
+  pointer-events: none;
+}
+
+/* banner under the letterhead */
+.nz-contract__banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 24px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-hair);
+}
+
+.nz-contract__banner > svg { flex: none; }
+.nz-contract__banner.is-teal { background: var(--teal-wash); }
+.nz-contract__banner.is-teal > svg { color: var(--teal); }
+.nz-contract__banner.is-amber { background: var(--amber-wash); }
+.nz-contract__banner.is-amber > svg { color: var(--amber); }
+.nz-contract__banner.is-red { background: var(--red-wash); }
+.nz-contract__banner.is-red > svg { color: var(--red); }
+.nz-contract__banner.is-neutral { background: rgba(255, 255, 255, .035); }
+.nz-contract__banner.is-neutral > svg { color: var(--ink-2); }
+
+.nz-contract__banner-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: rgba(255, 255, 255, .04);
+}
+
+.nz-contract__banner-bar i {
+  display: block;
+  height: 100%;
+  background: var(--teal);
+  transition: width 260ms linear;
+}
+
+.nz-contract__banner.is-amber .nz-contract__banner-bar i { background: var(--amber); }
+
+/* the stamp */
+.nz-contract__stamp {
+  position: absolute;
+  right: 34px;
+  bottom: 178px;
+  z-index: 3;
+  padding: 7px 18px 6px;
+  border: 2px solid currentColor;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 3px var(--panel), inset 0 0 0 4px currentColor;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  opacity: .82;
+  transform: rotate(-11deg);
+  pointer-events: none;
+  animation: nz-contract-stamp 280ms cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
+.nz-contract__stamp.is-teal { color: var(--teal); background: rgba(var(--teal-rgb), .06); }
+.nz-contract__stamp.is-red { color: var(--red); background: var(--red-wash); }
+.nz-contract__stamp.is-amber { color: var(--amber); background: var(--amber-wash); }
+.nz-contract__stamp.is-neutral { color: var(--ink-2); background: rgba(255, 255, 255, .03); }
+
+@keyframes nz-contract-stamp {
+  from { opacity: 0; transform: rotate(-11deg) scale(1.35); }
+  to { opacity: .82; transform: rotate(-11deg) scale(1); }
+}
+
+/* ── smaller screens ───────────────────────────────────────────────────── */
+
+@media (max-width: 1360px), (max-height: 780px) {
+  .nz-contract__split { grid-template-columns: 340px minmax(0, 1fr); }
+  .nz-contract__form { padding: 10px 14px 14px; }
+  .nz-contract__paper,
+  .nz-contract__scroll { padding: 16px 18px 18px; }
+  .nz-contract__head { padding: 16px 20px 14px; }
+  .nz-contract__sec { padding: 12px 20px 13px; }
+  .nz-contract__banner { padding: 10px 20px; }
+  .nz-contract__vimg { width: 88px; height: 48px; }
+  .nz-contract__vtext b { font-size: 15px; }
+  .nz-contract__specs { margin-top: 10px; }
+  .nz-contract__spec,
+  .nz-contract__cond { padding: 8px 11px 9px; gap: 6px; }
+  .nz-contract__h { margin-bottom: 9px; }
+  .nz-contract__opt { padding-top: 5px; padding-bottom: 5px; }
+  .nz-contract__price { font-size: 24px; }
+  .nz-contract__actions { min-height: 56px; padding: 10px 16px; }
+  .nz-contract__stamp { bottom: 160px; font-size: 19px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nz-contract__doc,
+  .nz-contract__stamp { animation: none; }
+  .nz-contract__banner-bar i { transition: none; }
+}

@@ -123,9 +123,28 @@ local function isOccupied(entity)
   return false
 end
 
-local function findEntityByPlate(plate)
+--- The registration of a vehicle entity: the real plate under a fake plate
+--- (NZ.FakePlates), else the plate text.
+local function identityOf(entity)
+  local fake = NZ.FakePlates
+  if type(fake) == 'table' and type(fake.realPlateOf) == 'function' then
+    local okReal, real = pcall(fake.realPlateOf, entity)
+    if okReal and real then return real end
+  end
+  return plateOf(entity)
+end
+
+--- Entity of the vehicle registered as `plate` (fake plates see through), or nil. With
+--- `hash` only an entity of that model counts: another player's car of another model that
+--- shows the same text (a fake plate, a plate changer) is never taken for this vehicle.
+---@param plate string
+---@param hash number|nil signed model hash (rowHash)
+local function findEntityByPlate(plate, hash)
   for _, entity in ipairs(GetAllVehicles() or {}) do
-    if isVehicleEntity(entity) and plateOf(entity) == plate then return entity end
+    if isVehicleEntity(entity) and identityOf(entity) == plate
+      and (not hash or hash == 0 or toSigned(GetEntityModel(entity)) == hash) then
+      return entity
+    end
   end
   return nil
 end
@@ -1316,8 +1335,12 @@ local function doRetrieve(src, plate, session, opts)
 
   if Vehicles.isOut(plate) then return fail(L('Vehicle is already out')) end
 
-  -- An untracked entity with this plate is a duplicate: remove it when nobody uses it.
-  local stray = findEntityByPlate(plate)
+  local hash = rowHash(row)
+  if not hash then return fail(L('Unknown vehicle model')) end
+
+  -- An untracked entity of this vehicle (same model) is a duplicate: remove it when nobody
+  -- uses it. Another model showing this plate text is somebody else's car (fake plate).
+  local stray = findEntityByPlate(plate, hash)
   if stray then
     if isOccupied(stray) then
       log('security.dupe', src, { plate = plate, reason = 'retrieve while an occupied copy exists' })
@@ -1326,9 +1349,6 @@ local function doRetrieve(src, plate, session, opts)
     deleteVehicle(stray)
     log('security.dupe', src, { plate = plate, reason = 'removed an untracked copy before retrieve' })
   end
-
-  local hash = rowHash(row)
-  if not hash then return fail(L('Unknown vehicle model')) end
 
   local points = session.location.spawnPoints
   if type(points) ~= 'table' or #points == 0 then return fail(L('This garage has no parking spots')) end
@@ -1534,7 +1554,8 @@ function Vehicles.spawnFailed(src, plate)
   local entry = Vehicles.out[plate]
   if not entry or entry.src ~= src then return false, L('This vehicle was not taken out by you') end
   if entry.entity and isVehicleEntity(entry.entity) then return false, L('Vehicle is already out') end
-  if findEntityByPlate(plate) then return false, L('Vehicle is already out') end
+  local stored = not entry.spawner and NZ.DB.getVehicle(plate) or nil
+  if findEntityByPlate(plate, stored and rowHash(stored) or nil) then return false, L('Vehicle is already out') end
   if (os.time() - (entry.at or 0)) > 120 then return false, L('This vehicle was not taken out by you') end
 
   if entry.spawner then
@@ -1632,6 +1653,15 @@ local function collectTrailer(vehicle, info, saveDamage, saveDeformation, plate,
   }
 end
 
+--- A fake plate comes off before a vehicle goes into a garage (the item goes back to the
+--- player with Config.FakePlates.returnOnStore). Returns true when it wore one.
+local function dropFakePlate(src, entity, plate)
+  if not (NZ.FakePlates and type(NZ.FakePlates.onStore) == 'function') then return false end
+  local okFake, res = pcall(NZ.FakePlates.onStore, src, entity)
+  if not okFake then lib.print.warn(('[nayzeee-garages] fake plate on store failed for %s: %s'):format(plate, tostring(res))) end
+  return okFake and res == true
+end
+
 local function doStore(src, session, entity, plate, payload)
   local location = session.location
   local key = session.garageKey
@@ -1643,6 +1673,7 @@ local function doStore(src, session, entity, plate, payload)
   if NZ.Jobs and NZ.Jobs.isSpawnerVehicle then
     local isSpawner, info = NZ.Jobs.isSpawnerVehicle(plate)
     if isSpawner then
+      dropFakePlate(src, entity, plate)
       deleteVehicle(entity)
       Vehicles.clearOut(plate)
       if NZ.Jobs.release then
@@ -1785,6 +1816,8 @@ local function doStore(src, session, entity, plate, payload)
     if not isOccupied(tracked.entity) then deleteVehicle(tracked.entity) end
   end
 
+  local hadFake = dropFakePlate(src, entity, plate)
+
   learnEntityType(entity)
   deleteVehicle(entity)
   if trailerEntity then deleteVehicle(trailerEntity) end
@@ -1802,6 +1835,7 @@ local function doStore(src, session, entity, plate, payload)
     body = fields.body,
     mileage = fields.mileage,
     trailer = fields.trailer ~= false,
+    fakePlate = hadFake or nil,
   })
   return ok({ returnTo = returnToOf(location) })
 end
@@ -1831,7 +1865,8 @@ function Vehicles.store(src, session, payload)
   end
   if not nearStorePoint(src, session.location) then return fail(L('You are too far from the garage')) end
 
-  local plate = plateOf(entity)
+  -- the registration, also under a fake plate (it comes off in doStore)
+  local plate = identityOf(entity)
   if not plate or #plate > MAX_PLATE_LENGTH then return fail(L('Invalid vehicle')) end
   return Vehicles.withLock(plate, doStore, src, session, entity, plate, payload)
 end
@@ -1961,7 +1996,8 @@ local function sweep()
       local adopted = false
       if not entry.netId then
         -- The client never reported its entity: adopt it if it exists after all.
-        local entity = findEntityByPlate(plate)
+        local stored = not entry.spawner and NZ.DB.getVehicle(plate) or nil
+        local entity = findEntityByPlate(plate, stored and rowHash(stored) or nil)
         if entity then
           entry.entity = entity
           entry.netId = NetworkGetNetworkIdFromEntity(entity)
@@ -2143,7 +2179,7 @@ register('nz:garage:recover', function(src, payload)
 
     local out, entity = Vehicles.isOut(plate)
     if out and not entity then return fail(L('Please wait a moment before trying again')) end
-    entity = entity or findEntityByPlate(plate)
+    entity = entity or findEntityByPlate(plate, rowHash(row))
     if entity and isOccupied(entity) then return fail(L('Someone is using this vehicle')) end
 
     local key = session.garageKey

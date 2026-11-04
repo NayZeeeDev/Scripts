@@ -34,6 +34,8 @@ CLIENT_ONLY_NUI = {
     'creator:save', 'creator:cancel',
     'admin:location:teleport', 'admin:points', 'admin:pickPosition', 'admin:interior:create',
     'admin:interior:edit',
+    'keys:refresh', 'keys:lock', 'keys:locate', 'keys:alarm', 'keys:players', 'keys:share', 'keys:holders',
+    'keys:revoke', 'locksmith:refresh', 'locksmith:service',
 }
 # Client handlers that call a server callback under a different name.
 CLIENT_TO_SERVER = {
@@ -42,8 +44,12 @@ CLIENT_TO_SERVER = {
     'garage:directions': 'nz:garage:nearestWithSpace', 'forSale:tour': 'nz:forSale:tour',
     'forSale:buy': 'nz:forSale:buy', 'impound:retrieve': 'nz:impound:retrieve',
     'creator:save': 'nz:creator:save',
+    'keys:refresh': 'nz:carlock:keys', 'keys:lock': 'nz:carlock:toggleLock', 'keys:locate': 'nz:carlock:tracker',
+    'keys:alarm': 'nz:carlock:trackerAlarm', 'keys:players': 'nz:carlock:nearbyPlayers', 'keys:share': 'nz:carlock:share',
+    'keys:holders': 'nz:carlock:holders', 'keys:revoke': 'nz:carlock:revoke',
+    'locksmith:refresh': 'nz:carlock:locksmith:open', 'locksmith:service': 'nz:carlock:locksmith:service',
 }
-APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior'}
+APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior', 'keys', 'locksmith', 'contract'}
 ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint', 'notify'}
 
 
