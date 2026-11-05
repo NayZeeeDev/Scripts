@@ -71,10 +71,11 @@ CreateThread(function()
 end)
 
 -- put back what was lying on the ground when the server went down
+Console.wait('drops')
 CreateThread(function()
     if not hasDb then
-        print('^3[nayzeee-backpack] oxmysql is not running: bags dropped on the ground will not survive a restart^0')
-        return
+        Console.check('drops', 'warn', 'Dropped bags', 'oxmysql is not running: they will not survive a restart')
+        return Console.done('drops')
     end
     MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_dropped_bags` (
         `drop_id`  VARCHAR(64) NOT NULL,
@@ -103,11 +104,13 @@ CreateThread(function()
                 Drop.track(dropId, row.bag, metadata, coords)
                 restored = restored + 1
             else
-                print(('^1[nayzeee-backpack] could not put dropped %s (bag id %s) back on the ground^0'):format(row.bag, tostring(metadata.bagid)))
+                Console.log('error', 'could not put dropped %s (bag id %s) back on the ground', row.bag, tostring(metadata.bagid))
             end
         end
     end
-    if restored > 0 then print(('[nayzeee-backpack] put %d dropped bag(s) back on the ground'):format(restored)) end
+    Console.check('drops', restored > 0 and 'info' or 'ok', 'Dropped bags',
+        restored > 0 and ('%d put back on the ground'):format(restored) or 'none waiting')
+    Console.done('drops')
 end)
 
 --- Move a backpack out of a player's inventory and onto the floor.

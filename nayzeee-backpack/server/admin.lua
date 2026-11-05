@@ -69,9 +69,9 @@ lib.addCommand('bagitems', {
 },]]):format(ob.item, GetCurrentResourceName())
     end
     if missing == 0 then
-        print('^2[nayzeee-backpack] every bag already has an ox_inventory item.^0')
+        Console.log('ok', 'every bag already has an ox_inventory item')
     else
-        print(('^3[nayzeee-backpack] %d bag(s) have no item yet. Paste into ox_inventory/data/items.lua:^0\n'):format(missing))
+        Console.log('warn', '%d bag(s) have no item yet. Paste into ox_inventory/data/items.lua:', missing)
         print(table.concat(out, '\n'))
     end
     if src ~= 0 then
@@ -106,14 +106,19 @@ lib.addCommand('givebag', {
     end
 end)
 
--- warn once on start about bags with no item
+-- on start: does ox_inventory know every bag?
+Console.wait('items')
 CreateThread(function()
     Wait(3000)
     local missing = {}
     for _, key in ipairs(Bags.keys()) do
         if not ox:Items(key) then missing[#missing + 1] = key end
     end
-    if #missing > 0 then
-        print(('^3[nayzeee-backpack] no ox_inventory item for: %s — run /bagitems for paste-ready entries^0'):format(table.concat(missing, ', ')))
+    if #missing == 0 then
+        Console.check('items', 'ok', 'Items', ('all %d bags are ox_inventory items'):format(#Bags.keys()))
+    else
+        Console.check('items', 'warn', 'Items', ('%d bag(s) have no ox_inventory item: paste install/ox_items.lua, or /bagitems'):format(#missing))
+        Console.log('warn', 'no item yet: %s', table.concat(missing, ', '))
     end
+    Console.done('items')
 end)

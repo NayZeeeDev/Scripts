@@ -31,7 +31,7 @@ end
 
 local function save()
     local ok = SaveResourceFile(RES, FILE, json.encode(overrides, { indent = true }), -1)
-    if not ok then print('^1[nayzeee-backpack] could not write ' .. FILE .. '^0') end
+    if not ok then Console.log('error', 'could not write %s', FILE) end
     return ok
 end
 

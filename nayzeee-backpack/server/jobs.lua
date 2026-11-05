@@ -27,7 +27,7 @@ local function giveKit(bagKey, bagid)
         if name and ox:Items(name) then
             ox:AddItem(id, name, count)
         elseif name then
-            print(('^3[nayzeee-backpack] kit item "%s" for %s does not exist in ox_inventory, skipped^0'):format(name, bagKey))
+            Console.log('warn', 'kit item "%s" for %s does not exist in ox_inventory, skipped', name, bagKey)
         end
     end
 end

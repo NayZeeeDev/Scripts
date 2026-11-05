@@ -54,9 +54,8 @@ local function copyToInventory(name, b64)
 
     if not warned then
         warned = true
-        print('^3[nayzeee-backpack] could not write into ox_inventory/web/images. Add this to server.cfg and restart:^0')
-        print(('^3    add_filesystem_permission %s write ox_inventory^0'):format(GetCurrentResourceName()))
-        print('^3  Your icons are still saved in nayzeee-backpack/icons/ — you can copy them over by hand.^0')
+        Console.log('warn', 'could not write into ox_inventory/web/images. Add to server.cfg and restart: add_filesystem_permission %s write ox_inventory', GetCurrentResourceName())
+        Console.log('info', 'your icons are still saved in %s/icons/, you can copy them over by hand', GetCurrentResourceName())
     end
     return false
 end

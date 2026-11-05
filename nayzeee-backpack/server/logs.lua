@@ -69,7 +69,7 @@ local function send(event, title, fields, color)
     for _, f in ipairs(fields) do
         flat[#flat + 1] = ('%s: %s'):format(f.name, f.value)
     end
-    print(('[nayzeee-backpack] %s | %s'):format(title, table.concat(flat, ' | ')))
+    Console.log('info', '%s | %s', title, table.concat(flat, ' | '))
 
     if not cfg.webhook or cfg.webhook == '' then return end
 

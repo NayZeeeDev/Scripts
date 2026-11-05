@@ -180,7 +180,7 @@ local function removeBag(src, reason)
     if ox:AddItem(src, ITEM, 1, describe(bag.metadata)) then
         DeleteResourceKvp(kvpKey(src))
     else
-        print(('^3[nayzeee-backpack] could not hand outfit bag back to %s, it will be restored on login^0'):format(src))
+        Console.log('warn', 'could not hand the outfit bag back to %s, it will be restored on login', src)
     end
 
     if reason == 'distance' then

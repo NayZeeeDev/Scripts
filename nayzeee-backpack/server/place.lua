@@ -62,12 +62,15 @@ local function deleteOne(id)
     MySQL.query('DELETE FROM nayzeee_placed_bags WHERE id = ?', { id })
 end
 
+Console.wait('placed')
 CreateThread(function()
     if not hasDb then
         if cfg.persist then
-            print('^3[nayzeee-backpack] persist is on but oxmysql is not running; placed bags will not survive a restart^0')
+            Console.check('placed', 'warn', 'Set-down bags', 'oxmysql is not running: they will not survive a restart')
+        else
+            Console.check('placed', 'info', 'Set-down bags', 'not saved (Config.Placement.persist = false)')
         end
-        return
+        return Console.done('placed')
     end
 
     -- make sure the table is there, so a set-down bag is never lost to a missing install.sql
@@ -100,9 +103,10 @@ CreateThread(function()
     end
 
     ready = true
-    if #rows > 0 then
-        print(('[nayzeee-backpack] restored %d placed bag(s)'):format(#rows))
-    end
+    Console.check('database', 'ok', 'Database', 'oxmysql, tables ready')
+    Console.check('placed', #rows > 0 and 'info' or 'ok', 'Set-down bags',
+        #rows > 0 and ('%d back on the ground'):format(#rows) or 'none waiting')
+    Console.done('placed')
 
     -- anyone who asked while we were still loading (a resource restart)
     for _, playerId in ipairs(GetPlayers()) do
