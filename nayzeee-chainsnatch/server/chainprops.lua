@@ -11,7 +11,7 @@
 -- rebuilt; props of chains that were removed are deleted.
 -----------------------------------------------------------------
 
-ChainProps = { scan = nil, running = false, kit = false, platform = nil }
+ChainProps = { scan = nil, running = false, kit = false, platform = nil, problems = {} }
 
 local CC = Config.Convert
 local RES = Config.PropsResource
@@ -61,7 +61,7 @@ function ChainProps.status()
     return {
         enabled = CC.Enabled, kit = ChainProps.kit, platform = ChainProps.platform, running = ChainProps.running,
         chains = count(Chains.list), found = s.found or 0,
-        new = s.new or {}, changed = s.changed or {}, removed = s.removed or {},
+        new = s.new or {}, changed = s.changed or {}, removed = s.removed or {}, problems = ChainProps.problems,
         folder = ('%s/%s'):format(SELF, CC.DropFolder or 'chains'), out = RES,
     }
 end
@@ -70,7 +70,7 @@ local function tell(src, data)
     if src and src > 0 then TriggerClientEvent('nzc:c:chainkit', src, data) end
 end
 
---- mode: 'scan' | 'build' (new + changed + removed) | 'rebuild' (everything) | 'icons'
+--- mode: 'scan' | 'build' (new + changed) | 'rebuild' (everything) | 'icons' | 'prune' (also delete chains whose files are gone)
 function ChainProps.run(mode, src)
     if not CC.Enabled or ChainProps.running then return false end
     if not ChainProps.kit then
@@ -78,6 +78,7 @@ function ChainProps.run(mode, src)
         return false
     end
     ChainProps.running = mode
+    if mode ~= 'scan' then ChainProps.problems = {} end
     tell(src, { kind = 'start', mode = mode })
     TriggerEvent('nzc:chainkit:run', {
         mode = mode, src = src or 0, kits = CC.Kit, roots = roots(), drops = { CC.DropFolder or 'chains' }, out = outDir(),
@@ -117,6 +118,11 @@ AddEventHandler('nzc:chainkit:msg', function(src, kind, data)
         end
         tell(src, { kind = 'status', status = ChainProps.status() })
         if booting and CC.AutoBuild and todo > 0 then autoBuild = true end
+    elseif kind == 'skip' or kind == 'warn' then
+        -- why a chain wasn't converted (or is very heavy): shown in the studio's Convert tab
+        local p = ChainProps.problems
+        if #p < 50 then p[#p + 1] = { kind = kind, label = data.label, file = data.file, reason = data.reason } end
+        print(('^3[%s]^7 chainkit %s %s: %s'):format(SELF, kind == 'skip' and 'skipped' or 'warning,', tostring(data.label or data.key), tostring(data.reason)))
     elseif kind == 'progress' then
         tell(src, { kind = 'progress', i = data.i, n = data.n, key = data.key, label = data.label })
     elseif kind == 'done' then
@@ -127,8 +133,22 @@ AddEventHandler('nzc:chainkit:msg', function(src, kind, data)
         elseif (data.built or 0) > 0 or (data.removed or 0) > 0 then
             restartProps()
         end
-        ChainProps.scan = { found = data.chains, new = {}, changed = {}, removed = {} }
-        if src and src > 0 then Worn.notify(src, ('Converted %d chain(s). Props restart in a moment.'):format(data.built or 0), 'success', 8000) end
+        local kept = (data.kept or 0) > 0 and ChainProps.scan and ChainProps.scan.removed or {}
+        ChainProps.scan = { found = data.chains, new = {}, changed = {}, removed = kept }
+        if src and src > 0 then
+            local failed = (data.tried or 0) - (data.built or 0)
+            if data.icons then
+                Worn.notify(src, ('Drew %d icon(s).'):format(data.built or 0), 'success', 6000)
+            elseif failed > 0 then
+                Worn.notify(src, ('Converted %d of %d chain(s). %d couldn\'t be: see the Convert tab for why.'):format(data.built or 0, data.tried or 0, failed), 'warning', 10000)
+            elseif (data.removed or 0) > 0 then
+                Worn.notify(src, ('Removed %d chain(s) whose files are gone.'):format(data.removed), 'success', 8000)
+            elseif (data.built or 0) > 0 then
+                Worn.notify(src, ('Converted %d chain(s). Props restart in a moment.'):format(data.built), 'success', 8000)
+            else
+                Worn.notify(src, 'Nothing new to convert.', 'info', 6000)
+            end
+        end
         tell(src, { kind = 'done', built = data.built, status = ChainProps.status() })
     elseif kind == 'error' then
         ChainProps.running = false -- the program may never have started, so no exit will come
@@ -160,7 +180,7 @@ end)
 RegisterNetEvent('nzc:s:chainkit', function(mode)
     local src = source
     if not Studio.allowed(src) then return end
-    if mode ~= 'scan' and mode ~= 'build' and mode ~= 'rebuild' and mode ~= 'icons' then return end
+    if mode ~= 'scan' and mode ~= 'build' and mode ~= 'rebuild' and mode ~= 'icons' and mode ~= 'prune' then return end
     if not ChainProps.run(mode, src) then tell(src, { kind = 'status', status = ChainProps.status() }) end
     Logs.send('admin', 'Converter', ('%s ran chainkit %s'):format(Logs.who(src), mode))
 end)

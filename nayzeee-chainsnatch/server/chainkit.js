@@ -34,10 +34,11 @@ on('nzc:chainkit:run', (job) => {
   try { fs.writeFileSync(rootsFile, lines.join('\n')); } catch (e) {
     return emit('nzc:chainkit:msg', job.src, 'error', { message: 'could not write ' + rootsFile + ': ' + e.message });
   }
-  const cmd = job.mode === 'rebuild' ? 'build' : job.mode;
+  const cmd = job.mode === 'rebuild' || job.mode === 'prune' ? 'build' : job.mode;
   const args = [cmd, '--out', path.resolve(job.out), '--roots-file', rootsFile,
     '--tex', String(job.tex || 1024), '--icons', String(job.icons == null ? 256 : job.icons), '--lod', String(job.lod || 60)];
   if (job.mode === 'rebuild') args.push('--all');
+  if (job.mode === 'prune') args.push('--prune');
 
   let buf = '';
   const tail = [];
@@ -55,6 +56,7 @@ on('nzc:chainkit:run', (job) => {
       if (job.mode !== 'scan') console.log(`^5[${RESOURCE}]^7 chainkit: ${l}`);
     }
   };
+  running.stdout.setEncoding('utf8');
   running.stdout.on('data', (d) => {
     buf += d.toString();
     let i;

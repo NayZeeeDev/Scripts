@@ -191,7 +191,8 @@ end)
 AddEventHandler('playerDropped', function() busy[source] = nil end)
 
 -- admins: where am I standing (for Config.Store.Locations)
-lib.addCommand('chainstorehere', { help = 'Print your spot for a jewelry store location', restricted = 'group.admin' }, function(src)
+lib.addCommand('chainstorehere', { help = 'Print your spot for a jewelry store location', restricted = false }, function(src)
+    if src <= 0 or not Bridge.IsAdmin(src) then return end
     local ped = GetPlayerPed(src)
     local c, h = GetEntityCoords(ped), GetEntityHeading(ped)
     local line = ('coords = vector3(%.2f, %.2f, %.2f), heading = %.1f,'):format(c.x, c.y, c.z, h)

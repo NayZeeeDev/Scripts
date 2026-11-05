@@ -265,7 +265,7 @@
     if (k === 'escape' || k === 'backspace') { e.preventDefault(); close(); }
     else if ((k === 'a' || k === 'arrowleft') && mode === 'counter') go(-1);
     else if ((k === 'd' || k === 'arrowright') && mode === 'counter') go(1);
-    else if (k === 'enter') buy();
+    else if (k === 'enter') { e.preventDefault(); if (document.activeElement) document.activeElement.blur(); buy(); }
     else if (k === 't') toggleTry();
   });
 

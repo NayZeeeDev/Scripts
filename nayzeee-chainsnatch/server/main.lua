@@ -234,8 +234,9 @@ lib.addCommand('givechain', {
         { name = 'chain', type = 'string', help = 'Chain key or part of its name' },
         { name = 'variant', type = 'string', help = 'Texture letter (a, b, ...)', optional = true },
     },
-    restricted = 'group.admin',
+    restricted = false,
 }, function(src, args)
+    if src > 0 and not Bridge.IsAdmin(src) then return notify(src, T.no_admin, 'error') end
     local key = args.chain
     if not Chains.exists(key) then
         local q = key:lower()
@@ -254,7 +255,8 @@ lib.addCommand('givechain', {
     if ok then Logs.send('admin', 'Chain given', ('%s gave %s to %s'):format(src > 0 and Logs.who(src) or 'console', Chains.label(key, args.variant), Logs.who(args.id))) end
 end)
 
-lib.addCommand('chainlist', { help = 'List every chain key', restricted = 'group.admin' }, function(src)
+lib.addCommand('chainlist', { help = 'List every chain key', restricted = false }, function(src)
+    if src > 0 and not Bridge.IsAdmin(src) then return notify(src, T.no_admin, 'error') end
     local lines = {}
     for _, k in ipairs(Chains.keys()) do
         local d = Chains.list[k]

@@ -31,7 +31,15 @@ H['studio:open'] = (d) => {
   document.body.classList.add('studio-on');
   sdRender();
 };
-H['studio:refresh'] = (d) => { if (!SD.on) return; SD.d = d; if (d.icon) SD.icon = d.icon; sdRender(); };
+H['studio:refresh'] = (d) => {
+  if (!SD.on) return;
+  SD.d = d;
+  if (d.icon) SD.icon = d.icon;
+  // someone is typing in the right panel (name, price, owner): don't wipe it, refresh the list only
+  const a = document.activeElement;
+  if (a && /INPUT|TEXTAREA/.test(a.tagName) && $('#sdRight').contains(a)) return sdLeft();
+  sdRender();
+};
 H['studio:close'] = () => {
   SD.on = false;
   sdRoot.hidden = true;
@@ -251,7 +259,7 @@ function sdConvert() {
   if (!k) return `<div class="card empty">${icon('rotate')}Asking the server…</div>`;
   const p = SD.prog, running = !!k.running;
   const names = (list, tag, cls) => arr(list).map((x) => `<div class="${cls}"><em>${tag}</em>${esc(x.label || x.key || x)}${x.variants > 1 ? ` · ${x.variants} textures` : ''}</div>`).join('');
-  const todo = arr(k.new).length + arr(k.changed).length + arr(k.removed).length;
+  const todo = arr(k.new).length + arr(k.changed).length;
   return `
     ${!k.enabled ? `<div class="card sd-warn">${icon('alert')}<span>The converter is off (Config.Convert.Enabled).</span></div>` : ''}
     ${k.enabled && !k.kit ? `<div class="card sd-warn">${icon('alert')}<span><b>chainkit</b> isn't installed for this server (${esc(k.platform || '?')}). Put it in tools/chainkit (see the README).</span></div>` : ''}
@@ -262,9 +270,13 @@ function sdConvert() {
       <div class="${arr(k.removed).length ? 'bad' : ''}"><b>${arr(k.removed).length}</b><span>removed</span></div>
     </div>
     ${todo ? `<div class="card sd-card"><div class="sd-ch">Waiting to build</div><div class="sd-names">
-      ${names(k.new, 'NEW', 't-success')}${names(k.changed, 'CHANGED', 't-warning')}${names(k.removed, 'GONE', 't-error')}</div></div>` : ''}
-    ${p ? `<div class="card sd-card sd-prog"><div class="sd-pt"><span>${p.mode === 'scan' ? 'Checking' : p.mode === 'icons' ? 'Drawing icons' : 'Converting'}</span><b>${esc(p.label || '')}</b></div>
+      ${names(k.new, 'NEW', 't-success')}${names(k.changed, 'CHANGED', 't-warning')}</div></div>` : ''}
+    ${p ? `<div class="card sd-card sd-prog"><div class="sd-pt"><span>${p.mode === 'scan' ? 'Checking' : p.mode === 'icons' ? 'Drawing icons' : p.mode === 'prune' ? 'Removing' : 'Converting'}</span><b>${esc(p.label || '')}</b></div>
       <div class="sd-bar"><i style="width:${p.n ? (p.i / p.n) * 100 : 8}%"></i></div><div class="sd-note">${p.n ? `${p.i} of ${p.n}` : 'working…'}</div></div>` : ''}
+    ${arr(k.problems).length ? `<div class="card sd-card"><div class="sd-ch">Couldn't convert <em>last build</em></div><div class="sd-names">
+      ${arr(k.problems).map((p) => `<div class="${p.kind === 'skip' ? 't-error' : 't-warning'}"><em>${p.kind === 'skip' ? 'SKIPPED' : 'HEAVY'}</em><span><b style="color:var(--white);font-weight:500">${esc(p.label || p.file || '')}</b> · ${esc(p.reason || '')}</span></div>`).join('')}</div></div>` : ''}
+    ${arr(k.removed).length ? `<div class="card sd-card sd-warn">${icon('alert')}<span>${arr(k.removed).length} chain(s) have no files any more. They're <b>kept</b>, so nobody loses one (an update or a renamed folder causes this).
+      <br><button class="btn sm red" data-sd="kit" data-v="prune" style="margin-top:7px" ${running || !k.kit ? 'disabled' : ''}>${icon('x')}Remove gone chains</button></span></div>` : ''}
     <div class="card sd-card">
       <div class="sd-ch">Convert</div>
       <div class="sd-row2">

@@ -36,12 +36,13 @@ static class P
 
     static int Main(string[] args)
     {
+        Console.OutputEncoding = new UTF8Encoding(false); // chain names like "Étoile" reach the server intact
         try
         {
             if (args.Length == 0) return Usage();
             var cmd = args[0];
             string outDir = null, rootsFile = null;
-            bool all = false;
+            bool all = false, prune = false;
             var roots = new List<string>();
             var drops = new List<string>();
             for (int i = 1; i < args.Length; i++)
@@ -52,6 +53,7 @@ static class P
                     case "--drop": drops.Add(args[++i]); break;
                     case "--roots-file": rootsFile = args[++i]; break;
                     case "--all": all = true; break;
+                    case "--prune": prune = true; break;
                     case "--tex": texMax = int.Parse(args[++i], IC); break;
                     case "--icons": iconSize = int.Parse(args[++i], IC); break;
                     case "--lod": lodDist = int.Parse(args[++i], IC); break;
@@ -88,7 +90,7 @@ static class P
                     var found = Find(drops, roots, outDir);
                     var diff = map.Diff(found);
                     var todo = all ? found : diff.New.Concat(diff.Changed).ToList();
-                    Build(outDir, map, todo, diff.Removed);
+                    Build(outDir, map, todo, diff.Removed, prune);
                     return 0;
                 }
                 case "icons":
@@ -111,6 +113,13 @@ static class P
     {
         Console.WriteLine("chainkit scan|build|icons --out <props folder> [--all] [--tex 1024] [--icons 256] [--lod 60] [--comps teef] [--drop folder]... [--roots-file file] [root ...]");
         return 2;
+    }
+
+    // a chain that couldn't be converted: the reason goes to the console AND the studio's Convert tab
+    static void Skip(Src s, string reason)
+    {
+        Console.WriteLine($"skip {s.Key}: {reason}");
+        Emit("skip", new JsonObject { ["key"] = s.Key, ["label"] = s.Label, ["file"] = Path.GetFileName(s.Ydd), ["reason"] = reason });
     }
 
     static void Emit(string kind, JsonNode data)
@@ -147,6 +156,36 @@ static class P
         return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s);
     }
 
+    // case-insensitive (Linux), and a folder we can't read never stops the whole scan
+    static readonly EnumerationOptions Walk = new() { RecurseSubdirectories = true, IgnoreInaccessible = true, MatchCasing = MatchCasing.CaseInsensitive };
+    static readonly EnumerationOptions Flat = new() { RecurseSubdirectories = false, IgnoreInaccessible = true, MatchCasing = MatchCasing.CaseInsensitive };
+
+    static readonly HashSet<string> Generic = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "stream", "male", "female", "men", "women", "man", "woman", "m", "f", "mp_m_freemode_01", "mp_f_freemode_01",
+        "ydd", "ytd", "files", "chains", "chain", "teef", "accessories", "accessory", "props", "clothing", "clothes", "fivem", "gta5", "data",
+    };
+
+    //  "Cuban Pack/stream/x.ydd" -> "Cuban Pack"; files straight in chains/ -> their pack or file name
+    static string DropLabel(string rel, string prefix, string file)
+    {
+        if (rel != ".")
+            foreach (var seg in rel.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var bare = seg.Trim().Trim('[', ']', '(', ')').Trim();
+                if (bare.Length > 0 && !Generic.Contains(bare)) return seg.Trim().Trim('[', ']').Trim();
+            }
+        if (prefix != "")
+        {
+            var coll = Regex.Replace(prefix, @"^mp_[mf]_freemode_01_?", "", RegexOptions.IgnoreCase);
+            coll = Regex.Replace(coll, @"^mp_[mf]_", "", RegexOptions.IgnoreCase);
+            if (coll.Length > 0) return Pretty(coll);
+        }
+        var stem = Path.GetFileNameWithoutExtension(file);
+        if (stem.Contains('^')) stem = stem.Substring(stem.IndexOf('^') + 1);
+        return Pretty(Regex.Replace(stem, @"_[a-z]$", "", RegexOptions.IgnoreCase));
+    }
+
     static List<Src> Find(List<string> drops, List<string> roots, string outDir)
     {
         var list = new Dictionary<string, Src>();
@@ -154,10 +193,13 @@ static class P
         // drop folders: whatever .ydd is in there, its textures next to it
         foreach (var drop in drops.Distinct())
         {
-            if (!Directory.Exists(drop)) continue;
+            if (!Directory.Exists(drop)) { Console.WriteLine($"drop folder {drop} doesn't exist"); continue; }
             var dropFull = Path.GetFullPath(drop);
-            var ydds = Directory.EnumerateFiles(dropFull, "*.ydd", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+            var ydds = Directory.EnumerateFiles(dropFull, "*", Walk)
+                .Where(f => f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
             var perFolder = ydds.GroupBy(f => Path.GetDirectoryName(f)).ToDictionary(g => g.Key, g => g.Count());
+            var found = new List<(Src s, string baseLabel)>();
             foreach (var f in ydds)
             {
                 var dir = Path.GetDirectoryName(f);
@@ -166,32 +208,61 @@ static class P
                 var m = AnyYdd.Match(name);
                 var comp = m.Success ? m.Groups[1].Value.ToLowerInvariant() : "x";
                 var num = m.Success ? int.Parse(m.Groups[2].Value, IC) : 0;
-                var folderName = rel == "." ? Path.GetFileNameWithoutExtension(name) : Path.GetFileName(dir);
+                // mp_m_freemode_01_mp_m_cuban^teef_000_u.ydd: the part before ^ tells male / female and the pack apart
+                var prefix = name.Contains('^') ? name.Substring(0, name.IndexOf('^')) : "";
+                var gender = prefix.StartsWith("mp_f_freemode_01", StringComparison.OrdinalIgnoreCase) ? "f"
+                           : prefix.StartsWith("mp_m_freemode_01", StringComparison.OrdinalIgnoreCase) ? "m" : "u";
+                var where = rel == "." ? Path.GetFileNameWithoutExtension(name) : rel;
                 var s = new Src
                 {
-                    Origin = "drop", Comp = comp, Local = num, Ydd = f, Folder = rel,
-                    Key = $"drop|{Slug(rel == "." ? Path.GetFileNameWithoutExtension(name) : rel)}|{comp}_{num:000}",
-                    Label = perFolder[dir] > 1 || rel == "." ? $"{Pretty(folderName)} {num}" : folderName.Trim(),
+                    Origin = "drop", Comp = comp, Local = num, Ydd = f, Folder = rel, Gender = "u",
+                    Key = $"drop|{Slug(where)}|{(prefix == "" ? "" : Slug(prefix) + "_")}{comp}_{num:000}",
                 };
-                var ytds = Directory.EnumerateFiles(dir, "*", SearchOption.TopDirectoryOnly)
+                var ytds = Directory.EnumerateFiles(dir, "*", Flat)
                     .Where(p => p.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase)).ToList();
                 foreach (var y in ytds)
                 {
                     var ym = DiffYtd.Match(Path.GetFileName(y));
-                    if (!ym.Success) continue;
-                    if (m.Success && (!ym.Groups[2].Value.Equals(comp, StringComparison.OrdinalIgnoreCase) || int.Parse(ym.Groups[3].Value, IC) != num)) continue;
+                    if (!ym.Success || !m.Success) continue;
+                    if (!ym.Groups[2].Value.Equals(comp, StringComparison.OrdinalIgnoreCase) || int.Parse(ym.Groups[3].Value, IC) != num) continue;
+                    // a male chain never takes the female texture of the same number (and the other way round)
+                    var yprefix = ym.Groups[1].Success ? ym.Groups[1].Value : "";
+                    if (prefix != "" && yprefix != "" && !yprefix.Equals(prefix, StringComparison.OrdinalIgnoreCase)) continue;
                     var letter = char.ToLowerInvariant(ym.Groups[4].Value[0]);
                     if (s.Ytds.All(t => t.letter != letter)) s.Ytds.Add((letter, y));
                 }
-                // a ydd with an odd name: take every texture file in its folder, in name order
+                // a ydd with an odd name (pendant.ydd): textures with the same name first (pendant.ytd, pendant_b.ytd ...),
+                // or every texture in the folder when it's the only model in its own folder
                 if (!m.Success && s.Ytds.Count == 0)
                 {
+                    var stem = Path.GetFileNameWithoutExtension(name);
+                    var same = ytds.Where(p => Path.GetFileName(p).StartsWith(stem, StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (same.Count == 0 && perFolder[dir] == 1 && rel != ".") same = ytds;
                     char c = 'a';
-                    foreach (var y in ytds.OrderBy(p => p, StringComparer.OrdinalIgnoreCase)) s.Ytds.Add((c++, y));
+                    foreach (var y in same.OrderBy(p => p, StringComparer.OrdinalIgnoreCase)) s.Ytds.Add((c++, y));
                 }
-                s.Ytds.Sort((a, b) => a.letter.CompareTo(b.letter));
+                s.Ytds.Sort((x, y) => x.letter.CompareTo(y.letter));
                 s.Sig = FileSig(f) + ";" + string.Join(";", s.Ytds.Select(t => t.letter + "=" + FileSig(t.path)));
-                list[s.Key] = s;
+                s.Gender = gender; // only used for the label here: drop chains are worn by everyone
+                found.Add((s, DropLabel(rel, prefix, name)));
+            }
+            // labels: the chain's folder name; several chains with the same one get "(Female)" / a number
+            foreach (var g in found.GroupBy(x => x.baseLabel, StringComparer.OrdinalIgnoreCase))
+            {
+                var items = g.ToList();
+                bool genders = items.Select(x => x.s.Gender).Distinct().Count() > 1;
+                foreach (var (src, baseLabel) in items)
+                {
+                    var label = baseLabel;
+                    // several chains in one folder: an odd-named one goes by its own file name (jesus_piece.ydd -> Jesus Piece)
+                    if (items.Count > 1 && src.Comp == "x") { src.Label = Pretty(Path.GetFileNameWithoutExtension(src.Ydd)); src.Gender = "u"; list[src.Key] = src; continue; }
+                    if (genders && src.Gender != "u") label += src.Gender == "f" ? " (Female)" : " (Male)";
+                    if (items.Count(x => x.s.Comp != "x" && (genders ? x.s.Gender == src.Gender : true)) > 1) label += " " + (src.Local + 1);
+                    src.Label = label;
+                    src.Gender = "u";
+                    if (list.ContainsKey(src.Key)) Console.WriteLine($"two files make the same chain {src.Key}, using {Path.GetFileName(src.Ydd)}");
+                    list[src.Key] = src;
+                }
             }
         }
 
@@ -203,7 +274,7 @@ static class P
             if (!Directory.Exists(r)) continue;
             if (Path.GetFullPath(r).StartsWith(outDir, StringComparison.OrdinalIgnoreCase)) continue;
             IEnumerable<string> files;
-            try { files = Directory.EnumerateFiles(r, "*", SearchOption.AllDirectories); } catch { continue; }
+            try { files = Directory.EnumerateFiles(r, "*", Walk).ToList(); } catch { continue; }
             foreach (var f in files)
             {
                 var n = Path.GetFileName(f);
@@ -257,7 +328,7 @@ static class P
 
     // building -------------------------------------------------------------------------------------
 
-    static void Build(string outDir, ChainMap map, List<Src> todo, List<string> removed)
+    static void Build(string outDir, ChainMap map, List<Src> todo, List<string> removed, bool prune)
     {
         Directory.CreateDirectory(Path.Combine(outDir, "stream"));
         int i = 0, ok = 0;
@@ -269,9 +340,12 @@ static class P
             {
                 if (Convert(outDir, map, s)) ok++;
             }
-            catch (Exception e) { Console.WriteLine($"skip {s.Key}: {e.Message}"); }
+            catch (Exception e) { Skip(s, e.Message); }
         }
-        foreach (var k in removed) map.Remove(outDir, k);
+        // chains whose files are gone are only deleted when asked (--prune): a missing or emptied chains/ folder
+        // (an update, a renamed folder, a stopped clothing resource) must never wipe props players already own
+        if (prune) foreach (var k in removed) map.Remove(outDir, k);
+        else if (removed.Count > 0) Console.WriteLine($"{removed.Count} chain(s) have no files any more, kept (Remove gone chains in the studio deletes them)");
         WriteYtyp(outDir, map);
         map.Save(outDir);
         var manifest = Path.Combine(outDir, "fxmanifest.lua");
@@ -280,7 +354,7 @@ static class P
             File.WriteAllText(manifest, "fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Chain props for nayzeee-chainsnatch (made by chainkit, do not edit)'\n\n" +
                 "this_is_a_map 'yes'\ndata_file 'DLC_ITYP_REQUEST' 'stream/nzc_chains.ytyp'\nfiles { 'chainmap.json', 'icons/*.png' }\n");
         }
-        Emit("done", new JsonObject { ["built"] = ok, ["tried"] = todo.Count, ["removed"] = removed.Count, ["chains"] = map.Entries.Count });
+        Emit("done", new JsonObject { ["built"] = ok, ["tried"] = todo.Count, ["removed"] = prune ? removed.Count : 0, ["kept"] = prune ? 0 : removed.Count, ["chains"] = map.Entries.Count });
     }
 
     // drawable parsing -------------------------------------------------------------------------------
@@ -411,20 +485,29 @@ static class P
         return d;
     }
 
-    static CodeWalker.GameFiles.Texture VariantDiffuse(string ytdPath, out Dictionary<string, CodeWalker.GameFiles.Texture> all)
+    static CodeWalker.GameFiles.Texture VariantDiffuse(string ytdPath, string shaderDiffuse, out Dictionary<string, CodeWalker.GameFiles.Texture> all)
     {
         all = new Dictionary<string, CodeWalker.GameFiles.Texture>(StringComparer.OrdinalIgnoreCase);
         var ytd = new YtdFile(); ytd.Load(File.ReadAllBytes(ytdPath));
-        var items = ytd.TextureDict?.Textures?.data_items ?? Array.Empty<CodeWalker.GameFiles.Texture>();
-        foreach (var t in items) if (t?.Name != null) all.TryAdd(t.Name, t);
-        return items.FirstOrDefault(t => t != null && !NotDiffuse.IsMatch(t.Name ?? "")) ?? items.FirstOrDefault();
+        var items = (ytd.TextureDict?.Textures?.data_items ?? Array.Empty<CodeWalker.GameFiles.Texture>()).Where(t => t != null).ToArray();
+        foreach (var t in items) if (t.Name != null) all.TryAdd(t.Name, t);
+        if (items.Length == 1) return items[0];
+        var stem = Path.GetFileName(ytdPath).Split('.')[0];
+        if (stem.Contains('^')) stem = stem.Substring(stem.IndexOf('^') + 1);
+        return items.FirstOrDefault(t => shaderDiffuse != null && string.Equals(t.Name, shaderDiffuse, StringComparison.OrdinalIgnoreCase))
+            ?? items.FirstOrDefault(t => stem.StartsWith(t.Name ?? "\0", StringComparison.OrdinalIgnoreCase) || (t.Name ?? "").StartsWith(stem, StringComparison.OrdinalIgnoreCase))
+            ?? items.FirstOrDefault(t => !NotDiffuse.IsMatch(t.Name ?? ""))
+            ?? items.FirstOrDefault();
     }
 
     public class Img { public byte[] Rgba; public int W, H; }
 
     static Img Pixels(CodeWalker.GameFiles.Texture t, int max)
     {
-        var bgra = CodeWalker.Utils.DDSIO.GetPixels(t, 0);
+        byte[] bgra = null;
+        try { bgra = CodeWalker.Utils.DDSIO.GetPixels(t, 0); } catch { }
+        if (bgra == null || bgra.Length < t.Width * t.Height * 4)
+            throw new Exception($"texture {t.Name} is in a format the converter can't read ({t.Format}, {t.Width}x{t.Height})");
         var rgba = new byte[t.Width * t.Height * 4];
         for (int i = 0; i < rgba.Length; i += 4) { rgba[i] = bgra[i + 2]; rgba[i + 1] = bgra[i + 1]; rgba[i + 2] = bgra[i]; rgba[i + 3] = bgra[i + 3]; }
         int tw = Pow2(t.Width, max), th = Pow2(t.Height, max);
@@ -496,12 +579,13 @@ static class P
         try
         {
             var ydd = new YddFile(); ydd.Load(File.ReadAllBytes(s.Ydd));
-            if (ydd.Drawables == null || ydd.Drawables.Length == 0) { Console.WriteLine($"skip {s.Key}: no drawable in {Path.GetFileName(s.Ydd)}"); return false; }
+            if (ydd.Drawables == null || ydd.Drawables.Length == 0) { Skip(s, $"no model inside {Path.GetFileName(s.Ydd)}"); return false; }
+            if (ydd.Drawables.Length > 1) Console.WriteLine($"  {s.Key}: {Path.GetFileName(s.Ydd)} holds {ydd.Drawables.Length} models, using the first");
             var item = FirstItem(YddXml.GetXml(ydd, tmp));
             foreach (var f in Directory.GetFiles(tmp)) File.Delete(f); // the XML export also dumps textures, we write our own
             var shaders = ParseShaders(item);
             var geos = ParseGeometries(item);
-            if (geos.Count == 0) { Console.WriteLine($"skip {s.Key}: no high detail mesh"); return false; }
+            if (geos.Count == 0) { Skip(s, "the model has no high detail mesh"); return false; }
             if (shaders.Count == 0) shaders.Add(new SrcShader());
 
             // pivot = centre of the mesh, so the prop turns in place and sits where you put it
@@ -519,17 +603,17 @@ static class P
             {
                 try
                 {
-                    var t = VariantDiffuse(path, out var inYtd);
+                    var t = VariantDiffuse(path, shaders[0].Diffuse, out var inYtd);
                     foreach (var kv in inYtd) extra.TryAdd(kv.Key, kv.Value);
                     if (t != null) variants.Add((letter, t, Path.GetFileName(path)));
                 }
-                catch (Exception e) { Console.WriteLine($"  {s.Key}: could not read {Path.GetFileName(path)} ({e.Message})"); }
+                catch (Exception e) { Console.WriteLine($"  {s.Key}: could not read texture {Path.GetFileName(path)} ({e.Message}), that colour is left out"); }
             }
             if (variants.Count == 0)
             {
                 var own = shaders.Select(sh => sh.Diffuse).Where(n => n != null && emb.ContainsKey(n)).Select(n => emb[n]).FirstOrDefault()
                           ?? emb.Values.FirstOrDefault(t => !NotDiffuse.IsMatch(t.Name ?? ""));
-                if (own == null) { Console.WriteLine($"skip {s.Key}: no texture (.ytd) found next to {Path.GetFileName(s.Ydd)}"); return false; }
+                if (own == null) { Skip(s, $"no texture: put its _diff_ .ytd file(s) next to {Path.GetFileName(s.Ydd)}"); return false; }
                 variants.Add(('a', own, "embedded"));
             }
 
@@ -602,6 +686,8 @@ static class P
             var all = geos.SelectMany(g => g.P).ToList();
             var mn = all.Aggregate(Vector3.Min); var mx = all.Aggregate(Vector3.Max);
             map.Set(s, id, built, centre, mn, mx, tris, verts, outShaders.Select(o => o.Kind).Distinct().ToArray());
+            if (bytes / Math.Max(1, variants.Count) > 14 * 1024 * 1024 || tris > 300000)
+                Emit("warn", new JsonObject { ["key"] = s.Key, ["label"] = s.Label, ["reason"] = $"very heavy: {tris} triangles, {bytes / Math.Max(1, variants.Count) / 1048576} MB per texture. FiveM warns about props over 16 MB" });
             Console.WriteLine($"ok {s.Key} -> {id} x{variants.Count} ({verts} verts, {tris} tris, {bytes / 1024} KB, {string.Join("/", outShaders.Select(o => o.Kind))})");
             return true;
         }
@@ -654,7 +740,10 @@ static class P
         sb.Append("  </TextureDictionary>\n  <Shaders>\n");
         foreach (var sh in shaders)
         {
-            sb.Append($"   <Item>\n    <Name>{sh.Kind}</Name>\n    <FileName>{sh.Kind}.sps</FileName>\n    <RenderBucket value=\"0\" />\n    <Parameters>\n");
+            // a texture with see-through parts (cut-out links, a pendant's gaps) needs a cut-out shader, or the holes render solid
+            var kind = !alpha ? sh.Kind : sh.Kind == "normal_spec" ? "normal_spec_cutout" : "cutout";
+            var bucket = alpha ? 3 : 0;
+            sb.Append($"   <Item>\n    <Name>{kind}</Name>\n    <FileName>{kind}.sps</FileName>\n    <RenderBucket value=\"{bucket}\" />\n    <Parameters>\n");
             sb.Append(TexP("DiffuseSampler", diffuse));
             var s = sh.Src;
             if (sh.Kind == "normal_spec")
@@ -670,7 +759,7 @@ static class P
                 sb.Append(Vec("useTessellation", 0));
                 sb.Append(Vec("HardAlphaBlend", 1));
             }
-            else if (sh.Kind == "spec")
+            else if (sh.Kind == "spec" && !alpha)
             {
                 sb.Append(TexP("SpecSampler", sh.Spec));
                 sb.Append(Vec("globalAnimUV0", 1, 0, 0));

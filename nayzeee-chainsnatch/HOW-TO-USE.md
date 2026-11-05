@@ -66,6 +66,12 @@ nayzeee-chainsnatch/chains/
 colours has three `.ytd` files (`_a_`, `_b_`, `_c_`): put them all in, each becomes its own look.
 Don't rename them, and don't put them in a `stream` folder.
 
+- **Male and female files in one download?** Leave them together in the same folder: they become two chains,
+  *Name (Male)* and *Name (Female)*, each with its own textures.
+- **The folder is the chain's id.** To change the name players see later, use the studio's **Look** tab.
+  Renaming the folder makes it a *new* chain (the old one is kept, nothing is lost).
+- Subfolders are fine (`Cuban Pack/stream/…`): the name comes from the first folder that isn't `stream`, `male` …
+
 **3. Build it.** In game: `/chainstudio` → **Convert** tab → **Build**. Wait for *"Converted 1 chain(s)"*.
 (Or just restart the server: new chains are built on start.)
 
@@ -102,7 +108,8 @@ Want to hand it over for free instead? `/givechain [their id] "chain name"`.
 
 If your server already has chains in a clothing pack and you want them sold at the jewelry store instead:
 
-1. `config.lua` → `Config.Convert.ScanResources = { 'your_clothing_resource' }` → restart (or **Build**).
+1. `config.lua` → `Config.Convert.ScanResources = { 'your_clothing_resource' }` → restart `nayzeee-chainsnatch`
+   (the config is read on start, so a Build alone won't see the change).
 2. Add the chains to block to `Config.Appearance.Block`. The studio's **Look** tab shows the exact line to paste.
 3. illenium-appearance: install the small addon in `install/illenium-appearance` (3 steps, its README).
 
@@ -128,11 +135,13 @@ Nothing in your clothing packs is blocked unless you list it.
 | You see | Do this |
 |---|---|
 | *chainkit isn't installed* | `tools/chainkit/linux-x64/chainkit` (Linux) or `tools/chainkit/win-x64/chainkit.exe` (Windows) is missing. It's in the release zip |
-| Build says *no texture (.ytd) found* | the `.ytd` files aren't in the chain's folder |
+| A chain didn't convert | the **Convert** tab lists it under *Couldn't convert* with the reason (also in the server console). Usually: its `_diff_` `.ytd` files aren't in its folder |
+| *N chain(s) have no files any more* | their folder was moved, renamed or emptied (an update). They're **kept**, so nobody loses one. Put the files back, or press **Remove gone chains** |
 | The chain is invisible / *model is not registered* | `nayzeee-chainprops` isn't started: check the `ensure` and `add_ace` lines, restart |
 | The chain floats in front of the neck when they run | it isn't fitted yet: **Fit** → **From clothing** → **Save** |
 | No picture on the item | restart `ox_inventory` once after the first build (it loads new pictures on start) |
 | *could not write into ox_inventory/web/images* | add `add_filesystem_permission nayzeee-chainsnatch write ox_inventory` to `server.cfg` |
 | Looks right on men, wrong on women | fit it again on a female ped and **Save**: fits are per body |
 
-Keep `nayzeee-chainsnatch/data/` when you update the script: your fits, prices and owners are in it.
+**Updating the script?** Keep these three folders from your old copy: `chains/` (your chain files), `data/` (fits,
+prices, owners, chains on the ground) and `icons/` (studio pictures). Replace everything else.
