@@ -53,18 +53,26 @@ local function ray(from, to, ignore)
     return hit == 1, coords, entity
 end
 
--- Where the crosshair points: the ray ignores your own character, and if it lands on the till being
--- placed it carries on through it, so the till follows your mouse instead of creeping towards the camera
+--[[
+    Where the crosshair points.
+    point mode: the ray ignores your character.
+    prop mode:  the ray ignores the till being placed (so it can't land on itself and stall), and starts just past
+                your character instead of at the camera, so it can't stop on you either.
+    Returns hit, coords, and a fallback spot along the aim line for when nothing is hit (aiming at the sky / too far)
+]]
 local function crosshair(ghost)
     local ped = PlayerPedId()
-    local from = GetGameplayCamCoord()
+    local cam = GetGameplayCamCoord()
     local dir = direction(GetGameplayCamRot(2))
-    local to = from + dir * (CFG.Distance + 8.0)
-    local hit, at, entity = ray(from, to, ped)
-    if hit and ghost and entity == ghost then
-        hit, at = ray(at + dir * 0.02, to, ghost)
+    local to = cam + dir * (CFG.Distance + 8.0)
+    local from, ignore = cam, ped
+    if ghost then
+        local pedPos = GetEntityCoords(ped)
+        local along = math.max(0.0, (pedPos.x - cam.x) * dir.x + (pedPos.y - cam.y) * dir.y + (pedPos.z - cam.z) * dir.z)
+        from, ignore = cam + dir * (along + 0.45), ghost
     end
-    return hit, at
+    local hit, at = ray(from, to, ignore)
+    return hit, at, cam + dir * math.min(CFG.Distance, 4.0)
 end
 
 local function marker(kind, c, sx, sy, sz, col, alpha)
@@ -111,7 +119,7 @@ local function place(job)
         FreezeEntityPosition(ghost, true)
         SetEntityInvincible(ghost, true)
         SetEntityVisible(ghost, true, false)
-        SetEntityHeading(ghost, heading)
+        SetEntityRotation(ghost, 0.0, 0.0, heading, 2, true)
         dbg('ghost created', ghost, job.model)
     end
 
@@ -122,19 +130,20 @@ local function place(job)
         local fine = IsDisabledControlPressed(0, K.fine)
         local origin = GetEntityCoords(ped) + vector3(0.0, 0.0, 0.35)
         local up, down = anyPressed(K.scrollUp), anyPressed(K.scrollDown)
-        local hit, at = crosshair(ghost)
+        local hit, at, aim = crosshair(ghost)
         local valid = hit and #(origin - at) <= CFG.Distance
         local spot
+        if Config.Registers.Debug and GetGameTimer() % 1000 < 17 then dbg(('hit=%s at=%s ghost=%s'):format(tostring(hit), tostring(at), tostring(ghost))) end
 
         if job.mode == 'prop' then
             local step = fine and 1.0 or 7.5
             if up then heading = (heading + step) % 360 end
             if down then heading = (heading - step) % 360 end
-            if hit then
-                spot = vector3(at.x, at.y, at.z - minZ)
-                SetEntityCoordsNoOffset(ghost, spot.x, spot.y, spot.z, false, false, false)
-            end
-            SetEntityHeading(ghost, heading)
+            -- follow the crosshair every frame: on the surface you aim at, or floating on the aim line when nothing is hit
+            local p = hit and vector3(at.x, at.y, at.z - minZ) or aim
+            if hit then spot = p end
+            SetEntityCoordsNoOffset(ghost, p.x, p.y, p.z, false, false, false)
+            SetEntityRotation(ghost, 0.0, 0.0, heading, 2, true)
             hud({
                 { k = 'E', l = L('place.key_place', 'Place'), off = not valid },
                 { k = 'G', l = L('place.key_cancel', 'Cancel') },
