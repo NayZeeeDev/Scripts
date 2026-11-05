@@ -1243,8 +1243,8 @@ async function pageAdmin() {
         ['here', 'pin', t('reg.mode_here', 'My position'), t('reg.mode_here_sub', 'Where you stand')],
     ].filter(([m]) => m !== 'prop' || props.length);
     const how = {
-        prop: t('reg.how_prop', 'The till follows your crosshair. Scroll or ← → to rotate, ↑ ↓ to raise it, Shift for fine steps, E to place, Backspace to cancel.'),
-        point: t('reg.how_point', 'Aim the line and ball at the existing till. The cylinder is the third-eye radius: scroll to resize, E to place, Backspace to cancel.'),
+        prop: t('reg.how_prop', 'The till follows your crosshair, or press H to hold it in your hands. Scroll rotates it (Shift for fine steps), E places it, G cancels.'),
+        point: t('reg.how_point', 'Aim the ball at the existing till: that spot becomes the third-eye target. Scroll sets the radius, E places it, G cancels.'),
         here: t('reg.how_here', 'Adds the register where you are standing right now.'),
     }[I.regMode];
     const typeOf = (r) => (r.model ? `<span class="badge acc">${ic('box')}${esc((props.find((p) => p.model === r.model) || {}).label || r.model)}</span>` : `<span class="badge mute">${ic('crosshair')}${t('reg.type_point', 'Map till')}</span>`);
@@ -1272,6 +1272,14 @@ async function pageAdmin() {
                 <td class="r"><span style="display:inline-flex;gap:6px"><button class="ibtn sm" data-act="regWaypoint" data-id="${esc(r.id)}" title="${t('reg.waypoint', 'Waypoint')}">${ic('pin')}</button><button class="ibtn sm" data-act="regTeleport" data-id="${esc(r.id)}" title="${t('reg.teleport', 'Teleport')}">${ic('teleport')}</button>
                 ${r.source !== 'config' ? `<button class="ibtn sm" data-act="regMove" data-id="${esc(r.id)}" title="${t('reg.move', 'Move')}">${ic('crosshair')}</button><button class="ibtn sm danger" data-act="regDelete" data-id="${esc(r.id)}">${ic('trash')}</button>` : ''}</span></td></tr>`).join('')}</tbody></table>`
         : emptyState('register', t('reg.none', 'No registers'), t('reg.none_sub', 'Add one above or define them in config.lua'))}</div></div>`);
+}
+
+// Register placement key bar (bottom centre, shown while the billing window is closed)
+function placeHud(d) {
+    const el = $('#placeHud');
+    if (!d || !Array.isArray(d.keys)) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.innerHTML = d.keys.map((k) => `<span class="${k.off ? 'off' : ''}"><kbd class="${k.wide ? 'wide' : ''}">${esc(k.k)}</kbd>${esc(k.l)}</span>`).join('');
+    el.classList.remove('hidden');
 }
 
 // ═══════════════ PAPER (item use) ═══════════════
@@ -1762,6 +1770,7 @@ window.addEventListener('message', (ev) => {
         case 'displayUpdate': displayUpdate(data); break;
         case 'displayCheckout': displayCheckout(data); break;
         case 'displayClose': displayClose(); break;
+        case 'placeHud': placeHud(data); break;
     }
 });
 if (IN_GAME) nui('uiReady');
@@ -1844,6 +1853,7 @@ const Mock = (() => {
             document.body.style.background = 'radial-gradient(1100px 640px at 50% -8%,#1b2224 0%,transparent 62%),#22272b';
             const q = new URLSearchParams(location.search);
             if (q.get('view') === 'paper') { showPaper(detail(91)); return; }
+            if (q.get('view') === 'place') { placeHud({ keys: [{ k: 'E', l: 'Place' }, { k: 'H', l: 'Hold in hand' }, { k: 'G', l: 'Cancel' }, { k: 'Scroll', l: 'Rotate', wide: true }] }); return; }
             if (q.get('view') === 'display') { displayOpen({ society: 'Burgershot', register: 'Front Counter', employee: 'Jordan Vale' }); displayCheckout({ invoice: Object.assign(inv(1, {}), { items: [{ label: 'Bleeder Burger', amount: 8.99, quantity: 2 }], subtotal: 17.98, vatRate: 0.08, vat: 1.44, total: 19.42 }) }); return; }
             if (q.get('view') === 'pos') { openPos({ register: { id: 'r1', label: 'Burgershot Counter', societyLabel: 'Burgershot' }, vatRate: 0.08, menu: templates.slice(0, 3), nearby: [{ id: 3, name: 'Rafael Salas', distance: 1.2 }] }); return; }
             S.account = q.get('account') || 'personal';

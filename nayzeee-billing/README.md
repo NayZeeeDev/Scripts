@@ -56,7 +56,7 @@ Discord: discord.gg/nayzeeedev
 - **Physical invoice item** for online citizen recipients; using it opens the paper invoice with a Pay button. Receipt item on payment. **Print invoice** gives a copy.
 - **Overdue collection**: flag expired invoices with a one-time late fee, or collect automatically from the bank after X days, **including offline characters**. Society recipients are charged from their society account.
 - **Cash registers** with a live customer display and checkout on the customer's screen
-- **Billing Admin** page (sidebar, or `/billingadmin`) with **register placement**: *Spawn prop* puts a till prop on the counter with a crosshair raycast (rotate, raise, place) for restaurants without a till; *Existing register* aims a line and ball at a till that's already in the map, with a cylinder showing the third-eye radius. In-game registers can be moved the same way.
+- **Billing Admin** page (sidebar, or `/billingadmin`) with **register placement**: *Spawn prop* puts a till prop on the counter with a crosshair raycast or by holding it in your hands for restaurants without a till; *Existing register* aims a ball at a till that's already in the map to set the third-eye target. A key bar at the bottom of the screen shows the controls. In-game registers can be moved the same way.
 - **F7 keymapping** (configurable and rebindable)
 - **Editable bridges**: framework, banking, inventory, notifications, logger
 - **JSON locales** (`locales/en.json`), **UI colours** from config
@@ -128,8 +128,8 @@ Open **Billing Admin** (sidebar > Admin, or `/billingadmin`), pick a mode, fill 
 
 | Mode | Use it when | Controls |
 |---|---|---|
-| Spawn prop | The restaurant has no till | Crosshair moves the till · Scroll / ← → rotate · ↑ ↓ raise · Shift fine · E place · Backspace cancel |
-| Existing register | The map already has a till | Aim the line + ball at the till · Scroll resizes the third-eye cylinder · Shift fine · E place · Backspace cancel |
+| Spawn prop | The restaurant has no till | The till follows your crosshair · **H** hold it in your hands (E then drops it onto the surface below) · **Scroll** rotate (Shift: fine) · **E** place · **G** cancel |
+| Existing register | The map already has a till | Aim the ball at the till (that spot is the third-eye target) · **Scroll** third-eye radius · **E** place · **G** cancel |
 | My position | Quick add | Adds the register where you stand |
 
 Props come from `Config.Registers.Placement.Props` (only those models can be placed); spawned tills are local objects created for players within `PropDistance`. Use the crosshair button on an in-game register to move it. Config registers accept `model` and `heading` too.

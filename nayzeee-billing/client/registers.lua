@@ -111,7 +111,13 @@ local function spawnProp(r, zone)
         coords = vector3(r.coords.x, r.coords.y, r.coords.z), distance = Config.Registers.Placement.PropDistance or 60.0,
         onEnter = function()
             if zone.prop and DoesEntityExist(zone.prop) then return end
-            if not pcall(lib.requestModel, model, 5000) then return end
+            RequestModel(model)
+            local timeout = GetGameTimer() + 8000
+            while not HasModelLoaded(model) do
+                if GetGameTimer() > timeout then print(('^1[NAYZEEE-BILLING]^7 Register prop %s failed to load'):format(r.model)) return end
+                Wait(10)
+            end
+            if zone.prop and DoesEntityExist(zone.prop) then return end
             local obj = CreateObject(model, r.coords.x, r.coords.y, r.coords.z, false, false, false)
             SetEntityCoordsNoOffset(obj, r.coords.x, r.coords.y, r.coords.z, false, false, false)
             SetEntityHeading(obj, (r.heading or 0.0) + 0.0)
