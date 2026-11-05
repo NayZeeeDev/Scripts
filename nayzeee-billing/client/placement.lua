@@ -46,33 +46,43 @@ local function direction(rot)
     return vector3(-math.sin(z) * c, math.cos(z) * c, math.sin(x))
 end
 
--- Synchronous line test against the world and objects (flags 1 + 16), ignoring one entity
-local function ray(from, to, ignore)
-    local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, 17, ignore or 0, 4)
-    local _, hit, coords, _, entity = GetShapeTestResult(h)
-    return hit == 1, coords, entity
+-- Synchronous line test, ignoring one entity. Returns hit, coords, surface normal, entity
+local function probe(from, to, flags, ignore)
+    local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, flags, ignore or 0, 4)
+    local _, hit, coords, normal, entity = GetShapeTestResult(h)
+    return hit == 1, coords, normal, entity
+end
+
+-- Is this hit the till being placed? (compares the handle, and model + position as a fallback)
+local function isGhost(entity, ghost)
+    if not ghost or not entity or entity == 0 then return false end
+    if entity == ghost then return true end
+    return DoesEntityExist(entity) and GetEntityModel(entity) == GetEntityModel(ghost) and #(GetEntityCoords(entity) - GetEntityCoords(ghost)) < 0.05
 end
 
 --[[
-    Where the crosshair points.
-    point mode: the ray ignores your character.
-    prop mode:  the ray ignores the till being placed (so it can't land on itself and stall), and starts just past
-                your character instead of at the camera, so it can't stop on you either.
-    Returns hit, coords, and a fallback spot along the aim line for when nothing is hit (aiming at the sky / too far)
+    Where the crosshair points. Returns hit, coords, surface normal.
+    With a till being placed, two rays are cast: one against the map only (1), which can never hit the till,
+    and one against props (16) that skips the till. The nearer real hit wins, so the till snaps onto walls,
+    counters and floors instead of landing on itself.
 ]]
 local function crosshair(ghost)
     local ped = PlayerPedId()
     local cam = GetGameplayCamCoord()
-    local dir = direction(GetGameplayCamRot(2))
-    local to = cam + dir * (CFG.Distance + 8.0)
-    local from, ignore = cam, ped
-    if ghost then
-        local pedPos = GetEntityCoords(ped)
-        local along = math.max(0.0, (pedPos.x - cam.x) * dir.x + (pedPos.y - cam.y) * dir.y + (pedPos.z - cam.z) * dir.z)
-        from, ignore = cam + dir * (along + 0.45), ghost
+    local to = cam + direction(GetGameplayCamRot(2)) * (CFG.Distance + 8.0)
+    if not ghost then
+        local hit, at, normal = probe(cam, to, 17, ped)
+        return hit, at, normal
     end
-    local hit, at = ray(from, to, ignore)
-    return hit, at, cam + dir * math.min(CFG.Distance, 4.0)
+    local hitMap, atMap, nMap = probe(cam, to, 1, ped)
+    local hitObj, atObj, nObj, entity = probe(cam, to, 16, ghost)
+    if hitObj and isGhost(entity, ghost) then hitObj = false end
+    if hitMap and hitObj then
+        if #(atObj - cam) < #(atMap - cam) then return true, atObj, nObj end
+        return true, atMap, nMap
+    end
+    if hitObj then return true, atObj, nObj end
+    return hitMap, atMap, nMap
 end
 
 local function marker(kind, c, sx, sy, sz, col, alpha)
@@ -97,7 +107,7 @@ local function place(job)
     local ped = PlayerPedId()
     local radius = Shared.Clamp(tonumber(job.radius) or CFG.DefaultRadius or 1.0, 0.5, 10.0)
     local heading = (tonumber(job.heading) or GetEntityHeading(ped)) % 360
-    local ghost, minZ = nil, 0.0
+    local ghost, minZ, reach, last = nil, 0.0, 0.25, nil
 
     if job.mode == 'prop' then
         local model = joaat(job.model)
@@ -106,9 +116,13 @@ local function place(job)
             dbg('model failed to load', job.model)
             return nil
         end
-        minZ = (GetModelDimensions(model)).z
+        local min, max = GetModelDimensions(model)
+        minZ = min.z
+        -- how far the till sticks out sideways from its origin, used to push it out of walls
+        reach = math.max(math.abs(min.x), math.abs(max.x), math.abs(min.y), math.abs(max.y)) + 0.02
         local _, at = crosshair(nil)
-        local p = at or GetEntityCoords(ped)
+        local p = at and vector3(at.x, at.y, at.z - minZ) or GetEntityCoords(ped)
+        last = p
         ghost = CreateObject(model, p.x, p.y, p.z, false, false, false)
         SetModelAsNoLongerNeeded(model)
         if not ghost or ghost == 0 then
@@ -130,19 +144,29 @@ local function place(job)
         local fine = IsDisabledControlPressed(0, K.fine)
         local origin = GetEntityCoords(ped) + vector3(0.0, 0.0, 0.35)
         local up, down = anyPressed(K.scrollUp), anyPressed(K.scrollDown)
-        local hit, at, aim = crosshair(ghost)
+        local hit, at, normal = crosshair(ghost)
         local valid = hit and #(origin - at) <= CFG.Distance
         local spot
-        if Config.Registers.Debug and GetGameTimer() % 1000 < 17 then dbg(('hit=%s at=%s ghost=%s'):format(tostring(hit), tostring(at), tostring(ghost))) end
+        if Config.Registers.Debug and GetGameTimer() % 1000 < 17 then dbg(('hit=%s at=%s normal=%s'):format(tostring(hit), tostring(at), tostring(normal))) end
 
         if job.mode == 'prop' then
             local step = fine and 1.0 or 7.5
             if up then heading = (heading + step) % 360 end
             if down then heading = (heading - step) % 360 end
-            -- follow the crosshair every frame: on the surface you aim at, or floating on the aim line when nothing is hit
-            local p = hit and vector3(at.x, at.y, at.z - minZ) or aim
-            if hit then spot = p end
-            SetEntityCoordsNoOffset(ghost, p.x, p.y, p.z, false, false, false)
+            if hit then
+                -- snap: flat on top of floors / counters / tables; against a wall it's pushed out so it never clips in
+                local onTop = normal and normal.z >= 0.65
+                if onTop then
+                    last = vector3(at.x, at.y, at.z - minZ)
+                else
+                    last = vector3(at.x + normal.x * reach, at.y + normal.y * reach, at.z - minZ)
+                end
+                valid = valid and onTop
+                if valid then spot = last end
+            else
+                valid = false   -- aiming at nothing: the till stays where it last snapped
+            end
+            SetEntityCoordsNoOffset(ghost, last.x, last.y, last.z, false, false, false)
             SetEntityRotation(ghost, 0.0, 0.0, heading, 2, true)
             hud({
                 { k = 'E', l = L('place.key_place', 'Place'), off = not valid },
