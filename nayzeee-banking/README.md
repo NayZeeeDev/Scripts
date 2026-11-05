@@ -438,6 +438,8 @@ Switch on `Config.Cash.enabled` and every dollar is a real banknote in the inven
 |---|---|---|
 | `Config.Cash.enabled` | `false` | Every dollar is a banknote |
 | `Config.Cash.notes` | six notes | Item names and values; add, remove or rename freely |
+| `Config.Cash.mirror` | `true` | Keep the framework's cash figure equal to the notes, so every shop and script works |
+| `Config.Cash.syncSeconds` | `2` | How often notes moved by hand are re-counted |
 | `Config.Cash.convertOnJoin` | `true` | Turn loose cash into notes when a player loads in |
 | `Config.Cash.exactUpTo` | `5000` | Payments up to this look for an exact set of notes first |
 
@@ -467,8 +469,26 @@ local set = exports['nayzeee-banking']:cashNotes(380)   -- { cash_100 = 3, cash_
 local physical = exports['nayzeee-banking']:physicalCash()
 ```
 
+### Shops and every other script
+
+With `Config.Cash.mirror` (on by default) the framework's cash figure is kept equal to the notes the player carries, so **shops, garages, fines and job scripts work with no changes**:
+
+- something takes framework cash (`xPlayer.removeMoney`, `Player.Functions.RemoveMoney('cash')`, qb-inventory shops…) → those notes are taken, with change
+- something adds framework cash (wages, job pay, a robbery script) → it is handed out in notes
+- notes given, dropped, picked up or robbed → the figure follows within a couple of seconds
+- **ox_inventory shops** charge the `money` item: while a shop is open the player's notes become `money`, and what is left becomes notes again when it closes
+
+Change that does not fit in the player's pockets is owed and handed over as soon as there is room, even after a relog. A server switching notes on part way gives each player notes for the framework cash they had, once.
+
+| Framework | Inventory | server.cfg |
+|---|---|---|
+| QBCore | qb-inventory | nothing |
+| Qbox | ox_inventory | `setr inventory:accounts []` |
+| ESX | ox_inventory | `setr inventory:accounts ["black_money"]` |
+| QBCore / ESX | qs-inventory | nothing, as long as qs-inventory is not set to keep cash as an item |
+
 {% hint style="warning" %}
-With physical cash on, scripts that take money with the framework's own calls (`xPlayer.removeMoney`, `Player.Functions.RemoveMoney('cash')`) or by removing the `money` item no longer see the player's cash, because it is now notes. Point those at `payCash` / `addCash` above.
+On ox_inventory, cash must not also be an ox account item, or the framework's figure would be the `money` item and every dollar would exist twice. The resource checks this on start and, if `money` is still listed, leaves the mirror off and says what to add. Scripts that remove the `money` **item** directly (rather than framework cash) are the one thing it cannot follow; point those at `payCash` / `addCash` above.
 {% endhint %}
 
 ---

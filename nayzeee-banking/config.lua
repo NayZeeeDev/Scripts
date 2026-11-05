@@ -61,6 +61,18 @@ Config.Cash = {
         { item = 'cash_1',   value = 1   },
     },
 
+    -- SHOPS AND EVERY OTHER SCRIPT
+    -- Keep the framework's cash figure equal to the notes carried, so shops,
+    -- garages, fines and jobs that use framework cash (removeMoney / AddMoney…)
+    -- take and hand out notes, with change. ox_inventory shops work too: notes
+    -- turn into `money` while a shop is open and back into notes when it closes.
+    -- On ox_inventory, cash must not also be an ox account item. In server.cfg:
+    --   Qbox:  setr inventory:accounts []
+    --   ESX:   setr inventory:accounts ["black_money"]
+    -- (QBCore with qb-inventory needs nothing.)
+    mirror      = true,
+    syncSeconds = 2,       -- how often notes moved by hand are re-counted
+
     -- loose cash (Config.MoneyItem) a player carries is changed into notes when they load in
     convertOnJoin = true,
 

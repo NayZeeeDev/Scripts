@@ -15,6 +15,7 @@ if BankLocked then return end
 --  Other resources: exports in the README (getCash, payCash, addCash…).
 -- ═══════════════════════════════════════════════════════════
 local C = Config.Cash or {}
+local MONEY = Config.MoneyItem or 'money'   -- the framework's loose cash item, counted and turned into notes
 
 local NOTES = {}
 for _, n in ipairs(C.notes or {}) do
@@ -247,11 +248,14 @@ local plain = { get = Bank.getCash, remove = Bank.removeCash, add = Bank.addCash
 if active then
 function Bank.getCash(xPlayer)
     local _, total = wallet(xPlayer.source)
-    return total
+    -- loose `money` counts too: during an ox shop it is where the cash is
+    return total + (MONEY and count(xPlayer.source, MONEY) or 0)
 end
 
 function Bank.removeCash(xPlayer, amount)
+    if Bank.cashSettle then Bank.cashSettle(xPlayer.source) end
     local ok, res = pay(xPlayer.source, amount)
+    if Bank.cashSync then SetTimeout(0, function() Bank.cashSync(xPlayer.source) end) end
     if ok and res.change > 0 then
         Bank.notify(xPlayer.source, 'Cash', ('Paid %s%s · %s%s change'):format(
             Config.Currency, math.floor(amount) + res.change, Config.Currency, res.change), 'inform')
@@ -260,29 +264,236 @@ function Bank.removeCash(xPlayer, amount)
 end
 
 function Bank.addCash(xPlayer, amount)
-    return (receive(xPlayer.source, amount))
+    local ok = receive(xPlayer.source, amount)
+    if Bank.cashSync then SetTimeout(0, function() Bank.cashSync(xPlayer.source) end) end
+    return ok
 end
 end
 
 -- ═══════════════════════════════════════════════════════════
---  LOOSE CASH INTO NOTES
---  A server switching this on part way has players carrying the old
---  cash item; it is changed into notes when they load in.
+--  THE FRAMEWORK'S CASH FOLLOWS THE NOTES  (Config.Cash.mirror)
+--
+--  Shops, garages, fines and job scripts take and pay cash through the
+--  framework (xPlayer.removeMoney, Player.Functions.RemoveMoney('cash')
+--  …). So the framework's cash figure is kept equal to the notes the
+--  player carries, both ways:
+--
+--    · something takes framework cash   → those notes are taken, with change
+--    · something adds framework cash    → that much is handed out in notes
+--    · notes move in the inventory      → the figure follows
+--
+--  ox_inventory shops charge the `money` item rather than the framework,
+--  so while a shop is open the player's notes are changed into `money`,
+--  and whatever is left is changed back into notes when it closes.
+--
+--  On an ox_inventory server cash must not also be an ox account item, or
+--  the figure would be the `money` item and every dollar would exist twice:
+--  set `setr inventory:accounts []` (Qbox) or `["black_money"]` (ESX).
 -- ═══════════════════════════════════════════════════════════
-Framework.onPlayerLoaded(function(src)
-    if not active or C.convertOnJoin == false or not Config.MoneyItem then return end
-    SetTimeout(4000, function()   -- let the inventory finish loading them
-        if not GetPlayerName(src) then return end
-        local loose = count(src, Config.MoneyItem)
-        if loose <= 0 then return end
-        -- notes first, so a full inventory leaves the loose cash where it was
-        if receive(src, loose) then
-            if not take(src, Config.MoneyItem, loose) then
-                local set = notesFor(loose)
-                takeSet(src, set)
+local REASON   = 'nayzeee-cash'
+local mirrorOn = false
+local last     = {}   -- [src] = the framework figure as we last left it
+local writing  = {}   -- [src] = true while we set the figure ourselves
+local shopping = {}   -- [src] = true while an ox shop is open (notes held as `money`)
+local due      = {}   -- [src] = cash owed in notes that did not fit yet
+
+local function isOx() return Bank.inventory() == 'ox_inventory' end
+
+--- Loose `money` items: during an ox shop that is where the cash is, and at any
+--- other time it is cash that has not been turned into notes yet.
+local function loose(src) return MONEY and count(src, MONEY) or 0 end
+
+--- Every dollar the player carries: notes, plus any loose `money`.
+local function carried(src)
+    local _, notes = wallet(src)
+    return notes + loose(src)
+end
+
+--- Loose `money` into notes, notes first so a full inventory loses nothing.
+local function settleLoose(src)
+    if shopping[src] then return end
+    local n = loose(src)
+    if n <= 0 then return end
+    if receive(src, n) then
+        if not take(src, MONEY, n) then takeSet(src, notesFor(n)) end
+    end
+end
+
+-- ── the framework's own cash figure ──────────────────────
+local function figure(src)
+    local x = Bank.getPlayer(src)
+    if not x then return nil end
+    if Framework.name == 'esx' then
+        local a = x.getAccount and x.getAccount('money')
+        return a and tonumber(a.money) or 0, x
+    end
+    local P = x.raw
+    return P and tonumber(P.Functions.GetMoney('cash')) or 0, x
+end
+
+local function setFigure(x, v)
+    writing[x.source] = true
+    local ok = pcall(function()
+        if Framework.name == 'esx' then x.setAccountMoney('money', v, REASON)
+        else x.raw.Functions.SetMoney('cash', v, REASON) end
+    end)
+    writing[x.source] = nil
+    return ok
+end
+
+local function owedKey(x) return 'nz_cash_due:' .. tostring(x.identifier) end
+
+--- Bring the framework figure and the notes back in step, settling whatever
+--- changed on either side since the last look. One player at a time.
+local function syncNow(src)
+    if not mirrorOn or not GetPlayerName(src) then return end
+    local f, x = figure(src)
+    if not x then return end
+
+    settleLoose(src)
+
+    -- cash owed from a payment whose notes did not fit, kept across a relog
+    if due[src] == nil then due[src] = tonumber(GetResourceKvpString(owedKey(x)) or '') or 0 end
+
+    local was = last[src]
+    if was == nil then
+        -- first look: a server switching notes on part way has players with a
+        -- framework cash figure and no notes; that cash becomes notes, once
+        local key = 'nz_cash_ok:' .. tostring(x.identifier)
+        if not GetResourceKvpString(key) then
+            if carried(src) == 0 and f > 0 and not receive(src, f) then due[src] = due[src] + f end
+            SetResourceKvp(key, '1')
+        end
+    elseif f ~= was then
+        -- something outside took or paid framework cash: the notes follow
+        local d = f - was
+        if d < 0 then
+            local ok, res = pay(src, -d)
+            if ok then
+                if res.change > 0 then
+                    Bank.notify(src, 'Cash', ('Paid %s%s · %s%s change'):format(
+                        Config.Currency, -d + res.change, Config.Currency, res.change), 'inform')
+                end
+            elseif res == 'no_room' then
+                -- no room for the change: the notes go, the change is owed
+                local have, total = wallet(src)
+                local set, change = choose(have, total, -d)
+                if set and takeSet(src, set) then due[src] = due[src] + change end
+            else
+                -- spent more than the notes in hand (moved a moment before): all of it
+                local have = wallet(src)
+                takeSet(src, have)
+            end
+        elseif not receive(src, d) then
+            due[src] = due[src] + d
+        end
+    end
+
+    -- hand over what is owed once there is room
+    if due[src] > 0 and receive(src, due[src]) then due[src] = 0 end
+    if due[src] > 0 then SetResourceKvp(owedKey(x), tostring(due[src])) else DeleteResourceKvp(owedKey(x)) end
+
+    local want = carried(src) + due[src]
+    if f ~= want then setFigure(x, want) end
+    last[src] = want
+end
+
+local function sync(src)
+    if not mirrorOn then return end
+    local ok, err = pcall(Bank.serial, 'cash:' .. tostring(src), syncNow, src)
+    if not ok then Bank.debug('cash sync failed', err) end
+end
+Bank.cashSync = sync
+Bank.cashSettle = function(src) pcall(settleLoose, src) end
+
+-- ── turned on only where it is safe ──────────────────────
+CreateThread(function()
+    if not active or C.mirror == false then return end
+    if isOx() then
+        local ok, list = pcall(json.decode, GetConvar('inventory:accounts', '["money"]'))
+        for _, name in ipairs(ok and type(list) == 'table' and list or { 'money' }) do
+            if name == MONEY then
+                print(('^1[nayzeee-banking]^7 Config.Cash: ox_inventory still treats "%s" as the cash account, so ' ..
+                    'shops cannot see banknotes and every dollar would exist twice. Add to server.cfg: ' ..
+                    '^3setr inventory:accounts []^7 (Qbox) or ^3setr inventory:accounts ["black_money"]^7 (ESX), ' ..
+                    'then restart.'):format(MONEY))
+                return
             end
         end
+    end
+    mirrorOn = true
+
+    -- the framework says when its cash moves
+    if Framework.name == 'esx' then
+        local function onEsx(src, account, _, reason)
+            if account == 'money' and reason ~= REASON and not writing[src] then CreateThread(function() sync(src) end) end
+        end
+        AddEventHandler('esx:addAccountMoney', onEsx)
+        AddEventHandler('esx:removeAccountMoney', onEsx)
+        AddEventHandler('esx:setAccountMoney', onEsx)
+    else
+        AddEventHandler('QBCore:Server:OnMoneyChange', function(src, moneyType, _, _, reason)
+            if moneyType == 'cash' and reason ~= REASON and not writing[src] then CreateThread(function() sync(src) end) end
+        end)
+    end
+
+    -- ox_inventory: notes moved by hand, and its shops
+    if isOx() then
+        local filter = {}
+        for _, n in ipairs(NOTES) do filter[n.item] = true end
+        filter[MONEY] = true
+        pcall(function()
+            exports.ox_inventory:registerHook('swapItems', function(payload)
+                SetTimeout(150, function()
+                    for _, inv in ipairs({ payload.fromInventory, payload.toInventory }) do
+                        if type(inv) == 'number' then sync(inv) end
+                    end
+                end)
+                return true
+            end, { itemFilter = filter })
+
+            -- a shop charges `money`: the notes become `money` while it is open
+            exports.ox_inventory:registerHook('openShop', function(payload)
+                local src = payload.source
+                local have, total = wallet(src)
+                if total > 0 and takeSet(src, have) then
+                    if add(src, MONEY, total) then shopping[src] = true
+                    else giveSet(src, have) end
+                end
+                return true
+            end)
+        end)
+        -- and back into notes when it closes
+        RegisterNetEvent('ox_inventory:closeInventory', function()
+            local src = source
+            if not shopping[src] then return end
+            shopping[src] = nil
+            SetTimeout(100, function() sync(src) end)
+        end)
+    end
+
+    -- notes picked up, given, dropped or robbed: the figure follows
+    local every = math.max(1, tonumber(C.syncSeconds) or 2) * 1000
+    while true do
+        Wait(every)
+        for _, xPlayer in ipairs(ESX.GetExtendedPlayers()) do
+            if xPlayer.source then sync(xPlayer.source) end
+        end
+    end
+end)
+
+Framework.onPlayerLoaded(function(src)
+    if not active then return end
+    SetTimeout(4000, function()   -- let the inventory finish loading
+        if not GetPlayerName(src) then return end
+        if mirrorOn then sync(src)
+        elseif C.convertOnJoin ~= false then pcall(settleLoose, src) end
     end)
+end)
+
+AddEventHandler('playerDropped', function()
+    local src = source
+    last[src], writing[src], shopping[src], due[src] = nil, nil, nil, nil
 end)
 
 -- ═══════════════════════════════════════════════════════════
@@ -300,7 +511,7 @@ exports('getCash', function(src)
         return x and plain.get(x) or 0, {}
     end
     local have, total = wallet(src)
-    return total, have
+    return total + (MONEY and count(src, MONEY) or 0), have
 end)
 
 --- Take `amount`, choosing the notes and giving change.
@@ -314,7 +525,10 @@ local function payExport(src, amount)
         if not plain.remove(x, amount) then return false, 'inventory' end
         return true, { paid = {}, change = 0, given = {} }
     end
-    return pay(src, amount)
+    if Bank.cashSettle then Bank.cashSettle(src) end
+    local ok, res = pay(src, amount)
+    if Bank.cashSync then SetTimeout(0, function() Bank.cashSync(src) end) end
+    return ok, res
 end
 exports('payCash', payExport)
 exports('removeCash', payExport)
@@ -327,7 +541,9 @@ exports('addCash', function(src, amount)
         if not x or amount <= 0 then return false end
         return plain.add(x, amount) and true or false, {}
     end
-    return receive(src, amount)
+    local ok, set = receive(src, amount)
+    if Bank.cashSync then SetTimeout(0, function() Bank.cashSync(src) end) end
+    return ok, set
 end)
 
 --- Is every dollar a banknote on this server?
