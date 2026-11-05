@@ -9,11 +9,9 @@
 <body>
 <div id="root" class="root">
 
-  <!-- toasts -->
-  <div id="toasts" class="toasts scaled" data-pos="top-right"></div>
 
   <!-- key hint (holding, placing, picking up) -->
-  <div id="hint" class="hint scaled" hidden><div class="ch-frame"><div class="ch-in"><span class="hint-tx"></span></div></div></div>
+  <div id="hint" class="hint" hidden></div>
 
   <!-- tug of war -->
   <div id="tug" class="tug scaled" hidden>
@@ -46,8 +44,6 @@
   <!-- someone offers you a chain -->
   <div id="offer" class="offer scaled" hidden></div>
 
-  <!-- chain menu -->
-  <div id="menu" class="menu" hidden></div>
 
   <!-- chain studio: panels left + right, the character between them -->
   <div id="studio" class="studio" hidden>
@@ -61,7 +57,6 @@
 
 <script src="js/core.js"></script>
 <script src="js/tug.js"></script>
-<script src="js/menu.js"></script>
 <script src="js/store.js"></script>
 <script src="js/offer.js"></script>
 <script src="js/keyer.js"></script>

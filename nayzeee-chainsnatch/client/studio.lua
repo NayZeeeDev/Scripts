@@ -60,8 +60,9 @@ local PRESETS = {
         { key = 'low',      label = 'Long chain',    bone = 24818, at = { r = 0.0, f = 0.13, u = -0.02 }, pitch = 35 },
     },
     hold = {
-        { key = 'hang_r', label = 'Dangle · right', bone = 57005, at = { r = 0.0, f = 0.06, u = 0.0 }, pitch = 90, hang = true },
+        -- the hold poses raise the LEFT hand, so that's the default
         { key = 'hang_l', label = 'Dangle · left',  bone = 18905, at = { r = 0.0, f = 0.06, u = 0.0 }, pitch = 90, hang = true },
+        { key = 'hang_r', label = 'Dangle · right', bone = 57005, at = { r = 0.0, f = 0.06, u = 0.0 }, pitch = 90, hang = true },
         { key = 'fist_r', label = 'In the fist',    bone = 28422, at = { r = 0.0, f = 0.0,  u = 0.0 }, pitch = 0 },
     },
 }
@@ -255,7 +256,7 @@ local function applyPreset(key)
     if pre.from == 'clothing' then
         local d = Chains.def(currentKey)
         local c = d and d.centre
-        if not c then return Config.Notify('This chain has no clothing position (it wasn\'t converted by chainkit).', 'error') end
+        if not c then return CB.Notify('This chain has no clothing position (it wasn\'t converted by chainkit).', 'error') end
         -- clothing is modelled in the ped's own space, so the ped matrix puts it back on the body,
         -- on the bone the clothing was skinned to (so it moves the way the clothing did)
         -- measured in game, the same as the automatic fit (exact whatever GTA does with attach angles)

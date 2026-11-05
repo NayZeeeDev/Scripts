@@ -290,8 +290,9 @@ function sdConvert() {
 }
 
 function sdKeys() {
-  const ks = [['↑ ↓ ← →', 'move'], ['PGUP PGDN', 'fwd / back'], ['Q E', 'turn'], ['R F', 'tilt'], ['Z C', 'lean'], ['SHIFT', '×5'], ['ALT', 'fine'], ['CTRL S', 'save'], ['ESC', 'close']];
-  $('#sdKeys').innerHTML = ks.map(([k, l]) => `<span>${k.split(' ').map((x) => `<span class="kc">${x}</span>`).join('')}${l}</span>`).join('');
+  // the backpack studio's key bar
+  const ks = [['←→↑↓', 'move'], ['PG UP/DN', 'fwd/back'], ['Q E', 'turn'], ['R F', 'tilt'], ['Z C', 'lean'], ['SHIFT', 'x5'], ['ALT', 'fine']];
+  $('#sdKeys').innerHTML = ks.map(([k, l]) => `<span><span class="key">${esc(k)}</span>${esc(l)}</span>`).join('');
 }
 
 /* exact values without stealing focus mid-typing */

@@ -15,7 +15,7 @@ end
 
 local function init()
     NUI.send('init', {
-        scale = Config.UI.Scale or 1.0, toasts = Config.UI.Toasts or 'top-right',
+        scale = Config.UI.Scale or 1.0,
         self = GetCurrentResourceName(), props = Config.PropsResource,
         inventory = GetResourceState('ox_inventory') ~= 'missing' and 'ox_inventory' or nil,
     })

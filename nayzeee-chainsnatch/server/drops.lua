@@ -146,6 +146,7 @@ RegisterNetEvent('nzc:s:place', function(from, slot, coords, rot)
     local meta
     if from == 'slot' then
         meta = Inv.TakeSlot(src, slot)
+        if meta then meta.worn = nil; Worn.refresh(src) end
     else
         meta = Worn.strip(src)
     end
@@ -181,7 +182,7 @@ RegisterNetEvent('nzc:s:pickup', function(id, wear)
     local meta = d.meta
     local ok
     if wear and meta.broken then Worn.notify(src, T.broken, 'error') end
-    if wear and not Worn.get(src) and not meta.broken and Chains.exists(d.chain) then
+    if wear and not meta.broken and Chains.exists(d.chain) then
         Drops.remove(d.id)
         ok = Worn.set(src, meta)
         if ok then Worn.notify(src, T.wearing:format(meta.label), 'success')

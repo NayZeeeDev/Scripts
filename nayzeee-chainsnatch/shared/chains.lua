@@ -127,6 +127,7 @@ function Chains.meta(key, letter, extra)
     m.imageurl = v and v.prop and ('nui://%s/icons/%s.png'):format(Config.PropsResource, v.prop) or nil
     local parts = { money(Chains.value(key)) }
     if m.broken then parts[1] = 'BROKEN · ' .. parts[1] end
+    if m.worn then parts[1] = 'WEARING · ' .. parts[1] end
     if m.madeFor then parts[#parts + 1] = 'made for ' .. m.madeFor end
     if m.stolenFrom then parts[#parts + 1] = 'snatched from ' .. m.stolenFrom end
     m.description = table.concat(parts, ' · ')

@@ -4,7 +4,7 @@
 -- chainkit (tools/chainkit, run by server/chainkit.js) turns chain
 -- clothing into props:
 --   chains/<Chain Name>/teef_000_u.ydd + teef_diff_000_a_*.ytd ...
---   and, if Config.Convert.ScanResources says so, chains streamed
+--   and, if Config.ScanResources says so, chains streamed
 --   as clothing by other resources
 -- into nayzeee-chainprops/stream (one prop per texture), plus
 -- chainmap.json and an icon per prop. Only what's new or changed is
@@ -43,7 +43,7 @@ local function roots()
                 local p = GetResourcePath(name)
                 if p and p ~= '' then out[#out + 1] = p end
             else
-                print(('^3[%s] Config.Convert.ScanResources: no resource called %s^0'):format(SELF, name))
+                print(('^3[%s] Config.ScanResources: no resource called %s^0'):format(SELF, name))
             end
         end
     end

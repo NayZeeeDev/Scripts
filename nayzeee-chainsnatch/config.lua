@@ -41,12 +41,15 @@ Config.PropsResource = 'nayzeee-chainprops'
 
 Config.UI = {
     Scale    = 1.0,              -- Zoom for the whole NUI
-    Toasts   = 'top-right',      -- 'top-right' | 'top-left' | 'top-center' | 'bottom-right'
 }
 
--- Notifications go to the NUI toasts. Swap this for your own if you want.
+-- Notifications: 'ox_lib' | 'esx' | 'qb' | 'qbx' | 'okok' | 'custom' (uses Config.Notify below)
+Config.NotifySystem = 'ox_lib'
+Config.NotifyPosition = 'top'    -- ox_lib only: 'top' | 'top-right' | 'top-left' | 'bottom' | 'bottom-right' | 'bottom-left' | 'center-right' | 'center-left'
+
+-- only used with NotifySystem = 'custom'. kind = 'success' | 'error' | 'warning' | 'info'
 Config.Notify = function(msg, kind, duration)
-    SendNUIMessage({ action = 'toast', data = { message = msg, kind = kind or 'info', duration = duration or 4500 } })
+    lib.notify({ description = msg, type = kind == 'info' and 'inform' or kind, duration = duration })
 end
 
 --  ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗███████╗
@@ -70,7 +73,7 @@ Config.Chains = {
     --         { prop = 'my_silver_rope_prop', label = 'Silver' },
     --     },
     --     worn = { bone = 39317, pos = { x = 0.0, y = 0.0, z = 0.0 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
-    --     hold = { bone = 57005, pos = { x = 0.12, y = 0.0, z = -0.1 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
+    --     hold = { bone = 18905, pos = { x = 0.12, y = 0.0, z = 0.1 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
     --     price = 2500,                                -- jewelry store price (Config.Store.DefaultPrice if left out)
     -- },
 }
@@ -78,7 +81,7 @@ Config.Chains = {
 -- Where a chain goes before anyone fits it in the studio.
 Config.DefaultFit = {
     worn = { bone = 39317, pos = { x = 0.03, y = 0.06, z = 0.0 }, rot = { x = 0.0, y = 90.0, z = 180.0 } },
-    hold = { bone = 57005, pos = { x = 0.10, y = 0.02, z = -0.08 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
+    hold = { bone = 18905, pos = { x = 0.10, y = 0.02, z = 0.08 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },   -- left hand: the hold poses raise the left hand
 }
 
 
@@ -261,7 +264,7 @@ Config.Store = {
     -- Counter display
     SpinSpeed      = 18.0,
     TransitionTime = 420,
-    SideChains     = false,        -- true = the previous / next chain also shows, faded, either side of the featured one
+    SideChains     = true,         -- the previous / next chain either side of the featured one, like the backpack shop
     DepthOfField   = true,
     HideProps      = { Enabled = true, Radius = 1.4, MaxSize = 1.2,
                        Models = { 'prop_till_01', 'prop_till_02', 'prop_till_03', 'prop_cash_register_01', 'prop_monitor_01a', 'prop_keyboard_01a' } },
@@ -320,6 +323,13 @@ Config.Give = {
 --   { collection = 'mp_f_mychains' }                       every chain in that pack
 -- The collection is the clothing file's name after mp_m_freemode_01_ (mp_m_freemode_01_mp_m_mychains^teef_003_u.ydd
 -- = collection mp_m_mychains, number 3). Male and female packs are listed separately.
+
+-- Chains your server already streams as CLOTHING (mp_m_freemode_01_pack^teef_###_u.ydd) can be converted too, so
+-- they can be snatched and sold at the jewelry store. The accessory slot (teef) also holds ties and scarves, so list
+-- the clothing resources that are chains:   Config.ScanResources = { 'my_chain_pack' }   (or 'all')
+Config.ScanResources = {}
+
+-- the clothing store rules for the chains listed above
 Config.Appearance = {
     Enforce = true,
     Block = {
@@ -359,32 +369,6 @@ Config.Icons = {
     },
 }
 
---  ██████╗ ██████╗ ███╗   ██╗██╗   ██╗███████╗██████╗ ████████╗███████╗██████╗
--- ██╔════╝██╔═══██╗████╗  ██║██║   ██║██╔════╝██╔══██╗╚══██╔══╝██╔════╝██╔══██╗
--- ██║     ██║   ██║██╔██╗ ██║██║   ██║█████╗  ██████╔╝   ██║   █████╗  ██████╔╝
--- ██║     ██║   ██║██║╚██╗██║╚██╗ ██╔╝██╔══╝  ██╔══██╗   ██║   ██╔══╝  ██╔══██╗
--- ╚██████╗╚██████╔╝██║ ╚████║ ╚████╔╝ ███████╗██║  ██║   ██║   ███████╗██║  ██║
---  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-
--- chainkit turns chain CLOTHING into PROPS. It runs on the server (tools/chainkit), you never call it yourself.
-Config.Convert = {
-    Enabled      = true,
-    DropFolder   = 'chains',       -- inside this resource: chains/<Chain Name>/teef_000_u.ydd + teef_diff_000_a_*.ytd ...
-    -- Also convert chains that your server streams as CLOTHING (mp_m_freemode_01_pack^teef_###_u.ydd).
-    -- The accessory slot (teef) also holds ties and scarves, so list the clothing resources that are chains:
-    --   ScanResources = { 'my_chain_pack' }       or     ScanResources = 'all'
-    ScanResources = {},
-    AutoScan     = true,           -- check what's new on start (shows in the studio)
-    AutoBuild    = true,           -- and build it right away
-    TextureSize  = 1024,           -- max texture size of the props
-    IconSize     = 256,            -- chainkit draws an icon for every chain (the studio can take nicer ones). 0 = off
-    LodDistance  = 60,
-    Kit = {
-        linux   = 'tools/chainkit/linux-x64/chainkit',
-        windows = 'tools/chainkit/win-x64/chainkit.exe',
-    },
-}
-
 -- ████████╗███████╗██╗  ██╗████████╗
 -- ╚══██╔══╝██╔════╝╚██╗██╔╝╚══██╔══╝
 --    ██║   █████╗   ╚███╔╝    ██║
@@ -395,6 +379,17 @@ Config.Convert = {
 Config.Text = {
     menu_title      = 'Chain',
     no_chain        = 'You\'re not wearing a chain.',
+
+    -- the chain's menu (use the item, or /chain)
+    menu_title      = 'Chains',
+    menu_wearing    = 'Wearing',
+    menu_wear       = 'Put on',          menu_wear_d    = 'Wear it',
+    menu_takeoff    = 'Take off',        menu_takeoff_d = 'It stays in your pockets',
+    menu_hold       = 'Hold up',         menu_hold_d    = 'Show it off: throw it or set it down from your hand',
+    menu_place      = 'Set down',        menu_place_d   = 'Set it down anywhere you look',
+    menu_give       = 'Hand to someone', menu_give_d    = 'Give it to the person in front of you',
+    menu_puton      = 'Put it on them',  menu_puton_d   = 'Straight on their neck, theirs goes in their pockets',
+    menu_swap       = 'Swap chains',     menu_swap_d    = 'You both wear the other one\'s chain',
     put_on          = 'Put on',
     take_off        = 'Take off',
     hold_up         = 'Hold up',
@@ -425,8 +420,8 @@ Config.Text = {
     thrown          = 'You threw your %s.',
     no_admin        = 'You can\'t use the chain studio.',
     busy            = 'You\'re busy.',
-    hint_hold       = '<kc>G</kc> Throw  <kc>E</kc> Set down  <kc>BACKSPACE</kc> Put it back on',
-    hint_place      = '<kc>E</kc> Place  <kc>SCROLL</kc> Turn  <kc>↑ ↓</kc> Tilt  <kc>BACKSPACE</kc> Cancel',
+    hint_hold       = '<kc>G</kc> Throw  <kc>E</kc> Set down  <kc>Backspace</kc> Put it back on',
+    hint_place      = '<kc>E</kc> Place  <kc>Scroll</kc> Rotate  <kc>↑ ↓</kc> Tilt  <kc>Backspace</kc> Cancel',
     hint_pickup     = '<kc>E</kc> Pick up %s',
     tug_you         = 'Snatching',
     tug_them        = 'Holding on',

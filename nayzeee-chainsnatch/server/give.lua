@@ -93,6 +93,8 @@ RegisterNetEvent('nzc:s:offerAnswer', function(id, accept)
         end
         local taken = o.slot and Inv.TakeSlot(src, o.slot) or Worn.strip(src)
         if not taken then return end
+        taken.worn = nil
+        Worn.refresh(src) -- it may have been the one they wore
         if not Inv.Add(target, taken) then
             -- couldn't hand it over after all: back where it came from
             if o.slot then Inv.Add(src, taken) else Worn.set(src, taken) end
@@ -104,19 +106,16 @@ RegisterNetEvent('nzc:s:offerAnswer', function(id, accept)
         Logs.send('info', 'Chain given', ('%s gave %s to %s'):format(Logs.who(src), taken.label or '?', Logs.who(target)))
 
     elseif o.kind == 'puton' then
-        local theirs = Worn.get(target)
-        if theirs and not Inv.CanCarry(target, theirs.meta) then return Worn.notify(target, T.no_room, 'error') end
+        -- their own chain just comes off into their pockets; the new one goes in their pockets, worn
+        if not Inv.CanCarry(target, meta) then return Worn.notify(target, T.no_room, 'error') end
         local taken = o.slot and Inv.TakeSlot(src, o.slot) or Worn.strip(src)
         if not taken then return end
-        if theirs then
-            local old = Worn.strip(target)
-            if not Inv.Add(target, old) then
-                Worn.set(target, old)
-                if o.slot then Inv.Add(src, taken) else Worn.set(src, taken) end
-                return Worn.notify(target, T.no_room, 'error')
-            end
+        Worn.refresh(src)
+        if not Worn.set(target, taken) then
+            taken.worn = nil
+            if o.slot then Inv.Add(src, taken) else Worn.set(src, taken) end
+            return Worn.notify(target, T.no_room, 'error')
         end
-        Worn.set(target, taken)
         anims(src, target)
         Worn.notify(src, T.gave:format(taken.label or 'chain'), 'success')
         Worn.notify(target, T.wearing:format(taken.label or 'chain'), 'success')

@@ -3,8 +3,29 @@
 
 CB = {}
 
+--- Notifications through the server's own system (Config.NotifySystem). kind = success | error | warning | info
 function CB.Notify(msg, kind, duration)
-    Config.Notify(msg, kind, duration)
+    kind = kind == 'inform' and 'info' or (kind or 'info')
+    duration = duration or 5000
+    local sys = Config.NotifySystem or 'ox_lib'
+    local ok = pcall(function()
+        if sys == 'esx' then
+            local e = exports.es_extended:getSharedObject()
+            e.ShowNotification(msg, kind == 'warning' and 'info' or kind, duration)
+        elseif sys == 'qb' then
+            local q = exports['qb-core']:GetCoreObject()
+            q.Functions.Notify(msg, kind == 'info' and 'primary' or kind, duration)
+        elseif sys == 'qbx' then
+            exports.qbx_core:Notify(msg, kind == 'info' and 'inform' or kind, duration)
+        elseif sys == 'okok' then
+            exports['okokNotify']:Alert('Chains', msg, duration, kind)
+        elseif sys == 'custom' then
+            Config.Notify(msg, kind, duration)
+        else
+            lib.notify({ description = msg, type = kind == 'info' and 'inform' or kind, duration = duration, position = Config.NotifyPosition or 'top' })
+        end
+    end)
+    if not ok then lib.notify({ description = msg, type = kind == 'info' and 'inform' or kind, duration = duration }) end
 end
 
 local FW = Config.Framework

@@ -1,6 +1,6 @@
-# nayzeee-chainsnatch 1.3 — install & guide
+# nayzeee-chainsnatch — install & guide
 
-> **New here? Read [HOW-TO-USE.md](HOW-TO-USE.md) first:** installing, adding a chain in 4 steps, custom chains for one player.
+> **New here? Read [HOW-TO-USE.md](HOW-TO-USE.md) first:** installing, adding a chain in 3 steps, custom chains for one player.
 
 Chains you can buy, craft, wear, flex, throw, set down, give, swap and snatch. Any chain **clothing** you download is
 converted into a **prop** by the built-in converter (chainkit), with every texture kept.
@@ -75,8 +75,7 @@ whatever pose the character is in, male or female. **Nothing is streamed as clot
 The one thing checked in game is how GTA turns that rotation into attach angles: once per bone, ever (two invisible
 markers on the bone, read in the same frame), then kept in KVP.
 
-A fit saved in the studio always wins over it. Chains converted by chainkit 1.1 or older are converted again once,
-automatically, on the next start.
+A fit saved in the studio always wins over it.
 
 `/givechain [id] [name]` gives one, `/chainlist` lists them all.
 
@@ -88,7 +87,7 @@ default). Use items your server already has, or add them to your inventory.
 ### Chains people wear as clothing
 
 Chains in your clothing packs (`mp_m_freemode_01_pack^teef_###_u.ydd`) can be converted too:
-list those resources in `Config.Convert.ScanResources`. The accessory slot also holds ties and scarves, so name
+list those resources in `Config.ScanResources`. The accessory slot also holds ties and scarves, so name
 the chain packs instead of scanning everything. Once converted, a chain someone wears from the clothing store
 can be **snatched**: it comes off their outfit and the snatcher gets it as an item (`Config.Snatch.Clothing`).
 Hook your appearance script into `Config.OnClothingChainRemoved` so it's saved.
@@ -141,7 +140,7 @@ as `<prop>.png`, which is what the item's `metadata.image` points at.
 
 | | |
 |---|---|
-| **Wear** | use the item, or `/chain` (K) → *Put on*. Wearing takes it out of your pockets, so it can't be dropped or duped while on. Stays on through relogs. |
+| **Wear** | use the chain in your inventory (drag it to use) → its menu → *Put on*. Like a backpack, a worn chain **stays in your inventory** (it says *WEARING*): drop it, trade it or stash it and it comes off your neck. Stays on through relogs. `/chain` (K) opens the same menu |
 | **Take off** | `/chain` → *Take off* |
 | **Hold up** | `/chain` → *Hold up* (or `/chainhold`). Everyone sees it in your hand. **G** throw, **E** set down, **BACKSPACE** put it back on |
 | **Throw** | aims where you look, arcs, bounces off walls. Lands on the ground, or a player standing there **catches** it |
@@ -176,7 +175,7 @@ No owners = anyone can buy it. Untick *For sale* to take a chain out of the stor
 
 ## Giving
 
-`/chain` → **Give**, **Put it on them** (straight on their neck, theirs goes in their pockets) or **Swap chains**
+The chain's menu → **Hand to someone**, **Put it on them** (straight on their neck, theirs goes in their pockets) or **Swap chains**
 (you both wear one: couples). Pocket chains have a give button too. The other player gets a prompt:
 **Y** accept, **X** decline (rebindable). Nothing moves until they accept.
 

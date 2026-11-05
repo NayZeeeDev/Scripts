@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
    CHAIN SNATCH · core
-   helpers, inline SVG icons, toasts, the key hint, the message router
+   helpers, inline SVG icons, the key hint, the message router
    ═══════════════════════════════════════════════════════════ */
 'use strict';
 
@@ -84,26 +84,17 @@ function keyText(t) {
   return esc(t).replace(/&lt;kc&gt;(.*?)&lt;\/kc&gt;/g, (_, k) => `<span class="kc">${k}</span>`);
 }
 
-/* ---------------- toasts ---------------- */
-const TOAST_ICON = { success: 'check', error: 'x', warning: 'alert', info: 'info' };
-function toast(d) {
-  const kind = ['success', 'error', 'warning'].includes(d.kind) ? d.kind : (d.kind === 'inform' ? 'info' : (d.kind || 'info'));
-  const dur = d.duration || 4500;
-  const el = document.createElement('div');
-  el.className = `toast t-${TOAST_ICON[kind] ? kind : 'info'}`;
-  el.innerHTML = `<div class="ch-frame"><div class="ch-in"><span class="ti">${icon(TOAST_ICON[kind] || 'info')}</span><p>${esc(d.message)}</p><i class="prog"></i></div></div>`;
-  const box = $('#toasts');
-  box.appendChild(el);
-  while (box.children.length > 5) box.firstChild.remove();
-  el.querySelector('.prog').animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: dur, easing: 'linear', fill: 'forwards' });
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, dur);
-}
-
 /* ---------------- hint ---------------- */
+/* "<kc>E</kc> Place  <kc>G</kc> Cancel" -> key chips + labels, like the backpack prompt */
 function hint(d) {
   const el = $('#hint');
-  if (!d || !d.text) { el.hidden = true; return; }
-  $('.hint-tx', el).innerHTML = keyText(d.text);
+  if (!d || !d.text) { el.hidden = true; el.innerHTML = ''; return; }
+  const items = [];
+  const re = /<kc>(.*?)<\/kc>\s*([^<]*)/g;
+  let m, any = false;
+  while ((m = re.exec(d.text))) { any = true; items.push(`<span class="kp-item"><kbd>${esc(m[1])}</kbd>${esc(m[2].trim())}</span>`); }
+  if (!any) items.push(`<span class="kp-item kp-note">${esc(d.text)}</span>`);
+  el.innerHTML = items.join('');
   el.hidden = false;
 }
 
@@ -112,9 +103,8 @@ const H = {
   init(d) {
     Object.assign(S.cfg, d || {});
     document.documentElement.style.setProperty('--z', d.scale || 1);
-    $('#toasts').dataset.pos = d.toasts || 'top-right';
   },
-  toast, hint,
+  hint,
 };
 window.addEventListener('message', (e) => {
   const { action, data } = e.data || {};

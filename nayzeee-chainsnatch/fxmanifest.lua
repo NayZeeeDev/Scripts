@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'NAYZEEE Development'
 description 'Chain Snatch: wear, flex, throw, set down and snatch chains converted from clothing'
-version '1.3.0'
+version '1.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
@@ -47,6 +47,7 @@ server_scripts {
     'server/store.lua',
     'server/studio.lua',
     'server/icons.lua',
+    'server/convert.lua',
     'server/chainprops.lua',
     'server/icons.js',
     'server/chainkit.js',
