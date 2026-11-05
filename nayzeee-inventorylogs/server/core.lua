@@ -23,6 +23,16 @@ local function detect()
 end
 detect()
 
+local FW_NAME = { esx = 'es_extended (ESX)', qbx = 'qbx_core (Qbox)', qbcore = 'qb-core (QBCore)' }
+local function frameworkRow()
+    if FW_NAME[NZ.Framework] then
+        Console.check('framework', 'ok', 'Framework', FW_NAME[NZ.Framework])
+    else
+        Console.check('framework', 'warn', 'Framework', 'none found yet: only ACE permissions work and money logs are off. Ensure ESX, QBCore or Qbox before this script')
+    end
+end
+frameworkRow()
+
 -- the framework may start after this resource (server.cfg order): look again when it does
 local FRAMEWORKS = { es_extended = true, qbx_core = true, ['qb-core'] = true }
 AddEventHandler('onServerResourceStart', function(res)
@@ -32,7 +42,8 @@ AddEventHandler('onServerResourceStart', function(res)
         detect()
         if NZ.Framework ~= before then
             if Inv and Inv.id and Inv.id ~= 'none' then NZ.SetDBLayout(Inv.id, Inv.a.db) end
-            NZ.Print(('Framework: %s (it started after this resource; ensure it earlier in server.cfg)'):format(NZ.Framework), 'warn')
+            frameworkRow()
+            Console.log('warn', '%s started after this script: ensure it earlier in server.cfg', res)
         end
     end)
 end)
@@ -72,13 +83,13 @@ function NZ.Comma(n)
     return ((tonumber(n) or 0) < 0 and '-' or '') .. s
 end
 
+--- Every console line goes through Console (server/console.lua). level: nil/'ok'/'info'/'warn'/'error'
 function NZ.Print(msg, level)
-    local tag = level == 'error' and '^1' or level == 'warn' and '^3' or '^2'
-    print(('%s[inventory-manager]^0 %s'):format(tag, msg))
+    Console.log(level == 'error' and 'error' or level == 'warn' and 'warn' or level == 'ok' and 'ok' or 'info', '%s', tostring(msg))
 end
 
 function NZ.Debug(msg)
-    if Config.Debug then NZ.Print(msg, 'warn') end
+    if Config.Debug then Console.log('info', '%s', tostring(msg)) end
 end
 
 --- All identifiers in a keyed table: { license = 'license:..', discord = 'discord:..', ... }

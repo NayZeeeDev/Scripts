@@ -33,7 +33,7 @@ if type(CreateExtendedPlayer) == 'function' then
         if addItem then x.addInventoryItem = function(item, ...) return tagged(src, 'item', item, addItem, item, ...) end end
         return x
     end
-    print('^2[nayzeee]^0 money source tracking active (es_extended)')
+    print('^5[NayZeee Inventory Manager]^7^2 OK   ^7money source tracking active (es_extended)^0')
     return
 end
 
@@ -52,7 +52,7 @@ if RES == 'qbx_core' and type(AddMoney) == 'function' then
         _G[m] = wrapped
         exports(m, wrapped)
     end
-    print('^2[nayzeee]^0 money source tracking active (qbx_core)')
+    print('^5[NayZeee Inventory Manager]^7^2 OK   ^7money source tracking active (qbx_core)^0')
     return
 end
 
@@ -100,8 +100,8 @@ if QBCore and QBCore.Player and type(QBCore.Player.CreatePlayer) == 'function' t
         end
         return ret
     end
-    print('^2[nayzeee]^0 money source tracking active (qb-core)')
+    print('^5[NayZeee Inventory Manager]^7^2 OK   ^7money source tracking active (qb-core)^0')
     return
 end
 
-print('^3[nayzeee]^0 framework bridge loaded in ' .. RES .. ' but no supported framework was found here')
+print('^5[NayZeee Inventory Manager]^7^3 WARN ^7framework bridge loaded in ' .. RES .. ' but no supported framework was found here: put it in es_extended, qb-core or qbx_core^0')

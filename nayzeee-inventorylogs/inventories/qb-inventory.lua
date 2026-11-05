@@ -199,10 +199,10 @@ local function watch(log)
     end)
 
     if not good then
-        NZ.Print(('%s has no AddHook/AddListener exports (needs qb-inventory 2.2+). Per-move item logs are off; everything else works.'):format(RES), 'warn')
+        Console.check('logging', 'warn', 'Item logs', ('%s has no hooks (needs 2.2 or newer): per-move logs are off, everything else works'):format(RES))
         return nil
     end
-    NZ.Print(('Watching %s: %d hooks, %d listeners registered.'):format(RES, #hooks, #listeners))
+    Console.check('logging', 'ok', 'Item logs', ('%s: %d hooks, %d listeners'):format(RES, #hooks, #listeners))
 
     local dropHandler = AddEventHandler('playerDropped', function()
         local src = source

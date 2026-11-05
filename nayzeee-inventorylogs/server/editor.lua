@@ -1009,3 +1009,37 @@ CreateThread(function()
         end
     end
 end)
+
+-- ─── startup row: is live editing set up? ──────────────────────────────────
+Console.wait('editor')
+CreateThread(function()
+    local ok, err = pcall(function()
+        local e = Inv.a.editor
+        if not E.enabled then
+            Console.check('editor', 'info', 'Live editing', 'data editor turned off in Config.Editor')
+            return
+        end
+        if type(e) ~= 'table' then
+            Console.check('editor', 'info', 'Live editing', ('no data editor for %s'):format(Inv.label))
+            return
+        end
+        -- the bridge only answers once the inventory is running
+        local t = GetGameTimer()
+        while not Inv.Ready() and GetGameTimer() - t < 10000 do Wait(250) end
+        local info
+        if e.bridge then
+            local okb, r = pcall(e.bridge)
+            if okb then info = r end
+        end
+        local watch = E.watchFiles ~= false and ', watching for outside edits' or ''
+        if info then
+            local via = info.version and ('bridge v%s'):format(info.version) or ('through %s'):format(info.via or Inv.resource)
+            local craft = info.crafting == false and ' (crafting: add the export from INSTALL.md)' or ''
+            Console.check('editor', 'ok', 'Live editing', via .. watch .. craft)
+        else
+            Console.check('editor', 'warn', 'Live editing', ('bridge not installed: saves apply after %s restarts (see INSTALL.md)'):format(Inv.resource or 'the inventory'))
+        end
+    end)
+    if not ok then Console.check('editor', 'warn', 'Live editing', tostring(type(err) == 'table' and err.msg or err)) end
+    Console.done('editor')
+end)

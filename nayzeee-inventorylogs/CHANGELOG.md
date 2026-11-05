@@ -6,6 +6,7 @@
 - **Import a new script's items & pictures**: on the Items page, drop a script's pictures, its item list (`.lua` / `.txt`) or its whole folder onto one window. It shows what will be added or skipped, adds the items to `items.lua` with a backup, uploads every picture, and it's all live without a restart
 - **Edits made outside the game go live**: save `items.lua` (or any data file) over FTP, txAdmin or VS Code, or drop pictures into `ox_inventory/web/images`, and the panel applies it within a few seconds. Broken files are never applied (staff get the error and line), the old version is kept as a backup, and open panels refresh by themselves
 - `Config.Editor.watchFiles`, `watchImages` and `watchSeconds`
+- New console output: one NayZeee block at startup (dependencies, framework, inventory, item logs, database, live editing, Discord logs) with OK / WARN / FAIL on each line and the fix next to anything wrong; every later line uses the same `[NayZeee Inventory Manager]` prefix
 - Rollbacks report stacks that couldn't be given back (item no longer exists or no room) instead of saying everything was restored
 
 🟠 **Fixed**

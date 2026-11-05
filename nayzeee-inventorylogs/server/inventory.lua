@@ -50,13 +50,18 @@ end
 function Inv.Select()
     local def = pick()
     if not def then
-        NZ.Print('No supported inventory found. Set Config.Inventory, or add your own integration in inventories/custom.lua.', 'error')
+        Console.check('inventory', 'error', 'Inventory', 'none found: set Config.Inventory, or fill in inventories/custom.lua for your own')
         return
     end
     Inv.a = def
     Inv.id, Inv.label, Inv.resource = def.id, def.label, def.resource
     NZ.SetDBLayout(def.id, def.db)
-    NZ.Print(('Inventory: %s (%s)'):format(def.label, GetResourceState(def.resource)))
+    local state = GetResourceState(def.resource)
+    if state == 'started' or state == 'starting' then
+        Console.check('inventory', 'ok', 'Inventory', def.label)
+    else
+        Console.check('inventory', 'warn', 'Inventory', ('%s is %s: ensure it before this script'):format(def.label, state))
+    end
 end
 
 function Inv.Ready() return Inv.resource ~= nil and GetResourceState(Inv.resource) == 'started' end
@@ -315,16 +320,17 @@ end
 local stopWatch
 function Inv.StartWatching()
     if stopWatch then pcall(stopWatch) stopWatch = nil end
+    if not Inv.resource then return end -- no inventory: the Inventory row already says so
     if not Inv.Has('watch') then
-        NZ.Print(('%s has no live logging hookup. Admin actions, money and scans still work. Scripts can report moves through the exports in inventories/custom.lua.'):format(Inv.label), 'warn')
+        Console.check('logging', 'warn', 'Item logs', ('%s has no live hookup: staff actions, money and scans still work; scripts can report moves with the exports in inventories/custom.lua'):format(Inv.label))
         return
     end
     if not Inv.Ready() then
-        NZ.Print(('%s is not started, item logging waits until it starts.'):format(Inv.label), 'warn')
+        Console.check('logging', 'warn', 'Item logs', ('waiting for %s to start'):format(Inv.label))
         return
     end
     local ok, stop = pcall(Inv.a.watch, InvLog)
-    if ok then stopWatch = stop else NZ.Print(('Could not hook into %s: %s'):format(Inv.label, tostring(stop)), 'error') end
+    if ok then stopWatch = stop else Console.check('logging', 'error', 'Item logs', ('could not hook into %s: %s'):format(Inv.label, tostring(stop))) end
 end
 
 AddEventHandler('onServerResourceStart', function(r)

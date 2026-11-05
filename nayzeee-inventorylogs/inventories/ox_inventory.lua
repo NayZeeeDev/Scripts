@@ -107,7 +107,7 @@ local function watch(log)
         log.Created(playerId, item, p.count, p.resource, p.metadata)
     end, { print = false })
 
-    NZ.Print(('Watching ox_inventory: %d hooks registered.'):format(#ids))
+    Console.check('logging', 'ok', 'Item logs', ('%d ox_inventory hooks'):format(#ids))
     return function()
         for _, id in ipairs(ids) do pcall(function() ox:removeHooks(id) end) end
     end

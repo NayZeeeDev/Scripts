@@ -199,7 +199,7 @@ local function applyItems(file)
                 changed = changed + 1
                 if hasFunctions(raw.client) or hasFunctions(raw.buttons) then funcs[#funcs + 1] = name end
             else
-                warn(('[nayzeee] failed to apply item %s: %s'):format(name, item))
+                print(('^5[NayZeee Inventory Manager]^7^3 WARN ^7could not apply item %s: %s^0'):format(name, tostring(item)))
             end
         end
     end

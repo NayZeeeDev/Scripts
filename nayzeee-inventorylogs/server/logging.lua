@@ -269,10 +269,15 @@ end)
 -- ─── start ──────────────────────────────────────────────────────────────────
 Inv.Select()
 
+Console.wait('logging')
 CreateThread(function()
     Wait(500)
-    if Inv.Ready() and Inv.Has('start') then Inv.Call('start') end
-    Inv.StartWatching()
+    local ok, err = pcall(function()
+        if Inv.Ready() and Inv.Has('start') then Inv.Call('start') end
+        Inv.StartWatching()
+    end)
+    if not ok then Console.check('logging', 'error', 'Item logs', tostring(err)) end
+    Console.done('logging')
 end)
 
 -- clear stale known-transfer marks
