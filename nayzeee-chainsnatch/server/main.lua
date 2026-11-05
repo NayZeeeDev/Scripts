@@ -349,12 +349,12 @@ lib.addCommand('givechain', {
     end
     if not Chains.exists(key) then
         local msg = 'No chain matches "' .. tostring(args.chain) .. '"'
-        if src > 0 then notify(src, msg, 'error') else print(msg) end
+        if src > 0 then notify(src, msg, 'error') else Console.log('error', '%s', msg) end
         return
     end
     local ok = Worn.give(args.id, key, args.variant and args.variant:lower() or nil)
     local msg = ok and ('Gave %s to %s'):format(Chains.label(key, args.variant), GetPlayerName(args.id) or args.id) or 'Could not give it (inventory full?)'
-    if src > 0 then notify(src, msg, ok and 'success' or 'error') else print(msg) end
+    if src > 0 then notify(src, msg, ok and 'success' or 'error') else Console.log(ok and 'ok' or 'error', '%s', msg) end
     if ok then Logs.send('admin', 'Chain given', ('%s gave %s to %s'):format(src > 0 and Logs.who(src) or 'console', Chains.label(key, args.variant), Logs.who(args.id))) end
 end)
 
@@ -370,7 +370,8 @@ lib.addCommand('chainlist', { help = 'List every chain key', restricted = false 
     if src > 0 then
         TriggerClientEvent('chat:addMessage', src, { args = { 'Chains', #lines == 0 and 'none yet' or table.concat(lines, '\n') } })
     else
-        print(#lines == 0 and 'no chains yet' or table.concat(lines, '\n'))
+        Console.log('info', '%d chain(s): name  [textures]  key', #lines)
+        if #lines > 0 then print(table.concat(lines, '\n')) end -- raw on purpose: the keys are meant to be copied
     end
 end)
 

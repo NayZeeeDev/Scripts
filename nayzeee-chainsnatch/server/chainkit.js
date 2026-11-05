@@ -53,7 +53,7 @@ on('nzc:chainkit:run', (job) => {
       try { const m = JSON.parse(l.slice(1)); emit('nzc:chainkit:msg', job.src, m.kind, m.data || {}); } catch (e) { /* not ours */ }
     } else if (l.trim()) {
       tail.push(l); if (tail.length > 30) tail.shift();
-      if (job.mode !== 'scan') console.log(`^5[${RESOURCE}]^7 chainkit: ${l}`);
+      if (job.mode !== 'scan') emit('nzc:chainkit:line', l); // server/chainprops.lua decides (debug only)
     }
   };
   running.stdout.setEncoding('utf8');

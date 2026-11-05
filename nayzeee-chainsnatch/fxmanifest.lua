@@ -34,6 +34,7 @@ client_scripts {
 }
 
 server_scripts {
+    'server/console.lua',
     'config_server.lua',
     'bridge/framework.lua',
     'bridge/inventory.lua',

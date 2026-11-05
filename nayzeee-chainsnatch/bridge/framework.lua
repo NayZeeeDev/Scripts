@@ -71,11 +71,17 @@ local function getPlayer(src)
 end
 Bridge.GetPlayer = getPlayer
 
+Console.wait('framework')
 CreateThread(function()
-    Wait(4000)
+    Wait(3000) -- the framework may start after this script
     ensure()
-    print(('^5[%s]^7 framework: %s'):format(GetCurrentResourceName(), FW))
-    if FW == 'esx' and not Core then print(('^1[%s] Couldn\'t get ESX (es_extended).^0'):format(GetCurrentResourceName())) end
+    local names = { esx = 'es_extended', qb = 'qb-core', qbx = 'qbx_core', none = 'standalone (ox_inventory money)' }
+    if (FW == 'esx' or FW == 'qb') and not Core then
+        Console.check('framework', 'error', 'Framework', ('%s is running but its shared object could not be loaded: start it above this script'):format(names[FW]))
+    else
+        Console.check('framework', 'ok', 'Framework', names[FW] or tostring(FW))
+    end
+    Console.done('framework')
 end)
 
 local function license(src)

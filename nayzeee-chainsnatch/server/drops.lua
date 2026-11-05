@@ -26,7 +26,7 @@ local function flush()
     for _, d in pairs(Drops.list) do out[#out + 1] = d end
     for _, d in ipairs(orphans) do out[#out + 1] = d end
     local ok, txt = pcall(json.encode, out)
-    if ok then SaveResourceFile(RES, FILE, txt, -1) else print(('^1[%s] could not save %s: %s^0'):format(RES, FILE, tostring(txt))) end
+    if ok then SaveResourceFile(RES, FILE, txt, -1) else Console.log('error', 'could not save %s: %s', FILE, tostring(txt)) end
 end
 
 -- adds are saved within 5s; removals at once, so a crash can't leave a picked-up chain on the floor too
@@ -93,6 +93,19 @@ end)
 end
 
 load()
+
+do -- the start-up block
+    local n = 0
+    for _ in pairs(Drops.list) do n = n + 1 end
+    if not cfg.Persist then
+        Console.check('drops', 'info', 'On the ground', 'not kept through restarts (Config.Drops.Persist)')
+    else
+        Console.check('drops', n > 0 and 'info' or 'ok', 'On the ground', n > 0 and ('%d chain(s) back where they were left'):format(n) or 'none waiting')
+    end
+    if #orphans > 0 then
+        Console.log('warn', '%d chain(s) on the ground belong to chains this server doesn\'t have any more: kept in data/drops.json, back when the chain is', #orphans)
+    end
+end
 
 RegisterNetEvent('nzc:s:drops', function()
     if Logs.throttle(source, 'drops', 5000) then return end

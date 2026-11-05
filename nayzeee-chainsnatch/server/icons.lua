@@ -57,9 +57,7 @@ local function toInventory(name, b64)
     if SaveResourceFile('ox_inventory', ('web/images/%s.png'):format(name), bin, #bin) then return true end
     if not warned then
         warned = true
-        print('^3[nayzeee-chainsnatch] could not write into ox_inventory/web/images. Add this to server.cfg and restart:^0')
-        print(('^3    add_filesystem_permission %s write ox_inventory^0'):format(GetCurrentResourceName()))
-        print('^3  Your icons are still in nayzeee-chainsnatch/icons/ and nayzeee-chainprops/icons/, copy them over by hand.^0')
+        Console.log('warn', 'could not write into ox_inventory/web/images: add  add_filesystem_permission %s write ox_inventory  to server.cfg and restart (the icons are in icons/ meanwhile)', GetCurrentResourceName())
     end
     return false
 end

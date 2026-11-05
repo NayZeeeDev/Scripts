@@ -6,7 +6,7 @@ local RES = GetCurrentResourceName()
 local COLORS = { snatch = 15026509, throw = 569250, admin = 15050250, info = 10395294 }
 
 function Logs.send(kind, title, text)
-    if Config.Debug then print(('^5[%s]^7 %s: %s'):format(RES, title, text)) end
+    Console.debug('%s: %s', tostring(title), tostring(text))
     local hook = ServerConfig.Webhook
     if not hook or hook == '' then return end
     PerformHttpRequest(hook, function() end, 'POST', json.encode({

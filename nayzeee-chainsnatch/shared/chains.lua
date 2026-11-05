@@ -144,5 +144,11 @@ function Chains.fromMeta(meta)
 end
 
 function Chains.debug(...)
-    if Config.Debug then print(('[%s]'):format(GetCurrentResourceName()), ...) end
+    if not Config.Debug then return end
+    if Console then
+        local parts = {}
+        for i = 1, select('#', ...) do parts[i] = tostring((select(i, ...))) end
+        return Console.log('info', '%s', table.concat(parts, ' '))
+    end
+    print(('[%s]'):format(GetCurrentResourceName()), ...)
 end

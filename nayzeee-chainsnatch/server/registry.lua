@@ -33,7 +33,7 @@ end
 
 function Registry.saveOverrides()
     local ok = SaveResourceFile(RES, FILE, json.encode(Registry.overrides, { indent = true }), -1)
-    if not ok then print(('^1[%s] could not write %s^0'):format(RES, FILE)) end
+    if not ok then Console.log('error', 'could not write %s: studio changes are not saved (check the folder permissions)', FILE) end
     return ok
 end
 
@@ -136,13 +136,6 @@ AddEventHandler('onResourceStart', function(res)
     if res == Config.PropsResource then SetTimeout(500, Registry.reload) end
 end)
 
-CreateThread(function()
-    Wait(1000)
-    local n = 0
-    for _ in pairs(Chains.list) do n = n + 1 end
-    print(('^5[%s]^7 %d chain(s) ready%s'):format(RES, n,
-        GetResourceState(Config.PropsResource) == 'missing' and (' (no %s yet, convert some in /%s)'):format(Config.PropsResource, Config.Studio.Command) or ''))
-end)
 
 --- May this player buy this chain? (exclusive chains: only their licenses)
 function Registry.canBuy(src, key)

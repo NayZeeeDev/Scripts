@@ -256,21 +256,23 @@ function Inv.Peek(src, slot)
 end
 
 -- the most common setup slip: the item was never added, so every chain "doesn't fit"
-CreateThread(function()
-    Wait(5000)
-    if Inv.ItemExists() == false then
-        print(('^1[%s] The item "%s" is missing from %s. Chains can\'t be given, bought or picked up until you add it:^0'):format(GetCurrentResourceName(), Config.Item, INV))
-        print(('^1    paste %s into %s and restart the server.^0'):format(
-            ox and 'install/ox_inventory.lua' or 'install/qb-core.lua', ox and 'ox_inventory/data/items.lua' or 'qb-core/shared/items.lua'))
-    end
-end)
 
+
+Console.wait('inventory')
 CreateThread(function()
-    Wait(4000)
+    Wait(3000) -- the inventory may start after this script
     ensure()
     if INV == 'framework' then
-        print(('^1[%s] No inventory with item metadata found (ox_inventory, qb-inventory or qs-inventory). Chains can\'t be given or bought.^0'):format(GetCurrentResourceName()))
+        Console.check('inventory', 'error', 'Inventory', 'none with item metadata: chains need ox_inventory, qb-inventory or qs-inventory')
     else
-        print(('^5[%s]^7 inventory: %s'):format(GetCurrentResourceName(), INV))
+        Console.check('inventory', 'ok', 'Inventory', INV)
+        local has = Inv.ItemExists()
+        if has == false then
+            Console.check('item', 'error', 'Item', ('"%s" is missing: paste %s into %s and restart'):format(Config.Item,
+                ox and 'install/ox_inventory.lua' or 'install/qb-core.lua', ox and 'ox_inventory/data/items.lua' or 'qb-core/shared/items.lua'))
+        elseif has then
+            Console.check('item', 'ok', 'Item', ('%s registered'):format(Config.Item))
+        end
     end
+    Console.done('inventory')
 end)

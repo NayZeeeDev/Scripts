@@ -91,7 +91,7 @@ end)
 local function noRoom(src)
     local why = Inv.WhyNot(src)
     if why == 'no_item' then
-        print(('^1[%s] The item "%s" isn\'t in your inventory\'s item list: paste install/ox_inventory.lua (or install/qb-core.lua) and restart the inventory.^0'):format(GetCurrentResourceName(), Config.Item))
+        Console.log('error', 'The item "%s" isn\'t in your inventory\'s item list: paste install/ox_inventory.lua (or install/qb-core.lua) and restart the inventory', Config.Item)
     end
     return T[why] or T.no_room
 end
@@ -205,6 +205,17 @@ lib.addCommand('chainstorehere', { help = 'Print your spot for a jewelry store l
     local ped = GetPlayerPed(src)
     local c, h = GetEntityCoords(ped), GetEntityHeading(ped)
     local line = ('coords = vector3(%.2f, %.2f, %.2f), heading = %.1f,'):format(c.x, c.y, c.z, h)
-    print(line)
+    Console.log('info', 'Jewelry store spot from %s, paste into Config.Store.Locations:', GetPlayerName(src) or src)
+    print('    ' .. line) -- raw on purpose: it's meant to be copied
     TriggerClientEvent('chat:addMessage', src, { args = { 'Jewelry store', line } })
 end)
+
+-- the start-up block
+if cfg.Enabled then
+    local names = {}
+    for _, l in ipairs(cfg.Locations or {}) do names[#names + 1] = l.label or '?' end
+    Console.check('store', #names > 0 and 'ok' or 'info', 'Jewelry store', #names > 0 and ('%d location(s): %s'):format(#names, table.concat(names, ', '))
+        or ('no locations: only /%s works (Config.Store.Locations)'):format(cfg.Command or 'chainstore'))
+else
+    Console.check('store', 'info', 'Jewelry store', 'off (Config.Store.Enabled)')
+end

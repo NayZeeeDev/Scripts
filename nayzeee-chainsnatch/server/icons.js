@@ -24,9 +24,9 @@ on('nzc:icon:write', (src, name, b64) => {
     if (!fs.existsSync(OWN_DIR)) fs.mkdirSync(OWN_DIR, { recursive: true });
     fs.writeFileSync(out, buf);
     ok = true;
-    console.log(`^2[${RESOURCE}]^0 icon saved: icons/${name}.png (${Math.round(buf.length / 1024)} KB)`);
+    emit('nzc:console', 'ok', `icon saved: icons/${name}.png (${Math.round(buf.length / 1024)} KB)`);
   } catch (err) {
-    console.log(`^1[${RESOURCE}]^0 icon ${name} failed: ${err && err.message ? err.message : err}`);
+    emit('nzc:console', 'error', `icon ${name} failed: ${err && err.message ? err.message : err}`);
   }
   emit('nzc:icon:written', src, name, ok, b64);
 });
@@ -60,6 +60,6 @@ on('nzc:icons:fromKit', (propsResource, names, force) => {
       n++;
     } catch (e) { /* skip it */ }
   }
-  if (n > 0) console.log(`^5[${RESOURCE}]^0 copied ${n} chainkit icon(s) into the inventory images`);
+  if (n > 0) emit('nzc:console', 'info', `copied ${n} chainkit icon(s) into the inventory images`);
 });
 })();
