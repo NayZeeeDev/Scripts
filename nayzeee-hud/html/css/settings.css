@@ -115,7 +115,7 @@ body.settings-open:not(.editing) { background: rgba(0, 0, 0, .35); }
 kbd { font: 700 11px var(--font); padding: 4px 9px; border-radius: 6px; background: rgba(255,255,255,.08); border: 1px solid var(--line2); border-bottom-width: 2px; }
 
 /* ---------- NayZeee UI palette + buttons (from nayzeee-ui v5) ---------- */
-#settings, #editbar {
+#settings, #editbar, #alignbar {
   --nz-base: #08090a; --nz-panel: #0e1011; --nz-raise: #15181a; --nz-inset: #0b0c0d;
   --nz-line: rgba(255,255,255,.10); --nz-line-soft: rgba(255,255,255,.06); --nz-line-hair: rgba(255,255,255,.035); --nz-lift: rgba(255,255,255,.055);
   --nz-white: #fff; --nz-ink: #f2f4f5; --nz-ink-2: #9ea5aa; --nz-ink-3: #63696d;

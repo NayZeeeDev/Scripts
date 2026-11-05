@@ -68,8 +68,9 @@ Config.Minimap = {
     -- 'default' | 'square' | 'rounded' | 'circle' (players pick in /hud). These need squaremap.ytd / roundedmap.ytd /
     -- circlemap.ytd in a stream/ folder in this resource; without them the default shape is used.
     shape = 'default',
-    -- Nudge the minimap frame for everyone, in 1080p pixels (players can fine-tune on top in /hud > Map & Compass > Frame fit).
-    -- x: + right, y: + down, w / h: + bigger.
+    -- Nudge the minimap frame for everyone, in 1080p pixels (players can fine-tune on top in /hud > Map & Compass > Frame fit,
+    -- or press Align there and use the arrow keys). x: + right, y: + down, w / h: + bigger.
+    -- One fit for every shape, or per shape: frameFit = { square = { x = 1, y = 0, w = -2, h = 0 }, rounded = { ... } }
     frameFit = { x = 0, y = 0, w = 0, h = 0 },
 }
 

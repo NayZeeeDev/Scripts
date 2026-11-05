@@ -115,21 +115,34 @@
     sec('Bicycles', cards('cycle.style', [{ v: 'smartwatch', l: 'Smart Watch', pv: 'speedo:smartwatch' }, { v: 'watch', l: 'Fitness Watch', pv: 'speedo:watch' }, { v: 'car', l: 'Car speedometer', html: `<span class="pv-off">${ic('car')}</span>` }], 'c3 tall'));
 
   const MAP_FRAMES = [['glass', 'Glass'], ['inset', 'Inset'], ['accent', 'Accent'], ['panel', 'Panel'], ['corners', 'Corners'], ['shadow', 'Shadow'], ['none', 'None']];
-  R.map = () =>
-    sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
+  const SHAPE_NAMES = { default: 'Default', square: 'Square', rounded: 'Rounded', circle: 'Circle' };
+  // the fit being edited: this shape's own, started from the older single fit the first time
+  const shapeFit = () => {
+    const m = NH.cur.map, shape = m.shape || 'default';
+    m.fits = m.fits || {};
+    if (!m.fits[shape]) m.fits[shape] = Object.assign({ x: 0, y: 0, w: 0, h: 0 }, m.fit);
+    return { shape, fit: m.fits[shape], path: `map.fits.${shape}` };
+  };
+  R.map = () => {
+    const sf = shapeFit();
+    return sec('Minimap', seg('map.mode', [['vehicle', 'In vehicles'], ['always', 'Always'], ['never', 'Never']], 'Show minimap') +
       toggle('map.frame', 'Minimap frame', 'Drawn around the radar; follows the shape you pick below') +
       cards('map.frameStyle', MAP_FRAMES.map(([v, l]) => ({ v, l, html: `<div class="pv-map"><div class="pv-radar"></div>${v === 'none' ? '' : '<b class="mf-bz"></b>'}<div class="mf" data-style="${v}"><i></i><i></i><i></i><i></i></div></div>` })), 'c3') +
       seg('map.shape', [['default', 'Default'], ['square', 'Square'], ['rounded', 'Rounded'], ['circle', 'Circle']], 'Shape', 'The shape of the minimap itself')) +
-    sec('Frame fit', range('map.fit.x', 'Left / right', -40, 40, 1, 'px') + range('map.fit.y', 'Up / down', -40, 40, 1, 'px') +
-      range('map.fit.w', 'Width', -40, 40, 1, 'px') + range('map.fit.h', 'Height', -40, 40, 1, 'px') +
-      `<div class="opt"><div class="opt-t"><b>Reset fit</b></div><button class="btn-line" data-act="fit-reset">${ic('reset')}Reset</button></div>`,
-      'Nudge the frame until it sits exactly on your radar (open Edit layout or get in a car to see it). The street bar and speed sign follow.') +
+    sec(`Frame fit · ${SHAPE_NAMES[sf.shape] || sf.shape}`,
+      `<div class="opt"><div class="opt-t"><b>Align frame to map</b><small>Shows your radar with a 1px guide line. Arrow keys move it, Shift + arrows resize. Pixel perfect in a few seconds.</small></div><button class="btn-teal" data-act="map-align">${ic('crosshair')}Align</button></div>` +
+      range('map.cover', 'Edge cover', 0, 6, 1, 'px', 'The frame overlaps the radar\'s edge by this much, so a pixel of difference never shows') +
+      range(sf.path + '.x', 'Left / right', -40, 40, 1, 'px') + range(sf.path + '.y', 'Up / down', -40, 40, 1, 'px') +
+      range(sf.path + '.w', 'Width', -40, 40, 1, 'px') + range(sf.path + '.h', 'Height', -40, 40, 1, 'px') +
+      `<div class="opt"><div class="opt-t"><b>Reset fit</b><small>Only for the ${(SHAPE_NAMES[sf.shape] || sf.shape).toLowerCase()} shape</small></div><button class="btn-line" data-act="fit-reset">${ic('reset')}Reset</button></div>`,
+      'Each shape keeps its own fit. The street bar and speed sign follow the frame.') +
     sec('Street bar', toggle('map.street', 'Street bar', 'Direction, road, zone and postal') + toggle('map.streetOnFoot', 'Show on foot') +
       toggle('map.streetInside', 'Inside the minimap', 'A small street label in the bottom-left of the map instead of a bar above it') + scaleRange('street')) +
     sec('Speed limit', toggle('map.sign', 'Speed limit sign') + toggle('map.blink', 'Blink when speeding') +
       cards('map.signStyle', [{ v: 'us', l: 'US', html: PV.sign('us') }, { v: 'eu', l: 'European', html: PV.sign('eu') }], 'c2') + scaleRange('sign')) +
     sec('Compass', toggle('map.compass', 'Compass') + seg('map.compassWhen', [['always', 'Always'], ['vehicle', 'In vehicles']], 'Show') +
       cards('map.compassStyle', [{ v: 'tape', l: 'Tape', html: PV.compass('tape') }, { v: 'ribbon', l: 'Ribbon', html: PV.compass('ribbon') }], 'c2') + scaleRange('compass'));
+  };
 
   R.info = () =>
     sec('Display', toggle('info.enabled', 'Show player info') + scaleRange('info')) +
@@ -391,6 +404,19 @@
       el.addEventListener('input', e => this.onInput(e));
       el.addEventListener('change', e => this.onChange(e));
 
+      let ab = document.getElementById('alignbar');
+      if (!ab) { ab = document.createElement('div'); ab.id = 'alignbar'; document.body.appendChild(ab); }
+      ab.innerHTML = `<div class="eb panel"><span class="eb-i">${ic('crosshair')}</span><div><b>Align frame to map</b><small>Arrows move · Shift + arrows resize · Ctrl = 5px · Enter save · Esc cancel</small><div class="al-val"></div></div>
+        <div class="al-pad"><i></i><button data-al="0,-1,0,0">↑</button><i></i><button data-al="-1,0,0,0">←</button><button data-al="0,1,0,0">↓</button><button data-al="1,0,0,0">→</button></div>
+        <div class="al-sz"><span>Width</span><button data-al="1,0,-2,0">−</button><button data-al="-1,0,2,0">+</button><span>Height</span><button data-al="0,-1,0,-2">−</button><button data-al="0,1,0,2">+</button></div>
+        <button class="btn-line" data-alact="cancel">Cancel</button><button class="btn-teal" data-alact="save">${ic('check')}Save</button></div>`;
+      ab.addEventListener('click', e => {
+        const n = e.target.closest('[data-al]');
+        if (n) return this.alignNudge(...n.dataset.al.split(',').map(Number));
+        const a = e.target.closest('[data-alact]');
+        if (a) this.align(false, a.dataset.alact === 'save');
+      });
+
       const bar = document.getElementById('editbar');
       bar.innerHTML = `<div class="eb panel"><span class="eb-i">${ic('move')}</span><div><b>Edit layout</b><small>Drag to move · Scroll to resize · Right-click to reset · Team HUD included</small></div>
         <button class="btn-line" data-act="layout-reset">${ic('reset')}Reset layout</button><button class="btn-teal" data-act="layout-done">${ic('check')}Done</button></div>`;
@@ -427,6 +453,7 @@
     close() {
       if (!this.isOpen) return;
       NH.ColorPicker?.close();
+      if (NH.aligning) this.align(false, false);
       if (NH.editing) this.editLayout(false);
       this.isOpen = false;
       if (this.dirty) { NH.cur = NH.saved; NH.applySettings(); NH.post('preview', NH.saved); }
@@ -486,6 +513,49 @@
       if (rerender) this.render();
     },
 
+    // Align mode: the settings window steps aside, Lua shows the radar, and the frame turns into a 1px guide
+    // you move / resize with the keys (or the buttons) until it sits exactly on the radar's edge.
+    align(on, save = true) {
+      if (on === !!NH.aligning) return;
+      const sf = shapeFit();
+      if (on) this.alignStart = NH.clone(sf.fit);
+      else if (!save) NH.cur.map.fits[sf.shape] = this.alignStart;
+      NH.aligning = on;
+      document.body.classList.toggle('aligning', on);
+      this.el.classList.toggle('hidden', on);
+      NH.post('mapAlign', { on });
+      if (!on && save && JSON.stringify(this.alignStart) !== JSON.stringify(sf.fit)) this.markDirty();
+      NH.applySettings();
+      this.alignInfo();
+      if (!on) this.render();
+    },
+
+    alignNudge(dx, dy, dw, dh) {
+      const f = shapeFit().fit, c = (v) => Math.max(-60, Math.min(60, v));
+      f.x = c((f.x || 0) + dx); f.y = c((f.y || 0) + dy); f.w = c((f.w || 0) + dw); f.h = c((f.h || 0) + dh);
+      NH.place();
+      this.alignInfo();
+    },
+
+    alignInfo() {
+      const v = document.querySelector('#alignbar .al-val');
+      if (!v) return;
+      const { shape, fit } = shapeFit(), n = (k) => `<b>${fit[k] > 0 ? '+' : ''}${fit[k] || 0}</b>`;
+      v.innerHTML = `${SHAPE_NAMES[shape] || shape} · x ${n('x')} y ${n('y')} · w ${n('w')} h ${n('h')}`;
+    },
+
+    onAlignKey(e) {
+      const step = e.ctrlKey || e.altKey ? 5 : 1;
+      const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (k) {
+        e.preventDefault();
+        // Shift resizes from the centre: wider / narrower with left-right, taller / shorter with up-down
+        if (e.shiftKey) this.alignNudge(-k[0] * step, -k[1] * step, k[0] * step * 2, -k[1] * step * 2);
+        else this.alignNudge(k[0] * step, k[1] * step, 0, 0);
+      } else if (e.key === 'Enter') { e.preventDefault(); this.align(false, true); }
+      else if (e.key === 'Escape') { e.preventDefault(); this.align(false, false); }
+    },
+
     editLayout(on) {
       NH.editing = on;
       document.body.classList.toggle('editing', on);
@@ -511,7 +581,8 @@
       const act = e.target.closest('[data-act]');
       if (!act) return;
       const a = act.dataset.act;
-      if (a === 'fit-reset') { this.change('map.fit', { x: 0, y: 0, w: 0, h: 0 }); NH.place(); return; }
+      if (a === 'fit-reset') { this.change(shapeFit().path, { x: 0, y: 0, w: 0, h: 0 }); NH.place(); return; }
+      if (a === 'map-align') return this.align(true);
       if (a === 'test-notify') {
         NH.notify({ kind: 'success', title: 'Garage', message: 'Your vehicle is ready at Legion Square.', duration: 5000 });
         setTimeout(() => NH.notify({ kind: 'error', message: 'You do not have enough cash.', duration: 5000 }), 250);
@@ -622,7 +693,7 @@
         const v = +t.value;
         t.nextElementSibling.textContent = fmtVal(v, t.dataset.fmt);
         this.change(t.dataset.rng, v, false);
-        if (t.dataset.rng.startsWith('map.fit.')) NH.place();
+        if (t.dataset.rng.startsWith('map.fit') || t.dataset.rng === 'map.cover') NH.place();
       } else if (t.dataset.scale) {
         const v = +t.value;
         t.nextElementSibling.textContent = Math.round(v * 100) + '%';

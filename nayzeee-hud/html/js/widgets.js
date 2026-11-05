@@ -59,14 +59,19 @@
   // ---------------- Minimap frame ----------------
   def('mapframe', {
     label: 'Minimap Frame', fixed: true,
-    visible: () => NH.cur.map.frame && NH.cur.map.frameStyle !== 'none' && (NH.S.radar || NH.editing),
-    build(el) { el.innerHTML = '<b class="mf-bz"></b><div class="mf"><i></i><i></i><i></i><i></i></div>'; this.mf = el.querySelector('.mf'); },
+    visible: () => NH.aligning || (NH.cur.map.frame && NH.cur.map.frameStyle !== 'none' && (NH.S.radar || NH.editing)),
+    build(el) { el.innerHTML = '<b class="mf-bz"></b><div class="mf"><i></i><i></i><i></i><i></i></div><b class="mf-al"></b>'; this.mf = el.querySelector('.mf'); },
     apply() { this.mf.dataset.style = NH.cur.map.frameStyle || 'glass'; },
     place(c) {
       const s = this.el.style;
       this.el.dataset.shape = c.map.shape || 'default'; // square / rounded / circle frames follow the radar's shape
-      s.left = c.map.l + '%'; s.top = (c.map.b - c.map.h) + '%';
-      s.width = c.map.w + '%'; s.height = c.map.h + '%';
+      // Edge cover: the frame sits a few pixels in over the radar's edge (and the bezel reaches that much
+      // further out), so a pixel or two of difference between the radar and the frame never shows.
+      const px = Math.max(0, Math.min(8, Number(NH.cur.map.cover ?? 2))) * window.innerHeight / 1080;
+      const cx = px / window.innerWidth * 100, cy = px / window.innerHeight * 100;
+      s.setProperty('--cov', px + 'px');
+      s.left = (c.map.l + cx) + '%'; s.top = (c.map.b - c.map.h + cy) + '%';
+      s.width = (c.map.w - cx * 2) + '%'; s.height = (c.map.h - cy * 2) + '%';
     },
   });
 
@@ -533,8 +538,14 @@
   // ---------------- Layout ----------------
   // Frame fit: server (Config.Minimap.frameFit) + player (/hud > Map) nudges in 1080p pixels, so the frame
   // and everything docked to the radar line up exactly on any screen.
+  // Each shape keeps its own fit (map.fits[shape]); the older single map.fit applies until a shape gets one.
+  NH.mapFit = () => {
+    const shape = NH.cur.map.shape || 'default', fits = NH.cur.map.fits || {};
+    return fits[shape] || NH.cur.map.fit || {};
+  };
   const fitMap = (m) => {
-    const f = NH.cur.map.fit || {}, g = NH.cfg.mapFit || {};
+    const shape = NH.cur.map.shape || 'default', G = NH.cfg.mapFit || {};
+    const f = NH.mapFit(), g = typeof G[shape] === 'object' ? G[shape] : G; // Config.Minimap.frameFit: flat, or per shape
     const n = (k) => (Number(f[k]) || 0) + (Number(g[k]) || 0);
     return Object.assign({}, m, {
       l: m.l + n('x') / 19.2, w: m.w + n('w') / 19.2,

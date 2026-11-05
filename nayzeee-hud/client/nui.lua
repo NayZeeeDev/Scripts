@@ -110,6 +110,13 @@ RegisterNUICallback('save', function(data, cb)
     cb('ok')
 end)
 
+-- /hud > Map > Align: keep the radar on screen while the player lines the frame up with it
+RegisterNUICallback('mapAlign', function(data, cb)
+    NHUD.aligning = type(data) == 'table' and data.on == true
+    NHUD.updateRadar(nil, true)
+    cb('ok')
+end)
+
 RegisterNUICallback('preview', function(data, cb)
     applyLuaSettings(data)
     cb('ok')
@@ -120,6 +127,7 @@ RegisterNUICallback('close', function(_, cb)
         NHUD.closePanel()
     else
         settingsOpen = false
+        if NHUD.aligning then NHUD.aligning = false; NHUD.updateRadar(nil, true) end
         NHUD.focus = false
         SetNuiFocus(false, false)
     end

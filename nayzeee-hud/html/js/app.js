@@ -306,6 +306,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
+    if (NH.aligning) { NH.settingsUI.onAlignKey(e); return; }
     if (sqFocused && sqFrame) { // keys pressed before the frame took focus still reach the squads menu
       sqFrame.contentWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, shiftKey: e.shiftKey, bubbles: true }));
       return;
