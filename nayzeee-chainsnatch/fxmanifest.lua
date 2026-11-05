@@ -71,4 +71,5 @@ escrow_ignore {
     'bridge/*.lua',
     'install/*',
     'README.md',
+    'HOW-TO-USE.md',
 }

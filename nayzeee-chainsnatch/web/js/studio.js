@@ -190,6 +190,12 @@ function sdOwners(c) {
       <button class="btn sm ghost" data-sd="ownerDel" data-v="${i}" title="Remove">${icon('x')}</button></div>`).join('')}</div>` : ''}
     <div class="sd-ch">Add from online players</div>
     <div class="sd-chips">${arr(o.online).map((p) => chip(`data-sd="ownerAdd" data-v="${esc(p.license)}" data-n="${esc(p.name)}"`, `${icon('user')}${esc(p.name)} <span style="color:var(--ink-3)">#${p.id}</span>`, has(p.license))).join('') || '<span class="sd-note">Nobody online.</span>'}</div>
+    <div class="sd-ch">Or add someone who's offline <em>their license is in txAdmin (Players &gt; their name)</em></div>
+    <label class="field">${icon('user')}<input id="owName" maxlength="40" placeholder="Their name (shown on the chain)"></label>
+    <div class="sd-row2" style="grid-template-columns:1fr auto">
+      <label class="field">${icon('tag')}<input id="owLicense" placeholder="license:1a2b3c…"></label>
+      <button class="btn sm teal" data-sd="ownerManual">${icon('check')}Add</button>
+    </div>
     <div class="sd-note">Exclusive chains only show in their owners' store. Anyone else can only get one by snatching it, or being given it.</div>
   </div>`;
 }
@@ -342,6 +348,18 @@ sdRoot.addEventListener('click', (e) => {
       const list = arr(SD.owners && SD.owners.owners);
       if (list.some((w) => w.license === v)) return;
       list.push({ license: v, name: b.dataset.n });
+      SD.owners.owners = list;
+      post('studio:setOwners', { owners: list });
+      return sdRight();
+    }
+    case 'ownerManual': {
+      let lic = ($('#owLicense').value || '').trim().toLowerCase();
+      const name = ($('#owName').value || '').trim() || 'Player';
+      if (lic && !lic.startsWith('license:')) lic = 'license:' + lic;
+      if (!/^license:[0-9a-f]{8,}$/.test(lic)) { $('#owLicense').focus(); $('#owLicense').closest('.field').style.borderColor = 'var(--red-edge)'; return; }
+      const list = arr(SD.owners && SD.owners.owners);
+      if (list.some((w) => w.license === lic)) return;
+      list.push({ license: lic, name });
       SD.owners.owners = list;
       post('studio:setOwners', { owners: list });
       return sdRight();

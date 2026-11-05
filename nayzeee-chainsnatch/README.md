@@ -1,5 +1,7 @@
 # nayzeee-chainsnatch 1.1 — install & guide
 
+> **New here? Read [HOW-TO-USE.md](HOW-TO-USE.md) first:** installing, adding a chain in 4 steps, custom chains for one player.
+
 Chains you can buy, craft, wear, flex, throw, set down, give, swap and snatch. Any chain **clothing** you download is
 converted into a **prop** by the built-in converter (chainkit), with every texture kept.
 
