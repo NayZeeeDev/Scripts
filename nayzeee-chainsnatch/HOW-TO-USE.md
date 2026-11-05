@@ -15,18 +15,18 @@ If you know nayzeee-backpack, this is the difference:
 | Fitting | `/bagstudio` | `/chainstudio`, one click: **From clothing** |
 | Pictures | icon studio | drawn **automatically** when a chain is converted (icon studio for nicer ones) |
 
-It comes as two folders:
+You only install **one folder**, `nayzeee-chainsnatch`. The script makes the second one by itself:
 
 | Folder | What it is |
 |---|---|
 | `nayzeee-chainsnatch` | the script, the UI and the converter (`tools/chainkit`) |
-| `nayzeee-chainprops` | the chain props. **Made by the script**: don't edit it, don't put files in it |
+| `nayzeee-chainprops` | the chain props. **Created by the script** the first time it converts a chain, next to `nayzeee-chainsnatch`, and restarted by it after every build. Don't edit it, don't put files in it |
 
 ---
 
 ## Install (once)
 
-1. Put both folders in your `resources`.
+1. Put `nayzeee-chainsnatch` in your `resources` (`nayzeee-chainprops` appears next to it after the first build).
 2. Add this to `server.cfg`:
 
    ```
@@ -42,7 +42,9 @@ It comes as two folders:
    add_ace resource.nayzeee-chainsnatch command.restart allow
    ```
 
-   The last three let the script restart `nayzeee-chainprops` by itself after it converts a chain.
+   The last three let the script start and restart `nayzeee-chainprops` by itself after it converts a chain.
+   On the very first start the console may say it can't find `nayzeee-chainprops`: that's fine, it doesn't exist
+   until the first chain is built.
 3. Open `install/ox_inventory.lua` and paste the item into `ox_inventory/data/items.lua`.
    (qb-inventory / qs-inventory: `install/qb-core.lua`.)
 4. Restart the server. In game, `/chainstudio` opens the studio.

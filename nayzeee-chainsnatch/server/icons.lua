@@ -64,13 +64,28 @@ local function toInventory(name, b64)
     return false
 end
 
+--- Items show their picture from nayzeee-chainprops/icons (metadata.imageurl), so studio shots go there too
+local function toProps(name, b64)
+    if GetResourceState(Config.PropsResource) == 'missing' then return false end
+    local bin = decode(b64)
+    if #bin < 8 or bin:sub(1, 4) ~= '\137PNG' then return false end
+    return SaveResourceFile(Config.PropsResource, ('icons/%s.png'):format(name), bin, #bin)
+end
+
 AddEventHandler('nzc:icon:written', function(src, name, ok, b64)
     local where = ' → icons/'
-    if ok then where = toInventory(name, b64) and ' → icons/ + ox_inventory' or ' → icons/ only' end
+    if ok then
+        toProps(name, b64)
+        where = toInventory(name, b64) and ' → icons/ + ox_inventory' or ' → icons/ only'
+    end
     TriggerClientEvent('nzc:icon:saved', src, name, ok, where)
 end)
 
 AddEventHandler('nzc:icon:copy', function(name, b64) toInventory(name, b64) end)
+AddEventHandler('nzc:icon:toProps', function(name, b64) toProps(name, b64) end)
+
+--- After a build chainkit has redrawn icons: put the studio's shots back over them
+function RestoreStudioIcons() TriggerEvent('nzc:icons:studioBack') end
 
 --- Hand chainkit's icons to the inventory (skips ones the studio already shot unless force).
 function CopyKitIcons(force)

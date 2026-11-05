@@ -87,6 +87,7 @@ function ChainProps.run(mode, src)
 end
 
 local function restartProps()
+    RestoreStudioIcons()
     ExecuteCommand('refresh')
     if GetResourceState(RES) == 'started' then ExecuteCommand('restart ' .. RES) else ExecuteCommand('ensure ' .. RES) end
     SetTimeout(4000, function()

@@ -79,7 +79,6 @@ end
 --- Chain in inventory slot -> on the neck. A chain already worn goes back in its place.
 function Worn.wearSlot(src, slot)
     local current = Worn.list[src]
-    if current and not Inv.CanCarry(src, current.meta) then return false, T.no_room end
     local peek = Inv.Peek(src, slot)
     if peek and peek.broken then return false, T.broken end
     local meta = Inv.TakeSlot(src, slot)
@@ -90,7 +89,12 @@ function Worn.wearSlot(src, slot)
     end
     if current then
         local old = Worn.strip(src)
-        Inv.Add(src, old)
+        if not Inv.Add(src, old) then
+            -- no room for the old one after all: everything back the way it was
+            Worn.set(src, old)
+            Inv.Add(src, meta)
+            return false, T.no_room
+        end
     end
     Worn.set(src, meta)
     return true, T.wearing:format(Worn.list[src].meta.label)
@@ -104,6 +108,12 @@ local function restore(src)
     local ident = Bridge.GetIdentifier(src)
     if not ident then return end
     if Worn.ident[src] == ident and Worn.list[src] then return publish(src) end
+    if not Worn.ident[src] and Worn.list[src] then
+        -- they put a chain on before their character finished loading: that one wins, saved to them
+        Worn.ident[src] = ident
+        persist(src)
+        return publish(src)
+    end
     Worn.ident[src] = ident
     Worn.list[src] = nil
     local raw = GetResourceKvpString(kvpKey(ident))

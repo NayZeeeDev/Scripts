@@ -183,8 +183,9 @@ Config.Snatch = {
     Keybind      = false,          -- e.g. 'H'
     TargetLabel  = 'Snatch Chain',
     AllowInVehicle = false,
-    Clothing     = true,           -- chains worn as CLOTHING (from a clothing store) can be snatched too, if chainkit
-                                   -- converted that clothing (it has to be in a server resource, not the chains/ folder)
+    Clothing     = false,          -- true = chains worn as CLOTHING can be snatched too (only ones chainkit converted
+                                   -- from a clothing resource). Careful: players get those free at the clothing store,
+                                   -- so every snatch makes a new chain item. Each one can only be ripped once per 6h.
     ClothingNone = 0,              -- what's left in the accessory slot after a clothing chain is ripped off
     SnapChance   = 0.15,           -- chance the chain snaps and lands on the ground instead of in the snatcher's hand
     FailRagdoll  = 1200,           -- ms the snatcher hits the floor after losing the tug of war. 0 = off

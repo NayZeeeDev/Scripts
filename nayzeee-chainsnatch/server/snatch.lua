@@ -32,21 +32,31 @@ local function clothingDrawable(src)
     return GetPedDrawableVariation(p, 7)
 end
 
+-- every drawable ripped off this character: [drawable] = when. Entries only expire by age, so swapping
+-- between two clothing chains can't reset it.
+local function rips(k)
+    local ok, r = pcall(json.decode, GetResourceKvpString(k) or 'null')
+    local out, now = {}, os.time()
+    if ok and type(r) == 'table' then
+        for d, t in pairs(r) do
+            if tonumber(t) and tonumber(t) + RIP_MEMORY > now then out[tostring(d)] = tonumber(t) end
+        end
+    end
+    return out
+end
+
 local function ripped(src, drawable)
     local k = ripKey(src)
     if not k then return true end
-    local ok, r = pcall(json.decode, GetResourceKvpString(k) or 'null')
-    if not ok or type(r) ~= 'table' then return false end
-    if (r.t or 0) + RIP_MEMORY < os.time() or r.d ~= drawable then
-        DeleteResourceKvp(k)
-        return false
-    end
-    return true
+    return rips(k)[tostring(drawable)] ~= nil
 end
 
 local function rememberRip(src, drawable)
     local k = ripKey(src)
-    if k then SetResourceKvp(k, json.encode({ d = drawable, t = os.time() })) end
+    if not k then return end
+    local r = rips(k)
+    r[tostring(drawable)] = os.time()
+    SetResourceKvp(k, json.encode(r))
 end
 
 --- In a snatch right now (either side)? Other files refuse wear / take off / throw / place then.

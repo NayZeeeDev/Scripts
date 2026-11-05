@@ -2,6 +2,8 @@
 //  - the icon studio's PNGs land in this resource's icons/ folder
 //  - chainkit's drawn icons (nayzeee-chainprops/icons) are handed to Lua so it can copy them into
 //    ox_inventory/web/images (newer FXServer builds block Node from writing into another resource)
+// FiveM runs every server .js file of a resource in ONE context: wrap it so names never clash.
+(() => {
 const fs = require('fs');
 const path = require('path');
 
@@ -29,6 +31,20 @@ on('nzc:icon:write', (src, name, b64) => {
   emit('nzc:icon:written', src, name, ok, b64);
 });
 
+// studio shots back into nayzeee-chainprops/icons after chainkit redrew them
+on('nzc:icons:studioBack', () => {
+  let n = 0;
+  try {
+    for (const f of fs.readdirSync(OWN_DIR)) {
+      const name = f.replace(/\.png$/, '');
+      if (f === name || !NAME.test(name)) continue;
+      emit('nzc:icon:toProps', name, fs.readFileSync(path.join(OWN_DIR, f)).toString('base64'));
+      n++;
+    }
+  } catch (e) { /* no studio shots yet */ }
+  return n;
+});
+
 // copy chainkit icons for props that have no studio icon yet
 on('nzc:icons:fromKit', (propsResource, names, force) => {
   let dir;
@@ -46,3 +62,4 @@ on('nzc:icons:fromKit', (propsResource, names, force) => {
   }
   if (n > 0) console.log(`^5[${RESOURCE}]^0 copied ${n} chainkit icon(s) into the inventory images`);
 });
+})();

@@ -1,5 +1,7 @@
 // Runs tools/chainkit (the chain converter) for server/chainprops.lua and relays its output.
 // chainkit is a separate program, so converting never blocks the server thread.
+// FiveM runs every server .js file of a resource in ONE context: wrap it so names never clash.
+(() => {
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -67,3 +69,4 @@ on('nzc:chainkit:run', (job) => {
     emit('nzc:chainkit:exit', job.src, job.mode, code === null ? -1 : code, tail.slice(-8).join('\n'));
   });
 });
+})();

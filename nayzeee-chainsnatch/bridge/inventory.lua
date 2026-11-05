@@ -20,6 +20,23 @@ end
 local ox = INV == 'ox_inventory' and exports.ox_inventory or nil
 local qs = INV == 'qs-inventory' and exports['qs-inventory'] or nil
 
+-- qb-inventory 2.x moved AddItem / RemoveItem out of the player object: use its exports when they exist
+local qbinv = INV == 'qb-inventory' and GetResourceState('qb-inventory') == 'started' and exports['qb-inventory'] or nil
+local function qbAdd(p, src, item, count, slot, info)
+    if qbinv then
+        local ok, res = pcall(function() return qbinv:AddItem(src, item, count, slot, info, 'nayzeee-chainsnatch') end)
+        if ok and res ~= nil then return res ~= false end
+    end
+    return p and p.Functions.AddItem and p.Functions.AddItem(item, count, slot, info) ~= false or false
+end
+local function qbRemove(p, src, item, count, slot)
+    if qbinv then
+        local ok, res = pcall(function() return qbinv:RemoveItem(src, item, count, slot, 'nayzeee-chainsnatch') end)
+        if ok and res ~= nil then return res ~= false end
+    end
+    return p and p.Functions.RemoveItem and p.Functions.RemoveItem(item, count, slot) ~= false or false
+end
+
 local function qbItemBox(src, item, kind, count)
     if GetResourceState('qb-core') ~= 'started' then return end
     local def = exports['qb-core']:GetCoreObject().Shared.Items[item]
@@ -47,9 +64,9 @@ function Inv.Add(src, meta)
     if INV == 'qb-inventory' then
         local p = Bridge.GetPlayer(src)
         if not p then return false end
-        local ok = p.Functions.AddItem(item, 1, nil, meta)
+        local ok = qbAdd(p, src, item, 1, nil, meta)
         if ok then qbItemBox(src, item, 'add', 1) end
-        return ok ~= false
+        return ok
     end
     return false
 end
@@ -79,7 +96,7 @@ function Inv.TakeSlot(src, slot)
         local it = p.PlayerData.items[slot]
         if not it or it.name ~= item then return nil end
         local meta = it.info or {}
-        if not p.Functions.RemoveItem(item, 1, slot) then return nil end
+        if not qbRemove(p, src, item, 1, slot) then return nil end
         qbItemBox(src, item, 'remove', 1)
         return meta
     end
@@ -144,9 +161,9 @@ function Inv.RemoveItem(src, item, count)
     if INV == 'qb-inventory' then
         local p = Bridge.GetPlayer(src)
         if not p then return false end
-        local ok = p.Functions.RemoveItem(item, count)
+        local ok = qbRemove(p, src, item, count)
         if ok then qbItemBox(src, item, 'remove', count) end
-        return ok ~= false
+        return ok
     end
     return false
 end
@@ -172,7 +189,7 @@ function Inv.AddItem(src, item, count)
     if qs then return qs:AddItem(src, item, count) ~= false end
     if INV == 'qb-inventory' then
         local p = Bridge.GetPlayer(src)
-        return p ~= nil and p.Functions.AddItem(item, count) ~= false
+        return qbAdd(p, src, item, count)
     end
     return false
 end

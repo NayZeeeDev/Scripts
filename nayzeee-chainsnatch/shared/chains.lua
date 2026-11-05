@@ -116,6 +116,8 @@ function Chains.meta(key, letter, extra)
     m.variant = v and v.letter or letter or 'a'
     m.label = Chains.label(key, m.variant)
     m.image = v and v.prop or nil
+    -- ox_inventory only serves pictures that existed when it started; nayzeee-chainprops restarts after every build
+    m.imageurl = v and v.prop and ('nui://%s/icons/%s.png'):format(Config.PropsResource, v.prop) or nil
     local parts = { money(Chains.value(key)) }
     if m.broken then parts[1] = 'BROKEN · ' .. parts[1] end
     if m.madeFor then parts[#parts + 1] = 'made for ' .. m.madeFor end

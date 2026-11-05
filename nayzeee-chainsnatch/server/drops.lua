@@ -69,6 +69,11 @@ function Drops.remove(id)
 end
 
 local function load()
+
+-- a restart must never lose a chain that was only on the ground for a few seconds
+AddEventHandler('onResourceStop', function(res)
+    if res == RES and cfg.Persist then flush() end
+end)
     if not cfg.Persist then return end
     local ok, data = pcall(json.decode, LoadResourceFile(RES, FILE) or '[]')
     if not ok or type(data) ~= 'table' then return end
@@ -176,10 +181,11 @@ RegisterNetEvent('nzc:s:pickup', function(id, wear)
     local meta = d.meta
     local ok
     if wear and meta.broken then Worn.notify(src, T.broken, 'error') end
-    if wear and not Worn.get(src) and not meta.broken then
+    if wear and not Worn.get(src) and not meta.broken and Chains.exists(d.chain) then
         Drops.remove(d.id)
         ok = Worn.set(src, meta)
-        if ok then Worn.notify(src, T.wearing:format(meta.label), 'success') end
+        if ok then Worn.notify(src, T.wearing:format(meta.label), 'success')
+        else Drops.add(d) end -- couldn't put it on: back on the floor
     else
         if not Inv.CanCarry(src, meta) then
             picking[id] = nil
