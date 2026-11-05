@@ -74,8 +74,7 @@ local function optional(name, fn, ...)
     local ok, result = pcall(fn, ...)
     if ok then return result end
 
-    print(('^1[nayzeee-banking]^7 %s failed and was left out of the payload: %s')
-        :format(name, tostring(result)))
+    Console.log('error', '%s failed and was left out of the payload: %s', name, tostring(result))
     return nil
 end
 

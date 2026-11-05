@@ -273,13 +273,13 @@ CreateThread(function()
                 'SELECT * FROM nz_bank_payroll WHERE enabled = 1 AND amount > 0 AND next_run <= ?',
                 { os.time() })
             if not ok then
-                print('^1[nayzeee-banking]^7 payroll failed: ' .. tostring(due))
+                Console.log('error', 'payroll failed: %s', tostring(due))
                 due = {}
             end
 
             for _, row in ipairs(due or {}) do
                 local ran, err = pcall(runPayroll, row)
-                if not ran then print('^1[nayzeee-banking]^7 payroll failed: ' .. tostring(err)) end
+                if not ran then Console.log('error', 'payroll failed: %s', tostring(err)) end
             end
         end
     end

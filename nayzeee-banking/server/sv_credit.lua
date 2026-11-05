@@ -237,7 +237,7 @@ CreateThread(function()
 
         for _, row in ipairs(cards) do
             local ok, err = pcall(Bank.serial, Bank.cardKey(row.id), cycleCard, row.id)
-            if not ok then print('^1[nayzeee-banking]^7 card statement failed: ' .. tostring(err)) end
+            if not ok then Console.log('error', 'card statement failed: %s', tostring(err)) end
         end
     end
 end)

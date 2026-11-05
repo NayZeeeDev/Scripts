@@ -146,7 +146,7 @@ CreateThread(function()
                 end
             end
         end)
-        if not ok then print('^1[nayzeee-banking]^7 market tick failed: ' .. tostring(err)) end
+        if not ok then Console.log('error', 'market tick failed: %s', tostring(err)) end
     end
 end)
 

@@ -33,7 +33,7 @@ local warned   = {}
 local function note(key, msg)
     if warned[key .. msg] then return end
     warned[key .. msg] = true
-    print(('^3[nayzeee-banking]^7 %s: %s'):format(key, msg))
+    Console.log('warn', '%s: %s', key, msg)
 end
 
 local function opts(key)
@@ -725,7 +725,7 @@ local function findTable(key, label, prefix, o, spec)
             local used = {}
             for role in pairs(spec) do used[#used + 1] = map[role] end
             table.sort(used)
-            print(('^2[nayzeee-banking]^7 %s: reading invoices from `%s` (%s)'):format(label, t, table.concat(used, ', ')))
+            Bank.debug(('%s: reading invoices from %s (%s)'):format(label, t, table.concat(used, ', ')))
             return t, map
         end
     end
@@ -843,11 +843,25 @@ local function arm(key)
     local ok, res = pcall(a.check, a, o)
     live[key] = (ok and res) and true or nil
     if not ok then note(key, 'check failed: ' .. tostring(res)) end
-    if live[key] then print(('^2[nayzeee-banking]^7 %s invoices show in the Bills tab'):format(a.label)) end
+    if live[key] and Console.ready() then Console.log('ok', '%s invoices show in the Bills tab', a.label) end
 end
 
+-- without oxmysql MySQL.ready never answers; the Database row says why
+local st = GetResourceState('oxmysql')
+if st == 'started' or st == 'starting' then Console.wait('billing') end
 MySQL.ready(function()
-    for key in pairs(ADAPTERS) do arm(key) end
+    local shown = {}
+    for key in pairs(ADAPTERS) do
+        pcall(arm, key)
+        if live[key] then shown[#shown + 1] = ADAPTERS[key].label end
+    end
+    table.sort(shown)
+    if #shown > 0 then
+        Console.check('billing', 'ok', 'Billing', table.concat(shown, ', ') .. ' invoices show in the Bills tab')
+    else
+        Console.check('billing', 'info', 'Billing', 'no billing script running; the Bills tab shows this bank\'s own bills')
+    end
+    Console.done('billing')
 end)
 
 -- billing scripts started or restarted after this one

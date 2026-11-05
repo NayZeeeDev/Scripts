@@ -38,8 +38,8 @@ function Bank.createBill(identifier, issuerJob, amount, reason, senderName)
     -- a paid bill needs somewhere to land; without an account it would be money gone
     local issuer = Bank.getSociety(issuerJob)
     if not issuer then
-        print(('^3[nayzeee-banking]^7 a bill from %s was refused: that job has no society account. ' ..
-               'Add it to Config.Bills.issuers or Config.Accounts.societyAccess.'):format(tostring(issuerJob)))
+        Console.log('warn', 'a bill from %s was refused: that job has no society account; ' ..
+            'add it to Config.Bills.issuers or Config.Accounts.societyAccess', tostring(issuerJob))
         return false, 'That company has no account at this bank.'
     end
 
@@ -208,13 +208,13 @@ CreateThread(function()
         local ok, due = pcall(MySQL.query.await,
             'SELECT * FROM nz_bank_bills WHERE status = "pending" AND due_at <= ?', { os.time() })
         if not ok then
-            print('^1[nayzeee-banking]^7 overdue bill sweep failed: ' .. tostring(due))
+            Console.log('error', 'overdue bill sweep failed: %s', tostring(due))
             due = {}
         end
 
         for _, bill in ipairs(due or {}) do
             local swept, err = pcall(markOverdue, bill)
-            if not swept then print('^1[nayzeee-banking]^7 overdue bill sweep failed: ' .. tostring(err)) end
+            if not swept then Console.log('error', 'overdue bill sweep failed: %s', tostring(err)) end
         end
     end
 end)
@@ -352,13 +352,13 @@ CreateThread(function()
         local ok, due = pcall(MySQL.query.await,
             'SELECT * FROM nz_bank_scheduled WHERE enabled = 1 AND next_run <= ?', { os.time() })
         if not ok then
-            print('^1[nayzeee-banking]^7 scheduled transfers failed: ' .. tostring(due))
+            Console.log('error', 'scheduled transfers failed: %s', tostring(due))
             due = {}
         end
 
         for _, s in ipairs(due or {}) do
             local ran, err = pcall(runScheduled, s)
-            if not ran then print('^1[nayzeee-banking]^7 scheduled transfer failed: ' .. tostring(err)) end
+            if not ran then Console.log('error', 'scheduled transfer failed: %s', tostring(err)) end
         end
     end
 end)

@@ -121,10 +121,8 @@ local function phoneContacts(identifier)
 
   if not ok then
     contactsBroken = true
-    print('^3[nayzeee-banking]^7 phone contacts are switched on but the lookup failed — ' ..
-          'check the table and column names in Config.Phone.contacts. ' ..
-          'Nearby and recent still work; this will not be tried again until restart.')
-    print('^3[nayzeee-banking]^7 ' .. tostring(rows))
+    Console.log('warn', 'phone contacts lookup failed, so it is off until restart (nearby and recent still work): ' ..
+        'check the table and column names in Config.Phone.contacts. %s', tostring(rows))
     return {}
   end
 

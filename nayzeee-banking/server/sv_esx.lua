@@ -380,6 +380,8 @@ end)
 --  ESX's own paycheck is switched off per player so nobody is paid
 --  twice. sv_payroll handles it from there.
 -- ═══════════════════════════════════════════════════════════
+local warnedPaycheck = false
+
 Framework.onPlayerLoaded(function(src, xPlayer)
     if Config.Payroll.mode ~= 'bank' then return end
 
@@ -387,8 +389,11 @@ Framework.onPlayerLoaded(function(src, xPlayer)
         Wait(2000)
         if Framework.stopPaycheck(xPlayer) then return end
         if Framework.name == 'esx' then
-            print('^3[nayzeee-banking]^7 xPlayer.togglePaycheck is missing on this ESX build. ' ..
-                  'Set Config.Payroll.mode = "esx" or patch paycheck.lua (see README).')
+            if not warnedPaycheck then
+                warnedPaycheck = true
+                Console.log('warn', 'xPlayer.togglePaycheck is missing on this ESX build, so ESX pays wages too: ' ..
+                    'set Config.Payroll.mode = "esx" or patch paycheck.lua (see README)')
+            end
         end
         -- QBCore / Qbox: the framework's own salary loop has to be off (README),
         -- which is said once on start rather than for every player
@@ -398,6 +403,11 @@ end)
 -- nz_bank:paycheck is handled in sv_accounts.lua (server-side only, never a net event)
 
 if Config.Payroll.mode == 'bank' and Framework.name ~= 'esx' then
-    print(('^3[nayzeee-banking]^7 Payroll mode is "bank" on %s: turn off the framework\'s own paychecks ' ..
-           'or wages are paid twice (see README, Who pays wages).'):format(Framework.name))
+    Console.check('payroll', 'warn', 'Payroll', ('bank pays wages: turn off %s\'s own paychecks or they are paid twice (README, Who pays wages)')
+        :format(Framework.name == 'qbox' and 'qbx_core' or 'qb-core'))
+elseif Config.Payroll.mode == 'bank' then
+    Console.check('payroll', 'ok', 'Payroll', 'bank pays wages, ESX paychecks switched off per player')
+else
+    Console.check('payroll', 'ok', 'Payroll', ('%s pays wages into this bank'):format(
+        ({ esx = 'ESX', qbcore = 'QBCore', qbox = 'Qbox' })[Framework.name] or 'the framework'))
 end

@@ -97,7 +97,8 @@ RegisterCommand(Config.Admin.command, function(src, args)
         if src > 0 then
             TriggerClientEvent('chat:addMessage', src, { args = { 'BANK', text } })
         else
-            print(text)
+            Console.log('info', 'Account check')
+            print(text)   -- the list itself, to read or copy
         end
 
     -- /bankadmin credit <playerId> <score>
@@ -125,7 +126,7 @@ RegisterCommand(Config.Admin.command, function(src, args)
         if src > 0 then
             Bank.notify(src, 'Banking admin', help, 'inform')
         else
-            print(help)
+            Console.log('info', help)
         end
     end
 end, false)

@@ -153,13 +153,13 @@ CreateThread(function()
             local ok, accounts = pcall(MySQL.query.await,
                 'SELECT * FROM nz_bank_accounts WHERE type = "savings" AND balance > 0 AND frozen = 0')
             if not ok then
-                print('^1[nayzeee-banking]^7 savings interest failed: ' .. tostring(accounts))
+                Console.log('error', 'savings interest failed: %s', tostring(accounts))
                 accounts = {}
             end
 
             for _, acc in ipairs(accounts or {}) do
                 local paid, err = pcall(payInterest, acc)
-                if not paid then print('^1[nayzeee-banking]^7 savings interest failed: ' .. tostring(err)) end
+                if not paid then Console.log('error', 'savings interest failed: %s', tostring(err)) end
             end
         end
     end

@@ -230,7 +230,7 @@ local function requestLoan(xPlayer, tierId)
         end)
 
         if not ok then
-            print('^3[nayzeee-banking]^7 nz_bank_loans is missing the anti-churn columns — re-import install/install.sql')
+            Console.log('warn', 'nz_bank_loans is missing the anti-churn columns: add them from install/install.sql')
             lastClosed = 0
         end
         lastClosed = lastClosed or 0
@@ -615,13 +615,13 @@ CreateThread(function()
             local ok, due = pcall(MySQL.query.await,
                 'SELECT id FROM nz_bank_loans WHERE status = "active" AND next_payment <= ?', { os.time() })
             if not ok then
-                print('^1[nayzeee-banking]^7 loan repayments failed: ' .. tostring(due))
+                Console.log('error', 'loan repayments failed: %s', tostring(due))
                 due = {}
             end
 
             for _, row in ipairs(due or {}) do
                 local ran, err = pcall(Bank.serial, loanKey(row.id), collectDue, row.id)
-                if not ran then print('^1[nayzeee-banking]^7 loan repayment failed: ' .. tostring(err)) end
+                if not ran then Console.log('error', 'loan repayment failed: %s', tostring(err)) end
             end
         end
     end

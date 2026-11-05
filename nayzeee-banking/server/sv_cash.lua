@@ -36,15 +36,22 @@ local active = false
 if C.enabled then
     local ok, inv = usable()
     if not ok then
-        print(('^3[nayzeee-banking]^7 Config.Cash is on but %s cannot hold banknote items; ' ..
-               'physical cash stays off (it needs ox_inventory, qs-inventory or qb-inventory).'):format(tostring(inv)))
+        local want = Config.Inventory
+        if want ~= inv and (want == 'ox_inventory' or want == 'qs-inventory' or want == 'qb-inventory') then
+            Console.check('cash', 'warn', 'Cash', ('banknotes stay off: %s was not started yet; start it before this resource'):format(want))
+        else
+            Console.check('cash', 'warn', 'Cash', ('banknotes stay off: %s cannot hold them; it needs ox_inventory, qs-inventory or qb-inventory')
+                :format(tostring(want)))
+        end
     else
         active = true
     end
     if active and NOTES[#NOTES].value ~= 1 then
-        print('^3[nayzeee-banking]^7 Config.Cash has no $1 note: amounts that are not a multiple of '
-              .. NOTES[#NOTES].value .. ' cannot be paid or changed exactly.')
+        Console.log('warn', 'Config.Cash has no $1 note: amounts that are not a multiple of %s cannot be paid or changed exactly',
+            NOTES[#NOTES].value)
     end
+else
+    Console.check('cash', 'info', 'Cash', 'banknotes off (Config.Cash.enabled)')
 end
 
 -- ── the inventory, one note type at a time ───────────────
@@ -299,6 +306,16 @@ local due      = {}   -- [src] = cash owed in notes that did not fit yet
 
 local function isOx() return Bank.inventory() == 'ox_inventory' end
 
+--- ox_inventory still keeping cash as its `money` account item (its default)
+local function oxOwnsCash()
+    if not isOx() then return false end
+    local ok, list = pcall(json.decode, GetConvar('inventory:accounts', '["money"]'))
+    for _, name in ipairs(ok and type(list) == 'table' and list or { 'money' }) do
+        if name == MONEY then return true end
+    end
+    return false
+end
+
 --- Loose `money` items: during an ox shop that is where the cash is, and at any
 --- other time it is cash that has not been turned into notes yet.
 local function loose(src) return MONEY and count(src, MONEY) or 0 end
@@ -409,20 +426,7 @@ Bank.cashSettle = function(src) pcall(settleLoose, src) end
 -- ── turned on only where it is safe ──────────────────────
 CreateThread(function()
     if not active or C.mirror == false then return end
-    if isOx() then
-        local ok, list = pcall(json.decode, GetConvar('inventory:accounts', '["money"]'))
-        for _, name in ipairs(ok and type(list) == 'table' and list or { 'money' }) do
-            if name == MONEY then
-                local warning = ('^1[nayzeee-banking]^7 Config.Cash: ox_inventory still treats "%s" as the cash account, so ' ..
-                    'scripts that charge framework cash cannot see banknotes (ox shops still work). Add to server.cfg: ' ..
-                    '^3setr inventory:accounts []^7 (QBCore/Qbox) or ^3setr inventory:accounts ["black_money"]^7 (ESX), ' ..
-                    'then restart.'):format(MONEY)
-                print(warning)
-                SetTimeout(20000, function() print(warning) end)   -- again, once the startup noise has passed
-                return
-            end
-        end
-    end
+    if oxOwnsCash() then return end   -- said in the Cash row
     mirrorOn = true
 
     -- the framework says when its cash moves
@@ -486,20 +490,39 @@ local function oxHooks()
     end)
     if ok then
         hooked = true
-        Bank.debug('ox_inventory shops take banknotes')
     else
-        print('^1[nayzeee-banking]^7 could not hook ox_inventory shops: ' .. tostring(err))
+        Console.log('error', 'could not hook ox_inventory shops, so they will not take banknotes: %s', tostring(err))
     end
 end
 
-CreateThread(function()
-    if not active or not isOx() then return end
-    for _ = 1, 120 do
-        if GetResourceState('ox_inventory') == 'started' then break end
-        Wait(500)
+--- The Cash row: what is on, and the one line server.cfg may still need.
+local function cashRow()
+    local mode = C.mirror == false and 'bank only' or 'every script'
+    if not isOx() then
+        Console.check('cash', 'ok', 'Cash', ('banknotes on (%s, %s)'):format(Bank.inventory(), mode))
+    elseif not hooked then
+        Console.check('cash', 'warn', 'Cash', 'banknotes on, but ox_inventory shops could not be hooked: start ox_inventory before this resource')
+    elseif C.mirror ~= false and oxOwnsCash() then
+        Console.check('cash', 'warn', 'Cash', ('ox shops take notes, other scripts cannot: add setr inventory:accounts %s to server.cfg')
+            :format(Framework.name == 'esx' and '["black_money"]' or '[]'))
+    else
+        Console.check('cash', 'ok', 'Cash', ('banknotes on (ox_inventory, %s)'):format(mode))
     end
-    Wait(500)
-    oxHooks()
+end
+
+if active then Console.wait('cash') end
+CreateThread(function()
+    if not active then return end
+    if Config.Inventory == 'ox_inventory' then
+        for _ = 1, 24 do   -- up to 12s, inside the startup block's 15s
+            if GetResourceState('ox_inventory') == 'started' then break end
+            Wait(500)
+        end
+        Wait(500)
+        oxHooks()
+    end
+    cashRow()
+    Console.done('cash')
 end)
 
 AddEventHandler('onResourceStart', function(res)

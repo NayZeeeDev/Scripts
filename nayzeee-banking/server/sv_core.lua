@@ -25,8 +25,7 @@ function Bank.callback(name, fn)
         local ok, result = pcall(fn, src, ...)
         if ok then return result end
 
-        print(('^1[nayzeee-banking]^7 %s errored and returned a failure instead of hanging:'):format(name))
-        print('^1[nayzeee-banking]^7   ' .. tostring(result))
+        Console.log('error', '%s errored and returned a failure instead of hanging: %s', name, tostring(result))
 
         return { ok = false, msg = 'The bank hit an error. The server console has the details.' }
     end)
@@ -80,8 +79,34 @@ local REQUIRED = {
     },
 }
 
+--- The tables in install/install.sql, made on start if they are not there.
+--- Every statement there is CREATE TABLE IF NOT EXISTS, so nothing is touched.
+local function createTables()
+    local sql = LoadResourceFile(GetCurrentResourceName(), 'install/install.sql')
+    if not sql then return false, 'install/install.sql is missing from the resource' end
+    sql = sql:gsub('%-%-[^\n]*', '')
+    local made = 0
+    for stmt in sql:gmatch('[^;]+') do
+        if stmt:find('%S') then
+            local ok, err = pcall(MySQL.query.await, stmt)
+            if not ok then return false, tostring(err) end
+            made = made + 1
+        end
+    end
+    return true, made
+end
+
+Console.wait('database')
+
 CreateThread(function()
     Wait(1500)   -- let oxmysql finish connecting
+
+    local ran, made, why = pcall(createTables)
+    local created = ran and made
+    if not created then
+        Console.check('database', 'error', 'Database', ('could not create the tables (%s): check the oxmysql connection string')
+            :format(tostring(ran and why or made)))
+    end
 
     local ok, rows = pcall(function()
         return MySQL.query.await([[
@@ -92,9 +117,9 @@ CreateThread(function()
     end)
 
     if not ok then
-        print('^1[nayzeee-banking]^7 could not read the database schema. ' ..
-              'Check your oxmysql connection string.')
+        Console.check('database', 'error', 'Database', 'could not read the database: check the oxmysql connection string')
         Bank.schemaChecked = true
+        Console.done('database')
         return
     end
 
@@ -113,19 +138,26 @@ CreateThread(function()
             end
         end
         if not Bank.schema[group] then
-            print(('^3[nayzeee-banking]^7 %s is switched off — the database is missing columns it needs.')
-                :format(spec.feature))
+            Console.log('warn', '%s is switched off: the database is missing columns it needs', spec.feature)
         end
     end
 
-    if #missing > 0 then
-        print('^3[nayzeee-banking]^7 re-import ^5install/install.sql^7 to switch these back on. Missing: ' ..
-              table.concat(missing, ', '))
+    local tables = {}
+    for _, r in ipairs(rows or {}) do tables[r.t:lower()] = true end
+    local n = 0
+    for _ in pairs(tables) do n = n + 1 end
+
+    if not created then
+        -- the row above already says what is wrong
+    elseif #missing > 0 then
+        Console.check('database', 'warn', 'Database', ('%d column(s) missing from an older install: add %s (see install/install.sql)')
+            :format(#missing, table.concat(missing, ', ')))
     else
-        Bank.debug('schema is up to date')
+        Console.check('database', 'ok', 'Database', ('oxmysql, %d tables ready'):format(n))
     end
 
     Bank.schemaChecked = true
+    Console.done('database')
 end)
 
 -- ═══════════════════════════════════════════════════════════
@@ -134,7 +166,10 @@ end)
 local CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789'
 
 function Bank.debug(...)
-    if Config.Debug then print('^3[nayzeee-banking]^7', ...) end
+    if not Config.Debug then return end
+    local parts = {}
+    for i = 1, select('#', ...) do parts[i] = tostring((select(i, ...))) end
+    Console.log('info', '%s', table.concat(parts, ' '))
 end
 
 --- NaN and infinity round to 0, so every `amount <= 0` check turns them away.
@@ -200,6 +235,20 @@ local function inventory()
     return want
 end
 Bank.inventory = inventory
+
+Console.wait('inventory')
+CreateThread(function()
+    Wait(1000)   -- inventories listed after this resource in server.cfg are still starting
+    local want = Config.Inventory or 'esx'
+    if want == 'esx' or want == 'framework' then
+        Console.check('inventory', 'ok', 'Inventory', 'framework cash')
+    elseif GetResourceState(want) == 'started' then
+        Console.check('inventory', 'ok', 'Inventory', want)
+    else
+        Console.check('inventory', 'warn', 'Inventory', ('%s is not running: cash uses the framework\'s own money; fix Config.Inventory'):format(want))
+    end
+    Console.done('inventory')
+end)
 
 function Bank.getCash(xPlayer)
     local inv = inventory()
@@ -538,8 +587,8 @@ function Bank.creditOwed(accountId, amount, opts)
         Wait(200)
     end
     if not ok then
-        print(('^1[nayzeee-banking]^7 could not return %s%s to account %s (%s): %s')
-            :format(Config.Currency, tostring(amount), tostring(accountId), tostring(why), tostring(opts.label)))
+        Console.log('error', 'could not return %s%s to account %s (%s): %s',
+            Config.Currency, tostring(amount), tostring(accountId), tostring(why), tostring(opts.label))
         Bank.log('admin', 'Money owed did not land', ('%s%s to account `%s` · %s · %s')
             :format(Config.Currency, tostring(amount), tostring(accountId), tostring(opts.label), tostring(why)))
     end

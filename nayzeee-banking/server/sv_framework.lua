@@ -31,13 +31,24 @@ local function detect()
     if started('qbx_core') then return 'qbox' end
     if started('qb-core') then return 'qbcore' end
     if started('es_extended') then return 'esx' end
-    print('^1[nayzeee-banking]^7 no framework is running yet. Start this resource after ' ..
-          'es_extended, qb-core or qbx_core, or set Config.Framework.')
-    return 'esx'
+    return 'esx', true
 end
 
-Framework.name = detect()
+local guessed
+Framework.name, guessed = detect()
 local FW = Framework.name
+do
+    local res = ({ esx = 'es_extended', qbcore = 'qb-core', qbox = 'qbx_core' })[FW]
+    if guessed then
+        Console.check('framework', 'error', 'Framework', 'none running: start es_extended, qb-core or qbx_core before this resource, or set Config.Framework')
+    elseif not res then
+        Console.check('framework', 'error', 'Framework', ('Config.Framework = "%s" is not esx, qbcore or qbox'):format(tostring(FW)))
+    elseif not started(res) then
+        Console.check('framework', 'error', 'Framework', ('%s is set in Config.Framework but not running'):format(res))
+    else
+        Console.check('framework', 'ok', 'Framework', res)
+    end
+end
 
 -- ═══════════════════════════════════════════════════════════
 --  ESX

@@ -19,7 +19,7 @@ Immersive banking for **ESX Legacy, QBCore and Qbox** — personal, shared, soci
 
 ## 🔧 Install
 
-1. Import `install/install.sql` into your database.
+1. Nothing to import: the tables are created on first start (`install/install.sql` is there if you would rather run it yourself).
 2. Drop the folder in `resources/[nayzeee]/nayzeee-banking`. **The folder must be named exactly `nayzeee-banking`** — every export, event and NUI callback is namespaced to it. Rename it and the resource prints the reason and stops itself rather than half-working.
 3. Add to `server.cfg` **after** your framework (`es_extended`, `qb-core` or `qbx_core`) and your inventory:
    ```cfg
@@ -28,6 +28,8 @@ Immersive banking for **ESX Legacy, QBCore and Qbox** — personal, shared, soci
    ```
 4. Open `config.lua` and set your bank locations, society jobs and log webhooks.
 5. Restart the server. Personal and society accounts are created automatically.
+
+On start the server console prints one block: the logo, then a **Server** section with a row per check (ox_lib, oxmysql, OneSync, framework, inventory, database, cash, billing, payroll), anything worth knowing under **Notes**, and a closing **Ready** line. A `WARN` or `FAIL` row says what is wrong and what to change. After startup every line from this resource starts with `[NayZeee Banking]` and its level.
 
 {% hint style="warning" %}
 **On QBCore or Qbox this replaces the bank UI and ATMs of `qb-banking` / `Renewed-Banking`.** Remove them — or, if other scripts on your server read society money from them, keep them running with their bank and ATM locations turned off. Their society balances (qb-banking on current QBCore, Renewed-Banking on Qbox, qb-management or `management_funds` on older QBCore) are kept in step automatically, through their own exports.
@@ -700,9 +702,9 @@ Each factor is marked *Helping*, *Okay*, *Hurting* or *No effect yet*, so a play
 
 ## 🗄️ Database
 
-Two files: `install/install.sql` creates every table, `install/uninstall.sql` drops them all.
+Two files: `install/install.sql` creates every table, `install/uninstall.sql` drops them all. The resource runs `install.sql` itself on every start; each statement is `CREATE TABLE IF NOT EXISTS`, so nothing that is already there is touched, and the **Database** row in the startup block says how many tables are ready.
 
-The resource also checks the columns it relies on when it starts. If a table was created by hand or from an older copy and is missing one, the console names it and that feature switches itself off rather than erroring:
+The resource also checks the columns it relies on when it starts. If a table was created by hand or from an older copy and is missing one, the Database row names it and that feature switches itself off rather than erroring:
 
 | Missing | What stops working | Everything else |
 |---|---|---|
@@ -878,7 +880,7 @@ nayzeee-banking/
 ├─ lock.lua              open — folder name check
 ├─ locales/              open — Lua-side strings
 ├─ install/
-│  ├─ install.sql        run this once
+│  ├─ install.sql        every table (run for you on start)
 │  ├─ uninstall.sql      drops every table
 │  ├─ items.md           card items for every inventory
 │  ├─ images/            item images: the four cards and the three printed papers
@@ -983,7 +985,7 @@ TriggerEvent('nz_bank:paycheck', source, amount, 'Police')
 
 | Issue | Solution |
 |---|---|
-| A modal hangs on confirm | A server callback errored. Check the console — if it mentions a missing column, re-import `install/install.sql` |
+| A modal hangs on confirm | A server callback errored. Check the console: if it mentions a missing column, add it from `install/install.sql` |
 | The ATM screen sits off the prop | The offsets do not match your model — `Config.Debug = true`, then `/atmtune` |
 | ATM keys do nothing when clicked | Same cause: the keypad origin is off. Tune it, or set `Config.ATM.screen.enabled = false` to use the pad |
 | Phone app never appears | lb-phone was not running when the resource started — restart this resource, or check the console for the reason it was rejected |

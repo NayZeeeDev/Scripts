@@ -347,13 +347,13 @@ CreateThread(function()
             WHERE type = 'personal' AND balance < 0 AND od_since > 0 AND od_since <= ?
         ]], { cutoff })
         if not ok then
-            print('^1[nayzeee-banking]^7 overdraft interest failed: ' .. tostring(rows))
+            Console.log('error', 'overdraft interest failed: %s', tostring(rows))
             rows = {}
         end
 
         for _, row in ipairs(rows or {}) do
             local charged, err = pcall(chargeInterest, row.id, c.interestRate, cutoff)
-            if not charged then print('^1[nayzeee-banking]^7 overdraft interest failed: ' .. tostring(err)) end
+            if not charged then Console.log('error', 'overdraft interest failed: %s', tostring(err)) end
         end
     end
 end)

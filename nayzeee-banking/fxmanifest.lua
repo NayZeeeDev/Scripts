@@ -3,7 +3,7 @@ game 'gta5'
 lua54 'yes'
 
 name 'nayzeee-banking'
-author 'NAYZEEE Development'
+author 'NayZeee Development'
 description 'Immersive banking — personal, shared, society and savings accounts, cards, loans, bills, scheduled transfers'
 version '1.0.0'
 
@@ -26,6 +26,7 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'server/console.lua',          -- the startup block and every console line
     'server/sv_framework.lua',     -- ESX / QBCore / Qbox, before anything else
     'server/sv_core.lua',
     'server/sv_cash.lua',          -- physical banknotes (Config.Cash), after the plain cash helpers
