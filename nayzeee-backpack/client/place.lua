@@ -326,7 +326,7 @@ function PlacedTagTargets()
     for id, entity in pairs(placed) do
         local data = placedData[id]
         if data and data.tag and DoesEntityExist(entity) then
-            list[#list + 1] = { id = id, entity = entity, tag = data.tag }
+            list[#list + 1] = { id = id, entity = entity, tag = data.tag, mine = data.mine }
         end
     end
     return list

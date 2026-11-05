@@ -40,6 +40,13 @@ local function anchorOf(v)
     return vector3(w.x, w.y, w.z + bagHeight)
 end
 
+--- Nothing solid between the camera and the point (the bag / wearer itself doesn't count).
+local function clearView(from, to, entity, me)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, 17, me, 7) -- world + foliage
+    local _, hit, _, _, hitEntity = GetShapeTestResult(ray)
+    return hit == 0 or hitEntity == entity
+end
+
 local function sigOf(t)
     return table.concat({ t.t or '', t.f or '', t.c or '', t.c2 or '', t.s or '', t.e or '', t.p or '' }, '|')
 end
@@ -85,10 +92,13 @@ CreateThread(function()
 
         local function consider(v, own)
             local e = v.ped or v.entity
-            local d = #(GetEntityCoords(e) - cam)
+            local a = anchorOf(v)
+            local d = #(a - cam)
             if d > range + 1.0 then return end
-            -- no reading names through walls (your own always shows)
-            if not own and not HasEntityClearLosToEntity(me, e, 17) then return end
+            -- no reading names through walls (your own always shows). Test the
+            -- line from the camera to where the name floats: a line to a set-down
+            -- bag's own origin runs into the floor it sits on and always fails.
+            if not own and not clearView(cam, a, e, me) then return end
             v.d = d
             list[#list + 1] = v
         end
@@ -101,7 +111,7 @@ CreateThread(function()
         end
         if cfg.showPlaced and PlacedTagTargets then
             for _, t in ipairs(PlacedTagTargets()) do
-                consider({ k = 'g' .. t.id, entity = t.entity, tag = t.tag, l = false }, false)
+                consider({ k = 'g' .. t.id, entity = t.entity, tag = t.tag, l = false }, t.mine == true)
             end
         end
 
