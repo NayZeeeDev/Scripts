@@ -50,13 +50,13 @@ Discord: discord.gg/nayzeeedev
 **Inspect** (admins, and society members with the *inspect* permission)
 - Look up any citizen by name or identifier, or any society, and see their full billing history, outstanding balance and total paid
 - Non-admins only see invoices involving their own society ("Job View")
-- Admins can cancel, **delete single records**, **clear every record for an identifier**, and manage cash registers
+- Admins can cancel, **delete single records** and **clear every record for an identifier**
 
 **More**
 - **Physical invoice item** for online citizen recipients; using it opens the paper invoice with a Pay button. Receipt item on payment. **Print invoice** gives a copy.
 - **Overdue collection**: flag expired invoices with a one-time late fee, or collect automatically from the bank after X days, **including offline characters**. Society recipients are charged from their society account.
 - **Cash registers** with a live customer display and checkout on the customer's screen
-- **Register placement** for admins (Inspect > Registers): *Spawn prop* puts a till prop on the counter with a crosshair raycast (rotate, raise, place) for restaurants without a till; *Existing register* aims a line and ball at a till that's already in the map, with a cylinder showing the third-eye radius. In-game registers can be moved the same way.
+- **Billing Admin** page (sidebar, or `/billingadmin`) with **register placement**: *Spawn prop* puts a till prop on the counter with a crosshair raycast (rotate, raise, place) for restaurants without a till; *Existing register* aims a line and ball at a till that's already in the map, with a cylinder showing the third-eye radius. In-game registers can be moved the same way.
 - **F7 keymapping** (configurable and rebindable)
 - **Editable bridges**: framework, banking, inventory, notifications, logger
 - **JSON locales** (`locales/en.json`), **UI colours** from config
@@ -124,7 +124,7 @@ Personal invoices only need the framework. Society invoices need a society backe
 
 ## Register placement
 
-Billing admin > **Inspect > Registers**, pick a mode, fill in the label, society and radius, then **Start placing** (the UI closes while you place):
+Open **Billing Admin** (sidebar > Admin, or `/billingadmin`), pick a mode, fill in the label, society and radius, then **Start placing** (the UI closes while you place):
 
 | Mode | Use it when | Controls |
 |---|---|---|

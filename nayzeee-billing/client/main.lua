@@ -85,7 +85,7 @@ RegisterCommand(Config.AdminCommand, function()
         ClientBridge.Notify(Config.UI.Title, L('error.no_permission', 'You do not have permission'), 'error')
         return
     end
-    OpenBilling('inspect')
+    OpenBilling('admin')
 end, false)
 
 --  ██████╗ █████╗ ██╗     ██╗     ██████╗  █████╗  ██████╗██╗  ██╗███████╗

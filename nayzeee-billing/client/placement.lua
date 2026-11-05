@@ -1,6 +1,6 @@
 --[[
     NAYZEEE BILLING - Register placement (admin)
-    Two raycast modes, started from billing admin > Inspect > Registers:
+    Two raycast modes, started from the Billing Admin page:
       prop   restaurants without a till: a ghost till prop follows the crosshair, rotate / raise it and place it
       point  restaurants that already have a till: a line + ball mark the spot, the cylinder shows the third-eye radius
 ]]
@@ -161,7 +161,7 @@ RegisterNUICallback('placeRegister', function(job, cb)
                 ClientBridge.Notify(Config.UI.Title, err, 'error')
             end
         end
-        OpenBilling('inspect', { registers = true })
+        OpenBilling('admin', { registers = true })
     end)
 end)
 

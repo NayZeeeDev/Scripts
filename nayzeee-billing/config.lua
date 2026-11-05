@@ -36,7 +36,7 @@ Config.Keybind = {
     Description = 'Open billing',
 }
 
-Config.AdminCommand = 'billingadmin'  -- opens billing on the Inspect page
+Config.AdminCommand = 'billingadmin'  -- opens billing on the Billing Admin page
 
 -- ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗███████╗
 -- ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝██╔════╝
@@ -240,7 +240,7 @@ Config.Registers = {
     Blip = { Enabled = false, Sprite = 52, Color = 2, Scale = 0.6 },
     Debug = false,
 
-    -- In-game placement (billing admin > Inspect > Registers)
+    -- In-game placement (Billing Admin page, /billingadmin)
     --   Spawn prop: a till prop follows your crosshair (raycast); rotate it and place it on the counter
     --   Existing register: aim a line + ball at the till that's already in the map; the cylinder shows the third-eye radius
     Placement = {
@@ -254,7 +254,7 @@ Config.Registers = {
         },
     },
 
-    -- Registers from config (admins can also add them in-game: Inspect > Registers)
+    -- Registers from config (admins can also add them in-game on the Billing Admin page)
     -- Optional: model = 'prop_till_01', heading = 90.0 to spawn a till prop at the spot
     List = {
         { id = 'burgershot_counter1', label = 'Burgershot Counter', society = 'burgershot', coords = vector3(197.42, -850.75, 30.96), radius = 2.0 },
