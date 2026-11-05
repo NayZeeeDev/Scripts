@@ -128,12 +128,15 @@ local function sendLabel()
     if ok then NUI.send('store:label', { x = x, y = y }) end
 end
 
+-- how far from the centre a chain may stay on the counter: the neighbours either side, or only the featured one
+local function keepRange() return cfg.SideChains and 1 or 0 end
+
 local function settle()
     if not anim then return end
     local keep = {}
     for _, it in ipairs(live) do
         it.o, it.from = it.to, it.to
-        if math.abs(it.to) > 1 then Util.delete(it.entity) else keep[#keep + 1] = it end
+        if math.abs(it.to) > keepRange() then Util.delete(it.entity) else keep[#keep + 1] = it end
     end
     live = keep
     anim = nil
@@ -153,9 +156,13 @@ end
 local function shift(dir, incoming)
     settle()
     for _, it in ipairs(live) do it.from = it.o; it.to = it.o - dir end
-    if incoming and cfg.SideChains then
-        local it = spawnSlot(incoming.key, incoming.letter, dir * 2)
-        if it then it.from, it.o, it.to = dir * 2, dir * 2, dir end
+    if incoming then
+        -- with neighbours: the new one enters at the far edge and becomes the next neighbour.
+        -- without: it slides in from the side (fading in) and becomes the featured chain, the old one fades out the other way
+        local at, to = dir * 2, dir
+        if not cfg.SideChains then at, to = dir, 0 end
+        local it = spawnSlot(incoming.key, incoming.letter, at)
+        if it then it.from, it.o, it.to = at, at, to end
     end
     anim = { start = GetGameTimer(), duration = cfg.TransitionTime or 420 }
     spinBoost = 0.0
@@ -230,7 +237,7 @@ local function frameLoop()
             local keep = {}
             for _, it in ipairs(live) do
                 it.o, it.from = it.to, it.to
-                if math.abs(it.to) > 1 then Util.delete(it.entity) else keep[#keep + 1] = it end
+                if math.abs(it.to) > keepRange() then Util.delete(it.entity) else keep[#keep + 1] = it end
             end
             live = keep
             sendLabel()
@@ -432,7 +439,10 @@ local function applyView(data, force)
     local prev, cur, nxt = entryOf(data.prev), entryOf(data.cur), entryOf(data.next)
     current = cur
     local dir = tonumber(data.dir) or 0
-    if force or dir == 0 or #live == 0 then rebuild(prev, cur, nxt) else shift(dir, dir > 0 and nxt or prev) end
+    -- the chain that has to come onto the counter: the new neighbour (side chains on) or the new featured chain
+    local incoming = cur
+    if cfg.SideChains then incoming = dir > 0 and nxt or prev end
+    if force or dir == 0 or #live == 0 then rebuild(prev, cur, nxt) else shift(dir, incoming) end
     if mode == 'tryon' then applyTryOn() end
 end
 

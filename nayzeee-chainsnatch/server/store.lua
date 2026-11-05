@@ -87,6 +87,15 @@ lib.callback.register('nzc:store:open', function(src)
     return { items = catalog(src), repairs = repairs(src), wallet = wallet(src), craft = cfg.Craft and cfg.Craft.Enabled or false }
 end)
 
+-- the real reason a chain can't be handed over (a missing item reads as "no room" otherwise)
+local function noRoom(src)
+    local why = Inv.WhyNot(src)
+    if why == 'no_item' then
+        print(('^1[%s] The item "%s" isn\'t in your inventory\'s item list: paste install/ox_inventory.lua (or install/qb-core.lua) and restart the inventory.^0'):format(GetCurrentResourceName(), Config.Item))
+    end
+    return T[why] or T.no_room
+end
+
 local function done(src, ok, msg)
     TriggerClientEvent('nzc:store:result', src, ok, msg, { items = catalog(src), repairs = repairs(src), wallet = wallet(src) })
 end
@@ -107,13 +116,13 @@ RegisterNetEvent('nzc:store:buy', function(key, letter)
     if not price then return end
     local v = Chains.variant(key, letter)
     busy[src] = true
-    if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then busy[src] = nil return done(src, false, T.no_room) end
+    if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then busy[src] = nil return done(src, false, noRoom(src)) end
     if not Bridge.RemoveMoney(src, price, cfg.Currency, 'jewelry-store') then busy[src] = nil return done(src, false, T.no_money) end
     if not newChain(src, key, v.letter, ('bought (%s)'):format(Chains.money(price))) then
         -- pockets filled up in between: give the money back
         Bridge.AddMoney(src, price, cfg.Currency, 'jewelry-store refund')
         busy[src] = nil
-        return done(src, false, T.no_room)
+        return done(src, false, noRoom(src))
     end
     busy[src] = nil
     done(src, true, T.bought:format(Chains.label(key, v.letter)))
@@ -129,7 +138,7 @@ RegisterNetEvent('nzc:store:craft', function(key, letter)
     for _, m in ipairs(mats) do
         if Inv.Count(src, m.item) < m.count then return done(src, false, T.no_materials) end
     end
-    if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then return done(src, false, T.no_room) end
+    if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then return done(src, false, noRoom(src)) end
     busy[src] = true
     TriggerClientEvent('nzc:store:working', src, cfg.Craft.Time or 4000, 'craft')
     SetTimeout(cfg.Craft.Time or 4000, function()
@@ -138,7 +147,7 @@ RegisterNetEvent('nzc:store:craft', function(key, letter)
             if Inv.Count(src, m.item) < m.count then busy[src] = nil return done(src, false, T.no_materials) end
         end
         -- room first, then the materials, then the chain: nothing is taken unless the chain can be handed over
-        if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then busy[src] = nil return done(src, false, T.no_room) end
+        if not Inv.CanCarry(src, Chains.meta(key, v.letter)) then busy[src] = nil return done(src, false, noRoom(src)) end
         local taken = {}
         for _, m in ipairs(mats) do
             if not Inv.RemoveItem(src, m.item, m.count) then
@@ -151,7 +160,7 @@ RegisterNetEvent('nzc:store:craft', function(key, letter)
         local ok = newChain(src, key, v.letter, 'crafted')
         if not ok then for _, t in ipairs(taken) do Inv.AddItem(src, t.item, t.count) end end
         busy[src] = nil
-        done(src, ok, ok and T.crafted:format(Chains.label(key, v.letter)) or T.no_room)
+        done(src, ok, ok and T.crafted:format(Chains.label(key, v.letter)) or noRoom(src))
     end)
 end)
 

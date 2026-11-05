@@ -261,7 +261,7 @@ Config.Store = {
     -- Counter display
     SpinSpeed      = 18.0,
     TransitionTime = 420,
-    SideChains     = true,
+    SideChains     = false,        -- true = the previous / next chain also shows, faded, either side of the featured one
     DepthOfField   = true,
     HideProps      = { Enabled = true, Radius = 1.4, MaxSize = 1.2,
                        Models = { 'prop_till_01', 'prop_till_02', 'prop_till_03', 'prop_cash_register_01', 'prop_monitor_01a', 'prop_keyboard_01a' } },
@@ -407,6 +407,8 @@ Config.Text = {
     wearing         = 'You put on your %s.',
     took_off        = 'You took off your %s.',
     no_room         = 'No room in your pockets.',
+    too_heavy       = 'You are carrying too much for this chain.',
+    no_item         = 'The chain item is not installed on this server yet (an admin has to add nz_chain to the inventory).',
     already_wearing = 'Take your chain off first.',
     too_far         = 'Too far away.',
     bad_spot        = 'You can\'t put it there.',

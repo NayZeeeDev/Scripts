@@ -57,6 +57,35 @@ function Inv.CanCarry(src, meta)
     return true
 end
 
+--- Is the chain item set up in the inventory? true / false, or nil when we can't tell
+function Inv.ItemExists()
+    local item = Config.Item
+    if ox then
+        local ok, it = pcall(function() return ox:Items(item) end)
+        if ok then return it ~= nil end
+        return nil
+    end
+    if INV == 'qb-inventory' and GetResourceState('qb-core') == 'started' then
+        local ok, core = pcall(function() return exports['qb-core']:GetCoreObject() end)
+        if ok and core and core.Shared and core.Shared.Items then return core.Shared.Items[item] ~= nil end
+    end
+    return nil
+end
+
+--- Why a chain doesn't fit: 'no_item' (not installed) | 'too_heavy' | 'no_room' (no free slot)
+function Inv.WhyNot(src)
+    if Inv.ItemExists() == false then return 'no_item' end
+    if ox then
+        local ok, why = pcall(function()
+            local it = ox:Items(Config.Item)
+            local inv = ox:GetInventory(src, false)
+            if it and inv and tonumber(inv.weight) and tonumber(inv.maxWeight) and inv.weight + (it.weight or 0) > inv.maxWeight then return 'too_heavy' end
+        end)
+        if ok and why then return why end
+    end
+    return 'no_room'
+end
+
 function Inv.Add(src, meta)
     local item = Config.Item
     if ox then return (ox:AddItem(src, item, 1, meta)) == true end
@@ -202,3 +231,13 @@ function Inv.Peek(src, slot)
     end
     return nil
 end
+
+-- the most common setup slip: the item was never added, so every chain "doesn't fit"
+CreateThread(function()
+    Wait(5000)
+    if Inv.ItemExists() == false then
+        print(('^1[%s] The item "%s" is missing from %s. Chains can\'t be given, bought or picked up until you add it:^0'):format(GetCurrentResourceName(), Config.Item, INV))
+        print(('^1    paste %s into %s and restart the server.^0'):format(
+            ox and 'install/ox_inventory.lua' or 'install/qb-core.lua', ox and 'ox_inventory/data/items.lua' or 'qb-core/shared/items.lua'))
+    end
+end)
