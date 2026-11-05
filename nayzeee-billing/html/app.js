@@ -1243,7 +1243,7 @@ async function pageAdmin() {
         ['here', 'pin', t('reg.mode_here', 'My position'), t('reg.mode_here_sub', 'Where you stand')],
     ].filter(([m]) => m !== 'prop' || props.length);
     const how = {
-        prop: t('reg.how_prop', 'The till follows your crosshair, or press H to hold it in your hands. Scroll rotates it (Shift for fine steps), E places it, G cancels.'),
+        prop: t('reg.how_prop', 'The till follows your crosshair as you look around. Scroll rotates it (Shift for fine steps), E places it, G cancels.'),
         point: t('reg.how_point', 'Aim the ball at the existing till: that spot becomes the third-eye target. Scroll sets the radius, E places it, G cancels.'),
         here: t('reg.how_here', 'Adds the register where you are standing right now.'),
     }[I.regMode];
@@ -1853,7 +1853,7 @@ const Mock = (() => {
             document.body.style.background = 'radial-gradient(1100px 640px at 50% -8%,#1b2224 0%,transparent 62%),#22272b';
             const q = new URLSearchParams(location.search);
             if (q.get('view') === 'paper') { showPaper(detail(91)); return; }
-            if (q.get('view') === 'place') { placeHud({ keys: [{ k: 'E', l: 'Place' }, { k: 'H', l: 'Hold in hand' }, { k: 'G', l: 'Cancel' }, { k: 'Scroll', l: 'Rotate', wide: true }] }); return; }
+            if (q.get('view') === 'place') { placeHud({ keys: [{ k: 'E', l: 'Place' }, { k: 'G', l: 'Cancel' }, { k: 'Scroll', l: 'Rotate', wide: true }] }); return; }
             if (q.get('view') === 'display') { displayOpen({ society: 'Burgershot', register: 'Front Counter', employee: 'Jordan Vale' }); displayCheckout({ invoice: Object.assign(inv(1, {}), { items: [{ label: 'Bleeder Burger', amount: 8.99, quantity: 2 }], subtotal: 17.98, vatRate: 0.08, vat: 1.44, total: 19.42 }) }); return; }
             if (q.get('view') === 'pos') { openPos({ register: { id: 'r1', label: 'Burgershot Counter', societyLabel: 'Burgershot' }, vatRate: 0.08, menu: templates.slice(0, 3), nearby: [{ id: 3, name: 'Rafael Salas', distance: 1.2 }] }); return; }
             S.account = q.get('account') || 'personal';

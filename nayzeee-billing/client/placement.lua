@@ -1,7 +1,7 @@
 --[[
     NAYZEEE BILLING - Register placement (admin)
     Started from the Billing Admin page:
-      prop   restaurants without a till: the till prop follows your crosshair (or hold it in your hands) and you place it
+      prop   restaurants without a till: the till prop follows your crosshair, scroll rotates it, E places it
       point  restaurants that already have a till: aim the ball at the till, that spot becomes the third-eye target
 ]]
 
@@ -12,17 +12,22 @@ local COLOR = { 15, 212, 196 }
 local COLOR_BAD = { 229, 72, 77 }
 
 local K = {
-    place = 38,          -- E
-    hold = 74,           -- H
-    cancel = 47,         -- G
-    cancelAlt = 177,     -- Backspace
-    scrollUp = 241, scrollDown = 242,
-    fine = 21,           -- Shift
+    place = 38,                        -- E
+    cancel = { 47, 177 },              -- G, Backspace
+    -- the mouse wheel reports through the weapon-wheel controls in gameplay (241/242 only fire in menus)
+    scrollUp = { 15, 17, 241 },
+    scrollDown = { 14, 16, 242 },
+    fine = 21,                         -- Shift
 }
-local Blocked = { 24, 25, 14, 15, 16, 17, 37, 44, 47, 58, 74, 140, 141, 142, 177, 199, 200, 241, 242, 257, 261, 262, 263, 264, 38 }
-local CARRY = { dict = 'anim@heists@box_carry@', anim = 'idle', bone = 60309, pos = vector3(0.025, 0.08, 0.255), rot = vector3(-145.0, 290.0, 0.0) }
+-- Weapon wheel, attack/aim, cover, pause, and the keys used above
+local Blocked = { 14, 15, 16, 17, 24, 25, 37, 38, 44, 47, 99, 100, 115, 116, 140, 141, 142, 177, 199, 200, 241, 242, 257, 261, 262, 263, 264 }
 
 local function dbg(...) if Config.Registers.Debug then print('^5[NAYZEEE-BILLING placement]^7', ...) end end
+
+local function anyPressed(list)
+    for _, k in ipairs(list) do if IsDisabledControlJustPressed(0, k) then return true end end
+    return false
+end
 
 local function loadModel(model)
     if not IsModelInCdimage(model) or not IsModelValid(model) then return false end
@@ -35,29 +40,31 @@ local function loadModel(model)
     return true
 end
 
-local function loadDict(dict)
-    RequestAnimDict(dict)
-    local timeout = GetGameTimer() + 3000
-    while not HasAnimDictLoaded(dict) and GetGameTimer() < timeout do Wait(10) end
-    return HasAnimDictLoaded(dict)
-end
-
 local function direction(rot)
     local x, z = math.rad(rot.x), math.rad(rot.z)
     local c = math.abs(math.cos(x))
     return vector3(-math.sin(z) * c, math.cos(z) * c, math.sin(x))
 end
 
--- Synchronous line test (1 world + 16 objects), ignoring one entity
+-- Synchronous line test against the world and objects (flags 1 + 16), ignoring one entity
 local function ray(from, to, ignore)
     local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, 17, ignore or 0, 4)
-    local _, hit, coords = GetShapeTestResult(h)
-    return hit == 1, coords
+    local _, hit, coords, _, entity = GetShapeTestResult(h)
+    return hit == 1, coords, entity
 end
 
-local function crosshair(ignore)
+-- Where the crosshair points: the ray ignores your own character, and if it lands on the till being
+-- placed it carries on through it, so the till follows your mouse instead of creeping towards the camera
+local function crosshair(ghost)
+    local ped = PlayerPedId()
     local from = GetGameplayCamCoord()
-    return ray(from, from + direction(GetGameplayCamRot(2)) * (CFG.Distance + 8.0), ignore)
+    local dir = direction(GetGameplayCamRot(2))
+    local to = from + dir * (CFG.Distance + 8.0)
+    local hit, at, entity = ray(from, to, ped)
+    if hit and ghost and entity == ghost then
+        hit, at = ray(at + dir * 0.02, to, ghost)
+    end
+    return hit, at
 end
 
 local function marker(kind, c, sx, sy, sz, col, alpha)
@@ -82,17 +89,17 @@ local function place(job)
     local ped = PlayerPedId()
     local radius = Shared.Clamp(tonumber(job.radius) or CFG.DefaultRadius or 1.0, 0.5, 10.0)
     local heading = (tonumber(job.heading) or GetEntityHeading(ped)) % 360
-    local ghost, minZ, holding, holdRot = nil, 0.0, false, 0.0
-    local model = job.mode == 'prop' and joaat(job.model) or nil
+    local ghost, minZ = nil, 0.0
 
-    if model then
+    if job.mode == 'prop' then
+        local model = joaat(job.model)
         if not loadModel(model) then
             ClientBridge.Notify(Config.UI.Title, L('error.prop_missing', 'That prop could not be loaded: {model}', { model = job.model }), 'error')
             dbg('model failed to load', job.model)
             return nil
         end
         minZ = (GetModelDimensions(model)).z
-        local _, at = crosshair(ped)
+        local _, at = crosshair(nil)
         local p = at or GetEntityCoords(ped)
         ghost = CreateObject(model, p.x, p.y, p.z, false, false, false)
         SetModelAsNoLongerNeeded(model)
@@ -104,18 +111,8 @@ local function place(job)
         FreezeEntityPosition(ghost, true)
         SetEntityInvincible(ghost, true)
         SetEntityVisible(ghost, true, false)
-        SetEntityLodDist(ghost, 500)
+        SetEntityHeading(ghost, heading)
         dbg('ghost created', ghost, job.model)
-    end
-
-    local function release()
-        if not holding then return end
-        holding = false
-        DetachEntity(ghost, true, false)
-        SetEntityCollision(ghost, false, false)
-        FreezeEntityPosition(ghost, true)
-        StopAnimTask(ped, CARRY.dict, CARRY.anim, 1.0)
-        RemoveAnimDict(CARRY.dict)
     end
 
     local result
@@ -124,58 +121,29 @@ local function place(job)
         for _, k in ipairs(Blocked) do DisableControlAction(0, k, true) end
         local fine = IsDisabledControlPressed(0, K.fine)
         local origin = GetEntityCoords(ped) + vector3(0.0, 0.0, 0.35)
-        local valid, spot = false, nil
+        local up, down = anyPressed(K.scrollUp), anyPressed(K.scrollDown)
+        local hit, at = crosshair(ghost)
+        local valid = hit and #(origin - at) <= CFG.Distance
+        local spot
 
         if job.mode == 'prop' then
             local step = fine and 1.0 or 7.5
-            local delta = (IsDisabledControlJustPressed(0, K.scrollUp) and step or 0) - (IsDisabledControlJustPressed(0, K.scrollDown) and step or 0)
-            if holding then holdRot = (holdRot + delta) % 360 else heading = (heading + delta) % 360 end
-
-            if IsDisabledControlJustPressed(0, K.hold) then
-                if holding then release()
-                else
-                    holding, holdRot = true, 0.0
-                    if loadDict(CARRY.dict) then TaskPlayAnim(ped, CARRY.dict, CARRY.anim, 8.0, -8.0, -1, 49, 0, false, false, false) end
-                    FreezeEntityPosition(ghost, false)
-                    AttachEntityToEntity(ghost, ped, GetPedBoneIndex(ped, CARRY.bone), CARRY.pos.x, CARRY.pos.y, CARRY.pos.z,
-                        CARRY.rot.x, CARRY.rot.y, CARRY.rot.z, true, true, false, true, 1, true)
-                end
+            if up then heading = (heading + step) % 360 end
+            if down then heading = (heading - step) % 360 end
+            if hit then
+                spot = vector3(at.x, at.y, at.z - minZ)
+                SetEntityCoordsNoOffset(ghost, spot.x, spot.y, spot.z, false, false, false)
             end
-
-            if holding then
-                -- Carried: E drops it straight down onto whatever is under it (counter, desk, floor)
-                if not IsEntityPlayingAnim(ped, CARRY.dict, CARRY.anim, 3) and HasAnimDictLoaded(CARRY.dict) then
-                    TaskPlayAnim(ped, CARRY.dict, CARRY.anim, 8.0, -8.0, -1, 49, 0, false, false, false)
-                end
-                local p = GetEntityCoords(ghost)
-                local hit, below = ray(p + vector3(0.0, 0.0, 0.15), p - vector3(0.0, 0.0, 2.5), ghost)
-                if hit then
-                    valid = true
-                    spot = vector3(below.x, below.y, below.z - minZ)
-                    marker(28, below, 0.05, 0.05, 0.05, COLOR, 200)
-                end
-            else
-                local hit, at = crosshair(ghost)
-                valid = hit and #(origin - at) <= CFG.Distance
-                if hit then
-                    spot = vector3(at.x, at.y, at.z - minZ)
-                    SetEntityCoordsNoOffset(ghost, spot.x, spot.y, spot.z, false, false, false)
-                    SetEntityHeading(ghost, heading)
-                end
-            end
-
+            SetEntityHeading(ghost, heading)
             hud({
                 { k = 'E', l = L('place.key_place', 'Place'), off = not valid },
-                { k = 'H', l = holding and L('place.key_aim', 'Aim with crosshair') or L('place.key_hold', 'Hold in hand') },
                 { k = 'G', l = L('place.key_cancel', 'Cancel') },
                 { k = 'Scroll', l = L('place.key_rotate', 'Rotate'), wide = true },
             })
         else
             local step = fine and 0.05 or 0.25
-            if IsDisabledControlJustPressed(0, K.scrollUp) then radius = math.min(radius + step, 10.0) end
-            if IsDisabledControlJustPressed(0, K.scrollDown) then radius = math.max(radius - step, 0.5) end
-            local hit, at = crosshair(ped)
-            valid = hit and #(origin - at) <= CFG.Distance
+            if up then radius = math.min(radius + step, 10.0) end
+            if down then radius = math.max(radius - step, 0.5) end
             spot = at
             if hit then
                 local col = valid and COLOR or COLOR_BAD
@@ -191,12 +159,10 @@ local function place(job)
             })
         end
 
-        if IsDisabledControlJustPressed(0, K.cancel) or IsDisabledControlJustPressed(0, K.cancelAlt) then break end
+        if anyPressed(K.cancel) then break end
         if IsDisabledControlJustPressed(0, K.place) then
             if valid and spot then
-                -- carried tills face the way you are facing (plus any scroll rotation)
-                local h = (job.mode == 'prop' and holding) and (GetEntityHeading(ped) + holdRot) % 360 or heading
-                result = { coords = { x = spot.x, y = spot.y, z = spot.z }, heading = h, model = job.mode == 'prop' and job.model or nil, radius = radius }
+                result = { coords = { x = spot.x, y = spot.y, z = spot.z }, heading = heading, model = job.mode == 'prop' and job.model or nil, radius = radius }
                 dbg('placed', json.encode(result))
                 break
             end
@@ -204,7 +170,6 @@ local function place(job)
         end
     end
 
-    release()
     hideHud()
     if ghost and DoesEntityExist(ghost) then DeleteEntity(ghost) end
     return result
