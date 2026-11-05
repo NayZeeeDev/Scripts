@@ -191,7 +191,7 @@ lib.callback.register('nzc:menu', function(src)
     end
     return {
         worn = w and { key = w.key, variant = w.letter, label = w.meta.label, image = Chains.model(w.key, w.letter), holding = w.holding,
-                       value = Chains.money(Chains.value(w.key)), stolenFrom = w.meta.stolenFrom, owner = w.meta.owner } or nil,
+                       value = Chains.money(Chains.value(w.key)), stolenFrom = w.meta.stolenFrom, madeFor = w.meta.madeFor } or nil,
         pockets = pockets,
     }
 end)
@@ -204,6 +204,8 @@ local function newMeta(key, letter, src)
     return Chains.meta(key, letter, {
         serial = ('NZC-%04d-%04d'):format(math.random(0, 9999), math.random(0, 9999)),
         owner = src and src > 0 and Bridge.GetCharName(src) or nil,
+        -- exclusive chains say who they were made for; normal store chains don't
+        madeFor = src and src > 0 and Chains.def(key) and Chains.def(key).exclusive and Bridge.GetCharName(src) or nil,
     })
 end
 Worn.newMeta = newMeta

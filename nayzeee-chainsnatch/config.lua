@@ -71,7 +71,7 @@ Config.Chains = {
     --     },
     --     worn = { bone = 39317, pos = { x = 0.0, y = 0.0, z = 0.0 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
     --     hold = { bone = 57005, pos = { x = 0.12, y = 0.0, z = -0.1 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
-    --     value = 2500,
+    --     price = 2500,                                -- jewelry store price (Config.Store.DefaultPrice if left out)
     -- },
 }
 
@@ -81,8 +81,6 @@ Config.DefaultFit = {
     hold = { bone = 57005, pos = { x = 0.10, y = 0.02, z = -0.08 }, rot = { x = 0.0, y = 0.0, z = 0.0 } },
 }
 
--- Rough value used in the item description and logs ('$2,500'). Studio can set it per chain.
-Config.DefaultValue = 1500
 
 -- ██╗    ██╗███████╗ █████╗ ██████╗ ██╗███╗   ██╗ ██████╗
 -- ██║    ██║██╔════╝██╔══██╗██╔══██╗██║████╗  ██║██╔════╝

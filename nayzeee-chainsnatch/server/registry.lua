@@ -57,7 +57,7 @@ function Registry.build()
                 key = key, label = e.label or key, origin = e.origin or 'drop',
                 gender = e.gender, collection = e.collection, ['local'] = e['local'],
                 centre = vec(e.centre), min = vec(e.min), max = vec(e.max),
-                variants = vars, fit = {}, value = Config.DefaultValue,
+                variants = vars, fit = {},
             }
         end
     end
@@ -70,7 +70,7 @@ function Registry.build()
         if #vars > 0 then
             list[key] = {
                 key = key, label = c.label or key, origin = 'config', variants = vars,
-                fit = { worn = fit(c.worn), hold = fit(c.hold) }, value = c.value or Config.DefaultValue,
+                fit = { worn = fit(c.worn), hold = fit(c.hold) }, price = tonumber(c.price or c.value),
             }
         end
     end

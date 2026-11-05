@@ -14,7 +14,7 @@ function menuRender() {
     <div class="mn-worn">
       <span class="th">${chainImg(w.image, 'gem')}</span>
       <div class="mn-wt"><small>${w.holding ? 'Holding up' : 'Wearing'}</small><b>${esc(w.label)}</b>
-        <em>${esc(w.value || '')}${w.owner ? ` · made for ${esc(w.owner)}` : ''}${w.stolenFrom ? ` · snatched from ${esc(w.stolenFrom)}` : ''}</em></div>
+        <em>${esc(w.value || '')}${w.madeFor ? ` · made for ${esc(w.madeFor)}` : ''}${w.stolenFrom ? ` · snatched from ${esc(w.stolenFrom)}` : ''}</em></div>
     </div>
     <div class="mn-acts">
       <button class="mn-act red" data-act="takeoff">${icon('off')}${esc(t.take_off)}</button>
