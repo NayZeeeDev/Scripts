@@ -78,84 +78,9 @@ local CAMS = {
 -- euler maths (only used once calibrated)
 -----------------------------------------------------------------
 
-local AXFN = { x = M3.rx, y = M3.ry, z = M3.rz }
-local PERMS = {
-    { 'x', 'y', 'z' }, { 'x', 'z', 'y' }, { 'y', 'x', 'z' },
-    { 'y', 'z', 'x' }, { 'z', 'x', 'y' }, { 'z', 'y', 'x' },
-}
-local I3 = { 1, 0, 0, 0, 1, 0, 0, 0, 1 }
-
-local function eulerM(rot, conv)
-    local o, s = conv.order, conv.sign
-    local m = AXFN[o[1]](rot[o[1]] * s[o[1]])
-    m = M3.mul(m, AXFN[o[2]](rot[o[2]] * s[o[2]]))
-    return M3.mul(m, AXFN[o[3]](rot[o[3]] * s[o[3]]))
-end
-
-local function attachM(rot)
-    return M3.mul(M3.mul(calib.L or I3, eulerM(rot, calib)), calib.R or I3)
-end
-
-local function solve3(A, b)
-    local det = A[1] * (A[5] * A[9] - A[6] * A[8]) - A[2] * (A[4] * A[9] - A[6] * A[7]) + A[3] * (A[4] * A[8] - A[5] * A[7])
-    if math.abs(det) < 1e-18 then return nil end
-    local function d(c1, c2, c3)
-        return c1[1] * (c2[2] * c3[3] - c3[2] * c2[3]) - c2[1] * (c1[2] * c3[3] - c3[2] * c1[3]) + c3[1] * (c1[2] * c2[3] - c2[2] * c1[3])
-    end
-    local col1, col2, col3 = { A[1], A[4], A[7] }, { A[2], A[5], A[8] }, { A[3], A[6], A[9] }
-    return d(b, col2, col3) / det, d(col1, b, col3) / det, d(col1, col2, b) / det
-end
-
---- Euler angles (degrees) that give matrix T under the calibrated convention.
-local function solveEuler(T, seed)
-    T = M3.mul(M3.mul(M3.t(calib.L or I3), T), M3.t(calib.R or I3))
-    local KEYS = { 'x', 'y', 'z' }
-    local seeds = {
-        seed, { x = 0, y = 0, z = 0 }, { x = 90, y = 0, z = 0 }, { x = -90, y = 0, z = 0 },
-        { x = 0, y = 90, z = 0 }, { x = 0, y = -90, z = 0 }, { x = 0, y = 0, z = 90 },
-        { x = 0, y = 0, z = -90 }, { x = 180, y = 0, z = 0 }, { x = 0, y = 0, z = 180 },
-    }
-    local best, bestErr = nil, math.huge
-    for _, s0 in ipairs(seeds) do
-        local th = { x = s0.x, y = s0.y, z = s0.z }
-        local cost = M3.err(eulerM(th, calib), T)
-        local lambda = 1e-3
-        for _ = 1, 60 do
-            if cost < 1e-12 then break end
-            local E = eulerM(th, calib)
-            local J = {}
-            for k, key in ipairs(KEYS) do
-                local t2 = { x = th.x, y = th.y, z = th.z }
-                t2[key] = t2[key] + 0.05
-                local Ek = eulerM(t2, calib)
-                J[k] = {}
-                for i = 1, 9 do J[k][i] = (Ek[i] - E[i]) / 0.05 end
-            end
-            local JTJ, JTr = {}, {}
-            for a = 1, 3 do
-                local acc = 0.0
-                for i = 1, 9 do acc = acc + J[a][i] * (E[i] - T[i]) end
-                JTr[a] = -acc
-                for b = 1, 3 do
-                    local v = 0.0
-                    for i = 1, 9 do v = v + J[a][i] * J[b][i] end
-                    JTJ[(a - 1) * 3 + b] = v
-                end
-            end
-            for a = 1, 3 do JTJ[(a - 1) * 3 + a] = JTJ[(a - 1) * 3 + a] * (1 + lambda) + 1e-12 end
-            local dx, dy, dz = solve3(JTJ, JTr)
-            if not dx then break end
-            local cand = { x = th.x + dx, y = th.y + dy, z = th.z + dz }
-            local c2 = M3.err(eulerM(cand, calib), T)
-            if c2 < cost then th, cost, lambda = cand, c2, lambda * 0.3 else lambda = lambda * 10 end
-            if lambda > 1e8 then break end
-        end
-        if cost < bestErr then best, bestErr = th, cost end
-        if bestErr < 1e-10 then break end
-    end
-    if not best then return nil end
-    return { x = Util.wrap180(best.x), y = Util.wrap180(best.y), z = Util.wrap180(best.z) }, bestErr
-end
+-- (the maths lives in client/fitmath.lua, shared with the automatic fit)
+local function attachM(rot) return FitMath.attachM(rot, calib) end
+local function solveEuler(T, seed) return FitMath.solveEuler(T, seed, calib) end
 
 -----------------------------------------------------------------
 -- reading the game
@@ -210,70 +135,10 @@ end
 -----------------------------------------------------------------
 
 local function calibrate()
-    local probes = {
-        { pos = { x = 0.11, y = 0.23, z = -0.17 }, rot = { x = 17, y = 41, z = 73 } },
-        { pos = { x = -0.07, y = 0.05, z = 0.19 }, rot = { x = -63, y = 22, z = 128 } },
-        { pos = { x = 0.02, y = -0.09, z = 0.06 }, rot = { x = 0, y = 0, z = 0 } },
-    }
-    local ped = PlayerPedId()
-    local samples = {}
+    local conv = FitMath.calibrate()
     attachHelper(tune.bone)
-    for i, pr in ipairs(probes) do
-        Util.attach(preview, ped, tune.bone, pr.pos, pr.rot)
-        Wait(0); Wait(0)
-        local f1, r1, u1, p1 = GetEntityMatrix(preview)
-        local f2, r2, u2, p2 = GetEntityMatrix(helper)
-        samples[i] = { f1 = f1, r1 = r1, u1 = u1, p1 = p1, f2 = f2, r2 = r2, u2 = u2, p2 = p2 }
-    end
-
-    local function relFor(s, swap)
-        local pr, pf = s.f1, s.r1
-        local br, bf = s.f2, s.r2
-        if not swap then pr, pf, br, bf = s.r1, s.f1, s.r2, s.f2 end
-        local P = M3.fromAxes(pr, pf, s.u1)
-        local B = M3.fromAxes(br, bf, s.u2)
-        return M3.mul(M3.t(B), P), M3.apply(M3.t(B), s.p1 - s.p2)
-    end
-
-    local chosen, posErr = nil, math.huge
-    for _, swap in ipairs({ false, true }) do
-        local e = 0.0
-        for i, s in ipairs(samples) do
-            local _, o = relFor(s, swap)
-            e = e + #(o - vec(probes[i].pos))
-        end
-        if e < posErr then chosen, posErr = swap, e end
-    end
-    if posErr > 0.03 then
-        print(('^3[nayzeee-chainsnatch] studio: position probe off by %.3f, using measured mode^0'):format(posErr))
-        return false
-    end
-
-    local mats = {}
-    for i, s in ipairs(samples) do mats[i] = relFor(s, chosen) end
-    local zero = mats[3]
-    local wraps = { { L = nil, R = nil }, { L = zero, R = nil }, { L = nil, R = zero } }
-    local best, bestErr = nil, math.huge
-    for _, w in ipairs(wraps) do
-        for _, order in ipairs(PERMS) do
-            for sx = -1, 1, 2 do for sy = -1, 1, 2 do for sz = -1, 1, 2 do
-                local conv = { order = order, sign = { x = sx, y = sy, z = sz }, L = w.L, R = w.R }
-                local e = 0.0
-                for i = 1, 2 do
-                    local m = M3.mul(M3.mul(w.L or I3, eulerM(probes[i].rot, conv)), w.R or I3)
-                    e = e + M3.err(m, mats[i])
-                end
-                if e < bestErr then best, bestErr = conv, e end
-            end end end
-        end
-    end
-    if bestErr > 0.02 then
-        print(('^3[nayzeee-chainsnatch] studio: rotation probe error %.4f, using measured mode^0'):format(bestErr))
-        return false
-    end
-    best.swap = chosen
-    Chains.debug(('studio calibrated: order %s%s%s, err %.6f'):format(best.order[1], best.order[2], best.order[3], bestErr))
-    return best
+    attachPreview()
+    return conv
 end
 
 -----------------------------------------------------------------
@@ -391,8 +256,9 @@ local function applyPreset(key)
         local d = Chains.def(currentKey)
         local c = d and d.centre
         if not c then return Config.Notify('This chain has no clothing position (it wasn\'t converted by chainkit).', 'error') end
-        -- clothing is modelled in the ped's own space, so the ped matrix puts it back on the body
-        placeAt(pre.bone, GetOffsetFromEntityInWorldCoords(ped, c.x, c.y, c.z), 0, 0)
+        -- clothing is modelled in the ped's own space, so the ped matrix puts it back on the body,
+        -- on the bone the clothing was skinned to (so it moves the way the clothing did)
+        placeAt(AutoFit.boneFor(ped, currentKey), GetOffsetFromEntityInWorldCoords(ped, c.x, c.y, c.z), 0, 0)
         return
     end
 
@@ -534,7 +400,7 @@ local function payload()
             price = Chains.price(key) or d.price or Config.Store.DefaultPrice, forSale = d.forSale ~= false, craftable = d.craftable ~= false,
             exclusive = d.exclusive == true, madeFor = d.madeFor,
             hasCentre = d.centre ~= nil,
-            fitted = { worn = Chains.hasFit(key, 'worn', female), hold = Chains.hasFit(key, 'hold', female) },
+            fitted = { worn = Chains.hasFit(key, 'worn', female), hold = Chains.hasFit(key, 'hold', female), auto = AutoFit.get(key, female) ~= nil },
         }
     end
     local anims = {}

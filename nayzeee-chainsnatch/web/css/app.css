@@ -261,6 +261,7 @@ svg{width:1em;height:1em;stroke-width:1.9;flex:none}
 .sd-flags{display:flex;gap:4px;flex:none}
 .sd-flag{height:16px;padding:0 5px;border-radius:4px;display:inline-grid;place-items:center;font-size:8.5px;font-weight:700;letter-spacing:.06em;color:var(--ink-3);border:1px solid var(--line-soft)}
 .sd-flag.on{color:var(--on-accent);background:var(--teal);border-color:var(--teal)}
+.sd-flag.auto{color:var(--teal);border-color:var(--teal)}
 .sd-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:9px;margin:0 -4px;padding:0 4px}
 .sd-card{display:flex;flex-direction:column;gap:10px}
 .sd-ch{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}

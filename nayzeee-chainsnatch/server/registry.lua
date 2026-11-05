@@ -57,6 +57,7 @@ function Registry.build()
                 key = key, label = e.label or key, origin = e.origin or 'drop',
                 gender = e.gender, collection = e.collection, ['local'] = e['local'],
                 centre = vec(e.centre), min = vec(e.min), max = vec(e.max),
+                bone = tonumber(e.bone), -- the ped skeleton bone the clothing was skinned to (the automatic fit uses it)
                 variants = vars, fit = {},
             }
         end

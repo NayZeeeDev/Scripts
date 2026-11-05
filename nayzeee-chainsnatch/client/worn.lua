@@ -32,6 +32,9 @@ local function refresh(sid, ped)
 
     local female = Util.isFemale(ped)
     local mode = st.h and 'hold' or 'worn'
+    -- not fitted for this body yet: work it out from the clothing (once, then cached), meanwhile the rough spot.
+    -- Asked on every pass, so a player who kept running the first time gets it as soon as they stand still.
+    if mode == 'worn' and not Chains.hasFit(st.c, 'worn', female) then AutoFit.request(st.c, ped) end
     local sig = ('%s|%s|%s|%d|%s|%d'):format(st.c, st.v or 'a', mode, ped, female and 'f' or 'm', version)
     local p = props[sid]
     if p and p.sig == sig and DoesEntityExist(p.entity) and IsEntityAttachedToEntity(p.entity, ped) then return end
@@ -87,6 +90,11 @@ AddStateBagChangeHandler('nzc_worn', nil, function(bagName)
 end)
 
 AddEventHandler('nzc:registry', function()
+    version = version + 1
+    dirty[0] = true
+end)
+
+AddEventHandler('nzc:autofit', function()
     version = version + 1
     dirty[0] = true
 end)

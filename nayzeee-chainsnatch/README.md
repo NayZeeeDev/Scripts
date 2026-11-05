@@ -1,4 +1,4 @@
-# nayzeee-chainsnatch 1.1 — install & guide
+# nayzeee-chainsnatch 1.2 — install & guide
 
 > **New here? Read [HOW-TO-USE.md](HOW-TO-USE.md) first:** installing, adding a chain in 4 steps, custom chains for one player.
 
@@ -61,8 +61,19 @@ texture, its name and its picture are in the metadata, so new chains never need 
 
 1. Put each chain in `chains/<Chain Name>/`: its `.ydd` and every `_diff_` `.ytd` texture.
 2. `/chainstudio` → **Convert** → **Build**. (On start, `AutoScan` + `AutoBuild` do this for you.)
-3. **Fit** tab → **From clothing** → nudge if needed → **Save**. Or press *From clothing for every unfitted chain*.
-4. Pictures: chainkit already drew one per texture. For nicer ones: **Icon** tab → *Every chain*.
+3. Nothing to fit: the chain **fits itself** (below). Pictures: chainkit already drew one per texture. For nicer
+   ones: **Icon** tab → *Every chain*.
+
+### Automatic fit
+
+Clothing chains are rigged to ped bones, and nearly all of them are moved 100% by one bone (the upper spine).
+chainkit records that bone and where the chain sat on the body. The first time someone wears the chain, the game
+works out (once, while that character stands still, then remembered in KVP) the exact attach offset for that bone,
+for male and female bodies separately. The prop then moves the way the clothing did. **Nothing is streamed as
+clothing**: no `.ymt`, no pack, nothing that collides with your clothing packs.
+
+A fit saved in the studio always wins over it. Chains converted by chainkit 1.1 or older are converted again once,
+automatically, on the next start.
 
 `/givechain [id] [name]` gives one, `/chainlist` lists them all.
 
@@ -85,7 +96,8 @@ Hook your appearance script into `Config.OnClothingChainRemoved` so it's saved.
 
 `tools/chainkit` is a small CodeWalker.Core program the server runs. For each chain it:
 
-- reads the high detail mesh out of the clothing `.ydd`, strips the rigging
+- reads the high detail mesh out of the clothing `.ydd`, strips the rigging (and notes which bone moved it, for the
+  automatic fit)
 - moves the pivot to the **centre of the chain** (so it turns in place, sits right on a table and in the
   hand) and remembers where it sat on the body, which is what **From clothing** uses
 - keeps the chain's own normal + specular maps (`normal_spec`), so gold and diamonds still shine
@@ -99,7 +111,8 @@ Ready-to-run programs for Linux and Windows go in `tools/chainkit/linux-x64` and
 ## The studio — `/chainstudio` (admin)
 
 **Fit** — *On the neck* and *In the hand*, each with:
-- **Start from**: *From clothing* (exactly where the clothing sat), *Neck*, *Long chain*; in the hand
+- **Start from**: *From clothing* (exactly where the clothing sat, on the bone it was rigged to: the same as the
+  automatic fit), *Neck*, *Long chain*; in the hand
   *Dangle right / left*, *In the fist*
 - **Move** left/right, forward/back, up/down (relative to the character) with step sizes; hold to repeat
 - **Rotate** Turn / Tilt / Lean around the **chain's own centre**

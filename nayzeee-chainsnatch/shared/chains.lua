@@ -82,11 +82,18 @@ local function copy(f)
     }
 end
 
---- Where a chain sits. mode 'worn' | 'hold'; female peds use their own fit when one was saved.
+--- Where a chain sits. mode 'worn' | 'hold'.
+--- On the neck: the fit saved in the studio for this body, else the automatic fit (client/autofit.lua: on the bone
+--- the clothing was skinned to, exactly where it sat), else the other body's saved fit.
 function Chains.fit(key, mode, female)
     local d = Chains.list[key]
     local fits = d and d.fit or {}
-    local f = (female and fits[mode .. '_f']) or fits[mode] or (not female and fits[mode .. '_f'])
+    local own = female and fits[mode .. '_f'] or (not female and fits[mode]) or nil
+    if not own and mode == 'worn' and AutoFit then
+        local a = AutoFit.get(key, female)
+        if a then return copy(a) end
+    end
+    local f = own or (female and fits[mode]) or (not female and fits[mode .. '_f'])
     if not f and mode == 'worn' and d and d.centre then
         -- not fitted yet: a converted chain sits exactly where it sat as clothing (clothing is modelled
         -- around the ped root). Fine standing still; fit it in the studio so it follows the neck.

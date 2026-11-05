@@ -373,6 +373,7 @@ static class P
         public List<Vector4> T = new();
         public List<int> I = new();
         public bool HasTangent;
+        public Dictionary<int, double> Weights = new(); // skeleton bone index -> how much of the mesh it moves
     }
 
     public class SrcShader
@@ -434,10 +435,13 @@ static class P
         if (h0 < 0) return list;
         int h1 = item.IndexOf("</DrawableModelsHigh>", h0, StringComparison.Ordinal);
         var hi = item.Substring(h0, h1 - h0);
-        var rx = new Regex(@"<ShaderIndex value=""(\d+)"" />.*?<VertexBuffer>(.*?)</VertexBuffer>\s*<IndexBuffer>\s*<Data>(.*?)</Data>", RegexOptions.Singleline);
+        var rx = new Regex(@"<ShaderIndex value=""(\d+)"" />(.*?)<VertexBuffer>(.*?)</VertexBuffer>\s*<IndexBuffer>\s*<Data>(.*?)</Data>", RegexOptions.Singleline);
         foreach (Match m in rx.Matches(hi))
         {
-            var vb = m.Groups[2].Value;
+            var vb = m.Groups[3].Value;
+            var ids = Regex.Match(m.Groups[2].Value, @"<BoneIDs>(.*?)</BoneIDs>", RegexOptions.Singleline);
+            var boneIds = ids.Success ? ids.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(v => int.TryParse(v, NumberStyles.Integer, IC, out var b) ? b : -1).ToArray() : Array.Empty<int>();
             int l0 = vb.IndexOf("<Layout", StringComparison.Ordinal), l1 = vb.IndexOf("</Layout>", StringComparison.Ordinal);
             var sems = Regex.Matches(vb.Substring(l0, l1 - l0), @"<(\w+) />").Select(x => x.Groups[1].Value).ToList();
             var off = new Dictionary<string, int>(); int cols = 0;
@@ -454,8 +458,18 @@ static class P
                 else g.N.Add(Vector3.UnitZ);
                 if (off.TryGetValue("TexCoord0", out var u)) g.UV.Add(new Vector2(F(t[u]), F(t[u + 1]))); else g.UV.Add(Vector2.Zero);
                 if (off.TryGetValue("Tangent", out var tg)) g.T.Add(new Vector4(F(t[tg]), F(t[tg + 1]), F(t[tg + 2]), F(t[tg + 3]))); else g.T.Add(new Vector4(1, 0, 0, 1));
+                // which ped bone moves this vertex (clothing): the prop is later stuck to the bone that moves most of the chain
+                if (off.TryGetValue("BlendWeights", out var bw) && off.TryGetValue("BlendIndices", out var bi))
+                    for (int j = 0; j < 4; j++)
+                    {
+                        var w = F(t[bw + j]);
+                        if (w <= 0) continue;
+                        int idx = (int)F(t[bi + j]);
+                        int bone = idx >= 0 && idx < boneIds.Length ? boneIds[idx] : idx;
+                        g.Weights[bone] = g.Weights.GetValueOrDefault(bone) + w;
+                    }
             }
-            foreach (var v in m.Groups[3].Value.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)) g.I.Add(int.Parse(v, IC));
+            foreach (var v in m.Groups[4].Value.Split((char[])null, StringSplitOptions.RemoveEmptyEntries)) g.I.Add(int.Parse(v, IC));
             // drop triangles that point past the vertex list (broken exports)
             var clean = new List<int>(g.I.Count);
             for (int k = 0; k + 2 < g.I.Count; k += 3)
@@ -686,6 +700,16 @@ static class P
             var all = geos.SelectMany(g => g.P).ToList();
             var mn = all.Aggregate(Vector3.Min); var mx = all.Aggregate(Vector3.Max);
             map.Set(s, id, built, centre, mn, mx, tris, verts, outShaders.Select(o => o.Kind).Distinct().ToArray());
+            // the ped bone the clothing was skinned to (most chains: 100% one bone), so the game can stick the prop to it
+            var weights = new Dictionary<int, double>();
+            foreach (var g in geos) foreach (var kv in g.Weights) weights[kv.Key] = weights.GetValueOrDefault(kv.Key) + kv.Value;
+            if (weights.Count > 0)
+            {
+                var top = weights.OrderByDescending(kv => kv.Value).First();
+                map.Entries[s.Key]["bone"] = top.Key;
+                map.Entries[s.Key]["boneShare"] = Math.Round(top.Value / weights.Values.Sum(), 3);
+            }
+            else map.Entries[s.Key]["bone"] = -1; // not rigged: the game falls back to the neck
             if (bytes / Math.Max(1, variants.Count) > 14 * 1024 * 1024 || tris > 300000)
                 Emit("warn", new JsonObject { ["key"] = s.Key, ["label"] = s.Label, ["reason"] = $"very heavy: {tris} triangles, {bytes / Math.Max(1, variants.Count) / 1048576} MB per texture. FiveM warns about props over 16 MB" });
             Console.WriteLine($"ok {s.Key} -> {id} x{variants.Count} ({verts} verts, {tris} tris, {bytes / 1024} KB, {string.Join("/", outShaders.Select(o => o.Kind))})");
@@ -958,6 +982,8 @@ static class P
                 seen.Add(s.Key);
                 if (!Entries.TryGetValue(s.Key, out var e)) d.New.Add(s);
                 else if (e["sig"]?.GetValue<string>() != s.Sig || e["src"]?.GetValue<string>() != s.Ydd) d.Changed.Add(s);
+                // converted before chainkit noted the clothing's bone: once more, so it can fit itself
+                else if (e["bone"] == null) d.Changed.Add(s);
             }
             foreach (var kv in Entries) if (!seen.Contains(kv.Key)) d.Removed.Add(kv.Key);
             return d;

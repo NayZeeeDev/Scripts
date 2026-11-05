@@ -319,9 +319,15 @@ local function applyTryOn()
     local ped = PlayerPedId()
     tryProp = Util.spawnChain(current.key, current.letter, GetEntityCoords(ped))
     if not tryProp then return end
+    if not Chains.hasFit(current.key, 'worn', Util.isFemale(ped)) then AutoFit.request(current.key, ped) end
     local f = Chains.fit(current.key, 'worn', Util.isFemale(ped))
     Util.attach(tryProp, ped, f.bone, f.pos, f.rot)
 end
+
+-- the chain being tried on just fitted itself: put it where it belongs
+AddEventHandler('nzc:autofit', function(key)
+    if tryProp and current and current.key == key then applyTryOn() end
+end)
 
 local function setMode(m)
     if m == mode then return end

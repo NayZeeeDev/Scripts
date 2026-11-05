@@ -73,8 +73,10 @@ function Util.spawnChain(key, letter, coords)
     return entity, hash
 end
 
+--- bone: a bone tag (39317 = neck ...), or -(index + 1) for a skeleton bone with no tag we know (the automatic fit)
 function Util.attach(entity, ped, bone, pos, rot)
-    AttachEntityToEntity(entity, ped, GetPedBoneIndex(ped, bone),
+    bone = tonumber(bone) or 0
+    AttachEntityToEntity(entity, ped, bone < 0 and (-bone - 1) or GetPedBoneIndex(ped, bone),
         pos.x, pos.y, pos.z, rot.x, rot.y, rot.z,
         true, true, false, true, 1, true)
 end

@@ -86,7 +86,7 @@ function sdLeft() {
   const all = arr(d.chains);
   const q = SD.search.trim().toLowerCase();
   const rows = all.filter((c) => !q || c.label.toLowerCase().includes(q) || c.key.toLowerCase().includes(q));
-  const fitted = all.filter((c) => c.fitted && c.fitted.worn).length;
+  const fitted = all.filter((c) => c.fitted && (c.fitted.worn || c.fitted.auto)).length;
   const busy = SD.icon && SD.icon.batch;
   $('#sdLeft').innerHTML = `<div class="ch-frame"><div class="ch-in sd-in">
     <div class="sd-head"><div class="mark sm"></div><div class="sd-ht"><b>Chain Studio</b><span>${all.length} chain${all.length === 1 ? '' : 's'} · ${fitted} fitted on the ${d.female ? 'female' : 'male'} body</span></div><span class="ver">v1.0.0</span></div>
@@ -96,7 +96,7 @@ function sdLeft() {
       return `<button class="sd-row ${c.key === d.current ? 'on' : ''}" data-sd="pick" data-v="${esc(c.key)}" ${busy ? 'disabled' : ''}>
         <span class="th">${chainImg(v0.prop, 'gem')}</span>
         <span class="sd-rt"><b>${esc(c.label)}</b><span>${c.origin === 'server' ? 'clothing pack' : c.origin === 'config' ? 'config.lua' : 'converted'} · ${arr(c.variants).length} texture${arr(c.variants).length === 1 ? '' : 's'}</span></span>
-        <span class="sd-flags"><span class="sd-flag ${c.fitted.worn ? 'on' : ''}" title="Neck fit saved">N</span><span class="sd-flag ${c.fitted.hold ? 'on' : ''}" title="Hand fit saved">H</span></span></button>`;
+        <span class="sd-flags"><span class="sd-flag ${c.fitted.worn ? 'on' : c.fitted.auto ? 'auto' : ''}" title="${c.fitted.worn ? 'Neck fit saved' : c.fitted.auto ? 'Fits itself from the clothing (no save needed)' : 'Neck: not fitted yet'}">N</span><span class="sd-flag ${c.fitted.hold ? 'on' : ''}" title="Hand fit saved">H</span></span></button>`;
     }).join('') : `<div class="empty">${icon(all.length ? 'search' : 'folder')}${all.length ? 'Nothing matches' : 'No chains yet.<br>Put chain clothing in the chains/ folder and press Build in the Convert tab.'}</div>`}</div>
   </div></div>`;
   const list = $('.sd-list', $('#sdLeft'));
@@ -145,7 +145,7 @@ function sdFit(c) {
     <div class="card sd-card">
       <div class="sd-ch">Start from <em>${hold ? 'then nudge it into the hand' : 'converted chains: From clothing'}</em></div>
       <div class="sd-chips">${arr(d.presets).map((p) => chip(`data-sd="preset" data-v="${p.key}"`, esc(p.label), false, p.from === 'clothing' && !c.hasCentre)).join('')}</div>
-      ${!hold ? `<button class="btn sm" data-sd="fitAll">${icon('wand')}From clothing for every unfitted chain</button>` : ''}
+      ${!hold ? `<div class="sd-note">Converted chains fit themselves: on the bone the clothing was rigged to, where it sat. Only save here to change that.</div><button class="btn sm" data-sd="fitAll">${icon('wand')}From clothing for every unfitted chain</button>` : ''}
     </div>
     ${hold ? `<div class="card sd-card"><div class="sd-ch">Pose <em>preview only · default is Config.Hold.Anim</em></div>
       <div class="sd-chips">${arr(d.anims).map((a) => chip(`data-sd="pose" data-v="${a.key}"`, esc(a.label), a.key === d.holdAnim)).join('')}</div></div>` : ''}

@@ -12,7 +12,7 @@ If you know nayzeee-backpack, this is the difference:
 |---|---|---|
 | The models | come as props, you add `.ydr` / `.ytd` / `.ytyp` + a config entry | you drop the **clothing files** in a folder, the script makes the props |
 | Items | one item per bag | **one item for every chain** (`nz_chain`), paste it once |
-| Fitting | `/bagstudio` | `/chainstudio`, one click: **From clothing** |
+| Fitting | `/bagstudio` | **automatic**: the chain sits exactly where the clothing sat (studio only to change it) |
 | Pictures | icon studio | drawn **automatically** when a chain is converted (icon studio for nicer ones) |
 
 You only install **one folder**, `nayzeee-chainsnatch`. The script makes the second one by itself:
@@ -58,7 +58,7 @@ You only install **one folder**, `nayzeee-chainsnatch`. The script makes the sec
 
 ---
 
-## Add a chain (every time, 4 steps)
+## Add a chain (every time, 3 steps)
 
 **1. Make a folder** in `nayzeee-chainsnatch/chains/`, named what players should see:
 
@@ -82,16 +82,22 @@ Don't rename them, and don't put them in a `stream` folder.
 **3. Build it.** In game: `/chainstudio` → **Convert** tab → **Build**. Wait for *"Converted 1 chain(s)"*.
 (Or just restart the server: new chains are built on start.)
 
-**4. Fit it.** **Fit** tab → **From clothing** → nudge it if needed → **Save**. That's it.
+That's it: **no fitting needed**. Try it: **Look** tab → **Put one in my pockets**, or `/givechain [id] diamond`.
 
-Try it: **Look** tab → **Put one in my pockets**, or `/givechain [id] diamond`.
+> **How does it fit itself?** Clothing is rigged to the character's bones; most chains move with one bone (the upper
+> spine). The converter remembers that bone and where the chain sat, and the game sticks the prop to the same bone at
+> the same spot. It moves like the clothing did, for male and female bodies, and nothing extra is streamed: the chain
+> is still one small prop, so it never fights your clothing packs.
+> The first time a chain is worn, it's worked out while the character stands still (a second), then remembered.
 
 Optional, all in the studio:
 
 - **Look** tab: the store price, a name per colour (*Gold*, *Iced* …), for sale or not
 - **Fit** tab → **In the hand**: how it sits when someone holds it up
 - **Icon** tab: a nicer inventory picture (the converter already drew one)
-- Fits are saved **per body**: fit it again on a female ped for female players
+- **Fit** tab: only if you want a chain to sit differently than the clothing did (a saved fit always wins).
+  Fits are saved **per body**: fit it again on a female ped for female players. In the chain list, an outlined
+  **N** means "fits itself", a filled one "saved in the studio"
 
 ---
 
@@ -145,11 +151,11 @@ Nothing in your clothing packs is blocked unless you list it.
 | A chain didn't convert | the **Convert** tab lists it under *Couldn't convert* with the reason (also in the server console). Usually: its `_diff_` `.ytd` files aren't in its folder |
 | *N chain(s) have no files any more* | their folder was moved, renamed or emptied (an update). They're **kept**, so nobody loses one. Put the files back, or press **Remove gone chains** |
 | The chain is invisible / *model is not registered* | `nayzeee-chainprops` isn't started: check the `ensure` and `add_ace` lines, restart |
-| The chain floats in front of the neck when they run | it isn't fitted yet: **Fit** → **From clothing** → **Save** |
+| The chain floats in front of the neck when they run | it was converted by an older chainkit: restart the server (it converts it again once, then it fits itself). Or the studio has a saved fit for it that's off: **Fit** → **From clothing** → **Save** |
 | No picture on the item | restart `ox_inventory` once after the first build (it loads new pictures on start) |
 | *could not start chainkit: Access to this API has been restricted* / *child spawn not allowed* | add `add_unsafe_child_process_permission "nayzeee-chainsnatch"` to `server.cfg` and restart |
 | *could not write into ox_inventory/web/images* | add `add_filesystem_permission nayzeee-chainsnatch write ox_inventory` to `server.cfg` |
-| Looks right on men, wrong on women | fit it again on a female ped and **Save**: fits are per body |
+| Looks right on men, wrong on women | the chain was made for men only: fit it on a female ped and **Save** (fits are per body) |
 
 **Updating the script?** Keep these three folders from your old copy: `chains/` (your chain files), `data/` (fits,
 prices, owners, chains on the ground) and `icons/` (studio pictures). Replace everything else.
