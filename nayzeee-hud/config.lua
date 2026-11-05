@@ -63,6 +63,7 @@ Config.Watermark = {
 
 Config.Minimap = {
     hideHealthBars = true,   -- hides GTA's health/armour bars under the radar
+    hideBorder = true,       -- removes GTA's soft dark rim around the radar, so the map runs right up to the frame
     raiseForStatus = 0.065,  -- how far the radar moves up when player status sits under it (screen height, 0-1)
     raisedFrameTrim = 0.007, -- while lifted, how much the frame's bottom edge comes up to meet the radar (screen height)
     -- 'default' | 'square' | 'rounded' | 'circle' (players pick in /hud). These need squaremap.ytd / roundedmap.ytd /

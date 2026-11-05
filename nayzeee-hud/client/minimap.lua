@@ -4,6 +4,25 @@ local lastResX, lastResY, lastSafe = 0, 0, 0
 
 -- stream/minimap.gfx (from qb-hud) already removes GTA's health / armour bars under the radar;
 -- this scaleform call is the backup for when that file isn't there.
+-- GTA draws a soft dark rim around the radar from the 'bordertexture' in its minimap texture dictionary.
+-- stream/nhud_noborder.ytd holds one fully transparent texture; swapping just that one in removes the rim,
+-- so the map runs right up to the frame. Only that texture changes: GTA's blips and the rest stay untouched.
+local borderSet = false
+local function clearRadarBorder()
+    if borderSet or not Config.Minimap.hideBorder then return end
+    RequestStreamedTextureDict('nhud_noborder', false)
+    local t = GetGameTimer() + 2000
+    while not HasStreamedTextureDictLoaded('nhud_noborder') do
+        if GetGameTimer() > t then
+            print('^3[nayzeee-hud]^7 stream/nhud_noborder.ytd is missing, so GTA\'s rim around the radar stays.')
+            return
+        end
+        Wait(50)
+    end
+    AddReplaceTexture('minimap', 'bordertexture', 'nhud_noborder', 'radarmasksm')
+    borderSet = true
+end
+
 local function hideHealthBars()
     if not Config.Minimap.hideHealthBars then return end
     if not minimapMovie then minimapMovie = RequestScaleformMovie('minimap') end
@@ -71,6 +90,7 @@ function NHUD.setMinimapLayout(shape, raise)
             SetBlipAlpha(GetNorthRadarBlip(), 255)
         end
         SetMinimapClipType(def.clip)
+        clearRadarBorder() -- before the big-map toggle below, which redraws the radar
         for _, part in ipairs({ { 'minimap', def.map }, { 'minimap_mask', def.mask }, { 'minimap_blur', def.blur } }) do
             local v = part[2]
             SetMinimapComponentPosition(part[1], 'L', 'B', v[1] + offset, v[2] - raise, v[3], v[4])
