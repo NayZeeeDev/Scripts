@@ -3,6 +3,10 @@
 
 CB = {}
 
+function CB.Notify(msg, kind, duration)
+    Config.Notify(msg, kind, duration)
+end
+
 local FW = Config.Framework
 if FW == 'auto' then
     if GetResourceState('qbx_core') == 'started' then FW = 'qbx'
@@ -20,10 +24,14 @@ if TGT == 'auto' then
 end
 CB.Target = TGT
 
-local ESX = FW == 'esx' and exports.es_extended:getSharedObject() or nil
-
-function CB.Notify(msg, kind, duration)
-    Config.Notify(msg, kind, duration)
+-- ESX's shared object, fetched when it's first needed: es_extended may not be ready the moment this file
+-- loads, and a failed export call must never stop the rest of this bridge from loading
+local ESX = nil
+local function esx()
+    if ESX or FW ~= 'esx' then return ESX end
+    local ok, obj = pcall(function() return exports.es_extended:getSharedObject() end)
+    if ok and obj then ESX = obj end
+    return ESX
 end
 
 function CB.OnLoaded(cb)
@@ -35,7 +43,11 @@ function CB.OnLoaded(cb)
 end
 
 function CB.IsLoaded()
-    if FW == 'esx' then return ESX.IsPlayerLoaded() end
+    if FW == 'esx' then
+        local e = esx()
+        if e and e.IsPlayerLoaded then return e.IsPlayerLoaded() == true end
+        return LocalPlayer.state.isLoggedIn == true or NetworkIsPlayerActive(PlayerId())
+    end
     if FW == 'qb' or FW == 'qbx' then return LocalPlayer.state.isLoggedIn == true end
     return true
 end

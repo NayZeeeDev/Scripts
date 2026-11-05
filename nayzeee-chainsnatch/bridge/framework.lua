@@ -13,7 +13,8 @@ if FW == 'auto' then
 end
 
 if FW == 'esx' then
-    Core = exports.es_extended:getSharedObject()
+    local ok, obj = pcall(function() return exports.es_extended:getSharedObject() end)
+    if ok and obj then Core = obj else print(('^1[%s] Couldn\'t get ESX (es_extended): start it before this resource.^0'):format(GetCurrentResourceName())) end
 elseif FW == 'qb' then
     Core = exports['qb-core']:GetCoreObject()
 end
@@ -21,7 +22,13 @@ end
 Bridge.Name = FW
 
 local function getPlayer(src)
-    if FW == 'esx' then return Core.GetPlayerFromId(src) end
+    if FW == 'esx' then
+        if not Core then
+            local ok, obj = pcall(function() return exports.es_extended:getSharedObject() end)
+            if ok and obj then Core = obj else return nil end
+        end
+        return Core.GetPlayerFromId(src)
+    end
     if FW == 'qb' then return Core.Functions.GetPlayer(src) end
     if FW == 'qbx' then return exports.qbx_core:GetPlayer(src) end
 end
@@ -146,7 +153,7 @@ end
 
 function Bridge.RegisterUsable(item, cb)
     if FW == 'esx' then
-        Core.RegisterUsableItem(item, function(src, a, b) cb(src, type(a) == 'table' and a or b) end)
+        if Core then Core.RegisterUsableItem(item, function(src, a, b) cb(src, type(a) == 'table' and a or b) end) end
     elseif FW == 'qb' then
         Core.Functions.CreateUseableItem(item, function(src, data) cb(src, data) end)
     elseif FW == 'qbx' then
