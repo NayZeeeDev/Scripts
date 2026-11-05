@@ -30,6 +30,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 .mono{font-family:ui-monospace,'SFMono-Regular',Menlo,monospace;letter-spacing:.02em}
 
 #root{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+/* The window shadow lives on the parent so it follows the rounded, cut-corner shape (a box-shadow on the clipped frame left dark squares in the corners) */
+#root{filter:drop-shadow(0 14px 28px rgba(0,0,0,.55)) drop-shadow(0 34px 70px rgba(0,0,0,.45))}
 #root>*{pointer-events:auto}
 
 /* ═══════════════ BRAND ═══════════════ */
@@ -40,7 +42,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
 
 /* ═══════════════ WINDOW ═══════════════ */
 .frame{position:relative;width:min(1320px,96vw);height:min(820px,93vh);background:var(--line);padding:1px;border-radius:var(--r-lg);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 26px),calc(100% - 26px) 100%,0 100%);box-shadow:var(--sh-3);animation:winIn .24s cubic-bezier(.2,.8,.2,1)}
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 26px),calc(100% - 26px) 100%,0 100%);animation:winIn .24s cubic-bezier(.2,.8,.2,1)}
 .frame::before{content:'';position:absolute;top:0;left:18%;right:18%;height:1px;z-index:5;
   background:linear-gradient(90deg,transparent,var(--accent),transparent);box-shadow:0 0 18px 2px var(--accent-wash)}
 @keyframes winIn{from{opacity:0;transform:translateY(10px) scale(.992)}}
