@@ -50,7 +50,8 @@ end
 local function probe(from, to, flags, ignore)
     local h = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, flags, ignore or 0, 4)
     local _, hit, coords, normal, entity = GetShapeTestResult(h)
-    return hit == 1, coords, normal, entity
+    -- with use_experimental_fxv2_oal (fxmanifest) natives return real booleans; without it, 1 / 0
+    return hit == true or hit == 1, coords, normal, entity
 end
 
 -- Is this hit the till being placed? (compares the handle, and model + position as a fallback)
