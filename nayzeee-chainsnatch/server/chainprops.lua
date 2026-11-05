@@ -66,6 +66,17 @@ function ChainProps.status()
     }
 end
 
+--- Newer FXServer builds sandbox resources: say exactly which server.cfg line is missing
+local function sandboxHelp(text)
+    text = tostring(text or '')
+    if text:find('child', 1, true) and (text:find('restricted', 1, true) or text:find('not allowed', 1, true)) then
+        print(('^3[%s] Your server blocks starting the converter. Add this to server.cfg and restart:^0'):format(SELF))
+        print(('^3    add_unsafe_child_process_permission "%s"^0'):format(SELF))
+        return 'The server blocks the converter: add  add_unsafe_child_process_permission "' .. SELF .. '"  to server.cfg and restart.'
+    end
+    return nil
+end
+
 local function tell(src, data)
     if src and src > 0 then TriggerClientEvent('nzc:c:chainkit', src, data) end
 end
@@ -153,7 +164,8 @@ AddEventHandler('nzc:chainkit:msg', function(src, kind, data)
     elseif kind == 'error' then
         ChainProps.running = false -- the program may never have started, so no exit will come
         print(('^1[%s]^7 chainkit: %s'):format(SELF, tostring(data.message)))
-        if src and src > 0 then Worn.notify(src, tostring(data.message), 'error', 8000) end
+        local help = sandboxHelp(data.message)
+        if src and src > 0 then Worn.notify(src, help or tostring(data.message), 'error', 12000) end
     elseif kind == 'busy' then
         if src and src > 0 then Worn.notify(src, 'The converter is already running.', 'error') end
     end
@@ -163,6 +175,8 @@ AddEventHandler('nzc:chainkit:exit', function(src, mode, code, tail)
     if ChainProps.running == mode or mode == 'scan' then ChainProps.running = false end
     if code ~= 0 then
         print(('^1[%s]^7 chainkit %s stopped with code %s\n%s'):format(SELF, mode, tostring(code), tostring(tail or '')))
+        local help = sandboxHelp(tail)
+        if help and src and src > 0 then Worn.notify(src, help, 'error', 12000) end
     end
     booting = false
     if mode == 'scan' and autoBuild then

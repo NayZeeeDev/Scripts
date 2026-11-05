@@ -36,6 +36,15 @@ add_ace resource.nayzeee-chainsnatch command.ensure allow
 add_ace resource.nayzeee-chainsnatch command.restart allow
 ```
 
+Newer FXServer builds also block starting other programs and writing into other resources. Let the script run
+the converter and copy chain pictures:
+
+```
+add_unsafe_child_process_permission "nayzeee-chainsnatch"
+add_filesystem_permission nayzeee-chainsnatch write ox_inventory
+add_filesystem_permission nayzeee-chainsnatch write nayzeee-chainprops
+```
+
 If the console says *could not write into ox_inventory/web/images*, your FXServer build restricts
 cross-resource writes. Add this and restart:
 

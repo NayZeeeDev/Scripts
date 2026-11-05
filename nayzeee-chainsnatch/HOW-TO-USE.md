@@ -40,9 +40,16 @@ You only install **one folder**, `nayzeee-chainsnatch`. The script makes the sec
    add_ace resource.nayzeee-chainsnatch command.refresh allow
    add_ace resource.nayzeee-chainsnatch command.ensure allow
    add_ace resource.nayzeee-chainsnatch command.restart allow
+
+   add_unsafe_child_process_permission "nayzeee-chainsnatch"
+   add_filesystem_permission nayzeee-chainsnatch write ox_inventory
+   add_filesystem_permission nayzeee-chainsnatch write nayzeee-chainprops
    ```
 
-   The last three let the script start and restart `nayzeee-chainprops` by itself after it converts a chain.
+   - The three `add_ace resource…` lines let the script start and restart `nayzeee-chainprops` after it converts a chain.
+   - `add_unsafe_child_process_permission` lets it run the converter (newer FXServer builds block this by default:
+     without it the console says *could not start chainkit: Access to this API has been restricted*).
+   - The two `add_filesystem_permission` lines let it put the chain pictures into ox_inventory and nayzeee-chainprops.
    On the very first start the console may say it can't find `nayzeee-chainprops`: that's fine, it doesn't exist
    until the first chain is built.
 3. Open `install/ox_inventory.lua` and paste the item into `ox_inventory/data/items.lua`.
@@ -140,6 +147,7 @@ Nothing in your clothing packs is blocked unless you list it.
 | The chain is invisible / *model is not registered* | `nayzeee-chainprops` isn't started: check the `ensure` and `add_ace` lines, restart |
 | The chain floats in front of the neck when they run | it isn't fitted yet: **Fit** → **From clothing** → **Save** |
 | No picture on the item | restart `ox_inventory` once after the first build (it loads new pictures on start) |
+| *could not start chainkit: Access to this API has been restricted* / *child spawn not allowed* | add `add_unsafe_child_process_permission "nayzeee-chainsnatch"` to `server.cfg` and restart |
 | *could not write into ox_inventory/web/images* | add `add_filesystem_permission nayzeee-chainsnatch write ox_inventory` to `server.cfg` |
 | Looks right on men, wrong on women | fit it again on a female ped and **Save**: fits are per body |
 
