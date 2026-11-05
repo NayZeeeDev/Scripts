@@ -34,7 +34,6 @@ You only install **one folder**, `nayzeee-chainsnatch`. The script makes the sec
    ensure ox_inventory
    ensure screenshot-basic
    ensure nayzeee-chainsnatch
-   ensure nayzeee-chainprops
 
    add_ace group.admin nayzeee.chains allow
    add_ace resource.nayzeee-chainsnatch command.refresh allow
@@ -46,6 +45,9 @@ You only install **one folder**, `nayzeee-chainsnatch`. The script makes the sec
    add_filesystem_permission nayzeee-chainsnatch write nayzeee-chainprops
    ```
 
+   - **Don't** add `ensure nayzeee-chainprops`: the script starts it itself, right after it has converted any new
+     chains, so a new chain shows up after **one** restart. (With the ensure line it starts too early and new chains
+     need a second restart.)
    - The three `add_ace resource…` lines let the script start and restart `nayzeee-chainprops` after it converts a chain.
    - `add_unsafe_child_process_permission` lets it run the converter (newer FXServer builds block this by default:
      without it the console says *could not start chainkit: Access to this API has been restricted*).
@@ -79,8 +81,8 @@ Don't rename them, and don't put them in a `stream` folder.
   Renaming the folder makes it a *new* chain (the old one is kept, nothing is lost).
 - Subfolders are fine (`Cuban Pack/stream/…`): the name comes from the first folder that isn't `stream`, `male` …
 
-**3. Build it.** In game: `/chainstudio` → **Convert** tab → **Build**. Wait for *"Converted 1 chain(s)"*.
-(Or just restart the server: new chains are built on start.)
+**3. Build it.** Restart the server: new chains are converted on start, before the props load, so one restart is
+enough. Or in game, without a restart: `/chainstudio` → **Convert** tab → **Build**, wait for *"Converted 1 chain(s)"*.
 
 That's it: **no fitting needed**. Try it: **Look** tab → **Put one in my pockets**, or `/givechain [id] diamond`.
 
@@ -150,7 +152,8 @@ Nothing in your clothing packs is blocked unless you list it.
 | *chainkit isn't installed* | `tools/chainkit/linux-x64/chainkit` (Linux) or `tools/chainkit/win-x64/chainkit.exe` (Windows) is missing. It's in the release zip |
 | A chain didn't convert | the **Convert** tab lists it under *Couldn't convert* with the reason (also in the server console). Usually: its `_diff_` `.ytd` files aren't in its folder |
 | *N chain(s) have no files any more* | their folder was moved, renamed or emptied (an update). They're **kept**, so nobody loses one. Put the files back, or press **Remove gone chains** |
-| The chain is invisible / *model is not registered* | `nayzeee-chainprops` isn't started: check the `ensure` and `add_ace` lines, restart |
+| The chain is invisible / *model is not registered* | `nayzeee-chainprops` isn't started: check the `add_ace` lines (the console says why it didn't start), restart |
+| A new chain only shows after a **second** restart | take `ensure nayzeee-chainprops` out of `server.cfg`: the script starts it after converting |
 | The chain sits wrong on the neck | the studio has a saved fit for it: **Fit** tab → red **×** (forget the saved fit). It then fits itself |
 | No picture on the item | restart `ox_inventory` once after the first build (it loads new pictures on start) |
 | *could not start chainkit: Access to this API has been restricted* / *child spawn not allowed* | add `add_unsafe_child_process_permission "nayzeee-chainsnatch"` to `server.cfg` and restart |

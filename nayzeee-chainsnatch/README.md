@@ -19,7 +19,7 @@ ensure ox_inventory
 ensure ox_target
 ensure screenshot-basic
 ensure nayzeee-chainsnatch
-ensure nayzeee-chainprops      # created by the converter the first time it builds
+# no "ensure nayzeee-chainprops": the script starts it after converting new chains on start (one restart is enough)
 ```
 
 Admins need the studio permission (or be in an admin group, `config_server.lua`):

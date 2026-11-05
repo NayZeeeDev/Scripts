@@ -18,6 +18,16 @@ local RES = Config.PropsResource
 local SELF = GetCurrentResourceName()
 local booting = true
 local autoBuild = false
+local bootPhase = true      -- until the start-up scan (and build) is done, the props resource waits
+
+-- On start the props resource is started only AFTER new chains are converted, so it starts once, with everything in
+-- it. (Restarting it while players are still loading in is what used to need a second server restart.)
+local function startProps()
+    local st = GetResourceState(RES)
+    if st == 'started' or st == 'starting' then return end
+    ExecuteCommand('refresh')
+    ExecuteCommand('ensure ' .. RES)
+end
 
 local function outDir()
     if GetResourceState(RES) ~= 'missing' then return GetResourcePath(RES) end
@@ -184,6 +194,7 @@ AddEventHandler('nzc:chainkit:msg', function(src, kind, data)
         tell(src, { kind = 'done', built = data.built, status = ChainProps.status() })
     elseif kind == 'error' then
         ChainProps.running = false -- the program may never have started, so no exit will come
+        if bootPhase then bootPhase = false; booting = false; startProps() end
         print(('^1[%s]^7 chainkit: %s'):format(SELF, tostring(data.message)))
         local help = sandboxHelp(data.message)
         if src and src > 0 then Worn.notify(src, help or tostring(data.message), 'error', 12000) end
@@ -202,7 +213,11 @@ AddEventHandler('nzc:chainkit:exit', function(src, mode, code, tail)
     booting = false
     if mode == 'scan' and autoBuild then
         autoBuild = false
-        return ChainProps.run('build', 0)
+        if ChainProps.run('build', 0) then return end
+    end
+    if bootPhase then
+        bootPhase = false
+        startProps() -- nothing (more) to build: start it now (a build that did something restarted it already)
     end
     tell(src, { kind = 'status', status = ChainProps.status() })
 end)
@@ -221,15 +236,18 @@ RegisterNetEvent('nzc:s:chainkit', function(mode)
 end)
 
 CreateThread(function()
-    if not CC.Enabled then return end
-    Wait(3000) -- every resource (and server/chainkit.js) has started by now
+    if not CC.Enabled then bootPhase = false return startProps() end
+    Wait(500) -- every resource (and server/chainkit.js) has loaded by now
     TriggerEvent('nzc:chainkit:check', CC.Kit)
     Wait(200)
-    local st = GetResourceState(RES)
-    if st == 'stopped' or st == 'uninitialized' then ExecuteCommand('ensure ' .. RES) end
-    if CC.AutoScan and ChainProps.kit then ChainProps.run('scan', 0)
+    if CC.AutoScan and ChainProps.kit then
+        ChainProps.run('scan', 0)
+        -- the props start when the scan (and the build after it) is done; never wait forever
+        SetTimeout(180000, function() if bootPhase then bootPhase = false; startProps() end end)
     else
         booting = false
+        bootPhase = false
+        startProps()
         if not ChainProps.kit then
             print(('^3[%s] chainkit isn\'t installed (tools/chainkit/%s). Chains can\'t be converted on this server.^0'):format(SELF,
                 ChainProps.platform == 'win32' and 'win-x64/chainkit.exe' or 'linux-x64/chainkit'))
