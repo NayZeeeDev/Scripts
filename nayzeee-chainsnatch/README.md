@@ -1,4 +1,4 @@
-# nayzeee-chainsnatch 1.2 — install & guide
+# nayzeee-chainsnatch 1.3 — install & guide
 
 > **New here? Read [HOW-TO-USE.md](HOW-TO-USE.md) first:** installing, adding a chain in 4 steps, custom chains for one player.
 
@@ -66,13 +66,14 @@ texture, its name and its picture are in the metadata, so new chains never need 
 
 ### Automatic fit
 
-Clothing chains are rigged to ped bones, and nearly all of them are moved 100% by one bone (the upper spine).
-chainkit records that bone and where the chain sat on the body. The first time someone wears the chain, the game
-works out (once, while that character stands still, then remembered in KVP) the exact attach offset for that bone,
-for male and female bodies separately. It's **measured**, not guessed: an invisible marker is attached to the bone
-and moved until the game reports it sitting exactly where the clothing sat, facing the way the body faces (about a
-second). The studio's **From clothing** uses the same measurement. The prop then moves the way the clothing did. **Nothing is streamed as
-clothing**: no `.ymt`, no pack, nothing that collides with your clothing packs.
+Clothing chains are skinned to a ped bone (nearly always `SKEL_Spine3`): the game moves the clothing with that bone,
+relative to where the bone sits in the skeleton's **rest pose**. The script ships that rest pose
+(`shared/skeleton.lua`, the freemode skeleton's body bones) and chainkit records each chain's bone and where it sat,
+so the prop is attached with exactly the clothing's own offset from the bone. It moves the way the clothing does,
+whatever pose the character is in, male or female. **Nothing is streamed as clothing.**
+
+The one thing checked in game is how GTA turns that rotation into attach angles: once per bone, ever (two invisible
+markers on the bone, read in the same frame), then kept in KVP.
 
 A fit saved in the studio always wins over it. Chains converted by chainkit 1.1 or older are converted again once,
 automatically, on the next start.

@@ -84,11 +84,11 @@ Don't rename them, and don't put them in a `stream` folder.
 
 That's it: **no fitting needed**. Try it: **Look** tab → **Put one in my pockets**, or `/givechain [id] diamond`.
 
-> **How does it fit itself?** Clothing is rigged to the character's bones; most chains move with one bone (the upper
-> spine). The converter remembers that bone and where the chain sat, and the game sticks the prop to the same bone at
-> the same spot. It moves like the clothing did, for male and female bodies, and nothing extra is streamed: the chain
-> is still one small prop, so it never fights your clothing packs.
-> The first time a chain is worn, it's worked out while the character stands still (a second), then remembered.
+> **How does it fit itself?** Clothing is rigged to one of the character's bones (the upper spine), relative to where
+> that bone sits in the skeleton's rest pose. The script knows that rest pose and the converter remembers the bone and
+> where the chain sat, so the prop is stuck to the same bone with the clothing's exact offset. It moves like the
+> clothing did, for male and female bodies, and nothing extra is streamed: the chain is still one small prop, so it
+> never fights your clothing packs.
 
 Optional, all in the studio:
 

@@ -1,121 +1,125 @@
 -----------------------------------------------------------------
--- Automatic fit: a chain sits like the clothing it came from
+-- Automatic fit: a chain sits exactly like the clothing it came from
 --
--- A clothing chain is skinned to ped bones; most are moved 100% by
--- one bone (the upper spine). chainkit notes that bone, and where
--- the chain sat on the body. Here we stick the prop to that same
--- bone at the same spot, worked out on a real ped of the right body
--- standing still: exactly what the studio's "From clothing" does,
--- without anyone opening the studio.
+-- Clothing is skinned: the game moves it with a bone, relative to
+-- where that bone sits in the skeleton's REST pose (shared/skeleton.lua,
+-- from the freemode .yft). chainkit notes the bone each chain is
+-- skinned to (nearly always SKEL_Spine3) and where the chain sat.
+-- So the prop gets exactly the clothing's own relation to the bone:
 --
--- Done once per chain per body (male / female), then kept in this
--- player's KVP. A fit saved in the studio always wins over it.
+--   position = inverse(rest pose of the bone) * where the chain sat
+--   rotation = inverse(rest rotation of the bone)
+--
+-- That doesn't depend on how the character stands, so there's
+-- nothing to wait for. The only thing measured in game is how GTA
+-- turns that rotation into attach angles: once per bone, with two
+-- invisible markers on the same bone read in the same frame (so it
+-- works while the player moves). Kept in KVP. A fit saved in the
+-- studio always wins.
 -----------------------------------------------------------------
 
 AutoFit = {}
 
-local VER = 2   -- bump to make every client measure again
-local cache = {}      -- ["key|m"] = fit | false (can't be done)
-local queued = {}     -- ["key|m"] = ped
-local busy = false
-local fails = {}      -- ["key|m"] = measurements that didn't work out; after 3 this session keeps the fallback
+local VER = 3
+local rots = {}        -- [bone tag] = { rot = attach angles, measured = true|nil }
+local queue, busy = {}, false
+local fails = {}       -- [bone tag] = failed measurements this session
 
--- bones a clothing chain can be skinned to: the studio's bone list works with these tags
-local TAGS = { 24818, 39317, 24817, 24816, 23553, 57597, 31086, 12844, 35731, 64729, 10706, 11816, 0 }
+local XYZ = { order = { 'x', 'y', 'z' }, sign = { x = 1, y = 1, z = 1 } }   -- first guess of GTA's attach order
 
-local function body(female) return female and 'f' or 'm' end
+local function kvpName(tag) return ('nzc_bind:%d:v%d'):format(tag, VER) end
 
-local function sigOf(d)
-    local c = d.centre
-    return ('%d|%.4f|%.4f|%.4f|%d'):format(VER, c.x, c.y, c.z, tonumber(d.bone) or -1)
+--- The skeleton bone a chain is skinned to: index, rest pose. Unknown or face bones: the upper spine.
+local function boneOf(d)
+    local idx = tonumber(d and d.bone)
+    local s = idx and Skeleton[idx]
+    if s then return idx, s end
+    return 38, Skeleton[38]
 end
 
-local function kvpName(key, g) return ('nzc_af:%s:%s'):format(key, g) end
+-- inverse(rest rotation) as a 3x3 (row-major, like M3): R^T
+local function restInv(s)
+    local R = s.rot
+    return { R[1], R[4], R[7], R[2], R[5], R[8], R[3], R[6], R[9] }
+end
 
---- The bone tag (or -(index + 1) when it has no tag we know) a chain's clothing was skinned to.
-function AutoFit.boneFor(ped, key)
-    local d = Chains.def(key)
-    local idx = d and tonumber(d.bone)
-    if not idx or idx < 0 then return 39317 end
-    for _, tag in ipairs(TAGS) do
-        if GetPedBoneIndex(ped, tag) == idx then return tag end
+local function restPos(s, c)
+    local T = restInv(s)
+    local dx, dy, dz = c.x - s.pos[1], c.y - s.pos[2], c.z - s.pos[3]
+    return {
+        x = Util.round(T[1] * dx + T[2] * dy + T[3] * dz, 4),
+        y = Util.round(T[4] * dx + T[5] * dy + T[6] * dz, 4),
+        z = Util.round(T[7] * dx + T[8] * dy + T[9] * dz, 4),
+    }
+end
+
+local function guess(s)
+    local r = FitMath.solveEuler(restInv(s), nil, XYZ)
+    return r and { x = Util.round(r.x, 3), y = Util.round(r.y, 3), z = Util.round(r.z, 3) } or { x = 0.0, y = 90.0, z = 180.0 }
+end
+
+local function rotFor(s)
+    local r = rots[s.tag]
+    if r == nil then
+        local raw = GetResourceKvpString(kvpName(s.tag))
+        local ok, saved = pcall(json.decode, raw or '')
+        if ok and type(saved) == 'table' and tonumber(saved.x) then
+            r = { rot = { x = saved.x, y = saved.y, z = saved.z }, measured = true }
+        else
+            r = { rot = guess(s) }
+        end
+        rots[s.tag] = r
     end
-    return -(idx + 1)
+    return r
 end
 
-function AutoFit.get(key, female)
+--- The bone tag a chain's clothing was skinned to (the studio's bone list uses tags)
+function AutoFit.boneFor(_, key)
+    local _, s = boneOf(Chains.def(key))
+    return s.tag
+end
+
+--- The automatic fit of a converted chain (nil for chains without a clothing position)
+function AutoFit.get(key)
     local d = Chains.def(key)
     if not d or not d.centre then return nil end
-    local id = key .. '|' .. body(female)
-    local c = cache[id]
-    if c == nil then
-        c = false -- looked: nothing yet (the worker fills it in)
-        local raw = GetResourceKvpString(kvpName(key, body(female)))
-        local ok, saved = pcall(json.decode, raw or '')
-        if ok and type(saved) == 'table' and saved.sig == sigOf(d) and type(saved.fit) == 'table' then c = saved.fit end
-        cache[id] = c
-    end
-    return c or nil
-end
-
---- Standing still on foot, not mid-animation: the pose the clothing was modelled in (near enough)
-local function idle(ped)
-    if not DoesEntityExist(ped) or IsEntityDead(ped) then return false end
-    if IsPedInAnyVehicle(ped, true) or not IsPedOnFoot(ped) then return false end
-    if IsPedRagdoll(ped) or IsPedFalling(ped) or IsPedJumping(ped) or IsPedClimbing(ped) or IsPedSwimming(ped) then return false end
-    if GetEntitySpeed(ped) > 0.12 then return false end
-    if IsPedUsingAnyScenario(ped) or IsPedInCover(ped, false) or IsPedReloading(ped) or IsPlayerFreeAiming(PlayerId()) and ped == PlayerPedId() then return false end
-    local w = Config.Wear.Anim
-    if w and IsEntityPlayingAnim(ped, w.dict, w.clip, 3) then return false end
-    for _, a in pairs(Config.Hold.Anims or {}) do
-        if a.dict and IsEntityPlayingAnim(ped, a.dict, a.clip, 3) then return false end
-    end
-    return true
+    local _, s = boneOf(d)
+    local r = rotFor(s)
+    return {
+        bone = s.tag, pos = restPos(s, d.centre),
+        rot = { x = r.rot.x, y = r.rot.y, z = r.rot.z }, auto = true,
+    }
 end
 
 -----------------------------------------------------------------
--- measuring (no assumptions about how GTA applies attach angles)
---
--- An invisible golf ball is attached to the bone and the game is
--- asked where it really ended up. Rotation: the attach angles are
--- adjusted (Levenberg-Marquardt, a few dozen frames) until the ball
--- faces exactly like the ped. Position: three nudges tell which way
--- the bone's x / y / z point, then the offset is solved directly.
+-- measuring GTA's attach angles for one bone
 -----------------------------------------------------------------
 
 local function finite(v) return v == v and v ~= math.huge and v ~= -math.huge end
-local function unit(v) return v and finite(v.x) and finite(v.y) and finite(v.z) and #v > 0.9 and #v < 1.1 end
 
--- an entity's orientation as 9 numbers: its axes when the game reports clean ones, else from its rotation
-local function orient(e, useRot)
-    if not useRot then
-        local f, r, u = GetEntityMatrix(e)
-        if unit(f) and unit(r) and unit(u) then return { f.x, f.y, f.z, r.x, r.y, r.z, u.x, u.y, u.z } end
-        return nil
+-- an entity's axes as a matrix (columns x, y, z), straight from "where is my local x / y / z": no layout guessing
+local function axesOf(e)
+    local p = GetEntityCoords(e)
+    local x = GetOffsetFromEntityInWorldCoords(e, 1.0, 0.0, 0.0) - p
+    local y = GetOffsetFromEntityInWorldCoords(e, 0.0, 1.0, 0.0) - p
+    local z = GetOffsetFromEntityInWorldCoords(e, 0.0, 0.0, 1.0) - p
+    for _, v in ipairs({ x, y, z }) do
+        if not finite(v.x) or not finite(v.y) or not finite(v.z) or #v < 0.9 or #v > 1.1 then return nil end
     end
-    local rot = GetEntityRotation(e, 2)
-    if not rot or not finite(rot.x) then return nil end
-    return M3.euler(rot.x, rot.y, rot.z)
-end
-
-local function settle(helper, ped)
-    for _ = 1, 10 do
-        Wait(0)
-        if IsEntityAttachedToEntity(helper, ped) then break end
-    end
-    Wait(0) -- the frame after the attach took effect
+    return M3.fromAxes(x, y, z)
 end
 
 local ZERO = { x = 0.0, y = 0.0, z = 0.0 }
 
-local function residual(helper, ped, bone, th, useRot)
-    Util.attach(helper, ped, bone, ZERO, th)
-    settle(helper, ped)
-    local A, B = orient(helper, useRot), orient(ped, useRot)
-    if not A or not B then return nil end
-    local r = {}
-    for i = 1, 9 do r[i] = A[i] - B[i] end
-    return r
+local function ball(at)
+    local hash = Util.loadModel(`prop_golf_ball`, true)
+    if not hash then return nil end
+    local o = CreateObject(hash, at.x, at.y, at.z - 5.0, false, false, false)
+    SetModelAsNoLongerNeeded(hash)
+    SetEntityCollision(o, false, false)
+    SetEntityVisible(o, false, false)
+    SetEntityAlpha(o, 0, false)
+    return o
 end
 
 local function sq(r) local e = 0.0 for i = 1, 9 do e = e + r[i] * r[i] end return e end
@@ -130,153 +134,111 @@ local function solve3(A, b)
     return d(b, col2, col3) / det, d(col1, b, col3) / det, d(col1, col2, b) / det
 end
 
---- attach angles that make `helper` on `bone` face exactly like `ped`
-local function solveRotation(helper, ped, bone, useRot)
-    local KEYS = { 'x', 'y', 'z' }
-    local SEEDS = { { x = 0, y = 0, z = 0 }, { x = 90, y = 0, z = 0 }, { x = -90, y = 0, z = 0 }, { x = 0, y = 90, z = 0 },
-        { x = 0, y = -90, z = 0 }, { x = 0, y = 0, z = 90 }, { x = 0, y = 0, z = -90 }, { x = 180, y = 0, z = 0 } }
-    local best, bestErr = nil, math.huge
-    for _, s0 in ipairs(SEEDS) do
-        local th = { x = s0.x, y = s0.y, z = s0.z }
-        local r = residual(helper, ped, bone, th, useRot)
-        if not r then return nil end
-        local cost, lambda = sq(r), 1e-2
-        for _ = 1, 14 do
-            if cost < 2e-6 then break end
-            local J = {}
-            for k, key in ipairs(KEYS) do
-                local t2 = { x = th.x, y = th.y, z = th.z }
-                t2[key] = t2[key] + 1.0
-                local rk = residual(helper, ped, bone, t2, useRot)
-                if not rk then return nil end
-                J[k] = {}
-                for i = 1, 9 do J[k][i] = (rk[i] - r[i]) / 1.0 end
-            end
-            local improved = false
-            for _ = 1, 4 do
-                local JTJ, JTr = {}, {}
-                for a = 1, 3 do
-                    local acc = 0.0
-                    for i = 1, 9 do acc = acc + J[a][i] * r[i] end
-                    JTr[a] = -acc
-                    for b = 1, 3 do
-                        local v = 0.0
-                        for i = 1, 9 do v = v + J[a][i] * J[b][i] end
-                        JTJ[(a - 1) * 3 + b] = v
-                    end
-                end
-                for a = 1, 3 do JTJ[(a - 1) * 3 + a] = JTJ[(a - 1) * 3 + a] * (1 + lambda) + 1e-9 end
-                local dx, dy, dz = solve3(JTJ, JTr)
-                if not dx then break end
-                local cand = { x = th.x + dx, y = th.y + dy, z = th.z + dz }
-                local rc = residual(helper, ped, bone, cand, useRot)
-                if not rc then return nil end
-                local c2 = sq(rc)
-                if c2 < cost then th, r, cost, lambda, improved = cand, rc, c2, lambda * 0.3, true break end
-                lambda = lambda * 10
-            end
-            if not improved then break end
-        end
-        if cost < bestErr then best, bestErr = th, cost end
-        if bestErr < 2e-5 then break end
+-- attach angles -> the rotation they really give relative to the bone, read off the game: marker h0 sits on the bone
+-- with no rotation (= the bone's own axes), h1 with `rot`; both read in the same frame
+local function relative(ped, tag, h0, h1, rot)
+    Util.attach(h1, ped, tag, ZERO, rot)
+    for _ = 1, 10 do
+        Wait(0)
+        if IsEntityAttachedToEntity(h1, ped) and IsEntityAttachedToEntity(h0, ped) then break end
     end
-    return best, bestErr
+    Wait(0)
+    local B, P = axesOf(h0), axesOf(h1)
+    if not B or not P then return nil end
+    return M3.mul(M3.t(B), P)
 end
 
---- the fit (bone, pos, rot) that puts the chain where the clothing sat, measured on `ped` right now
-local function solve(ped, key)
-    local d = Chains.def(key)
-    if not d or not d.centre then return nil end
-    local hash = Util.loadModel(`prop_golf_ball`, true)
-    if not hash then return nil end
-    local pc = GetEntityCoords(ped)
-    local helper = CreateObject(hash, pc.x, pc.y, pc.z - 5.0, false, false, false)
-    SetModelAsNoLongerNeeded(hash)
-    SetEntityCollision(helper, false, false)
-    SetEntityVisible(helper, false, false)
-    SetEntityAlpha(helper, 0, false)
-
-    local fit, why
+local function measure(tag, s)
+    local ped = PlayerPedId()
+    if not DoesEntityExist(ped) then return nil end
+    local at = GetEntityCoords(ped)
+    local h0, h1 = ball(at), ball(at)
+    if not h0 or not h1 then Util.delete(h0); Util.delete(h1); return nil end
+    local T = restInv(s)
+    local best, bestErr
     local ok, err = pcall(function()
-        local c = d.centre
-        local function target() return GetOffsetFromEntityInWorldCoords(ped, c.x, c.y, c.z) end
-
-        -- the bone the clothing was rigged to, if it really is near the chain (else the upper spine, then the neck)
-        local bone
-        for _, b in ipairs({ AutoFit.boneFor(ped, key), 24818, 39317 }) do
-            local idx = b < 0 and (-b - 1) or GetPedBoneIndex(ped, b)
-            if idx and idx >= 0 and #(GetWorldPositionOfEntityBone(ped, idx) - target()) < 0.35 then bone = b break end
+        Util.attach(h0, ped, tag, ZERO, ZERO)
+        local function res(rot)
+            local A = relative(ped, tag, h0, h1, rot)
+            if not A then return nil end
+            local r = {}
+            for i = 1, 9 do r[i] = A[i] - T[i] end
+            return r
         end
-        bone = bone or 39317
-
-        -- rotation: axes straight from the game; if it won't give clean ones, its euler rotation instead
-        local useRot = residual(helper, ped, bone, ZERO, false) == nil
-        local rot, rerr = solveRotation(helper, ped, bone, useRot)
-        if not rot or rerr > 5e-4 then why = ('rotation did not converge (%s)'):format(tostring(rerr)) return end
-        rot = { x = Util.wrap180(rot.x), y = Util.wrap180(rot.y), z = Util.wrap180(rot.z) }
-
-        -- position: which way the bone's x / y / z point, measured with three nudges
-        local function at(pos)
-            Util.attach(helper, ped, bone, pos, rot)
-            settle(helper, ped)
-            return GetEntityCoords(helper)
+        local seeds = { rotFor(s).rot, guess(s), { x = 0, y = 90, z = 180 }, { x = 0, y = 0, z = 0 }, { x = 90, y = 0, z = 0 },
+            { x = 0, y = -90, z = 0 }, { x = 180, y = 0, z = 0 }, { x = 0, y = 0, z = 90 } }
+        bestErr = math.huge
+        for _, s0 in ipairs(seeds) do
+            local th = { x = s0.x, y = s0.y, z = s0.z }
+            local r = res(th)
+            if not r then return end
+            local cost, lambda = sq(r), 1e-2
+            for _ = 1, 14 do
+                if cost < 1e-6 then break end
+                local J = {}
+                for k, key in ipairs({ 'x', 'y', 'z' }) do
+                    local t2 = { x = th.x, y = th.y, z = th.z }
+                    t2[key] = t2[key] + 1.0
+                    local rk = res(t2)
+                    if not rk then return end
+                    J[k] = {}
+                    for i = 1, 9 do J[k][i] = rk[i] - r[i] end
+                end
+                local improved = false
+                for _ = 1, 4 do
+                    local JTJ, JTr = {}, {}
+                    for a = 1, 3 do
+                        local acc = 0.0
+                        for i = 1, 9 do acc = acc + J[a][i] * r[i] end
+                        JTr[a] = -acc
+                        for b = 1, 3 do
+                            local v = 0.0
+                            for i = 1, 9 do v = v + J[a][i] * J[b][i] end
+                            JTJ[(a - 1) * 3 + b] = v
+                        end
+                    end
+                    for a = 1, 3 do JTJ[(a - 1) * 3 + a] = JTJ[(a - 1) * 3 + a] * (1 + lambda) + 1e-9 end
+                    local dx, dy, dz = solve3(JTJ, JTr)
+                    if not dx then break end
+                    local cand = { x = th.x + dx, y = th.y + dy, z = th.z + dz }
+                    local rc = res(cand)
+                    if not rc then return end
+                    local c2 = sq(rc)
+                    if c2 < cost then th, r, cost, lambda, improved = cand, rc, c2, lambda * 0.3, true break end
+                    lambda = lambda * 10
+                end
+                if not improved then break end
+            end
+            if cost < bestErr then best, bestErr = th, cost end
+            if bestErr < 1e-5 then break end
         end
-        local p0 = at(ZERO)
-        local cx = (at({ x = 0.1, y = 0.0, z = 0.0 }) - p0) / 0.1
-        local cy = (at({ x = 0.0, y = 0.1, z = 0.0 }) - p0) / 0.1
-        local cz = (at({ x = 0.0, y = 0.0, z = 0.1 }) - p0) / 0.1
-        p0 = at(ZERO)
-        local want = target() - p0
-        local x, y, z = solve3({ cx.x, cy.x, cz.x, cx.y, cy.y, cz.y, cx.z, cy.z, cz.z }, { want.x, want.y, want.z })
-        if not x or not finite(x) or math.abs(x) + math.abs(y) + math.abs(z) > 1.5 then why = 'position did not solve' return end
-        local pos = { x = Util.round(x, 4), y = Util.round(y, 4), z = Util.round(z, 4) }
-
-        -- check it: the ball must land on the clothing's spot
-        local miss = #(at(pos) - target())
-        if miss > 0.01 then why = ('missed by %.3f m'):format(miss) return end
-        fit = { bone = bone, pos = pos, rot = { x = Util.round(rot.x, 3), y = Util.round(rot.y, 3), z = Util.round(rot.z, 3) }, auto = true }
-        Chains.debug(('autofit %s: bone %s, rotation error %.2e, miss %.4f m'):format(key, tostring(bone), rerr, miss))
     end)
-    Util.delete(helper)
-    if not ok then why = tostring(err) end
-    if not fit then Chains.debug(('autofit %s failed: %s'):format(key, tostring(why))) end
-    return fit
+    Util.delete(h0)
+    Util.delete(h1)
+    if not ok then Chains.debug('autofit measure failed: ' .. tostring(err)) return nil end
+    if not best or bestErr > 5e-4 then
+        Chains.debug(('autofit: bone %d did not converge (%s)'):format(tag, tostring(bestErr)))
+        return nil
+    end
+    Chains.debug(('autofit: bone %d (%s) attach rotation %.2f %.2f %.2f, error %.1e'):format(tag, s.name, best.x, best.y, best.z, bestErr))
+    return { x = Util.round(Util.wrap180(best.x), 3), y = Util.round(Util.wrap180(best.y), 3), z = Util.round(Util.wrap180(best.z), 3) }
 end
-AutoFit.solve = solve
 
 local function worker()
     busy = true
-    while next(queued) do
-        local id, ped = next(queued)
-        queued[id] = nil
-        local key, g = id:match('^(.*)|([mf])$')
-        local d = key and Chains.def(key)
-        if d and d.centre and not AutoFit.get(key, g == 'f') then
-            -- wait (up to 20s) for this ped, or any ped of the same body, to stand still
-            local done = false
-            for _ = 1, 40 do
-                local cands = { ped }
-                if PlayerPedId() ~= ped then cands[2] = PlayerPedId() end
-                for _, p in ipairs(cands) do
-                    if p and DoesEntityExist(p) and IsPedModel(p, g == 'f' and `mp_f_freemode_01` or `mp_m_freemode_01`) and idle(p) then
-                        local fit = solve(p, key)
-                        -- moved while it measured: try again when they stand still (a few times)
-                        if not fit then
-                            fails[id] = (fails[id] or 0) + 1
-                            if fails[id] >= 3 then done = true break end
-                        end
-                        if fit then
-                            cache[id] = fit
-                            SetResourceKvp(kvpName(key, g), json.encode({ sig = sigOf(d), fit = fit }))
-                            Chains.debug(('autofit %s (%s): bone %s pos %.3f %.3f %.3f'):format(key, g, tostring(fit.bone), fit.pos.x, fit.pos.y, fit.pos.z))
-                            TriggerEvent('nzc:autofit', key)
-                            done = true
-                            break
-                        end
-                    end
-                end
-                if done then break end
-                Wait(500)
+    while next(queue) do
+        local tag, s = next(queue)
+        queue[tag] = nil
+        local r = rotFor(s)
+        if not r.measured then
+            local rot = measure(tag, s)
+            if rot then
+                local changed = math.abs(rot.x - r.rot.x) + math.abs(rot.y - r.rot.y) + math.abs(rot.z - r.rot.z) > 0.05
+                rots[tag] = { rot = rot, measured = true }
+                SetResourceKvp(kvpName(tag), json.encode(rot))
+                if changed then TriggerEvent('nzc:autofit', tag) end
+            else
+                fails[tag] = (fails[tag] or 0) + 1
             end
         end
         Wait(0)
@@ -284,29 +246,32 @@ local function worker()
     busy = false
 end
 
---- Work out the fit of `key` for `ped`'s body when it's free to (no-op if known, queued, or not a converted chain).
-function AutoFit.request(key, ped)
+--- Make sure the attach angles for this chain's bone have been checked in game (once per bone, ever).
+function AutoFit.request(key)
     local d = Chains.def(key)
-    if not d or not d.centre or not ped or not DoesEntityExist(ped) then return end
-    local female
-    if IsPedModel(ped, `mp_f_freemode_01`) then female = true
-    elseif IsPedModel(ped, `mp_m_freemode_01`) then female = false
-    else return end -- other ped models: their skeleton isn't the one the clothing was made for
-    local id = key .. '|' .. body(female)
-    if queued[id] or (fails[id] or 0) >= 3 or AutoFit.get(key, female) then return end
-    queued[id] = ped
+    if not d or not d.centre then return end
+    local _, s = boneOf(d)
+    if rotFor(s).measured or queue[s.tag] or (fails[s.tag] or 0) >= 3 then return end
+    queue[s.tag] = s
     if not busy then CreateThread(worker) end
 end
 
---- Forget the fits (the studio's Reset, or after a chain was rebuilt with a new shape)
-function AutoFit.forget(key)
-    for _, g in ipairs({ 'm', 'f' }) do
-        cache[key .. '|' .. g] = nil
-        DeleteResourceKvp(kvpName(key, g))
+--- The studio's "From clothing": the automatic fit, checked in game first. Must run in a thread.
+function AutoFit.solve(_, key)
+    local d = Chains.def(key)
+    if not d or not d.centre then return nil end
+    local _, s = boneOf(d)
+    if not rotFor(s).measured then
+        local rot = measure(s.tag, s)
+        if rot then
+            rots[s.tag] = { rot = rot, measured = true }
+            SetResourceKvp(kvpName(s.tag), json.encode(rot))
+        end
     end
+    return AutoFit.get(key)
 end
 
-AddEventHandler('nzc:registry', function()
-    -- read again from KVP on next use: a rebuilt chain (new shape or bone) fails the sig check and is fitted again
-    for id in pairs(cache) do cache[id] = nil end
-end)
+function AutoFit.forget()
+    for tag in pairs(rots) do DeleteResourceKvp(kvpName(tag)) end
+    rots = {}
+end

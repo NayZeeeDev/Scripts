@@ -34,7 +34,7 @@ local function refresh(sid, ped)
     local mode = st.h and 'hold' or 'worn'
     -- not fitted for this body yet: work it out from the clothing (once, then cached), meanwhile the rough spot.
     -- Asked on every pass, so a player who kept running the first time gets it as soon as they stand still.
-    if mode == 'worn' and not Chains.hasFit(st.c, 'worn', female) then AutoFit.request(st.c, ped) end
+    if mode == 'worn' and not Chains.hasFit(st.c, 'worn', female) then AutoFit.request(st.c) end
     local sig = ('%s|%s|%s|%d|%s|%d'):format(st.c, st.v or 'a', mode, ped, female and 'f' or 'm', version)
     local p = props[sid]
     if p and p.sig == sig and DoesEntityExist(p.entity) and IsEntityAttachedToEntity(p.entity, ped) then return end
