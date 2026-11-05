@@ -1,6 +1,6 @@
 --[[
     NAYZEEE OPTIMIZER - Server
-    Version: 1.1.0
+    Version: see fxmanifest.lua
 
     Server-side performance tracker:
       - tick / hitch detection (wall clock, works on Linux and Windows)
@@ -19,8 +19,9 @@
 
 -- Resource name lock (see lock.lua). Fails closed.
 if type(NayZeeeResourceLock) ~= 'function' then
-    print('^1[NAYZEEE-OPTIMIZER] lock.lua missing — refusing to load.^7')
-    StopResource(GetCurrentResourceName())
+    -- Report it in the startup block, then stop once the block has printed.
+    Console.check('lock', 'error', 'Resource lock', 'lock.lua is missing from fxmanifest.lua: restore it and restart')
+    SetTimeout(1000, function() StopResource(GetCurrentResourceName()) end)
     return
 end
 
@@ -29,7 +30,7 @@ if not NayZeeeResourceLock() then
 end
 
 local RES = GetCurrentResourceName()
-local VERSION = '1.1.0'
+local VERSION = GetResourceMetadata(RES, 'version', 0) or '1.0.0'
 
 local cfg    = Config.Server or { enabled = false }
 local hcfg   = Config.Health or { enabled = false }
@@ -157,6 +158,20 @@ local function AllResources()
     return list
 end
 
+-- Startup row: what the server monitor watches
+if not cfg.enabled then
+    Console.check('monitor', 'info', 'Monitoring', 'off: Config.Server.enabled is false')
+else
+    local _, memLabel = ProcessMemoryMB()
+    local parts = {}
+    if cfg.tickMonitor then parts[#parts + 1] = ('hitches over %d ms'):format(cfg.hitchThreshold or 150) end
+    if cfg.memoryMonitor then
+        parts[#parts + 1] = memLabel == 'Process RSS' and 'process memory' or 'Lua heap only (Windows has no process memory)'
+    end
+    if #parts == 0 then parts[1] = 'reports only' end
+    Console.check('monitor', 'ok', 'Monitoring', ('%s, report every %d min'):format(table.concat(parts, ' + '), cfg.reportInterval or 15))
+end
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 --  TICK / HITCH MONITOR (wall clock)
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -204,14 +219,14 @@ CreateThread(function()
                 severeHitchCount = severeHitchCount + 1
                 timeline[60].s = timeline[60].s + 1
                 lastSevereAt = os.time()
-                print(('[NAYZEEE-OPTIMIZER] ^1SEVERE HITCH^7 %.0fms drift | %d players online'):format(drift, players))
+                Console.log('warn', 'Severe hitch: %.0f ms drift, %d players online', drift, players)
                 SendDiscord(
                     'Severe Server Hitch',
                     ('**Drift:** %.0fms\n**Players online:** %d\n**Total hitches this session:** %d\n\nRun `optimizerhealth` in console for the full report.'):format(drift, players, hitchCount),
                     15158332, 'hitch'
                 )
             else
-                print(('[NAYZEEE-OPTIMIZER] Hitch detected: %.0fms drift | %d players'):format(drift, players))
+                Console.log('info', 'Hitch: %.0f ms drift, %d players online', drift, players)
             end
         end
     end
@@ -246,7 +261,7 @@ CreateThread(function()
             local growth = (lateSum / third) - (earlySum / third)
 
             if growth > leakThreshold then
-                print(('[NAYZEEE-OPTIMIZER] ^3MEMORY GROWTH^7 +%.0f MB over the sample window (%s now %d MB)'):format(growth, label, memory))
+                Console.log('warn', 'Memory grew +%.0f MB over the sample window (%s now %d MB): check the Health tab for the resource', growth, label, memory)
                 SendDiscord(
                     'Possible Memory Leak',
                     ('**Growth:** +%.0f MB across the sample window\n**%s:** %d MB\n\nA resource may be leaking. Check the Health tab for per-resource memory growth.'):format(growth, label, memory),
@@ -529,7 +544,8 @@ local function NotifyAdmin(src, msg, kind)
     if src and src ~= 0 then
         TriggerClientEvent('nayzeee-optimizer:health:status', src, msg, kind or 'info')
     end
-    print(('[NAYZEEE-OPTIMIZER] %s'):format(msg))
+    local level = (kind == 'ok' or kind == 'warn' or kind == 'error') and kind or 'info'
+    Console.log(level, '%s', msg)
 end
 
 local function RunScan(frames, requester)
@@ -600,7 +616,7 @@ local function RunScan(frames, requester)
         for i = 1, math.min(5, #rows) do
             worst[#worst + 1] = ('%s %.2f%% (%s)'):format(rows[i].name, rows[i].load, NZGrade.LABEL[rows[i].grade])
         end
-        print('[NAYZEEE-OPTIMIZER] Scan top: ' .. table.concat(worst, ' | '))
+        Console.log('info', 'Scan top: %s', table.concat(worst, ' | '))
     end)
 
     return true
@@ -702,7 +718,7 @@ local function ProbeStatus()
     }
 end
 
-local function InstallAll(requester)
+local function InstallAll(requester, quiet)
     local counts = { installed = 0, present = 0, skipped = 0, legacy = 0, nomanifest = 0, failed = 0 }
     local names = {}
     for _, res in ipairs(AllResources()) do
@@ -712,10 +728,11 @@ local function InstallAll(requester)
             if r == 'installed' then names[#names + 1] = res end
         end
     end
+    if quiet then return counts, names end
     local msg = ('Probe install: %d added, %d already present, %d skipped, %d legacy manifests, %d failed. Run `refresh` then restart the resources (or restart the server) to activate.'):format(
         counts.installed, counts.present, counts.skipped + counts.nomanifest, counts.legacy, counts.failed)
     NotifyAdmin(requester, msg, counts.failed > 0 and 'warn' or 'ok')
-    if #names > 0 then print('[NAYZEEE-OPTIMIZER] Probe added to: ' .. table.concat(names, ', ')) end
+    if #names > 0 then Console.log('info', 'Probe added to: %s', table.concat(names, ', ')) end
     return counts
 end
 
@@ -730,20 +747,60 @@ local function RemoveAll(requester)
     NotifyAdmin(requester, ('Probe removed from %d manifests (%d failed). Restart the resources to unload it.'):format(removed, failed), failed > 0 and 'warn' or 'ok')
 end
 
--- Auto install on start / for resources that start later
-CreateThread(function()
-    if pcfg.enabled == false then
-        SetConvar('nz_probe_disabled', '1')
-        return
-    end
+-- Probe setup at start (auto install, coverage row in the startup block)
+if pcfg.enabled == false then
+    SetConvar('nz_probe_disabled', '1')
+    Console.check('probe', 'info', 'Probe', 'off: Config.Probe.enabled is false, use optimizerscan instead')
+else
     SetConvar('nz_probe_disabled', '0')
     SetConvar('nz_probe_interval', tostring(pcfg.reportInterval or 5))
 
-    Wait(3000)
+    local added = 0
     if pcfg.autoInstall then
-        InstallAll(0)
+        local counts = InstallAll(0, true)
+        added = counts.installed or 0
     end
-end)
+
+    local total, covered, legacy = 0, 0, 0
+    for _, res in ipairs(AllResources()) do
+        if res ~= RES and not IsExcluded(res) then
+            local file, content = ReadManifest(res)
+            if file == '__resource.lua' then
+                legacy = legacy + 1
+            elseif content then
+                total = total + 1
+                if HasProbe(content) then covered = covered + 1 end
+            end
+        end
+    end
+
+    local text = ('in %d of %d resources'):format(covered, total)
+    if added > 0 then text = text .. (', %d added now: refresh and restart them'):format(added) end
+    if legacy > 0 then text = text .. (', %d legacy manifest(s) need the line by hand'):format(legacy) end
+    if covered == 0 then
+        Console.check('probe', 'info', 'Probe', text .. ': run optimizerprobe install to grade them')
+    else
+        Console.check('probe', 'ok', 'Probe', text)
+    end
+
+    -- Probes only attach if this resource was running when theirs loaded.
+    -- A while after start, flag probed resources that never reported.
+    CreateThread(function()
+        Wait(((pcfg.reportInterval or 5) * 4 + 5) * 1000)
+        local silent = {}
+        for _, res in ipairs(AllResources()) do
+            if res ~= RES and GetResourceState(res) == 'started' and not probeServer[res] then
+                local file, content = ReadManifest(res)
+                if file == 'fxmanifest.lua' and content and HasProbe(content) then silent[#silent + 1] = res end
+            end
+        end
+        if #silent > 0 then
+            table.sort(silent)
+            Console.log('warn', '%d probed resource(s) are not reporting because they started before the optimizer: put "ensure %s" above them in server.cfg, then restart them (%s%s)',
+                #silent, RES, table.concat(silent, ', ', 1, math.min(#silent, 8)), #silent > 8 and ', ...' or '')
+        end
+    end)
+end
 
 AddEventHandler('onResourceStart', function(res)
     if res == RES or pcfg.enabled == false or not pcfg.autoInstallNew then return end
@@ -751,7 +808,7 @@ AddEventHandler('onResourceStart', function(res)
         Wait(1000)
         local r = InstallProbe(res)
         if r == 'installed' then
-            print(('[NAYZEEE-OPTIMIZER] Probe added to %s. It activates on that resource\'s next restart.'):format(res))
+            Console.log('info', 'Probe added to %s. It activates on that resource\'s next restart.', res)
         end
     end)
 end)
@@ -760,33 +817,53 @@ end)
 --  UPDATE CHECKER
 -- ═══════════════════════════════════════════════════════════════════════════════
 
-local function CheckUpdate()
+local function UpdateCheckOn()
     local uc = Config.UpdateCheck
-    if not uc or not uc.enabled or not uc.url or uc.url == '' then return end
-    PerformHttpRequest(uc.url, function(code, body)
+    return uc and uc.enabled and type(uc.url) == 'string' and uc.url ~= ''
+end
+
+-- atStartup: report as a row in the startup block instead of a log line
+local function CheckUpdate(atStartup)
+    if not UpdateCheckOn() then return end
+    local announced = update.outdated and update.latest
+    PerformHttpRequest(Config.UpdateCheck.url, function(code, body)
         update.checked = os.time()
-        if code ~= 200 or not body then return end
-        local ok, data = pcall(json.decode, body)
-        if not ok or type(data) ~= 'table' or not data.version then return end
+        local ok, data = false, nil
+        if code == 200 and body then ok, data = pcall(json.decode, body) end
+        if not ok or type(data) ~= 'table' or not data.version then
+            if atStartup then
+                Console.check('update', 'warn', 'Updates', ('check failed (HTTP %s): check Config.UpdateCheck.url'):format(tostring(code)))
+                Console.done('update')
+            end
+            return
+        end
         update.latest = tostring(data.version)
         update.url = data.url
         update.notes = data.notes
         update.outdated = IsNewer(update.latest, VERSION)
-        if update.outdated then
-            print(('[NAYZEEE-OPTIMIZER] ^3Update available:^7 %s -> %s %s'):format(VERSION, update.latest, update.url or ''))
+        if atStartup then
+            if update.outdated then
+                Console.check('update', 'warn', 'Updates', ('v%s available%s'):format(update.latest, update.url and (': ' .. update.url) or ''))
+            else
+                Console.check('update', 'ok', 'Updates', ('v%s is the latest'):format(VERSION))
+            end
+            Console.done('update')
+        elseif update.outdated and announced ~= update.latest then
+            Console.log('warn', 'Update available: v%s -> v%s %s', VERSION, update.latest, update.url or '')
         end
     end, 'GET', '', { ['Accept'] = 'application/json' })
 end
 
-CreateThread(function()
-    local uc = Config.UpdateCheck
-    if not uc or not uc.enabled then return end
-    Wait(15000)
-    while true do
-        CheckUpdate()
-        Wait(math.max(30, uc.interval or 360) * 60000)
-    end
-end)
+if UpdateCheckOn() then
+    Console.wait('update')
+    CheckUpdate(true)
+    CreateThread(function()
+        while true do
+            Wait(math.max(30, Config.UpdateCheck.interval or 360) * 60000)
+            CheckUpdate(false)
+        end
+    end)
+end
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 --  HEALTH PAYLOAD
@@ -924,50 +1001,41 @@ CreateThread(function()
         local uptime = math.floor((os.time() - monitorStart) / 60)
         local grade = ServerGrade()
 
-        print('[NAYZEEE-OPTIMIZER] ─── Health Report ───')
-        print(('  Grade: %s | Uptime: %d min | Players: %d | %s: %d MB'):format(NZGrade.LABEL[grade], uptime, players, memLabel, memory))
-        print(('  Hitches: %d (severe: %d) | Worst: %.0fms'):format(hitchCount, severeHitchCount, worstHitch))
+        Console.log('info', 'Health report: %s, up %d min, %d players, %s %d MB', NZGrade.LABEL[grade], uptime, players, memLabel, memory)
+        Console.log(severeHitchCount > 0 and 'warn' or 'info', 'Hitches: %d (%d severe), worst %.0f ms', hitchCount, severeHitchCount, worstHitch)
 
         if cfg.playerCorrelation and next(hitchByPlayerCount) then
             local peak, peakCount = 0, 0
             for pc, count in pairs(hitchByPlayerCount) do
                 if count > peakCount then peakCount = count; peak = pc end
             end
-            print(('  Most hitches at %d players (%d occurrences)'):format(peak, peakCount))
+            Console.log('info', 'Most hitches at %d players (%d occurrences)', peak, peakCount)
         end
 
         local rows = MergedServerRows()
-        if #rows > 0 then
-            print('  Top server resources:')
-            for i = 1, math.min(5, #rows) do
-                local r = rows[i]
-                print(('    %-28s %6.2f%%  %-9s %s'):format(r.name, r.load, NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict]))
-            end
-            for _, r in ipairs(rows) do
-                if r.verdict == 'remove' or r.verdict == 'edit-required' then
-                    SendDiscord(
-                        ('Resource needs attention: %s'):format(r.name),
-                        ('**Grade:** %s\n**Verdict:** %s\n**Load:** %.2f%% of server main thread\n**Peak slice:** %.1f ms\n\n%s'):format(
-                            NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict], r.load, r.peakMs or 0, r.hints[1] or ''),
-                        15158332, 'res:' .. r.name, 21600
-                    )
-                end
+        for i = 1, math.min(5, #rows) do
+            local r = rows[i]
+            Console.log((r.grade == 'bad' or r.grade == 'poor') and 'warn' or 'info', 'Server  %-28s %6.2f%%  %-9s %s', r.name, r.load, NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict])
+        end
+        for _, r in ipairs(rows) do
+            if r.verdict == 'remove' or r.verdict == 'edit-required' then
+                SendDiscord(
+                    ('Resource needs attention: %s'):format(r.name),
+                    ('**Grade:** %s\n**Verdict:** %s\n**Load:** %.2f%% of server main thread\n**Peak slice:** %.1f ms\n\n%s'):format(
+                        NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict], r.load, r.peakMs or 0, r.hints[1] or ''),
+                    15158332, 'res:' .. r.name, 21600
+                )
             end
         end
 
         local agg = BuildClientAggregate()
         if agg.reporting > 0 then
-            print(('  Clients reporting: %d | Avg FPS: %d | Avg 1%% low: %d | Under 30 fps: %d%%'):format(agg.reporting, agg.fpsAvg, agg.lowAvg, agg.under30))
-            if #agg.rows > 0 then
-                print('  Top client-side resources (median ms/frame):')
-                for i = 1, math.min(5, #agg.rows) do
-                    local r = agg.rows[i]
-                    print(('    %-28s %6.3f ms  %-9s %s'):format(r.name, r.load, NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict]))
-                end
+            Console.log('info', 'Clients: %d reporting, avg %d fps, avg 1%% low %d, %d%% under 30 fps', agg.reporting, agg.fpsAvg, agg.lowAvg, agg.under30)
+            for i = 1, math.min(5, #agg.rows) do
+                local r = agg.rows[i]
+                Console.log((r.grade == 'bad' or r.grade == 'poor') and 'warn' or 'info', 'Client  %-28s %6.3f ms  %-9s %s', r.name, r.load, NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict])
             end
         end
-
-        print('[NAYZEEE-OPTIMIZER] ─────────────────────')
     end
 end)
 
@@ -975,11 +1043,10 @@ end)
 --  CONSOLE / ADMIN COMMANDS
 -- ═══════════════════════════════════════════════════════════════════════════════
 
-local function PrintRows(rows, header, fmtLoad)
-    if #rows == 0 then return end
-    print('  ' .. header)
+local function LogRows(rows, side, fmtLoad)
     for _, r in ipairs(rows) do
-        print(('    %-28s %s  %-9s %-18s %s'):format(r.name, fmtLoad(r), NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict], r.hints[1] or ''))
+        local level = (r.grade == 'bad' or r.grade == 'poor') and 'warn' or 'info'
+        Console.log(level, '%s  %-28s %s  %-9s %-18s %s', side, r.name, fmtLoad(r), NZGrade.LABEL[r.grade], NZGrade.VERDICT_LABEL[r.verdict], r.hints[1] or '')
     end
 end
 
@@ -988,48 +1055,47 @@ RegisterCommand('optimizerhealth', function(source)
 
     local payload = BuildHealthPayload()
     local s = payload.server
-    print('[NAYZEEE-OPTIMIZER] ═══ Server Health ═══')
-    print(('  Grade: %s'):format(NZGrade.LABEL[s.grade]))
-    print(('  Monitoring for: %d minutes | Players: %d | Resources started: %d/%d'):format(s.uptimeMin, s.players, s.resourcesStarted, s.resourcesTotal))
-    print(('  %s: %d MB'):format(s.memoryLabel, s.memoryMB))
-    print(('  Hitches: %d (severe %d) | %.1f per hour | worst %.0fms | avg drift %.1fms'):format(s.tick.hitches, s.tick.severe, s.tick.perHour, s.tick.worst, s.tick.avgDrift))
-    print(('  Entities: %d vehicles, %d peds, %d objects'):format(s.entities.vehicles, s.entities.peds, s.entities.objects))
+    local gradeLevel = (s.grade == 'bad' or s.grade == 'poor') and 'warn' or 'ok'
+    Console.log(gradeLevel, 'Server health: %s, up %d min, %d players, %d/%d resources started',
+        NZGrade.LABEL[s.grade], s.uptimeMin, s.players, s.resourcesStarted, s.resourcesTotal)
+    Console.log('info', '%s: %d MB | Entities: %d vehicles, %d peds, %d objects',
+        s.memoryLabel, s.memoryMB, s.entities.vehicles, s.entities.peds, s.entities.objects)
+    Console.log(s.tick.severe > 0 and 'warn' or 'info', 'Hitches: %d (%d severe), %.1f per hour, worst %.0f ms, avg drift %.1f ms',
+        s.tick.hitches, s.tick.severe, s.tick.perHour, s.tick.worst, s.tick.avgDrift)
 
     if cfg.playerCorrelation and next(hitchByPlayerCount) then
-        print('  ── Hitches by player count ──')
         local sorted = {}
         for pc, count in pairs(hitchByPlayerCount) do sorted[#sorted + 1] = { pc = pc, count = count } end
         table.sort(sorted, function(a, b) return a.count > b.count end)
-        for i = 1, math.min(5, #sorted) do
-            print(('    %d players: %d hitches'):format(sorted[i].pc, sorted[i].count))
-        end
+        local parts = {}
+        for i = 1, math.min(5, #sorted) do parts[i] = ('%d players: %d'):format(sorted[i].pc, sorted[i].count) end
+        Console.log('info', 'Hitches by player count: %s', table.concat(parts, ', '))
     end
 
     local p = payload.probe
-    print(('  Probe: %d/%d resources covered, %d reporting, %d missing, %d excluded, %d legacy'):format(p.covered, p.total, p.reporting, #p.missing, p.excluded, p.legacy))
+    Console.log(#p.missing > 0 and 'warn' or 'ok', 'Probe: %d/%d resources covered, %d reporting, %d missing, %d excluded, %d legacy',
+        p.covered, p.total, p.reporting, #p.missing, p.excluded, p.legacy)
     if #p.missing > 0 then
-        print('    Missing: ' .. table.concat(p.missing, ', ', 1, math.min(#p.missing, 25)) .. (#p.missing > 25 and ' ...' or ''))
+        Console.log('info', 'Missing: %s%s', table.concat(p.missing, ', ', 1, math.min(#p.missing, 25)), #p.missing > 25 and ', ...' or '')
     end
 
-    PrintRows(payload.resources, '── Server resources (probe + last scan) ──', function(r) return ('%6.2f%%'):format(r.load) end)
+    LogRows(payload.resources, 'Server', function(r) return ('%6.2f%%'):format(r.load) end)
 
     local c = payload.clients
     if c.reporting > 0 then
-        print(('  ── Clients: %d reporting | avg %d fps | avg 1%% low %d | %d%% under 30 fps ──'):format(c.reporting, c.fpsAvg, c.lowAvg, c.under30))
-        PrintRows(c.rows, 'Client-side resources (median ms/frame across players):', function(r) return ('%6.3f ms'):format(r.load) end)
+        Console.log('info', 'Clients: %d reporting, avg %d fps, avg 1%% low %d, %d%% under 30 fps', c.reporting, c.fpsAvg, c.lowAvg, c.under30)
+        LogRows(c.rows, 'Client', function(r) return ('%6.3f ms'):format(r.load) end)
     end
 
     if payload.scan.status == 'done' then
-        print(('  Last deep scan: %d resources, %d frames, %s'):format(payload.scan.count, payload.scan.frames, os.date('%H:%M:%S', payload.scan.at)))
+        Console.log('info', 'Last deep scan: %d resources, %d frames, at %s', payload.scan.count, payload.scan.frames, os.date('%H:%M:%S', payload.scan.at))
     elseif payload.scan.status == 'error' then
-        print('  Last deep scan failed: ' .. tostring(payload.scan.error))
+        Console.log('warn', 'Last deep scan failed: %s', tostring(payload.scan.error))
     end
 
     if update.outdated then
-        print(('  ^3Update available: %s -> %s^7 %s'):format(VERSION, update.latest, update.url or ''))
+        Console.log('warn', 'Update available: v%s -> v%s %s', VERSION, update.latest, update.url or '')
     end
-
-    print('[NAYZEEE-OPTIMIZER] ═════════════════════')
 end, false)
 
 RegisterCommand('optimizerreset', function(source)
@@ -1044,13 +1110,13 @@ RegisterCommand('optimizerreset', function(source)
     for i = 1, 60 do timeline[i] = { h = 0, s = 0 } end
     probeMem = {}
     monitorStart = os.time()
-    print('[NAYZEEE-OPTIMIZER] Monitoring stats reset')
+    Console.log('ok', 'Monitoring stats reset')
 end, false)
 
 RegisterCommand('optimizerscan', function(source, args)
     if not IsAdmin(source) then return end
     local ok, err = RunScan(args[1], source)
-    if not ok then print('[NAYZEEE-OPTIMIZER] ' .. err) end
+    if not ok then Console.log('warn', '%s', err) end
 end, false)
 
 RegisterCommand('optimizerprobe', function(source, args)
@@ -1058,24 +1124,23 @@ RegisterCommand('optimizerprobe', function(source, args)
     local sub = (args[1] or 'status'):lower()
     if sub == 'install' then
         if args[2] then
-            local r = InstallProbe(args[2])
-            print(('[NAYZEEE-OPTIMIZER] Probe install %s: %s'):format(args[2], r))
+            Console.log('info', 'Probe install %s: %s', args[2], InstallProbe(args[2]))
         else
             InstallAll(source)
         end
     elseif sub == 'remove' then
         if args[2] then
-            local r = RemoveProbe(args[2])
-            print(('[NAYZEEE-OPTIMIZER] Probe remove %s: %s'):format(args[2], r))
+            Console.log('info', 'Probe remove %s: %s', args[2], RemoveProbe(args[2]))
         else
             RemoveAll(source)
         end
     else
         local p = ProbeStatus()
-        print(('[NAYZEEE-OPTIMIZER] Probe: %d/%d started resources covered, %d reporting now, %d excluded, %d legacy manifests'):format(p.covered, p.total, p.reporting, p.excluded, p.legacy))
+        Console.log(#p.missing > 0 and 'warn' or 'ok', 'Probe: %d/%d started resources covered, %d reporting now, %d excluded, %d legacy manifests',
+            p.covered, p.total, p.reporting, p.excluded, p.legacy)
         if #p.missing > 0 then
-            print('  Not covered: ' .. table.concat(p.missing, ', '))
-            print('  Run `optimizerprobe install`, then `refresh` and restart those resources.')
+            Console.log('info', 'Not covered: %s', table.concat(p.missing, ', '))
+            Console.log('info', 'Run optimizerprobe install, then refresh and restart those resources')
         end
     end
 end, false)
@@ -1084,19 +1149,19 @@ RegisterCommand(acfg.presetCommand or 'optimizerpreset', function(source, args)
     if not IsAdmin(source) then return end
     local target, preset = args[1], args[2]
     if not target or not preset or not Config.Presets[preset] then
-        print('[NAYZEEE-OPTIMIZER] Usage: optimizerpreset <playerId|all> <quality|balanced|performance|potato|streaming|shooter>')
+        Console.log('warn', 'Usage: %s <playerId|all> <quality|balanced|performance|potato|streaming|shooter>', acfg.presetCommand or 'optimizerpreset')
         return
     end
     if target == 'all' then
         TriggerClientEvent('nayzeee-optimizer:applyPreset', -1, preset)
-        print(('[NAYZEEE-OPTIMIZER] Preset %s pushed to all players'):format(preset))
+        Console.log('ok', 'Preset %s pushed to all players', preset)
     else
         local id = tonumber(target)
         if id and GetPlayerName(id) then
             TriggerClientEvent('nayzeee-optimizer:applyPreset', id, preset)
-            print(('[NAYZEEE-OPTIMIZER] Preset %s pushed to %s'):format(preset, GetPlayerName(id)))
+            Console.log('ok', 'Preset %s pushed to %s (%d)', preset, GetPlayerName(id), id)
         else
-            print('[NAYZEEE-OPTIMIZER] Player not found')
+            Console.log('warn', 'Player %s not found', tostring(target))
         end
     end
 end, false)
@@ -1123,8 +1188,3 @@ exports('GetHealth', function() return BuildHealthPayload() end)
 exports('GetServerResources', function() return MergedServerRows() end)
 exports('GetClientAggregate', function() return BuildClientAggregate() end)
 exports('RunScan', function(frames) return RunScan(frames, 0) end)
-
-print(('[NAYZEEE-OPTIMIZER] v%s Server loaded'):format(VERSION))
-if cfg.enabled then
-    print('[NAYZEEE-OPTIMIZER] Performance monitoring active — optimizerhealth for report')
-end

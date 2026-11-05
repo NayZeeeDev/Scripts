@@ -24,7 +24,12 @@ shared_script 'grading.lua'
 
 client_script 'client.lua'
 
-server_script 'server.lua'
+-- server/console.lua MUST be the first server script: every other server
+-- file prints through it.
+server_scripts {
+    'server/console.lua',
+    'server.lua',
+}
 
 ui_page 'html/index.html'
 

@@ -413,7 +413,7 @@ local function BuildOpenPayload(forceSetupDone)
             vehicles = Config.Background.maxVehicles or 180,
             peds = Config.Background.maxPeds or 180,
         },
-        version = '1.1.0',
+        version = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0',
         command = Config.Command,
         options = {
             screenFx   = Config.ScreenFX,
@@ -1872,7 +1872,7 @@ CreateThread(function()
     nuiReady = true
     sessionStart = GetGameTimer()
     lastInputTime = GetGameTimer()
-    print('[NAYZEEE-OPTIMIZER] v1.1.0 loaded')
+    print(('[NayZeee Optimizer] v%s loaded'):format(GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0'))
 end)
 
 -- ═══════════════════════════════════════════════════════════════════════════════

@@ -12,15 +12,11 @@
 
 local REQUIRED_RESOURCE_NAME = 'nayzeee-optimizerv2'
 
+-- House-style FAIL line. This runs before server/console.lua exists and the
+-- resource stops straight after, so it cannot join the startup block.
 local function banner(current)
-    print('^1')
-    print('^1╔══════════════════════════════════════════════════════════════╗^7')
-    print('^1║  NAYZEEE OPTIMIZER — WRONG FOLDER NAME, RESOURCE NOT LOADED  ║^7')
-    print('^1╚══════════════════════════════════════════════════════════════╝^7')
-    print(('^1  Folder is named : ^3%s^7'):format(tostring(current)))
-    print(('^1  It must be named: ^2%s^7'):format(REQUIRED_RESOURCE_NAME))
-    print('^1  Rename the folder to the name above, then restart the server.^7')
-    print('^1')
+    print(('^5[NayZeee Optimizer]^7^1 FAIL ^7Folder is named "%s", it must be "%s": rename the folder and restart the server^0')
+        :format(tostring(current), REQUIRED_RESOURCE_NAME))
 end
 
 -- Global on purpose: client.lua and server.lua call this before anything else.
