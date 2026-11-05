@@ -208,7 +208,7 @@ function ProcessPayment(opts)
 
     Locks[key] = nil
     if not ok then
-        print(('^1[NAYZEEE-BILLING]^7 Payment error (%s): %s'):format(key, tostring(result)))
+        Console.log('error', 'Payment error (invoice %s): %s', key, tostring(result))
         return nil, L('error.payment_failed', 'Payment failed')
     end
     return result, err
@@ -444,7 +444,7 @@ CreateThread(function()
     while not BillingReady do Wait(1000) end
     while true do
         local ok, err = pcall(flushSocietyQueue)
-        if not ok then print('^1[NAYZEEE-BILLING]^7 Society queue: ' .. tostring(err)) end
+        if not ok then Console.log('error', 'Society payment queue: %s', tostring(err)) end
         Wait(5 * 60000)
     end
 end)

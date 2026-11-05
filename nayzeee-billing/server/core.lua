@@ -20,7 +20,7 @@ function RPC(name, handler)
         if not BillingReady then return { ok = false, error = L('error.starting', 'Billing is still starting up') } end
         local ok, result = pcall(handler, source, type(payload) == 'table' and payload or {})
         if not ok then
-            print(('^1[NAYZEEE-BILLING]^7 %s: %s'):format(name, tostring(result)))
+            Console.log('error', '%s: %s', name, tostring(result))
             return { ok = false, error = L('error.generic', 'Something went wrong') }
         end
         if type(result) == 'table' and result.__err then return { ok = false, error = result.__err } end
@@ -416,13 +416,96 @@ RPC('getNearby', function(source)
     return list
 end)
 
-CreateThread(function()
-    DB.Await()
-    if not Framework then
-        print('^1[NAYZEEE-BILLING]^7 No framework bridge loaded - check Config.Framework')
-        return
+-- ███████╗████████╗ █████╗ ██████╗ ████████╗██╗   ██╗██████╗
+-- ██╔════╝╚══██╔══╝██╔══██╗██╔══██╗╚══██╔══╝██║   ██║██╔══██╗
+-- ███████╗   ██║   ███████║██████╔╝   ██║   ██║   ██║██████╔╝
+-- ╚════██║   ██║   ██╔══██║██╔══██╗   ██║   ██║   ██║██╔═══╝
+-- ███████║   ██║   ██║  ██║██║  ██║   ██║   ╚██████╔╝██║
+-- ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝
+
+Console.wait('startup')
+
+local FrameworkLabel = { esx = 'es_extended', qbcore = 'qb-core', qbox = 'qbx_core', custom = 'custom bridge' }
+
+-- Invoice / receipt items exist in the inventory?
+local function checkItems()
+    local names = {}
+    if Config.Items.Invoice.Enabled then names[#names + 1] = Config.Items.Invoice.Name end
+    if Config.Items.Receipt.Enabled then names[#names + 1] = Config.Items.Receipt.Name end
+    if #names == 0 then return Console.check('items', 'info', 'Items', 'invoice and receipt items are disabled') end
+    if not Inventory.HasMetadata() then
+        return Console.check('items', 'warn', 'Items', 'this inventory keeps no item metadata: use ox_inventory or set Config.Items.Invoice / Receipt.Enabled = false')
     end
+    local missing, known = {}, false
+    if Inventory.Name() == 'ox_inventory' then
+        known = true
+        for _, n in ipairs(names) do
+            local ok, item = pcall(function() return exports.ox_inventory:Items(n) end)
+            if not ok or not item then missing[#missing + 1] = n end
+        end
+    elseif Framework.Name == 'qbcore' then
+        known = true
+        local ok, core = pcall(function() return exports['qb-core']:GetCoreObject() end)
+        for _, n in ipairs(names) do
+            if not (ok and core and core.Shared and core.Shared.Items and core.Shared.Items[n]) then missing[#missing + 1] = n end
+        end
+    end
+    if #missing > 0 then
+        Console.check('items', 'warn', 'Items', ('%d item(s) missing from %s: add them from the README (Items section)'):format(#missing, Inventory.Name()))
+        Console.log('warn', 'missing items: %s', table.concat(missing, ', '))
+    elseif known then
+        Console.check('items', 'ok', 'Items', table.concat(names, ', '))
+    else
+        Console.check('items', 'info', 'Items', ('%s: make sure %s exist'):format(Inventory.Name(), table.concat(names, ', ')))
+    end
+end
+
+local function checkSocieties()
+    local ids = {}
+    for id in pairs(Config.Societies) do ids[#ids + 1] = id end
+    table.sort(ids)
+    if #ids == 0 then
+        return Console.check('societies', 'warn', 'Societies', 'none configured: add jobs to societies.lua to bill as a society')
+    end
+    local shown = {}
+    for i = 1, math.min(#ids, 4) do shown[i] = ids[i] end
+    Console.check('societies', 'ok', 'Societies', ('%d configured (%s%s)'):format(#ids, table.concat(shown, ', '), #ids > 4 and (', +' .. (#ids - 4)) or ''))
+end
+
+-- Money held for players who were offline / society payments waiting for the bank
+local function checkPayouts()
+    local p = MySQL.single.await([[SELECT COUNT(*) AS c, COALESCE(SUM(amount), 0) AS s FROM nayzeee_billing_pending_payouts
+        WHERE identifier NOT LIKE 'society:%']]) or {}
+    local q = tonumber(MySQL.scalar.await([[SELECT COUNT(*) FROM nayzeee_billing_pending_payouts WHERE identifier LIKE 'society:%']])) or 0
+    local c = tonumber(p.c) or 0
+    if c == 0 and q == 0 then return Console.check('payouts', 'ok', 'Payouts', 'none waiting') end
+    local parts = {}
+    if c > 0 then parts[#parts + 1] = ('%d waiting for players (%s), paid when they log in'):format(c, Shared.Money(tonumber(p.s) or 0)) end
+    if q > 0 then parts[#parts + 1] = ('%d society payment(s) queued for the bank'):format(q) end
+    Console.check('payouts', 'info', 'Payouts', table.concat(parts, ', '))
+end
+
+CreateThread(function()
+    local dbOk = DB.Await()
+    if not Framework then
+        Console.check('framework', 'error', 'Framework', 'none found: start es_extended / qb-core / qbx_core first, or set Config.Framework')
+    else
+        Console.check('framework', 'ok', 'Framework', FrameworkLabel[Framework.Name] or tostring(Framework.Name))
+    end
+    if not dbOk or not Framework then
+        -- billing cannot run; the steps that wait for "ready" will never get it
+        Console.done('registers')
+        return Console.done('startup')
+    end
+
+    Console.check('inventory', 'ok', 'Inventory', Inventory.Name())
+    local ok, err = pcall(checkItems)
+    if not ok then Console.check('items', 'warn', 'Items', 'could not check: ' .. tostring(err)) end
+    checkSocieties()
+    ok, err = pcall(checkPayouts)
+    if not ok then Console.log('warn', 'payout check failed: %s', tostring(err)) end
+
     BillingReady = true
     TriggerEvent('nayzeee-billing:server:ready')
-    print(('^2[NAYZEEE-BILLING]^7 v%s ready · %s · %d societies'):format(Shared.Version, Framework.Name, Shared.Count(Config.Societies)))
+    Console.done('startup')
 end)

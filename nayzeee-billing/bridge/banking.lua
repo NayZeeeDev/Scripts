@@ -12,10 +12,12 @@
 
 Banking = { name = 'none' }
 
+Console.wait('banking')
+
 local function safe(fn, ...)
     local ok, result = pcall(fn, ...)
     if not ok then
-        print(('^1[NAYZEEE-BILLING]^7 Banking (%s): %s'):format(Banking.name, tostring(result)))
+        Console.log('error', 'Banking (%s): %s', Banking.name, tostring(result))
         return nil
     end
     return result
@@ -139,7 +141,7 @@ local function detect()
     if wanted == 'none' then return 'none' end
     if wanted ~= 'auto' then
         if Adapters[wanted] then return wanted end
-        print(('^1[NAYZEEE-BILLING]^7 Unknown BankingIntegration "%s", auto-detecting'):format(wanted))
+        Console.log('warn', 'Config.BankingIntegration "%s" is not a known backend, auto-detecting instead', tostring(wanted))
     end
     for _, pair in ipairs(DetectOrder) do
         if GetResourceState(pair[2]) == 'started' then return pair[1] end
@@ -264,5 +266,10 @@ end
 CreateThread(function()
     Wait(500)
     Banking.name = detect()
-    print(('^2[NAYZEEE-BILLING]^7 Banking: ^5%s^7%s'):format(Banking.name, Banking.HasPersonal() and ' (personal accounts)' or ''))
+    if Banking.name == 'none' then
+        Console.check('banking', 'warn', 'Banking', 'no society banking found: society invoices pay the issuing employee (set Config.BankingIntegration)')
+    else
+        Console.check('banking', 'ok', 'Banking', Banking.name .. (Banking.HasPersonal() and ', personal accounts' or ', society accounts'))
+    end
+    Console.done('banking')
 end)

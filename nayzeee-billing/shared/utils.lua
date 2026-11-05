@@ -4,7 +4,7 @@
 ]]
 
 Shared = {}
-Shared.Version = '1.0.0'
+Shared.Version = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0'
 Shared.Resource = GetCurrentResourceName()
 
 Shared.OpenStatuses = { pending = true, partial = true, overdue = true }
@@ -83,7 +83,11 @@ end
 --  ╚═════╝    ╚═╝   ╚═╝╚══════╝╚══════╝
 
 function Shared.Debug(...)
-    if Config.Debug then print('^3[NAYZEEE-BILLING]^7', ...) end
+    if not Config.Debug then return end
+    local parts = {}
+    for i = 1, select('#', ...) do parts[#parts + 1] = tostring((select(i, ...))) end
+    if Console then Console.log('info', '%s', table.concat(parts, ' '))
+    else print('^5[NayZeee Billing]^7 ' .. table.concat(parts, ' ')) end
 end
 
 function Shared.Round(n, decimals)

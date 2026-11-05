@@ -4,7 +4,10 @@
     Older installs keep every invoice.
 ]]
 
-DB = { ready = false }
+DB = { ready = false, failed = false }
+local upgraded = 0
+
+Console.wait('database')
 
 local function column(tbl, col)
     return MySQL.single.await([[SELECT DATA_TYPE AS t FROM information_schema.COLUMNS
@@ -26,7 +29,7 @@ end
 local function ensureColumn(tbl, col, def)
     if column(tbl, col) then return end
     MySQL.query.await(('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(tbl, col, def))
-    print(('^3[NAYZEEE-BILLING]^7 Upgraded: %s.%s'):format(tbl, col))
+    upgraded = upgraded + 1
 end
 
 local function ensureIndex(tbl, name, cols)
@@ -36,7 +39,7 @@ local function ensureIndex(tbl, name, cols)
     MySQL.query.await(('ALTER TABLE `%s` ADD INDEX `%s` (%s)'):format(tbl, name, cols))
 end
 
-CreateThread(function()
+local function setup()
     -- ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗███████╗
     -- ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝██╔════╝
     -- ██║██╔██╗ ██║██║   ██║██║   ██║██║██║     █████╗  ███████╗
@@ -270,12 +273,29 @@ CreateThread(function()
     ensureColumn('nayzeee_billing_registers', 'radius', 'DECIMAL(4,2) DEFAULT 2.00')
     ensureColumn('nayzeee_billing_registers', 'model', 'VARCHAR(60) DEFAULT NULL')
 
-    DB.ready = true
-    print('^2[NAYZEEE-BILLING]^7 Database ready')
+end
+
+CreateThread(function()
+    if GetResourceState('oxmysql') ~= 'started' then
+        DB.failed = true
+        Console.check('database', 'error', 'Database', 'oxmysql is not running: start it before nayzeee-billing')
+        return Console.done('database')
+    end
+    local ok, err = pcall(setup)
+    if ok then
+        DB.ready = true
+        Console.check('database', 'ok', 'Database', upgraded > 0 and ('oxmysql, tables ready (%d column(s) added to older tables)'):format(upgraded) or 'oxmysql, tables ready')
+    else
+        DB.failed = true
+        Console.check('database', 'error', 'Database', ('table setup failed: %s (check the oxmysql connection string)'):format(tostring(err)))
+    end
+    Console.done('database')
 end)
 
+-- Waits for the tables; returns false when the database could not be set up
 function DB.Await()
-    while not DB.ready do Wait(100) end
+    while not DB.ready and not DB.failed do Wait(100) end
+    return DB.ready
 end
 
 function DB.Meta(key, value)

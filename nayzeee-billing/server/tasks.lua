@@ -69,7 +69,7 @@ local function collectDue(extraWhere, params, cursorKey)
     local rows = MySQL.query.await(sql, p) or {}
     for _, row in ipairs(rows) do
         local ok, err = pcall(collect, row)
-        if not ok then print('^1[NAYZEEE-BILLING]^7 Collection error: ' .. tostring(err)) end
+        if not ok then Console.log('error', 'Overdue collection: %s', tostring(err)) end
     end
     if cursorKey then Cursors[cursorKey] = #rows < 200 and 0 or rows[#rows].id end
 end
@@ -99,7 +99,7 @@ CreateThread(function()
                 end
             end
         end)
-        if not ok then print('^1[NAYZEEE-BILLING]^7 Overdue task: ' .. tostring(err)) end
+        if not ok then Console.log('error', 'Overdue check: %s', tostring(err)) end
         Wait(interval)
     end
 end)

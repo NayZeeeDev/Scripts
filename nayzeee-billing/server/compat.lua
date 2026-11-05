@@ -150,7 +150,7 @@ end
 RegisterCommand('billingimport', function(source, args)
     if source > 0 and not IsAdmin(source) then return end
     local function reply(msg)
-        if source > 0 then Notify(source, 'Billing import', msg, 'info') else print('^3[NAYZEEE-BILLING]^7 ' .. msg) end
+        if source > 0 then Notify(source, 'Billing import', msg, 'info') else Console.log('info', 'Import: %s', msg) end
     end
     if not Config.Import.Enabled then return reply('Imports are disabled (Config.Import.Enabled)') end
     if not BillingReady then return reply('Billing is still starting up') end

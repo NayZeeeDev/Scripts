@@ -36,5 +36,5 @@ Framework.RegisterUsableItem = function() end           -- (itemName, cb(source,
 Framework.OnPlayerLoaded = function() end               -- (cb(source)) called when a character finishes loading
 
 CreateThread(function()
-    print('^1[NAYZEEE-BILLING]^7 Config.Framework = "custom": implement bridge/framework/custom.lua before going live')
+    Console.log('warn', 'Config.Framework is "custom": fill in bridge/framework/custom.lua before going live')
 end)

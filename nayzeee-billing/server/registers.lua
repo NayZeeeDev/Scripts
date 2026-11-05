@@ -5,6 +5,7 @@
 ]]
 
 Registers = {}
+Console.wait('registers')
 local Sessions = {}          -- [registerId] = { employee, customer?, items = {}, invoice? = { id, ref } }
 local CustomerSessions = {}  -- [customer] = registerId
 
@@ -334,6 +335,23 @@ AddEventHandler('playerDropped', function()
 end)
 
 AddEventHandler('nayzeee-billing:server:ready', function()
-    load()
+    local ok, err = pcall(load)
+    if not ok then
+        Console.check('registers', 'error', 'Registers', ('could not load: %s'):format(tostring(err)))
+    elseif not Config.Registers.Enabled then
+        Console.check('registers', 'info', 'Registers', 'disabled in config')
+    else
+        local cfg, db, props = 0, 0, 0
+        for _, r in pairs(Registers) do
+            if r.source == 'config' then cfg = cfg + 1 else db = db + 1 end
+            if r.model then props = props + 1 end
+        end
+        if cfg + db == 0 then
+            Console.check('registers', 'info', 'Registers', 'none yet: place them on the Billing Admin page (/billingadmin)')
+        else
+            Console.check('registers', 'ok', 'Registers', ('%d loaded (%d from config, %d placed in-game, %d with a till prop)'):format(cfg + db, cfg, db, props))
+        end
+    end
     broadcast()
+    Console.done('registers')
 end)
