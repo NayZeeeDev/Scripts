@@ -76,6 +76,17 @@ function IsStaff(src)
     return xPlayer and Config.Admin.Groups[xPlayer.getGroup()] == true or false
 end
 
+-- Is this player a funeral employee (on duty, high enough grade for gradeKey)?
+-- gradeKey = key in Config.Funeral.Grades, or nil for "any grade"
+function IsFuneral(src, gradeKey)
+    if not FuneralEnabled() then return false end
+    local xPlayer = ESX.GetPlayerFromId(src)
+    local job = xPlayer and xPlayer.job
+    if not job or job.name ~= Config.Funeral.Job then return false end
+    if Config.Funeral.RequireDuty and not Player(src).state.nzFuneralDuty then return false end
+    return (job.grade or 0) >= (gradeKey and Config.Funeral.Grades[gradeKey] or 0)
+end
+
 function HasItem(src, item, amount)
     local count = exports.ox_inventory:Search(src, 'count', item)
     return (type(count) == 'number' and count or 0) >= (amount or 1)
@@ -190,9 +201,24 @@ function PoliceAlert(coords, title, message, chanceKey)
     for _, id in ipairs(GetPlayers()) do
         local sid = tonumber(id)
         if IsPolice(sid) then
-            TriggerClientEvent('nayzeee-bodybag:client:policeAlert', sid, coords, title, message)
+            TriggerClientEvent('nayzeee-bodybag:client:alert', sid, coords, title, message, 'police')
         end
     end
+end
+
+-- coroner call -> every on-duty funeral employee
+function FuneralAlert(coords, title, message)
+    coords = ToVec3(coords)
+    if not coords then return 0 end
+    local sent = 0
+    for _, id in ipairs(GetPlayers()) do
+        local sid = tonumber(id)
+        if IsFuneral(sid) then
+            TriggerClientEvent('nayzeee-bodybag:client:alert', sid, coords, title, message, 'coroner')
+            sent = sent + 1
+        end
+    end
+    return sent
 end
 
 -- ═══════════════════════════════════════════════════════════════
@@ -240,6 +266,27 @@ MySQL.ready(function()
         `heading` FLOAT DEFAULT 0.0,
         `data` TEXT DEFAULT NULL,
         `cemetery` TINYINT(1) DEFAULT 0,
+        `created` DATETIME DEFAULT CURRENT_TIMESTAMP)]])
+    MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_funeral_morgue` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `name` VARCHAR(100) DEFAULT NULL,
+        `identifier` VARCHAR(60) DEFAULT NULL,
+        `npc` TINYINT(1) DEFAULT 0,
+        `identifiable` TINYINT(1) DEFAULT 1,
+        `stage` VARCHAR(30) DEFAULT 'fresh',
+        `dna` TEXT DEFAULT NULL,
+        `stored_by` VARCHAR(100) DEFAULT NULL,
+        `status` VARCHAR(20) DEFAULT 'stored',
+        `created` DATETIME DEFAULT CURRENT_TIMESTAMP)]])
+    MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_funeral_memorials` (
+        `id` INT AUTO_INCREMENT PRIMARY KEY,
+        `plot` INT NOT NULL,
+        `name` VARCHAR(100) DEFAULT NULL,
+        `epitaph` VARCHAR(150) DEFAULT NULL,
+        `died` VARCHAR(20) DEFAULT NULL,
+        `director` VARCHAR(100) DEFAULT NULL,
+        `respects` INT DEFAULT 0,
+        `flowers` INT DEFAULT 0,
         `created` DATETIME DEFAULT CURRENT_TIMESTAMP)]])
     MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_bodybag_evidence` (
         `id` INT AUTO_INCREMENT PRIMARY KEY,

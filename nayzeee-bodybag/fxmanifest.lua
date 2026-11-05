@@ -4,21 +4,24 @@ lua54 'yes'
 
 name 'nayzeee-bodybag'
 author 'NAYZEEE Development'
-description 'Advanced body disposal - bags, crates, coffins, trunks, dismemberment, cremation, acid, burial, water dumps, forensics, CK'
-version '1.2.0'
+description 'Body disposal + funeral home - bags, crates, coffins, trunks, hearses, morgue, funerals, cremation, acid, burial, water dumps, forensics, CK'
+version '2.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
-    'config.lua'
+    'config.lua',
+    'shared/utils.lua'
 }
 
 client_scripts {
-    'client/main.lua',      -- helpers, bagging, all third-eye options
+    'client/main.lua',      -- helpers, bagging, one third-eye option per object
+    'client/menus.lua',     -- every action menu, the [H] carry menu, /bodyhelp guide
     'client/carry.lua',     -- carrying, dropping, grave hole, water dump
     'client/disposal.lua',  -- dismember, barrel, acid, burial, police alerts
     'client/gasmask.lua',   -- wearable gas mask
     'client/trunk.lua',     -- vehicle trunks
     'client/victim.lua',    -- what the bagged player sees + CK consent
+    'client/funeral.lua',   -- funeral home job
     'client/admin.lua'      -- /bodyadmin menu
 }
 
@@ -27,6 +30,7 @@ server_scripts {
     'server/utils.lua',     -- helpers, logs, anti-exploit checks, DB auto-setup (load first)
     'server/main.lua',      -- body registry + every disposal method
     'server/trunk.lua',     -- vehicle trunks
+    'server/funeral.lua',   -- funeral home job
     'server/ck.lua',        -- character kills
     'server/admin.lua'      -- /bodyadmin
 }

@@ -13,6 +13,10 @@ RegisterNetEvent('nayzeee-bodybag:client:notify', function(msg, type, title)
     Config.Notify(msg, type, title)
 end)
 
+function Tip(msg)
+    if Config.Tips then Config.Notify(msg, 'inform', 'Next step') end
+end
+
 function ShowHint(text)
     lib.showTextUI(text, {
         position = 'bottom-center',
@@ -25,6 +29,12 @@ function HideHint() lib.hideTextUI() end
 function HasItem(name, amount)
     local count = exports.ox_inventory:Search('count', name)
     return (type(count) == 'number' and count or 0) >= (amount or 1)
+end
+
+-- "Shovel" instead of "shovel" for menus
+function ItemLabel(name)
+    local ok, item = pcall(function() return exports.ox_inventory:Items(name) end)
+    return ok and type(item) == 'table' and item.label or name
 end
 
 function LoadModel(model)
@@ -65,9 +75,22 @@ function ServerIdOfPed(ped)
     return (sid and sid > 0) and sid or nil
 end
 
-function IsPoliceJob()
+function MyJob()
     local data = ESX.GetPlayerData()
-    return data and data.job and Config.Evidence.PoliceJobs[data.job.name] == true or false
+    return data and data.job or {}
+end
+
+function IsPoliceJob()
+    return Config.Evidence.PoliceJobs[MyJob().name or ''] == true
+end
+
+-- funeral employee, on duty, with at least the grade for gradeKey (Config.Funeral.Grades)
+function IsFuneralJob(gradeKey)
+    if not FuneralEnabled() then return false end
+    local job = MyJob()
+    if job.name ~= Config.Funeral.Job then return false end
+    if Config.Funeral.RequireDuty and not LocalPlayer.state.nzFuneralDuty then return false end
+    return (job.grade or 0) >= (gradeKey and Config.Funeral.Grades[gradeKey] or 0)
 end
 
 -- dead = GTA dead OR the ambulance script says so (wasabi 'dead', others 'isDead')
@@ -97,8 +120,19 @@ function BodyRef(ped)
     return { npc = PedToNet(ped) }
 end
 
-local function bagStateOf(entity)
-    return Entity(entity).state.nzBody
+function BodyState(entity) return Entity(entity).state.nzBody end
+
+-- first entity near coords whose statebag passes check(state)
+function FindNearbyObject(coords, radius, check)
+    for _, o in ipairs(lib.getNearbyObjects(coords, radius)) do
+        if check(Entity(o.object).state, o.object) then return o.object end
+    end
+    return nil
+end
+
+-- empty crate/coffin within Config.DirectLoad.Radius
+function NearbyEmpty(coords, radius)
+    return FindNearbyObject(coords, radius or Config.DirectLoad.Radius, function(s) return s.nzEmpty ~= nil end)
 end
 
 -- ═══════════════════════════════════════════════════════════════
@@ -126,9 +160,9 @@ AddStateBagChangeHandler('nzInit', nil, function(bagName, _, value)
 end)
 
 -- ═══════════════════════════════════════════════════════════════
---  BAGGING A BODY
+--  ACTIONS ON A LOOSE BODY
 -- ═══════════════════════════════════════════════════════════════
-local function bagBody(ped)
+function BagBody(ped)
     if IsBusy() then return end
     if Carrying.entity then return Config.Notify('Your hands are full', 'error') end
     if Config.OnlyDeadBodies and not IsBodyDead(ped) then
@@ -144,48 +178,44 @@ local function bagBody(ped)
     if ok then TriggerServerEvent('nayzeee-bodybag:server:bagBody', ref) end
 end
 
--- empty crate/coffin within Config.DirectLoad.Radius of a body
-local function nearbyEmpty(coords)
-    if not Config.DirectLoad.Enabled then return nil end
-    for _, o in ipairs(lib.getNearbyObjects(coords, Config.DirectLoad.Radius)) do
-        if Entity(o.object).state.nzEmpty then return o.object end
-    end
-    return nil
-end
-
-local function directLoad(ped)
+function DirectLoad(ped)
     if IsBusy() then return end
-    local target = nearbyEmpty(GetEntityCoords(ped))
+    local target = NearbyEmpty(GetEntityCoords(ped))
     local ref = BodyRef(ped)
-    if not target or not ref then return end
+    if not target or not ref then return Config.Notify('There\'s no empty crate or coffin next to the body', 'error') end
     PlayAnim('anim@gangops@facility@servers@bodysearch@', 'player_search', 1)
     local ok = Progress('Loading the body in...', Config.LoadTime)
     ClearPedTasks(cache.ped)
     if ok then TriggerServerEvent('nayzeee-bodybag:server:directLoad', ref, NetOf(target)) end
 end
 
+function CallCoroner(coords)
+    if not Progress('Calling the coroner...', 2500) then return end
+    TriggerServerEvent('nayzeee-bodybag:server:callCoroner', coords)
+end
+
 -- ═══════════════════════════════════════════════════════════════
 --  INSPECT A BODY (bag / crate / coffin / barrel)
 -- ═══════════════════════════════════════════════════════════════
-local kindTitles = { bodybag = 'Body Bag', crate = 'Military Crate', coffin = 'Coffin', barrel = 'Burn Barrel' }
-
 function InspectBody(entity)
     local info = lib.callback.await('nayzeee-bodybag:inspect', false, NetOf(entity))
     if not info then return Config.Notify('It\'s empty', 'inform') end
 
-    local state = bagStateOf(entity)
+    local state = BodyState(entity)
     local rows = {
         { title = info.name or 'John Doe', icon = 'skull',
-          description = info.name and 'Identity confirmed' or (info.npc and 'A local - nobody you know' or 'Unidentifiable remains') },
-        { title = 'Condition: ' .. (info.stage or 'fresh'), icon = 'biohazard' },
+          description = info.name and 'Identity confirmed'
+              or (info.npc and 'Nobody you recognise' or 'Unidentifiable remains') },
+        { title = 'Condition: ' .. (info.stage or 'fresh'), icon = 'biohazard',
+          description = info.stage == 'embalmed' and 'Prepared by the funeral home' or 'Bodies rot over time - and start to smell' },
     }
     if info.dna then
         rows[#rows + 1] = {
             title = #info.dna > 0 and ('DNA traces: ' .. table.concat(info.dna, ', ')) or 'No usable DNA traces',
-            icon = 'dna', description = 'Forensics',
+            icon = 'dna', description = 'Police forensics - everyone who handled this body',
         }
     end
-    lib.registerContext({ id = 'nz_inspect', title = kindTitles[state and state.kind] or 'Body', options = rows })
+    lib.registerContext({ id = 'nz_inspect', title = KindLabel(state and state.kind), options = rows })
     lib.showContext('nz_inspect')
 end
 
@@ -215,20 +245,21 @@ RegisterNetEvent('nayzeee-bodybag:client:useItem', function(item)
 end)
 
 -- ═══════════════════════════════════════════════════════════════
---  LOAD / REMOVE
+--  LOAD / REMOVE / PACK UP
 -- ═══════════════════════════════════════════════════════════════
 function RemoveBodyFrom(containerEnt)
     if IsBusy() then return end
-    if not Progress('Removing the body...', Config.RemoveBody.Time or 5000) then return end
+    if not Progress('Taking the body out...', Config.RemoveBody.Time or 5000) then return end
     TriggerServerEvent('nayzeee-bodybag:server:removeBody', NetOf(containerEnt))
 end
 
 -- carried bag -> placed empty crate/coffin
-function LoadIntoPlaced(targetEnt, kind)
+function LoadIntoPlaced(targetEnt)
     if IsBusy() then return end
     if Carrying.kind ~= 'bodybag' then return Config.Notify('You need to be carrying a body bag', 'error') end
+    local kind = Entity(targetEnt).state.nzEmpty
     local bagNetId = Carrying.netId
-    if not Progress(('Loading body into the %s...'):format(kind), Config.LoadTime) then return end
+    if not Progress(('Loading the body into the %s...'):format(KindLabel(kind):lower()), Config.LoadTime) then return end
     if lib.callback.await('nayzeee-bodybag:loadContainer', false, NetOf(targetEnt), bagNetId) then
         StopCarrying(false, true)
     else
@@ -236,150 +267,88 @@ function LoadIntoPlaced(targetEnt, kind)
     end
 end
 
+function PackUpEmpty(entity)
+    if IsBusy() then return end
+    if not Progress('Packing it up...', 2000) then return end
+    TriggerServerEvent('nayzeee-bodybag:server:pickupEmpty', NetOf(entity))
+end
+
+function PackUpBarrel(entity)
+    if IsBusy() then return end
+    if not Progress('Packing up the barrel...', 2000) then return end
+    TriggerServerEvent('nayzeee-bodybag:server:pickupBarrel', NetOf(entity))
+end
+
 -- ═══════════════════════════════════════════════════════════════
---  TARGET SETUP (ox_target third-eye options)
+--  THIRD-EYE: ONE option per object -> opens its action menu
+--  (all menus live in client/menus.lua)
 -- ═══════════════════════════════════════════════════════════════
 CreateThread(function()
-    -- ── dead bodies (players + NPCs share the same options) ──
-    local bodyOptions = {
-        {
-            name = 'nz_direct_load', icon = 'fas fa-box-open', label = 'Place Body In Nearby Crate/Coffin', distance = 2.0,
-            canInteract = function(entity)
-                return not Carrying.entity and IsBodyDead(entity) and nearbyEmpty(GetEntityCoords(entity)) ~= nil
-            end,
-            onSelect = function(data) directLoad(data.entity) end,
-        },
-        {
-            name = 'nz_bag_body', icon = 'fas fa-box-archive', label = 'Place In Body Bag', distance = 2.0,
-            canInteract = function(entity)
-                return not Carrying.entity and IsBodyDead(entity) and HasItem(Config.Items.bodybag)
-            end,
-            onSelect = function(data) bagBody(data.entity) end,
-        },
+    -- dead bodies (players + NPCs)
+    local bodyOption = {
+        name = 'nz_body', icon = 'fas fa-skull', label = 'Handle Body', distance = 2.0,
+        canInteract = function(entity) return not Carrying.entity and IsBodyDead(entity) end,
+        onSelect = function(d) OpenBodyMenu(d.entity) end,
     }
-    local playerOptions = {
-        {
-            name = 'nz_chop_body', icon = 'fas fa-scissors', label = 'Dismember Body', distance = 2.0,
-            canInteract = function(entity)
-                if not Config.Dismember.Enabled or Carrying.entity then return false end
-                local sid = ServerIdOfPed(entity)
-                if sid and Player(sid).state.nzChopped then return false end -- one chop per body
-                return IsPlayerTrulyDead(entity) and (HasItem(Config.Items.powersaw) or HasItem(Config.Items.woodsaw))
-            end,
-            onSelect = function(data) DismemberBody(data.entity) end,
-        },
-    }
-    for _, o in ipairs(bodyOptions) do playerOptions[#playerOptions + 1] = o end
-    exports.ox_target:addGlobalPlayer(playerOptions)
-
+    exports.ox_target:addGlobalPlayer({ bodyOption })
     if Config.AllowNPCBodies then
-        local npcOptions = {}
-        for _, o in ipairs(bodyOptions) do
-            local copy = lib.table.deepclone(o)
-            copy.name = o.name .. '_npc'
-            local check = o.canInteract
-            copy.canInteract = function(entity) return not IsPedAPlayer(entity) and check(entity) end
-            copy.onSelect = o.onSelect
-            npcOptions[#npcOptions + 1] = copy
-        end
-        exports.ox_target:addGlobalPed(npcOptions)
+        exports.ox_target:addGlobalPed({ {
+            name = 'nz_body_npc', icon = 'fas fa-skull', label = 'Handle Body', distance = 2.0,
+            canInteract = function(entity)
+                return not Carrying.entity and not IsPedAPlayer(entity) and IsBodyDead(entity)
+            end,
+            onSelect = function(d) OpenBodyMenu(d.entity) end,
+        } })
     end
 
-    -- ── body bag prop ──
-    exports.ox_target:addModel(Config.Props.bodybag, {
-        { name = 'nz_pickup_bag', icon = 'fas fa-hand', label = 'Pick Up Bag', distance = 2.0,
-          canInteract = function(e) return bagStateOf(e) ~= nil and not Carrying.entity end,
-          onSelect = function(d) StartCarrying(d.entity, 'bodybag') end },
-        { name = 'nz_inspect_bag', icon = 'fas fa-magnifying-glass', label = 'Inspect', distance = 2.0,
-          canInteract = function(e) return bagStateOf(e) ~= nil end,
-          onSelect = function(d) InspectBody(d.entity) end },
-        { name = 'nz_bury_bag', icon = 'fas fa-trowel', label = 'Bury Body', distance = 2.5,
-          canInteract = function(e) return bagStateOf(e) ~= nil and not Carrying.entity and HasItem(Config.Items.shovel) end,
-          onSelect = function(d) BuryContainer(d.entity) end },
-        { name = 'nz_acid_bag', icon = 'fas fa-flask', label = 'Pour Acid', distance = 2.0,
-          canInteract = function(e) return bagStateOf(e) ~= nil and not Carrying.entity and HasItem(Config.Items.acid) end,
-          onSelect = function(d) AcidDissolve(d.entity) end },
-        { name = 'nz_remove_bag', icon = 'fas fa-person-falling', label = 'Remove Body', distance = 2.0,
-          canInteract = function(e) return Config.RemoveBody.Enabled and bagStateOf(e) ~= nil and not Carrying.entity end,
-          onSelect = function(d) RemoveBodyFrom(d.entity) end },
-    })
-
-    -- ── crate + coffin props (empty = deployed, waiting for a body; full = carries a body) ──
-    for _, def in ipairs({ { model = Config.Props.crate, kind = 'crate', label = 'Crate' }, { model = Config.Props.coffin, kind = 'coffin', label = 'Coffin' } }) do
-        exports.ox_target:addModel(def.model, {
-            { name = 'nz_load_' .. def.kind, icon = 'fas fa-box-archive', label = 'Load Body Into ' .. def.label, distance = 2.0,
-              canInteract = function(e) return Entity(e).state.nzEmpty ~= nil and Carrying.kind == 'bodybag' end,
-              onSelect = function(d) LoadIntoPlaced(d.entity, def.kind) end },
-            { name = 'nz_pickupempty_' .. def.kind, icon = 'fas fa-hand', label = 'Pack Up (Empty)', distance = 2.0,
-              canInteract = function(e) return Entity(e).state.nzEmpty ~= nil and not Carrying.entity end,
-              onSelect = function(d) TriggerServerEvent('nayzeee-bodybag:server:pickupEmpty', NetOf(d.entity)) end },
-            { name = 'nz_pickup_' .. def.kind, icon = 'fas fa-hand', label = 'Pick Up', distance = 2.0,
-              canInteract = function(e) return bagStateOf(e) ~= nil and not Carrying.entity end,
-              onSelect = function(d) StartCarrying(d.entity, def.kind) end },
-            { name = 'nz_inspect_' .. def.kind, icon = 'fas fa-magnifying-glass', label = 'Inspect', distance = 2.0,
-              canInteract = function(e) return bagStateOf(e) ~= nil end,
-              onSelect = function(d) InspectBody(d.entity) end },
-            { name = 'nz_bury_' .. def.kind, icon = 'fas fa-trowel', label = 'Bury', distance = 2.5,
-              canInteract = function(e) return bagStateOf(e) ~= nil and not Carrying.entity and HasItem(Config.Items.shovel) end,
-              onSelect = function(d) BuryContainer(d.entity) end },
-            { name = 'nz_remove_' .. def.kind, icon = 'fas fa-person-falling', label = 'Remove Body', distance = 2.0,
-              canInteract = function(e) return Config.RemoveBody.Enabled and bagStateOf(e) ~= nil and not Carrying.entity end,
-              onSelect = function(d) RemoveBodyFrom(d.entity) end },
-        })
+    -- bag / crate / coffin (full OR empty)
+    for _, def in ipairs({
+        { model = Config.Props.bodybag, kind = 'bodybag', icon = 'fas fa-bag-shopping' },
+        { model = Config.Props.crate,   kind = 'crate',   icon = 'fas fa-box' },
+        { model = Config.Props.coffin,  kind = 'coffin',  icon = 'fas fa-cross' },
+    }) do
+        exports.ox_target:addModel(def.model, { {
+            name = 'nz_container_' .. def.kind, icon = def.icon, label = KindLabel(def.kind), distance = 2.5,
+            canInteract = function(e) local s = Entity(e).state return s.nzBody ~= nil or s.nzEmpty ~= nil end,
+            onSelect = function(d) OpenContainerMenu(d.entity) end,
+        } })
     end
 
-    -- ── burn barrel ──
-    exports.ox_target:addModel(Config.Props.barrel, {
-        { name = 'nz_barrel_load', icon = 'fas fa-box-archive', label = 'Load Body Into Barrel', distance = 2.0,
-          canInteract = function(e) local s = Entity(e).state return s.nzBarrel and not s.nzBody and Carrying.kind == 'bodybag' end,
-          onSelect = function(d) LoadBarrel(d.entity) end },
-        { name = 'nz_barrel_light', icon = 'fas fa-fire', label = 'Light It Up', distance = 2.0,
-          canInteract = function(e)
-              local s = Entity(e).state
-              return s.nzBarrel and s.nzBody and not s.nzBurning
-                  and (not Config.Cremation.RequiresMatches or HasItem(Config.Items.matches))
-          end,
-          onSelect = function(d) LightBarrel(d.entity) end },
-        { name = 'nz_barrel_inspect', icon = 'fas fa-magnifying-glass', label = 'Look Inside', distance = 2.0,
-          canInteract = function(e) local s = Entity(e).state return s.nzBarrel and s.nzBody and not s.nzBurning end,
-          onSelect = function(d) InspectBody(d.entity) end },
-        { name = 'nz_barrel_unload', icon = 'fas fa-person-falling', label = 'Take Body Out', distance = 2.0,
-          canInteract = function(e) local s = Entity(e).state return s.nzBarrel and s.nzBody and not s.nzBurning and not Carrying.entity end,
-          onSelect = function(d) UnloadBarrel(d.entity) end },
-        { name = 'nz_barrel_pickup', icon = 'fas fa-hand', label = 'Pack Up Barrel', distance = 2.0,
-          canInteract = function(e) local s = Entity(e).state return s.nzBarrel and not s.nzBody and not s.nzBurning and not Carrying.entity end,
-          onSelect = function(d) TriggerServerEvent('nayzeee-bodybag:server:pickupBarrel', NetOf(d.entity)) end },
-    })
+    -- burn barrel
+    exports.ox_target:addModel(Config.Props.barrel, { {
+        name = 'nz_barrel', icon = 'fas fa-fire', label = KindLabel('barrel'), distance = 2.5,
+        canInteract = function(e) return Entity(e).state.nzBarrel ~= nil end,
+        onSelect = function(d) OpenBarrelMenu(d.entity) end,
+    } })
 
-    -- ── cemetery body hole: third-eye to lower a carried container in, perfectly placed ──
+    -- graves, cemetery tombstones and funeral headstones
+    exports.ox_target:addModel({ Config.Props.shallowGrave, Config.Props.tombstone }, { {
+        name = 'nz_grave', icon = 'fas fa-cross', label = 'Grave', distance = 2.5,
+        canInteract = function(e) local s = Entity(e).state return s.nzGrave ~= nil or s.nzMemorial ~= nil end,
+        onSelect = function(d) OpenGraveMenu(d.entity) end,
+    } })
+
+    -- cemetery body hole + water dump spots: third-eye works too (same as the [H] carry menu)
     if Config.Burial.Cemetery.Enabled then
         exports.ox_target:addSphereZone({
-            coords = Config.Burial.Cemetery.Coords,
-            radius = 2.5,
-            name = 'nz_grave_hole',
-            options = {
-                { name = 'nz_place_in_grave', icon = 'fas fa-arrow-down', label = 'Lower Into Grave',
-                  canInteract = function() return Carrying.entity ~= nil end,
-                  onSelect = function() PlaceInGraveHole() end },
-            },
+            coords = Config.Burial.Cemetery.Coords, radius = 2.5, name = 'nz_grave_hole',
+            options = { {
+                name = 'nz_place_in_grave', icon = 'fas fa-arrow-down', label = 'Lower Into Grave',
+                canInteract = function() return Carrying.entity ~= nil end,
+                onSelect = function() PlaceInGraveHole() end,
+            } },
         })
     end
-
-    -- ── graves (shallow dirt piles AND cemetery tombstones) ──
-    exports.ox_target:addModel({ Config.Props.shallowGrave, Config.Props.tombstone }, {
-        { name = 'nz_grave_inspect', icon = 'fas fa-magnifying-glass', label = 'Inspect Grave', distance = 2.0,
-          canInteract = function(e) return Entity(e).state.nzGrave ~= nil end,
-          onSelect = function(d) InspectGrave(d.entity) end },
-        { name = 'nz_grave_exhume', icon = 'fas fa-trowel', label = 'Exhume', distance = 2.5,
-          canInteract = function(e)
-              local g = Entity(e).state.nzGrave
-              if not g or not HasItem(Config.Items.shovel) then return false end
-              if Config.Burial.PoliceCanExhume and IsPoliceJob() then return true end
-              local me = ESX.GetPlayerData()
-              return me and me.identifier ~= nil and g.digger == me.identifier
-          end,
-          onSelect = function(d) ExhumeGrave(d.entity) end },
-    })
+    for i, zone in ipairs(Config.WaterDump.Zones) do
+        exports.ox_target:addSphereZone({
+            coords = zone.coords, radius = zone.radius or 4.0, name = 'nz_dump_' .. i,
+            options = { {
+                name = 'nz_dump_body_' .. i, icon = 'fas fa-water', label = 'Dump Body In The Water',
+                canInteract = function() return Carrying.entity ~= nil end,
+                onSelect = function() DumpCarried() end,
+            } },
+        })
+    end
 end)
 
 -- ═══════════════════════════════════════════════════════════════

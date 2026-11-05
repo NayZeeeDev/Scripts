@@ -20,7 +20,8 @@ function RequestControl(entity, ms)
 end
 
 local function carryHint()
-    ShowHint(('[%s] Drop  •  Third-eye: crate / barrel / trunk / grave / water'):format(Config.DropKey or 'G'))
+    ShowHint(('Carrying: %s  \n[%s] What can I do here?  •  [%s] Put it down'):format(
+        KindLabel(Carrying.kind), Config.CarryMenuKey or 'H', Config.DropKey or 'G'))
 end
 
 function StartCarrying(entity, kind)
@@ -111,10 +112,19 @@ end)
 -- real keybind: registered once, can never miss a press or die with a thread
 lib.addKeybind({
     name = 'nz_drop',
-    description = 'Drop carried body bag / crate / coffin',
+    description = 'Put down the body bag / crate / coffin you carry',
     defaultKey = Config.DropKey or 'G',
     onPressed = function()
         if Carrying.entity then CreateThread(function() StopCarrying(true) end) end
+    end,
+})
+
+lib.addKeybind({
+    name = 'nz_carry_menu',
+    description = 'While carrying a body: what can I do here?',
+    defaultKey = Config.CarryMenuKey or 'H',
+    onPressed = function()
+        if Carrying.entity and not IsBusy() then CreateThread(OpenCarryMenu) end
     end,
 })
 
@@ -139,7 +149,16 @@ end
 -- ═══════════════════════════════════════════════════════════════
 --  WATER DUMP - third-eye zones with throw animation
 -- ═══════════════════════════════════════════════════════════════
-local function dumpAtSpot()
+-- true if we're standing at a water dump spot
+function AtDumpZone()
+    local me = GetEntityCoords(cache.ped)
+    for _, zone in ipairs(Config.WaterDump.Zones) do
+        if #(me - zone.coords) <= (zone.radius or 4.0) + 1.5 then return true end
+    end
+    return false
+end
+
+function DumpCarried()
     local kind, netId, ent = Carrying.kind, Carrying.netId, Carrying.entity
     if not ent or IsBusy() then return end
     if Config.WaterDump.RequireCrate and kind == 'bodybag' then
@@ -170,25 +189,6 @@ local function dumpAtSpot()
     Wait(1500)
     ClearPedTasks(cache.ped)
 end
-
-CreateThread(function()
-    for i, zone in ipairs(Config.WaterDump.Zones) do
-        exports.ox_target:addSphereZone({
-            coords = zone.coords,
-            radius = zone.radius or 4.0,
-            name = 'nz_dump_' .. i,
-            options = {
-                {
-                    name = 'nz_dump_body_' .. i,
-                    icon = 'fas fa-water',
-                    label = 'Dump Body Here',
-                    canInteract = function() return Carrying.entity ~= nil end,
-                    onSelect = dumpAtSpot,
-                },
-            },
-        })
-    end
-end)
 
 -- ═══════════════════════════════════════════════════════════════
 --  CLEANUP on resource stop (no waiting allowed here)

@@ -6,6 +6,7 @@
 --      resolved, where = { type = 'container'|'barrel'|'trunk', key = netId } }
 --    victimId   = server id of the online victim (nil for NPCs / once released)
 --    resolved   = true once the body was destroyed (CK / respawn already handled)
+--    embalmed   = prepared by the funeral home (doesn't rot)   record = morgue record id
 --
 --  A body is always stored in exactly ONE of these places:
 --    Containers[netId] = { obj, kind = 'bodybag'|'crate'|'coffin', body, carrier }
@@ -29,6 +30,7 @@ local function kindToItem(kind)
 end
 
 function GetStage(body)
+    if body.embalmed then return { label = 'embalmed' } end
     local stage = { label = 'fresh' }
     if not Config.Decomposition.Enabled or not body.baggedAt then return stage end
     local mins = (os.time() - body.baggedAt) / 60
@@ -48,6 +50,25 @@ function DescribeBody(body, forPolice)
         stage = stage.label,
         dna   = (forPolice and Config.Evidence.PoliceSeeDna) and body.dna or nil,
     }
+end
+
+-- ═══════════════════════════════════════════════════════════════
+--  TIPS - short "what now?" messages for new players (Config.Tips)
+-- ═══════════════════════════════════════════════════════════════
+function Tip(src, msg)
+    if Config.Tips and src and src > 0 then Notify(src, msg, 'inform', 'Next step') end
+end
+
+-- ═══════════════════════════════════════════════════════════════
+--  VICTIM STATUS - the bagged player's panel shows what's happening
+--  status = 'bodybag'|'crate'|'coffin'|'carried'|'trunk'|'barrel'|'burning'
+-- ═══════════════════════════════════════════════════════════════
+function SetVictimStatus(body, status)
+    if not body then return end
+    body.status = status
+    if body.victimId then
+        TriggerClientEvent('nayzeee-bodybag:client:victimStatus', body.victimId, status, os.time() - (body.baggedAt or os.time()))
+    end
 end
 
 -- ═══════════════════════════════════════════════════════════════
@@ -116,7 +137,8 @@ end
 function AddContainer(obj, netId, kind, body)
     Containers[netId] = { obj = obj, kind = kind, body = body }
     body.where = { type = 'container', key = netId }
-    Entity(obj).state:set('nzBody', { kind = kind, stage = GetStage(body).label }, true)
+    Entity(obj).state:set('nzBody', { kind = kind, stage = GetStage(body).label, record = body.record }, true)
+    SetVictimStatus(body, kind)
 end
 
 -- removes it from the registry + world. Returns the container data.
@@ -198,6 +220,8 @@ RegisterNetEvent('nayzeee-bodybag:server:bagBody', function(ref)
     if victim.npc and DoesEntityExist(victim.npc) then DeleteEntity(victim.npc) end
     AddContainer(obj, netId, 'bodybag', newBody(src, victim))
     Log(src, 'BAGGED', victim.name or 'Unknown local (NPC)')
+    Notify(src, 'Body bagged.', 'success')
+    Tip(src, 'Third-eye the bag to pick it up. While carrying, press [' .. Config.CarryMenuKey .. '] to see what you can do.')
 end)
 
 -- ═══════════════════════════════════════════════════════════════
@@ -224,6 +248,9 @@ RegisterNetEvent('nayzeee-bodybag:server:deployContainer', function(kind, coords
         Entity(obj).state:set('nzEmpty', kind, true)
     end
     Log(src, 'DEPLOYED', kind)
+    Tip(src, kind == 'barrel'
+        and 'Carry a body bag here and load it in, then light it with matches.'
+        or ('Carry a body bag here and load it in - or third-eye a body right next to the %s.'):format(KindLabel(kind):lower()))
 end)
 
 RegisterNetEvent('nayzeee-bodybag:server:pickupEmpty', function(netId)
@@ -252,6 +279,7 @@ RegisterNetEvent('nayzeee-bodybag:server:directLoad', function(ref, targetNetId)
     if victim.npc and DoesEntityExist(victim.npc) then DeleteEntity(victim.npc) end
     AddContainer(e.obj, targetNetId, e.kind, newBody(src, victim))
     Log(src, 'DIRECT_LOADED', ('%s -> %s'):format(victim.name or 'NPC', e.kind))
+    Notify(src, ('The body is in the %s.'):format(KindLabel(e.kind):lower()), 'success')
 end)
 
 -- ═══════════════════════════════════════════════════════════════
@@ -265,12 +293,16 @@ lib.callback.register('nayzeee-bodybag:claimCarry', function(src, netId)
     if not IsNearEntity(src, c.obj) then return 'You\'re too far away' end
     c.carrier = src
     AddDna(c.body, src)
+    SetVictimStatus(c.body, 'carried')
     return true
 end)
 
 RegisterNetEvent('nayzeee-bodybag:server:releaseCarry', function(netId)
     local c = Containers[netId]
-    if c and c.carrier == source then c.carrier = nil end
+    if c and c.carrier == source then
+        c.carrier = nil
+        SetVictimStatus(c.body, c.kind)
+    end
 end)
 
 -- carried bag -> placed empty crate/coffin
@@ -284,6 +316,8 @@ lib.callback.register('nayzeee-bodybag:loadContainer', function(src, targetNetId
     AddDna(c.body, src)
     AddContainer(e.obj, targetNetId, e.kind, c.body)
     Log(src, 'LOADED', ('%s -> %s'):format(c.body.name or 'NPC', e.kind))
+    Notify(src, ('The body is sealed in the %s.'):format(KindLabel(e.kind):lower()), 'success')
+    if e.kind == 'crate' then Tip(src, 'Crates sink for good - carry it to a water dump spot. Or bury it with a shovel.') end
     return true
 end)
 
@@ -368,6 +402,8 @@ lib.callback.register('nayzeee-bodybag:barrelLoad', function(src, barrelNetId, b
     b.body = c.body
     c.body.where = { type = 'barrel', key = barrelNetId }
     Entity(b.obj).state:set('nzBody', { kind = 'barrel', stage = GetStage(c.body).label }, true)
+    SetVictimStatus(c.body, 'barrel')
+    Tip(src, Config.Cremation.RequiresMatches and 'Now light the barrel - you need matches.' or 'Now light the barrel.')
     return true
 end)
 
@@ -400,6 +436,8 @@ RegisterNetEvent('nayzeee-bodybag:server:barrelLight', function(netId)
 
     b.burning = true
     Entity(b.obj).state:set('nzBurning', true, true)
+    SetVictimStatus(b.body, 'burning')
+    Notify(src, ('The fire takes hold. It will take about %d seconds.'):format(math.floor(Config.Cremation.BurnTime / 1000)), 'inform')
     TriggerClientEvent('nayzeee-bodybag:client:barrelFire', -1, netId, true, src)
     local coords = GetEntityCoords(b.obj)
     PoliceAlert(coords, 'Suspicious Fire', 'Thick black smoke and a horrible smell reported.', 'cremation')
@@ -669,6 +707,24 @@ RegisterNetEvent('nayzeee-bodybag:server:victimRevived', function()
 end)
 
 -- ═══════════════════════════════════════════════════════════════
+--  ACCEPT FATE - a bagged victim stops waiting (Config.Victim.GiveUpAfter)
+--  CK mode: the character dies now. Respawn mode: wake up in hospital.
+--  The body itself stays where it is (as remains).
+-- ═══════════════════════════════════════════════════════════════
+RegisterNetEvent('nayzeee-bodybag:server:acceptFate', function()
+    local src = source
+    local body = BaggedVictims[src]
+    local after = (Config.Victim.GiveUpAfter or 0) * 60
+    if not body or after <= 0 then return end
+    local waited = os.time() - (body.baggedAt or os.time())
+    if waited < after then
+        return Notify(src, ('You can accept your fate in %s.'):format(FormatTime(after - waited)), 'error')
+    end
+    Log(src, 'ACCEPTED_FATE', body.name)
+    DestroyBody(body, 'accepted fate')
+end)
+
+-- ═══════════════════════════════════════════════════════════════
 --  SYNC + WATCHDOG (one loop for everything, every 2s)
 --  - keeps each victim's invisible ped next to their body (voice range!)
 --  - frees victims whose prop got deleted by something else
@@ -810,6 +866,14 @@ end
 exports('useCrate',  useItem(Config.Items.bodyCrate))
 exports('useCoffin', useItem(Config.Items.coffin))
 exports('useBarrel', useItem(Config.Items.burnBarrel))
+-- tools have no "use" of their own -> using one explains how it works
+exports('useTool', function(event, item, inventory)
+    if event == 'usingItem' then
+        TriggerClientEvent('nayzeee-bodybag:client:toolTip', inventory.id, item.name)
+        return false
+    end
+end)
+
 exports('useGasmask', function(event, item, inventory)
     if event == 'usingItem' then
         TriggerClientEvent('nayzeee-bodybag:client:toggleGasmask', inventory.id)

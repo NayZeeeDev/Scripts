@@ -224,30 +224,42 @@ RegisterNetEvent('nayzeee-bodybag:client:smell', function()
 end)
 
 -- ═══════════════════════════════════════════════════════════════
---  POLICE ALERTS - notify + a rough search-area blip
+--  ALERTS - police witness calls + coroner calls
+--  notify + a rough search-area blip that fades after a while
 -- ═══════════════════════════════════════════════════════════════
-RegisterNetEvent('nayzeee-bodybag:client:policeAlert', function(coords, title, message)
-    local cfg = Config.Dispatch
+local ALERT_STYLE = {
+    police  = { colour = Config.Dispatch.BlipColour or 1, sprite = Config.Dispatch.BlipSprite or 161,
+                radius = Config.Dispatch.BlipRadius or 80.0, time = Config.Dispatch.BlipTime or 120, exact = false },
+    coroner = { colour = Config.Funeral.Blip.Colour or 40, sprite = Config.Funeral.CoronerCalls.BlipSprite or 1,
+                radius = 25.0, exact = true, time = Config.Funeral.CoronerCalls.BlipTime or 300 },
+}
+
+RegisterNetEvent('nayzeee-bodybag:client:alert', function(coords, title, message, kind)
+    local st = ALERT_STYLE[kind] or ALERT_STYLE.police
     Config.Notify(message, 'warning', title)
     PlaySoundFrontend(-1, 'Event_Start_Text', 'GTAO_FM_Events_Soundset', false)
 
-    -- offset the circle so it's a search area, not the exact spot
-    local r = math.floor((cfg.BlipRadius or 80.0) * 0.5)
-    local x, y = coords.x + math.random(-r, r), coords.y + math.random(-r, r)
+    -- police only get a search area, the coroner gets the exact spot
+    local x, y = coords.x, coords.y
+    if not st.exact then
+        local r = math.floor(st.radius * 0.5)
+        x, y = x + math.random(-r, r), y + math.random(-r, r)
+    end
 
-    local area = AddBlipForRadius(x, y, coords.z, cfg.BlipRadius or 80.0)
-    SetBlipColour(area, cfg.BlipColour or 1)
+    local area = AddBlipForRadius(x, y, coords.z, st.radius)
+    SetBlipColour(area, st.colour)
     SetBlipAlpha(area, 90)
 
     local icon = AddBlipForCoord(x, y, coords.z)
-    SetBlipSprite(icon, cfg.BlipSprite or 161)
-    SetBlipColour(icon, cfg.BlipColour or 1)
+    SetBlipSprite(icon, st.sprite)
+    SetBlipColour(icon, st.colour)
     SetBlipScale(icon, 1.0)
+    SetBlipRoute(icon, kind == 'coroner')
     BeginTextCommandSetBlipName('STRING')
     AddTextComponentSubstringPlayerName(title)
     EndTextCommandSetBlipName(icon)
 
-    SetTimeout((cfg.BlipTime or 120) * 1000, function()
+    SetTimeout(st.time * 1000, function()
         RemoveBlip(area)
         RemoveBlip(icon)
     end)

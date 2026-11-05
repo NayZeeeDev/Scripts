@@ -57,14 +57,19 @@ end
 lib.callback.register('nayzeee-bodybag:trunkPut', function(src, vehNetId, bagNetId)
     if not Config.Trunk.Enabled then return false end
     local c = Containers[bagNetId]
-    if not c or c.carrier ~= src or not Config.Trunk.AllowedKinds[c.kind] then return false end
+    if not c or c.carrier ~= src then return false end
     local veh = getVehicle(vehNetId)
     if not veh or not IsNearEntity(src, veh, 8.0) then return false end
+    local rules = TrunkRules(GetEntityModel(veh))
+    if not rules.AllowedKinds[c.kind] then
+        Notify(src, ('A %s doesn\'t fit in this vehicle'):format(KindLabel(c.kind):lower()), 'error')
+        return false
+    end
     if GetVehicleType(veh) ~= 'automobile' then return false end -- bikes, boats, helis have no trunk
     if trunkLocked(src, veh) then return false end
 
     local t = Trunks[vehNetId] or { veh = veh, items = {} }
-    if #t.items >= Config.Trunk.MaxBodies then
+    if #t.items >= rules.MaxBodies then
         Notify(src, 'The trunk is full', 'error')
         return false
     end
@@ -75,6 +80,8 @@ lib.callback.register('nayzeee-bodybag:trunkPut', function(src, vehNetId, bagNet
     c.body.where = { type = 'trunk', key = vehNetId }
     Trunks[vehNetId] = t
     updateTrunkState(vehNetId)
+    SetVictimStatus(c.body, 'trunk')
+    Notify(src, ('Loaded. %d/%d in this vehicle.'):format(#t.items, rules.MaxBodies), 'success')
     Log(src, 'TRUNK_IN', ('%s -> plate %s'):format(c.body.name or 'NPC', GetVehicleNumberPlateText(veh)))
     return true
 end)

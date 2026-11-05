@@ -1,7 +1,48 @@
 -- ═══════════════════════════════════════════════════════════════
 --  VICTIM SIDE - what happens to YOU when you get bagged
+--  Dark screen + a live panel that tells you what's going on.
 -- ═══════════════════════════════════════════════════════════════
 local bagged = false
+local status = 'bodybag'
+local baggedAtTimer = 0   -- GetGameTimer() when we were bagged (corrected by the server)
+
+local STATUS_TEXT = {
+    bodybag = 'Zipped inside a body bag',
+    crate   = 'Sealed inside a military crate',
+    coffin  = 'Lying in a coffin',
+    carried = 'Someone is carrying you...',
+    trunk   = 'Locked in a car trunk - you feel it moving',
+    barrel  = 'Stuffed inside a metal barrel',
+    burning = 'The barrel is getting hot...',
+}
+
+local function elapsed()
+    return math.floor((GetGameTimer() - baggedAtTimer) / 1000)
+end
+
+local function fateLine()
+    if Config.CK.Enabled and Config.CK.OnDisposal == 'ck' then
+        return 'If your body is destroyed, this character dies for good.'
+    end
+    return 'If your body is destroyed, you wake up in hospital (NLR).'
+end
+
+local function panelText()
+    local lines = {
+        '**YOU ARE DEAD**',
+        STATUS_TEXT[status] or STATUS_TEXT.bodybag,
+        'Time: ' .. FormatTime(elapsed()),
+        fateLine(),
+    }
+    local after = (Config.Victim.GiveUpAfter or 0) * 60
+    if after > 0 then
+        local left = after - elapsed()
+        lines[#lines + 1] = left > 0 and ('/%s unlocks in %s'):format(Config.Victim.GiveUpCommand, FormatTime(left))
+            or ('Type /%s to stop waiting'):format(Config.Victim.GiveUpCommand)
+    end
+    lines[#lines + 1] = 'Chat + push-to-talk still work'
+    return table.concat(lines, '  \n')
+end
 
 local function restorePed()
     if not bagged then return end
@@ -17,11 +58,10 @@ end
 
 RegisterNetEvent('nayzeee-bodybag:client:youGotBagged', function()
     if bagged then return end
-    bagged = true
-    -- full black screen (the bottom prompt stays visible over it so it doesn't read as a loading screen)
+    bagged, status, baggedAtTimer = true, 'bodybag', GetGameTimer()
     DoScreenFadeOut(600)
-    ShowHint('You are inside a body bag...')
 
+    -- frozen, invisible, no controls except chat + push-to-talk
     CreateThread(function()
         local ped = cache.ped
         FreezeEntityPosition(ped, true)
@@ -30,9 +70,19 @@ RegisterNetEvent('nayzeee-bodybag:client:youGotBagged', function()
         SetEntityInvincible(ped, true)
         while bagged do
             DisableAllControlActions(0)
-            EnableControlAction(0, 245, true) -- chat stays available for /me etc
+            EnableControlAction(0, 245, true) -- chat
             EnableControlAction(0, 249, true) -- push to talk
             Wait(0)
+        end
+    end)
+
+    -- the status panel (bottom of the black screen)
+    CreateThread(function()
+        local last
+        while bagged do
+            local text = Config.Victim.StatusPanel and panelText() or 'You are inside a body bag...'
+            if text ~= last then ShowHint(text) last = text end
+            Wait(1000)
         end
     end)
 
@@ -53,6 +103,16 @@ RegisterNetEvent('nayzeee-bodybag:client:youGotBagged', function()
     end
 end)
 
+-- server tells us what's happening to our body
+RegisterNetEvent('nayzeee-bodybag:client:victimStatus', function(newStatus, serverElapsed)
+    if not bagged then return end
+    status = newStatus
+    if serverElapsed then baggedAtTimer = GetGameTimer() - serverElapsed * 1000 end
+    if newStatus == 'burning' then
+        Config.Notify('You smell smoke. The barrel is on fire.', 'error')
+    end
+end)
+
 -- follow the bag: server pushes coords so victim stays with their body (and in voice range)
 RegisterNetEvent('nayzeee-bodybag:client:syncToBag', function(coords)
     if not bagged then return end
@@ -60,7 +120,11 @@ RegisterNetEvent('nayzeee-bodybag:client:syncToBag', function(coords)
 end)
 
 -- released (taken out of the bag / bag destroyed / revived)
-RegisterNetEvent('nayzeee-bodybag:client:released', restorePed)
+RegisterNetEvent('nayzeee-bodybag:client:released', function()
+    if not bagged then return end
+    restorePed()
+    Config.Notify('You\'re out of the bag.', 'inform')
+end)
 
 -- body destroyed -> forced respawn (only when Config.CK.OnDisposal = 'respawn')
 RegisterNetEvent('nayzeee-bodybag:client:forceRespawn', function()
@@ -68,6 +132,28 @@ RegisterNetEvent('nayzeee-bodybag:client:forceRespawn', function()
     Config.Hooks.Respawn()
     Config.Notify('Your body was destroyed. You remember nothing after your death. (NLR applies)', 'error')
 end)
+
+-- ═══════════════════════════════════════════════════════════════
+--  /acceptfate - stop waiting
+-- ═══════════════════════════════════════════════════════════════
+if (Config.Victim.GiveUpAfter or 0) > 0 then
+    RegisterCommand(Config.Victim.GiveUpCommand, function()
+        if not bagged then return Config.Notify('You\'re not inside a body bag.', 'error') end
+        local left = Config.Victim.GiveUpAfter * 60 - elapsed()
+        if left > 0 then return Config.Notify(('You can do this in %s.'):format(FormatTime(left)), 'error') end
+
+        local ck = Config.CK.Enabled and Config.CK.OnDisposal == 'ck'
+        local answer = lib.alertDialog({
+            header = 'Accept your fate?',
+            content = ck and 'Your character **dies permanently** right now (CK). You will be disconnected.\n\nYour body stays where it is.'
+                or 'You wake up in hospital and remember nothing (NLR).\n\nYour body stays where it is.',
+            centered = true, cancel = true,
+            labels = { confirm = ck and 'Accept death' or 'Wake up', cancel = 'Keep waiting' },
+        })
+        if answer == 'confirm' then TriggerServerEvent('nayzeee-bodybag:server:acceptFate') end
+    end, false)
+    TriggerEvent('chat:addSuggestion', '/' .. Config.Victim.GiveUpCommand, 'Inside a body bag: stop waiting')
+end
 
 -- exports['nayzeee-bodybag']:IsBagged() -> true while YOU are inside a bag/crate/trunk
 exports('IsBagged', function() return bagged end)
@@ -101,5 +187,3 @@ RegisterNetEvent('nayzeee-bodybag:client:ckConsentExpired', function()
     lib.closeAlertDialog()
     Config.Notify('The CK request expired.', 'inform', 'CK')
 end)
-
--- CK kick/deletion is handled fully server-side (server/ck.lua)

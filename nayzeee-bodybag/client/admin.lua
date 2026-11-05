@@ -54,3 +54,18 @@ RegisterNetEvent('nayzeee-bodybag:client:openAdmin', function()
     lib.registerContext({ id = 'nz_admin', title = Config.UI.Title .. ' • Body Admin', options = options })
     lib.showContext('nz_admin')
 end)
+
+-- /nzcoords (staff): copy your position for config.lua
+RegisterNetEvent('nayzeee-bodybag:client:coords', function()
+    local c, h = GetEntityCoords(cache.ped), GetEntityHeading(cache.ped)
+    local v3 = ('vec3(%.4f, %.4f, %.4f)'):format(c.x, c.y, c.z)
+    local v4 = ('vec4(%.4f, %.4f, %.4f, %.2f)'):format(c.x, c.y, c.z, h)
+    print('[nayzeee-bodybag] ' .. v3 .. '   ' .. v4)
+    lib.registerContext({ id = 'nz_coords', title = 'Your Position', options = {
+        { title = v3, icon = 'copy', description = 'Click to copy (points, zones)', onSelect = function()
+            lib.setClipboard(v3) Config.Notify('Copied ' .. v3, 'success') end },
+        { title = v4, icon = 'copy', description = 'Click to copy (with heading: spawns, prep table)', onSelect = function()
+            lib.setClipboard(v4) Config.Notify('Copied ' .. v4, 'success') end },
+    } })
+    lib.showContext('nz_coords')
+end)

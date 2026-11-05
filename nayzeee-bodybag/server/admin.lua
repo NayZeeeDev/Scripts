@@ -19,6 +19,12 @@ local function entry(type, key, kind, body, coords)
     }
 end
 
+-- /nzcoords - prints where you stand as vec3/vec4, ready to paste into config.lua
+RegisterCommand('nzcoords', function(src)
+    if src == 0 or not IsStaff(src) then return end
+    TriggerClientEvent('nayzeee-bodybag:client:coords', src)
+end, false)
+
 lib.callback.register('nayzeee-bodybag:admin:list', function(src)
     if not IsStaff(src) then return nil end
     local list = {}

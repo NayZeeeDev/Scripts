@@ -14,7 +14,7 @@
 ╚═════╝  ╚═════╝ ╚═════╝    ╚═╝   ╚═════╝ ╚═╝  ╚═╝ ╚═════╝
 
 
-    BODY BAG SCRIPT - 1.2.0
+    BODY BAG + FUNERAL SCRIPT - 2.0.0
     Discord: discord.gg/nayzeeedev
 
     HOW TO READ THIS FILE
@@ -22,6 +22,7 @@
     - Times are in MILLISECONDS (1000 = 1 second) unless the comment says otherwise.
     - Chances are PERCENT (0 - 100).
     - Anything under HOOKS (bottom of the file) is where you plug in YOUR other scripts.
+    - Need coordinates for a location? Stand there in-game and type /nzcoords (staff).
 
 ]]
 
@@ -51,6 +52,19 @@ Config.AllowNPCBodies = true
 -- A bagged victim who gets revived (admin /revive, medic, bleed-out respawn) climbs
 -- out of the bag instead of staying stuck inside it.
 Config.ReleaseOnRevive = true
+
+-- Helpful "Next: ..." messages after each step, so new players learn the flow
+Config.Tips = true
+
+-- /bodyhelp opens an in-game guide: every method, step by step, and which tools you have
+Config.HelpCommand = 'bodyhelp'
+
+-- What the player INSIDE the bag sees
+Config.Victim = {
+    StatusPanel   = true,          -- Live panel: what's happening to your body + how long you've been inside
+    GiveUpAfter   = 10,            -- MINUTES before /acceptfate unlocks (0 = never)
+    GiveUpCommand = 'acceptfate',  -- CK mode: your character dies now. Respawn mode: you wake up in hospital.
+}
 
 -- ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗
 -- ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝
@@ -106,6 +120,10 @@ Config.Items = {
     severedFeet  = 'severed_feet',
     skull        = 'skull',          -- Cremation trophy (chance-based)
     ashes        = 'ashes',          -- Cremation leftover
+    -- Funeral home
+    flowers          = 'flowers',            -- Lay on a headstone
+    urn              = 'urn',                -- Legit cremation at the funeral home (named)
+    deathCertificate = 'death_certificate',  -- Issued by the funeral home
 }
 
 -- ██████╗ ██████╗  ██████╗ ██████╗ ███████╗
@@ -164,6 +182,8 @@ Config.RemoveBody = {
 
 -- Drop key is a REAL keybind (players can rebind: ESC > Settings > Key Bindings > FiveM)
 Config.DropKey = 'G'
+-- While carrying, this opens "what can I do HERE?" (load, trunk, grave, water, morgue...)
+Config.CarryMenuKey = 'H'
 
 Config.Carry = {
     DropOnDeath   = true, -- You drop what you're carrying if you go down
@@ -207,6 +227,10 @@ Config.Trunk = {
     BlockedClasses  = { [8] = true, [13] = true, [14] = true, [15] = true, [16] = true, [21] = true },
     MustBeUnlocked  = true, -- Locked cars can't be loaded/unloaded
     PoliceCanSearch = true, -- Police get a "Search Trunk For Bodies" option
+    -- Per-model rules. The hearse fits 4 bodies, coffins included.
+    Overrides = {
+        [`romero`] = { MaxBodies = 4, AllowedKinds = { bodybag = true, crate = true, coffin = true } },
+    },
 }
 
 -- ██████╗ ██╗███████╗███╗   ███╗███████╗███╗   ███╗██████╗ ███████╗██████╗
@@ -470,6 +494,107 @@ Config.CK = {
     Obituary = true, -- Server-wide RIP announcement (name only, never the killer)
 }
 
+-- ███████╗██╗   ██╗███╗   ██╗███████╗██████╗  █████╗ ██╗
+-- ██╔════╝██║   ██║████╗  ██║██╔════╝██╔══██╗██╔══██╗██║
+-- █████╗  ██║   ██║██╔██╗ ██║█████╗  ██████╔╝███████║██║
+-- ██╔══╝  ██║   ██║██║╚██╗██║██╔══╝  ██╔══██╗██╔══██║██║
+-- ██║     ╚██████╔╝██║ ╚████║███████╗██║  ██║██║  ██║███████╗
+-- ╚═╝      ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+
+-- A whitelisted funeral home job: duty, hearse garage, morgue, death certificates,
+-- legit cremation, a shop, coroner calls and real funeral services with headstones.
+--
+-- THE FLOW FOR A MORTICIAN
+--   1. Go on duty  ->  2. Take a hearse  ->  3. Answer coroner calls / collect bodies
+--   4. Carry the body to the Morgue and press [H] (or third-eye the Morgue) -> logged, you get paid
+--   5. From the morgue records: issue a death certificate, cremate into an urn,
+--      OR prepare a coffin -> load it in the hearse -> drive to a cemetery plot
+--   6. At the plot: Place Casket -> Begin Service (mourners are notified) -> Lower Casket
+--      -> a permanent headstone with name, date and epitaph. Anyone can pay respects / lay flowers.
+--
+-- Bodies taken into the morgue follow Config.CK.OnDisposal (CK or respawn), just like disposal.
+Config.Funeral = {
+    Enabled     = true,
+    Job         = 'funeral', -- ESX job name (sql/funeral_job.sql adds it)
+    RequireDuty = true,      -- Must clock in at the duty point first
+
+    -- Minimum job grade for each action (0 = everyone in the job)
+    Grades = {
+        Hearse      = 0,
+        Morgue      = 0,
+        Certificate = 1,
+        Cremate     = 1,
+        Service     = 1,
+        ClearPlot   = 3, -- Remove a headstone / discard a morgue record
+    },
+
+    -- !! PLACEHOLDER COORDS next to the Pacific Bluffs cemetery. Move them to your
+    --    funeral home / MLO: stand on the spot and type /nzcoords.
+    SetupDone = false, -- set true once you've placed everything (stops the console reminder)
+    Blip = { Enabled = true, Sprite = 305, Colour = 40, Scale = 0.8, Label = 'Funeral Home' }, -- sprite list: docs.fivem.net/docs/game-references/blips
+    Locations = {
+        Duty        = vec3(-1757.6808, -251.5301, 48.30),
+        Morgue      = vec3(-1761.3211, -249.8722, 48.30),  -- Store carried bodies + view records
+        Crematory   = vec3(-1764.9613, -248.2143, 48.30),
+        Shop        = vec3(-1754.0406, -253.1881, 48.30),  -- Public: anyone can buy here
+        PrepTable   = vec4(-1759.5009, -250.7012, 48.30, 155.51), -- Prepared coffins appear here
+        Garage      = vec3(-1748.7424, -251.2058, 48.30),
+        HearseSpawn = vec4(-1747.0845, -247.5656, 48.30, 155.51),
+    },
+
+    Hearse = {
+        Model = `romero`, -- GTA's Romero Hearse (fits 4 bodies, see Config.Trunk.Overrides)
+        Plate = 'FUNERAL',
+    },
+
+    -- Paid to the employee (see Config.Hooks.FuneralPay to pay from a society instead)
+    Pay = {
+        MorgueBody = 250, -- per player body logged into the morgue
+        MorgueNPC  = 75,  -- per unknown local
+        Cremation  = 400,
+        Service    = 1000,
+    },
+
+    Morgue = {
+        StoreTime          = 6000, -- ms
+        RecordLifetimeDays = 30,   -- Records older than this are cleaned up on restart (0 = keep)
+    },
+
+    Cremation = { Time = 20000 }, -- ms. Gives a named urn.
+
+    Shop = {
+        Account = 'money', -- 'money' (cash) or 'bank'
+        Items = {
+            { item = 'coffin',  label = 'Coffin',             price = 1500 },
+            { item = 'flowers', label = 'Bouquet of Flowers', price = 50 },
+            { item = 'bodybag', label = 'Body Bag',           price = 250, jobOnly = true },
+            { item = 'shovel',  label = 'Shovel',             price = 150, jobOnly = true },
+        },
+    },
+
+    -- Anyone can "Call the Coroner" from a body's menu -> on-duty morticians get a blip
+    -- Blip sprites: pick any from docs.fivem.net/docs/game-references/blips
+    CoronerCalls = { Enabled = true, Cooldown = 120, BlipTime = 300, BlipSprite = 310 }, -- seconds
+
+    Service = {
+        MinDuration        = 60,   -- SECONDS the service must run before the casket can be lowered
+        MournerRadius      = 50.0, -- Players this close get the service messages
+        AnnounceServerWide = true, -- Everyone gets "A funeral for X is being held" + a map blip
+        EpitaphMaxLength   = 80,
+    },
+
+    -- Cemetery plots for proper funerals. !! EXAMPLES: one row beside the body hole.
+    -- The headstone goes on 'coords', the casket is placed 2m in front of it.
+    Plots = {
+        { coords = vec3(-1753.0892, -264.6098, 48.2813), heading = 155.513 },
+        { coords = vec3(-1756.0013, -263.2834, 48.2813), heading = 155.513 },
+        { coords = vec3(-1758.9135, -261.9571, 48.2813), heading = 155.513 },
+        { coords = vec3(-1764.7379, -259.3043, 48.2813), heading = 155.513 },
+        { coords = vec3(-1767.6501, -257.9780, 48.2813), heading = 155.513 },
+        { coords = vec3(-1770.5622, -256.6516, 48.2813), heading = 155.513 },
+    },
+}
+
 -- ███████╗██╗   ██╗██╗██████╗ ███████╗███╗   ██╗ ██████╗███████╗
 -- ██╔════╝██║   ██║██║██╔══██╗██╔════╝████╗  ██║██╔════╝██╔════╝
 -- █████╗  ██║   ██║██║██║  ██║█████╗  ██╔██╗ ██║██║     █████╗
@@ -582,4 +707,16 @@ end
 -- Example (ps-dispatch style): exports['ps-dispatch']:CustomAlert({ coords = coords, message = title, description = message })
 Config.Hooks.PoliceAlert = function(coords, title, message)
     return false
+end
+
+-- [CLIENT] Give the player keys to the hearse they just took out (qs-vehiclekeys, wasabi_carlock, ...)
+Config.Hooks.GiveVehicleKeys = function(vehicle, plate)
+    -- exports['wasabi_carlock']:GiveKey(plate)
+end
+
+-- [SERVER] Pay a funeral employee. Default: straight into their bank.
+-- Swap for a society payout if you use esx_society / your own banking.
+Config.Hooks.FuneralPay = function(src, amount, reason)
+    local xPlayer = ESX.GetPlayerFromId(src)
+    if xPlayer then xPlayer.addAccountMoney('bank', amount, reason) end
 end
