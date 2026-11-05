@@ -1372,8 +1372,24 @@ function renderProbes() {
   $('pRing').style.strokeDasharray = `${(pct / 100 * 100.5).toFixed(1)} 101`;
   setTxt('pCovered', `${p.covered || 0} / ${p.total || 0}`);
   setTxt('pReporting', p.reporting || 0);
-  setTxt('pExcluded', p.excluded || 0);
-  setTxt('pLegacy', p.legacy || 0);
+  setTxt('pExcluded', `${p.excluded || 0} / ${p.legacy || 0}`);
+  const pending = p.pending || [];
+  setTxt('pPending', pending.length);
+  $('pPending').classList.toggle('hot', pending.length > 0);
+  const rb = $('hProbeRestart');
+  rb.disabled = !pending.length;
+  rb.querySelector('span').textContent = pending.length ? `Restart ${pending.length}` : 'Restart';
+  const pn = $('pNote');
+  if (p.canRefresh === false) {
+    pn.className = 'note slim warn';
+    pn.innerHTML = `<b>Needs one server.cfg line</b><span>Add <code>add_ace resource.${esc(RESOURCE)} command allow</code> so Restart can reload the changed manifests and the deep scan can run.</span>`;
+  } else if (pending.length) {
+    pn.className = 'note slim warn';
+    pn.innerHTML = `<b>${pending.length} waiting for a restart</b><span>${esc(pending.slice(0, 6).join(', '))}${pending.length > 6 ? ', …' : ''}. Press Restart, or they activate on the next server restart.</span>`;
+  } else {
+    pn.className = 'note slim';
+    pn.innerHTML = '<b>How it activates</b><span>Install adds one line to each manifest and keeps a backup. Restart then reloads those resources so they start measuring.</span>';
+  }
   const missing = p.missing || [];
   setTxt('pMissCount', missing.length ? `${missing.length} resource${missing.length === 1 ? '' : 's'}` : 'All covered');
   const MAX = 26;
@@ -1431,9 +1447,19 @@ $('hScan').addEventListener('click', () => {
 $('hProbe').addEventListener('click', () => {
   const missing = (health.server && health.server.probe && health.server.probe.missing) || [];
   if (!missing.length) return;
-  setModal('Install probes', `Adds "shared_script '@nayzeee-optimizerv2/probe.lua'" to ${missing.length} manifest${missing.length === 1 ? '' : 's'} with a backup of each. Nothing restarts automatically: run refresh and restart those resources to activate.`, missing.join('\n'), 'Install', () => {
-    post('healthAction', { what: 'probeInstall' });
+  setModal('Install probes', `Adds "shared_script '@${RESOURCE}/probe.lua'" to ${missing.length} manifest${missing.length === 1 ? '' : 's'} with a backup of each, then restarts them so they start measuring. Core scripts other resources depend on wait for the next server restart.`, missing.join('\n'), 'Install and restart', () => {
+    post('healthAction', { what: 'probeInstall', arg: true });
     toast('Installing probes…', 'info');
+    closeModal();
+  });
+});
+
+$('hProbeRestart').addEventListener('click', () => {
+  const pending = (health.server && health.server.probe && health.server.probe.pending) || [];
+  if (!pending.length) return;
+  setModal('Restart resources', `Reloads ${pending.length} resource${pending.length === 1 ? '' : 's'} so their probe starts measuring. Players may notice a brief hiccup in those scripts. Core scripts other resources depend on are skipped.`, pending.join('\n'), 'Restart now', () => {
+    post('healthAction', { what: 'probeRestart' });
+    toast('Restarting resources…', 'info');
     closeModal();
   });
 });

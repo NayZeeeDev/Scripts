@@ -665,22 +665,50 @@ Config.Locked = {
     ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝
 
     Admins see the Health tab (server + client performance tracker) and can
-    push presets to players. Grant the ace in server.cfg:
+    push presets to players. A player counts as an admin if ANY of these is
+    true (each can be switched off below):
 
-        add_ace group.admin optimizer.admin allow
+      - they have the ace below:   add_ace group.admin optimizer.admin allow
+      - they have the 'command' ace (group.admin on most servers)
+      - qb-core / qbx_core 'admin' or 'god', or ESX group admin/superadmin
+      - they are logged in to txAdmin in game
+      - their identifier is listed in Config.Admin.identifiers
+
+    Not sure why someone isn't admin? In the server console run:
+        optimizeradmin <playerId>
+
+    The resource itself needs permission to run refresh, restart and the
+    profiler (probe restarts and the deep scan). Add this to server.cfg:
+
+        add_ace resource.nayzeee-optimizerv2 command allow
 
     Console commands (server console / txAdmin):
-        optimizerhealth                    full health report
-        optimizerscan [frames]             profiler deep scan (default 500 frames)
-        optimizerprobe status|install|remove   per-resource probe management
-        optimizerpreset <id|all> <preset>  push a preset to a player or everyone
-        optimizerreset                     reset monitoring counters
+        optimizerhealth                         full health report
+        optimizerscan [frames]                  profiler deep scan (default 500 frames)
+        optimizerprobe status                   which resources have the probe
+        optimizerprobe install [restart]        add the probe everywhere (and restart those resources)
+        optimizerprobe restart                  restart resources waiting for their probe
+        optimizerprobe remove                   take the probe out again
+        optimizeradmin <playerId>               show whether a player is admin and why
+        optimizerpreset <id|all> <preset>       push a preset to a player or everyone
+        optimizerreset                          reset monitoring counters
 ]]
 
 Config.Admin = {
     ace = 'optimizer.admin',
     -- In-game command for admins: /optimizerpreset <id|all> <preset>
     presetCommand = 'optimizerpreset',
+
+    commandAce      = true,   -- players with the 'command' ace count as admin
+    frameworkAdmins = true,   -- qb-core / qbx_core / ESX admins count as admin
+    txAdmin         = true,   -- players logged in to txAdmin count as admin
+
+    -- Always admin, whatever else is set. Use any identifier the player has:
+    -- 'license:...', 'fivem:...', 'discord:...', 'steam:...'
+    -- optimizeradmin <playerId> prints them for you.
+    identifiers = {
+        -- 'license:0123456789abcdef0123456789abcdef01234567',
+    },
 }
 
 --[[ 
@@ -814,10 +842,27 @@ Config.Probe = {
     reportInterval = 5,       -- seconds between probe reports (per resource)
 
     -- Add the probe line to every resource manifest when this resource
-    -- starts. Takes effect for each resource on its next (re)start. Nothing
-    -- is restarted automatically. A backup of each manifest is written as
+    -- starts. A backup of each manifest is written as
     -- fxmanifest.lua.optimizer-backup. `optimizerprobe remove` reverts.
+    -- A changed manifest is only read again after `refresh` + a restart of
+    -- that resource, so the probe goes live on the next server restart
+    -- unless restartAfterInstall is on.
     autoInstall    = false,
+    -- After installing (command, Health tab or autoInstall), run refresh and
+    -- restart the changed resources straight away. Players may notice a
+    -- brief hiccup in those scripts. Needs:
+    --   add_ace resource.nayzeee-optimizerv2 command allow
+    restartAfterInstall = false,
+    -- Never restarted live after an install, because other scripts break
+    -- when these stop. They pick up the probe on the next server restart.
+    -- Anything another running resource lists as a dependency is added
+    -- to this automatically.
+    neverRestart = {
+        'qb-core', 'qbx_core', 'es_extended', 'ox_core', 'ND_Core', 'vrp',
+        'ox_lib', 'oxmysql', 'mysql-async', 'ghmattimysql', 'ox_inventory',
+        'qb-inventory', 'ox_target', 'qb-target', 'pma-voice', 'PolyZone',
+        'screenshot-basic', 'qb-weathersync', 'qbx_weathersync',
+    },
     -- Also install into resources that start later (new scripts you add).
     autoInstallNew = false,
 

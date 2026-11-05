@@ -692,18 +692,19 @@
                   <div class="kv-col">
                     <div><span>Covered</span><b id="pCovered">—</b></div>
                     <div><span>Reporting now</span><b id="pReporting">—</b></div>
-                    <div><span>Excluded</span><b id="pExcluded">—</b></div>
-                    <div><span>Legacy manifests</span><b id="pLegacy">—</b></div>
+                    <div><span>Excluded / legacy</span><b id="pExcluded">—</b></div>
+                    <div><span>Waiting for restart</span><b id="pPending">—</b></div>
                   </div>
                 </div>
                 <div class="btn-row">
                   <button class="btn-teal" id="hProbe"><svg><use href="#i-plug"/></svg><span>Install probes</span></button>
-                  <button class="btn-line" id="hProbeRemove">Remove all</button>
+                  <button class="btn-line" id="hProbeRestart"><svg><use href="#i-refresh"/></svg><span>Restart</span></button>
                 </div>
-                <div class="note slim">
+                <div class="note slim" id="pNote">
                   <b>How it activates</b>
-                  <span>Install adds one line to each manifest and keeps a backup. Run <code>refresh</code> and restart those resources to start measuring.</span>
+                  <span>Install adds one line to each manifest and keeps a backup. Restart then reloads those resources so they start measuring.</span>
                 </div>
+                <button class="link-btn" id="hProbeRemove">Remove the probe from every resource</button>
               </div>
             </div>
             <div class="panel">

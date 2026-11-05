@@ -19,6 +19,10 @@
     runtimes (the server deep scan covers those).
 
     Kill switch: `setr nz_probe_disabled 1` in server.cfg (server side).
+
+    The line goes in fxmanifest.lua (not inside a .lua script). After adding
+    it, run `refresh` and restart that resource, or use
+    `optimizerprobe install restart` to do all of it for you.
 ]]
 
 if rawget(_G, '__NZ_PROBE') then return end
@@ -31,14 +35,10 @@ if resName == HOST then return end
 local isServer = IsDuplicityVersion()
 if isServer and GetConvar('nz_probe_disabled', '0') == '1' then return end
 
-do
-    local st = GetResourceState(HOST)
-    if st ~= 'started' and st ~= 'starting' then
-        -- Optimizer not running: stay inert. Put `ensure nayzeee-optimizerv2`
-        -- before other resources in server.cfg.
-        return
-    end
-end
+-- Only stay idle when the optimizer is not installed at all. If it is just
+-- not running yet (started later in server.cfg, or restarting), keep
+-- measuring: the reporter below only sends while the optimizer is started.
+if GetResourceState(HOST) == 'missing' then return end
 
 -- ── Timer ──────────────────────────────────────────────────────────────────────
 -- Server: os.clock() (CPU time on Linux at microsecond resolution, wall

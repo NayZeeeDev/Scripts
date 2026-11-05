@@ -79,12 +79,64 @@ local function GetPlayerCount()
     return #GetPlayers()
 end
 
+-- txAdmin tells resources who is logged in as an admin in game
+local txAdmins = {}
+
+local ADMIN_GROUPS = { admin = true, superadmin = true, owner = true, developer = true, god = true }
+
+-- Every reason this player counts as an admin (empty = not an admin)
+local function AdminReasons(src)
+    local why = {}
+    local ace = acfg.ace or 'optimizer.admin'
+    if IsPlayerAceAllowed(src, ace) then why[#why + 1] = ('ace %s'):format(ace) end
+    if acfg.commandAce ~= false and IsPlayerAceAllowed(src, 'command') then why[#why + 1] = "ace 'command'" end
+    if acfg.frameworkAdmins ~= false then
+        -- qb-core and qbx_core permissions are aces named after the level
+        if IsPlayerAceAllowed(src, 'god') or IsPlayerAceAllowed(src, 'admin') then
+            why[#why + 1] = 'qb/qbx admin permission'
+        end
+        if GetResourceState('es_extended') == 'started' then
+            local ok, group = pcall(function()
+                local ESX = exports.es_extended:getSharedObject()
+                local xPlayer = ESX and ESX.GetPlayerFromId(src)
+                return xPlayer and xPlayer.getGroup and xPlayer.getGroup()
+            end)
+            if ok and type(group) == 'string' and ADMIN_GROUPS[group] then why[#why + 1] = ('ESX group %s'):format(group) end
+        end
+    end
+    if acfg.txAdmin ~= false and txAdmins[src] then why[#why + 1] = 'txAdmin login' end
+    if type(acfg.identifiers) == 'table' and #acfg.identifiers > 0 then
+        local wanted = {}
+        for _, v in ipairs(acfg.identifiers) do wanted[tostring(v):lower()] = true end
+        for _, id in ipairs(GetPlayerIdentifiers(src) or {}) do
+            if wanted[id:lower()] then why[#why + 1] = ('listed identifier %s'):format(id) break end
+        end
+    end
+    return why
+end
+
 local function IsAdmin(src)
     src = tonumber(src)
     if not src then return false end
     if src == 0 then return true end
-    return IsPlayerAceAllowed(src, acfg.ace or 'optimizer.admin')
+    return #AdminReasons(src) > 0
 end
+
+AddEventHandler('txAdmin:events:adminAuth', function(data)
+    if type(data) ~= 'table' then return end
+    local id = tonumber(data.netid)
+    if not id or id < 0 then txAdmins = {} return end
+    txAdmins[id] = data.isAdmin == true
+    TriggerClientEvent('nayzeee-optimizer:admin:result', id, IsAdmin(id))
+end)
+
+AddEventHandler('playerDropped', function() txAdmins[source] = nil end)
+
+-- Can this resource run a restricted console command (refresh, profiler)?
+local function CanRunCommand(cmd)
+    return IsPrincipalAceAllowed('resource.' .. GetCurrentResourceName(), 'command.' .. cmd)
+end
+local ACE_FIX = ('add "add_ace resource.%s command allow" to server.cfg'):format(GetCurrentResourceName())
 
 local function SendDiscord(title, description, color, key, cooldown)
     if not cfg.discordWebhook or cfg.discordWebhook == '' then return end
@@ -590,7 +642,9 @@ local function RunScan(frames, requester)
 
         if not parsed then
             scan.status = 'error'
-            scan.error = 'Profiler did not produce a readable file. Run manually: `profiler record 500`, then `profiler saveJSON <path>` and check console output.'
+            scan.error = CanRunCommand('profiler')
+                and 'Profiler did not produce a readable file. Run manually: profiler record 500, then profiler saveJSON <path>, and check console output.'
+                or ('The server blocked this resource from running the profiler: %s, then try again.'):format(ACE_FIX)
             NotifyAdmin(requester, 'Deep scan failed: ' .. scan.error, 'error')
             return
         end
@@ -683,6 +737,21 @@ local function RemoveProbe(res)
     return ok and 'removed' or 'failed'
 end
 
+-- Resources whose manifest has the probe but whose running copy does not.
+-- Cleared when the resource (re)starts.
+local pendingRestart = {}
+
+AddEventHandler('onResourceStart', function(res) pendingRestart[res] = nil end)
+
+local function PendingList()
+    local list = {}
+    for res in pairs(pendingRestart) do
+        if GetResourceState(res) == 'started' then list[#list + 1] = res else pendingRestart[res] = nil end
+    end
+    table.sort(list)
+    return list
+end
+
 local function ProbeStatus()
     local now = os.time()
     local total, covered, reporting, excluded, legacy = 0, 0, 0, 0, 0
@@ -715,25 +784,109 @@ local function ProbeStatus()
         total = total, covered = covered, reporting = reporting,
         excluded = excluded, legacy = legacy, missing = missing,
         autoInstall = pcfg.autoInstall == true, autoInstallNew = pcfg.autoInstallNew == true,
+        pending = PendingList(), canRefresh = CanRunCommand('refresh'),
     }
 end
 
-local function InstallAll(requester, quiet)
+
+-- Resources other running scripts depend on: restarting them live would
+-- stop their dependents, so they wait for the next server restart.
+local function NeverRestart()
+    local set = {}
+    for _, name in ipairs(pcfg.neverRestart or {}) do set[name] = true end
+    for _, r in ipairs(AllResources()) do
+        if GetResourceState(r) == 'started' then
+            local n = GetNumResourceMetadata(r, 'dependency') or 0
+            for i = 0, n - 1 do
+                local d = GetResourceMetadata(r, 'dependency', i)
+                if d and d:sub(1, 1) ~= '/' then set[d] = true end
+            end
+        end
+    end
+    return set
+end
+
+local function RestartPending(requester)
+    local list = PendingList()
+    if #list == 0 then
+        NotifyAdmin(requester, 'No resources are waiting for a restart.', 'info')
+        return
+    end
+
+    local blocked = NeverRestart()
+    local now, later = {}, {}
+    for _, res in ipairs(list) do
+        if blocked[res] then later[#later + 1] = res else now[#now + 1] = res end
+    end
+
+    local refreshed = CanRunCommand('refresh')
+    if refreshed then ExecuteCommand('refresh') end
+
+    CreateThread(function()
+        Wait(1000)
+        for _, res in ipairs(now) do
+            if GetResourceState(res) == 'started' then
+                StopResource(res)
+                Wait(250)
+                StartResource(res)
+                Wait(250)
+            end
+        end
+        if #now > 0 then
+            NotifyAdmin(requester, ('Restarted %d resource(s): their probes report within %d seconds.'):format(#now, (pcfg.reportInterval or 5) * 2), 'ok')
+        end
+        if #later > 0 then
+            NotifyAdmin(requester, ('%d resource(s) other scripts depend on were not restarted live, they activate on the next server restart: %s'):format(#later, table.concat(later, ', ')), 'info')
+        end
+        if not refreshed then
+            NotifyAdmin(requester, ('Could not run refresh automatically, so restarted resources may still use their old manifest: %s, or type refresh in the console and run optimizerprobe restart again.'):format(ACE_FIX), 'warn')
+        end
+    end)
+end
+
+-- opts: quiet (return counts only), restart (restart changed resources),
+-- auto (startup auto-install: say nothing when there is nothing to add)
+local function InstallAll(requester, opts)
+    opts = opts or {}
     local counts = { installed = 0, present = 0, skipped = 0, legacy = 0, nomanifest = 0, failed = 0 }
-    local names = {}
+    local names, failedNames = {}, {}
     for _, res in ipairs(AllResources()) do
         if res ~= RES and GetResourceState(res) == 'started' then
             local r = InstallProbe(res)
             counts[r] = (counts[r] or 0) + 1
-            if r == 'installed' then names[#names + 1] = res end
+            if r == 'installed' then
+                names[#names + 1] = res
+                pendingRestart[res] = true
+            elseif r == 'failed' then
+                failedNames[#failedNames + 1] = res
+            end
         end
     end
-    if quiet then return counts, names end
-    local msg = ('Probe install: %d added, %d already present, %d skipped, %d legacy manifests, %d failed. Run `refresh` then restart the resources (or restart the server) to activate.'):format(
-        counts.installed, counts.present, counts.skipped + counts.nomanifest, counts.legacy, counts.failed)
-    NotifyAdmin(requester, msg, counts.failed > 0 and 'warn' or 'ok')
-    if #names > 0 then Console.log('info', 'Probe added to: %s', table.concat(names, ', ')) end
-    return counts
+    if opts.quiet then return counts, names end
+    if opts.auto and counts.installed == 0 and counts.failed == 0 then return counts, names end
+
+    if counts.installed == 0 and counts.failed == 0 then
+        NotifyAdmin(requester, ('Probe install: nothing to add. %d resource(s) already have it, %d skipped, %d legacy manifest(s).'):format(
+            counts.present, counts.skipped + counts.nomanifest, counts.legacy), 'ok')
+    else
+        NotifyAdmin(requester, ('Probe added to %d resource(s), %d already had it.'):format(counts.installed, counts.present), 'ok')
+        if #names > 0 then Console.log('info', 'Probe added to: %s', table.concat(names, ', ')) end
+    end
+    if counts.failed > 0 then
+        NotifyAdmin(requester, ('Could not write the manifest of %d resource(s), the folder is probably read-only: %s'):format(counts.failed, table.concat(failedNames, ', ')), 'warn')
+    end
+    if counts.legacy > 0 then
+        Console.log('info', '%d resource(s) use __resource.lua: add the probe line to those by hand', counts.legacy)
+    end
+
+    if #PendingList() > 0 then
+        if opts.restart or pcfg.restartAfterInstall then
+            RestartPending(requester)
+        else
+            NotifyAdmin(requester, 'They start measuring once restarted: run optimizerprobe restart, press Restart in the Health tab, or restart the server.', 'info')
+        end
+    end
+    return counts, names
 end
 
 local function RemoveAll(requester)
@@ -747,19 +900,13 @@ local function RemoveAll(requester)
     NotifyAdmin(requester, ('Probe removed from %d manifests (%d failed). Restart the resources to unload it.'):format(removed, failed), failed > 0 and 'warn' or 'ok')
 end
 
--- Probe setup at start (auto install, coverage row in the startup block)
+-- Probe setup at start (coverage row in the startup block, auto install)
 if pcfg.enabled == false then
     SetConvar('nz_probe_disabled', '1')
     Console.check('probe', 'info', 'Probe', 'off: Config.Probe.enabled is false, use optimizerscan instead')
 else
     SetConvar('nz_probe_disabled', '0')
     SetConvar('nz_probe_interval', tostring(pcfg.reportInterval or 5))
-
-    local added = 0
-    if pcfg.autoInstall then
-        local counts = InstallAll(0, true)
-        added = counts.installed or 0
-    end
 
     local total, covered, legacy = 0, 0, 0
     for _, res in ipairs(AllResources()) do
@@ -775,31 +922,64 @@ else
     end
 
     local text = ('in %d of %d resources'):format(covered, total)
-    if added > 0 then text = text .. (', %d added now: refresh and restart them'):format(added) end
     if legacy > 0 then text = text .. (', %d legacy manifest(s) need the line by hand'):format(legacy) end
-    if covered == 0 then
+    if pcfg.autoInstall then
+        text = text .. ', auto-install runs once the server has started'
+        Console.check('probe', 'ok', 'Probe', text)
+    elseif covered == 0 then
         Console.check('probe', 'info', 'Probe', text .. ': run optimizerprobe install to grade them')
     else
         Console.check('probe', 'ok', 'Probe', text)
     end
 
-    -- Probes only attach if this resource was running when theirs loaded.
-    -- A while after start, flag probed resources that never reported.
+    -- Auto install once every resource has finished starting, so it covers
+    -- everything the server actually runs.
+    if pcfg.autoInstall then
+        CreateThread(function()
+            Wait(5000)
+            local deadline = GetGameTimer() + 60000
+            while GetGameTimer() < deadline do
+                local busy = false
+                for _, res in ipairs(AllResources()) do
+                    if GetResourceState(res) == 'starting' then busy = true break end
+                end
+                if not busy then break end
+                Wait(1000)
+            end
+            InstallAll(0, { auto = true, restart = pcfg.restartAfterInstall })
+        end)
+    end
+
+    -- A while after start, flag resources whose manifest has the probe but
+    -- whose running copy never reported (manifest changed, not restarted).
     CreateThread(function()
-        Wait(((pcfg.reportInterval or 5) * 4 + 5) * 1000)
+        Wait(((pcfg.reportInterval or 5) * 4 + 15) * 1000)
         local silent = {}
         for _, res in ipairs(AllResources()) do
             if res ~= RES and GetResourceState(res) == 'started' and not probeServer[res] then
                 local file, content = ReadManifest(res)
-                if file == 'fxmanifest.lua' and content and HasProbe(content) then silent[#silent + 1] = res end
+                if file == 'fxmanifest.lua' and content and HasProbe(content) then
+                    silent[#silent + 1] = res
+                    pendingRestart[res] = true
+                end
             end
         end
         if #silent > 0 then
             table.sort(silent)
-            Console.log('warn', '%d probed resource(s) are not reporting because they started before the optimizer: put "ensure %s" above them in server.cfg, then restart them (%s%s)',
-                #silent, RES, table.concat(silent, ', ', 1, math.min(#silent, 8)), #silent > 8 and ', ...' or '')
+            Console.log('warn', '%d resource(s) have the probe line but are not reporting yet, they need a refresh and restart: run optimizerprobe restart (%s%s)',
+                #silent, table.concat(silent, ', ', 1, math.min(#silent, 8)), #silent > 8 and ', ...' or '')
         end
     end)
+end
+
+-- Startup row: permission to run refresh (probe restarts) and the profiler (deep scan)
+do
+    local okRefresh, okProfiler = CanRunCommand('refresh'), CanRunCommand('profiler')
+    if okRefresh and okProfiler then
+        Console.check('perms', 'ok', 'Permissions', 'can run refresh and the profiler')
+    else
+        Console.check('perms', 'warn', 'Permissions', ACE_FIX .. ': needed for probe restarts and the deep scan')
+    end
 end
 
 AddEventHandler('onResourceStart', function(res)
@@ -808,7 +988,13 @@ AddEventHandler('onResourceStart', function(res)
         Wait(1000)
         local r = InstallProbe(res)
         if r == 'installed' then
-            Console.log('info', 'Probe added to %s. It activates on that resource\'s next restart.', res)
+            pendingRestart[res] = true
+            if pcfg.restartAfterInstall then
+                Console.log('info', 'Probe added to %s, restarting it now.', res)
+                RestartPending(0)
+            else
+                Console.log('info', 'Probe added to %s. It activates when it restarts (optimizerprobe restart).', res)
+            end
         end
     end)
 end)
@@ -971,7 +1157,9 @@ RegisterNetEvent('nayzeee-optimizer:health:action', function(what, arg)
         local ok, err = RunScan(arg, src)
         if not ok then NotifyAdmin(src, err, 'warn') end
     elseif what == 'probeInstall' then
-        InstallAll(src)
+        InstallAll(src, { restart = arg == true })
+    elseif what == 'probeRestart' then
+        RestartPending(src)
     elseif what == 'probeRemove' then
         RemoveAll(src)
     elseif what == 'update' then
@@ -1123,11 +1311,20 @@ RegisterCommand('optimizerprobe', function(source, args)
     if not IsAdmin(source) then return end
     local sub = (args[1] or 'status'):lower()
     if sub == 'install' then
-        if args[2] then
-            Console.log('info', 'Probe install %s: %s', args[2], InstallProbe(args[2]))
+        local wantRestart = (args[2] or ''):lower() == 'restart'
+        if args[2] and not wantRestart then
+            local r = InstallProbe(args[2])
+            Console.log(r == 'failed' and 'warn' or 'info', 'Probe install %s: %s', args[2], r)
+            if r == 'installed' then
+                pendingRestart[args[2]] = true
+                if (args[3] or ''):lower() == 'restart' or pcfg.restartAfterInstall then RestartPending(source)
+                else Console.log('info', 'Run optimizerprobe restart to activate it now.') end
+            end
         else
-            InstallAll(source)
+            InstallAll(source, { restart = wantRestart })
         end
+    elseif sub == 'restart' then
+        RestartPending(source)
     elseif sub == 'remove' then
         if args[2] then
             Console.log('info', 'Probe remove %s: %s', args[2], RemoveProbe(args[2]))
@@ -1140,9 +1337,35 @@ RegisterCommand('optimizerprobe', function(source, args)
             p.covered, p.total, p.reporting, p.excluded, p.legacy)
         if #p.missing > 0 then
             Console.log('info', 'Not covered: %s', table.concat(p.missing, ', '))
-            Console.log('info', 'Run optimizerprobe install, then refresh and restart those resources')
+            Console.log('info', 'Run optimizerprobe install restart to add it and restart them in one go')
+        end
+        if #p.pending > 0 then
+            Console.log('warn', 'Waiting for a restart: %s. Run optimizerprobe restart', table.concat(p.pending, ', '))
+        end
+        if not p.canRefresh then
+            Console.log('warn', 'Automatic restarts need permission: %s', ACE_FIX)
         end
     end
+end, false)
+
+RegisterCommand('optimizeradmin', function(source, args)
+    if not IsAdmin(source) then return end
+    local id = tonumber(args[1])
+    if not id or not GetPlayerName(id) then
+        Console.log('warn', 'Usage: optimizeradmin <playerId> (player must be online)')
+        return
+    end
+    local why = AdminReasons(id)
+    if #why > 0 then
+        Console.log('ok', '%s (%d) is an admin: %s', GetPlayerName(id), id, table.concat(why, ', '))
+    else
+        Console.log('warn', '%s (%d) is NOT an admin. Give them the ace (add_ace group.admin %s allow) and make sure they are in group.admin, or add one of these to Config.Admin.identifiers:',
+            GetPlayerName(id), id, acfg.ace or 'optimizer.admin')
+        for _, ident in ipairs(GetPlayerIdentifiers(id) or {}) do
+            if not ident:find('^ip:') then Console.log('info', "    '%s',", ident) end
+        end
+    end
+    TriggerClientEvent('nayzeee-optimizer:admin:result', id, #why > 0)
 end, false)
 
 RegisterCommand(acfg.presetCommand or 'optimizerpreset', function(source, args)

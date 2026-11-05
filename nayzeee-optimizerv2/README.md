@@ -5,15 +5,19 @@ FPS optimizer, kill/hit effects, and a server performance tracker for FiveM.
 ## Install
 
 1. Keep the folder named exactly `nayzeee-optimizerv2`.
-2. In `server.cfg`, start it **before** your other resources so the probe can attach:
+2. In `server.cfg`, start it **before** your other resources:
    ```
    ensure nayzeee-optimizerv2
    ```
-3. Give admins the Health tab and admin commands:
+3. Let the resource run `refresh`, restart probed resources and use the profiler:
+   ```
+   add_ace resource.nayzeee-optimizerv2 command allow
+   ```
+4. Admins: anyone with the `command` ace, qb-core/qbx `admin`/`god`, ESX `admin`/`superadmin`, or a txAdmin login already counts. To add someone else, give them the ace or list their identifier in `Config.Admin.identifiers`:
    ```
    add_ace group.admin optimizer.admin allow
    ```
-4. Optional: install the per-resource probe (see below), set a Discord webhook in `Config.Server.discordWebhook`, and point `Config.UpdateCheck.url` at a version JSON you host.
+   Not sure why someone has no Health tab? Run `optimizeradmin <playerId>` in the server console. It says whether they are an admin and why, or prints their identifiers to paste into the config.
 
 ## Player menu
 
@@ -41,16 +45,19 @@ Grades: Excellent, Good, OK, Poor, Bad. Verdicts: Healthy, Monitor, Edit recomme
 
 ### Probe install
 
-From the Health tab click **Install probes**, or in the server console:
+From the Health tab (Probes & scan) click **Install**, or in the server console:
 
 ```
-optimizerprobe status
-optimizerprobe install          # all started resources (backups written as fxmanifest.lua.optimizer-backup)
-optimizerprobe install <name>   # one resource
+optimizerprobe install restart  # add it everywhere, refresh, restart those resources
+optimizerprobe install          # add it, activate on the next restart
+optimizerprobe restart          # restart resources still waiting for their probe
+optimizerprobe status           # coverage, pending restarts, permission problems
 optimizerprobe remove           # revert everywhere
 ```
 
-Then run `refresh` and restart the resources (or the server). Nothing restarts automatically. `Config.Probe.autoInstall` installs on startup, `Config.Probe.autoInstallNew` installs into resources that start later. `Config.Probe.exclude` lists resources never touched (txAdmin's `monitor`, system resources, build tools).
+Adding it by hand: the line goes at the top of that resource's **fxmanifest.lua** (not inside a .lua script), then `refresh` and `restart <resource>`. A manifest edit does nothing until the resource is refreshed and restarted.
+
+Core resources other scripts depend on (qb-core, ox_lib, oxmysql, inventories, `Config.Probe.neverRestart`, and anything listed as a dependency) are never restarted live. They pick up the probe on the next server restart. `Config.Probe.autoInstall` installs on startup, `Config.Probe.autoInstallNew` installs into resources that start later. `Config.Probe.exclude` lists resources never touched (txAdmin's `monitor`, system resources, build tools).
 
 Legacy `__resource.lua` manifests are skipped; add the line by hand.
 
@@ -59,7 +66,8 @@ Legacy `__resource.lua` manifests are skipped; add the line by hand.
 ```
 optimizerhealth                       full report
 optimizerscan [frames]                profiler deep scan (default 500)
-optimizerprobe status|install|remove  probe management
+optimizerprobe install [restart]|restart|status|remove  probe management
+optimizeradmin <playerId>             is this player an admin, and why
 optimizerpreset <id|all> <preset>     push a profile to a player or everyone
 optimizerreset                        reset monitoring counters
 ```

@@ -786,3 +786,8 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.15)}
 .hist-top span{font-size:10.5px;color:var(--ink-2);font-weight:300}
 .hist-top b{font-size:10.5px;color:var(--ink-3);font-weight:400}
 .hist-sp{display:block;width:100%;height:54px;margin-top:4px}
+
+.link-btn{align-self:center;font-size:10px;color:var(--ink-3);font-weight:300;padding:2px 4px}
+.link-btn:hover{color:var(--red);text-decoration:underline}
+.btn-line:disabled{opacity:.4;pointer-events:none}
+.kv-col b.hot{color:var(--amber)}

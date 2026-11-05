@@ -28,7 +28,6 @@ local settings = {}
 local nuiReady = false
 local menuOpen = false
 local isAdmin = false
-local adminChecked = false
 
 -- Kill marker state
 local killTable = {}
@@ -432,10 +431,8 @@ local function OpenMenu(forceSetupDone)
     if not nuiReady or menuOpen then return end
     menuOpen = true
     SetNuiFocus(true, true)
-    if not adminChecked then
-        adminChecked = true
-        TriggerServerEvent('nayzeee-optimizer:admin:check')
-    end
+    -- Ask every time: permissions can change while the player is online
+    TriggerServerEvent('nayzeee-optimizer:admin:check')
     SendNUIMessage(BuildOpenPayload(forceSetupDone))
 end
 

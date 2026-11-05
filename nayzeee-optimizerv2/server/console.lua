@@ -29,7 +29,7 @@ local LEVEL = {
 }
 
 -- the order rows appear in, whatever order the checks finish in
-local ORDER = { 'lock', 'config', 'admin', 'monitor', 'profiler', 'probe', 'telemetry', 'discord', 'update' } -- CHANGE: add this script's row keys in display order
+local ORDER = { 'lock', 'config', 'admin', 'perms', 'monitor', 'profiler', 'probe', 'telemetry', 'discord', 'update' } -- CHANGE: add this script's row keys in display order
 local rank = {}
 for i, k in ipairs(ORDER) do rank[k] = i end
 
@@ -198,12 +198,19 @@ end
 
 -- Who can open the Health tab and use the admin commands
 do
-    local ace = (Config.Admin and Config.Admin.ace) or 'optimizer.admin'
-    if type(IsPrincipalAceAllowed) == 'function' and IsPrincipalAceAllowed('group.admin', ace) then
-        Console.check('admin', 'ok', 'Admin access', ('group.admin has %s'):format(ace))
-    else
+    local a = Config.Admin or {}
+    local ace = a.ace or 'optimizer.admin'
+    local ways = {}
+    if type(IsPrincipalAceAllowed) == 'function' and IsPrincipalAceAllowed('group.admin', ace) then ways[#ways + 1] = 'group.admin ace' end
+    if a.commandAce ~= false then ways[#ways + 1] = "'command' ace" end
+    if a.frameworkAdmins ~= false then ways[#ways + 1] = 'framework admins' end
+    if a.txAdmin ~= false then ways[#ways + 1] = 'txAdmin' end
+    if type(a.identifiers) == 'table' and #a.identifiers > 0 then ways[#ways + 1] = ('%d listed id(s)'):format(#a.identifiers) end
+    if #ways == 0 then
         Console.check('admin', 'warn', 'Admin access',
-            ('group.admin lacks %s: add "add_ace group.admin %s allow" to server.cfg'):format(ace, ace))
+            ('nobody can open the Health tab: add "add_ace group.admin %s allow" to server.cfg or list ids in Config.Admin.identifiers'):format(ace))
+    else
+        Console.check('admin', 'ok', 'Admin access', table.concat(ways, ', ') .. ' (check a player with optimizeradmin <id>)')
     end
 end
 
