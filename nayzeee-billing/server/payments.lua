@@ -30,24 +30,32 @@ local function distributeSociety(row, amount, tip, payerName)
         share = Shared.Round(math.max(0, (amount - vatPart) * rate))
     end
 
-    local vatRouted = false
-    if Config.VAT.Society and vatPart > 0 then
-        vatRouted = Banking.AddSociety(Config.VAT.Society, vatPart, ('VAT · %s'):format(row.invoice_id))
+    local vatRouted = 0
+    if Config.VAT.Society and vatPart > 0 and Banking.AddSociety(Config.VAT.Society, vatPart, ('VAT · %s'):format(row.invoice_id)) then
+        vatRouted = vatPart
     end
 
-    local societyPart = Shared.Round(amount - share - (vatRouted and vatPart or 0))
+    local societyPart = Shared.Round(amount - share - vatRouted)
+    local societyLabel = ('Invoice %s · %s'):format(row.invoice_id, payerName)
     local toSociety = Config.Payment.SocietyDestination == 'society' and Banking.IsAvailable()
-        and Banking.AddSociety(society, societyPart, ('Invoice %s · %s'):format(row.invoice_id, payerName))
-    if not toSociety and not isSystem(row.sender_identifier) then share = share + societyPart end
+        and Banking.AddSociety(society, societyPart, societyLabel)
+    if not toSociety then
+        -- System invoices have no employee to fall back on: hold the money for the society instead of losing it
+        if isSystem(row.sender_identifier) then QueueSociety(society, societyPart, societyLabel, row.invoice_id)
+        else share = share + societyPart end
+    end
 
     if share > 0 then Payout(row.sender_identifier, share, ('Revenue share · %s'):format(row.invoice_id), row.invoice_id) end
     if tip > 0 then
+        local tipLabel = ('Tip · %s'):format(row.invoice_id)
         local keepInSociety = Config.Tips.Recipient == 'society' or isSystem(row.sender_identifier)
-        if not (keepInSociety and Banking.AddSociety(society, tip, ('Tip · %s'):format(row.invoice_id))) then
-            Payout(row.sender_identifier, tip, ('Tip · %s'):format(row.invoice_id), row.invoice_id)
+        if not (keepInSociety and Banking.AddSociety(society, tip, tipLabel)) then
+            if isSystem(row.sender_identifier) then QueueSociety(society, tip, tipLabel, row.invoice_id)
+            else Payout(row.sender_identifier, tip, tipLabel, row.invoice_id) end
         end
     end
-    return share
+    -- share = what the issuer was paid from this payment, vatRouted = what went to the VAT society (both clawed back on refund)
+    return share, vatRouted
 end
 
 local function distributePersonal(row, amount, tip, method)
@@ -100,7 +108,12 @@ function ProcessPayment(opts)
         local remaining = Remaining(row)
         if remaining <= 0 then return nil, L('error.nothing_left', 'Nothing left to pay') end
         local amount = remaining
-        if opts.amount and Config.Payment.AllowPartial and kind == 'payment' then
+        if opts.charged then
+            -- The caller took exactly opts.amount: book that or nothing (an installment may have landed meanwhile)
+            if math.abs(remaining - (tonumber(opts.amount) or -1)) > 0.005 then
+                return nil, L('error.changed', 'The invoice changed while paying - you were not charged')
+            end
+        elseif opts.amount and Config.Payment.AllowPartial and kind == 'payment' then
             amount = Shared.Round(Shared.Clamp(opts.amount, math.min(Config.Payment.MinPartialAmount or 0, remaining), remaining))
         end
 
@@ -142,14 +155,14 @@ function ProcessPayment(opts)
             return nil, L('error.changed', 'The invoice changed while paying - you were not charged')
         end
 
-        MySQL.insert.await([[INSERT INTO nayzeee_billing_payments (invoice_id, company_id, target_society, sender_identifier, payer_identifier, payer_name, amount, tip, method, kind)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
-            row.invoice_id, row.company_id, method == 'society' and row.target_society or nil, row.sender_identifier,
-            payer.identifier, payer.name, amount, tip, method, kind })
-
-        local share = 0
-        if row.company_id then share = distributeSociety(row, amount, tip, payer.name)
+        local share, vatRouted = 0, 0
+        if row.company_id then share, vatRouted = distributeSociety(row, amount, tip, payer.name)
         else distributePersonal(row, amount, tip, method) end
+
+        MySQL.insert.await([[INSERT INTO nayzeee_billing_payments (invoice_id, company_id, target_society, sender_identifier, payer_identifier, payer_name, amount, tip, method, kind, share, vat_routed)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], {
+            row.invoice_id, row.company_id, method == 'society' and row.target_society or nil, row.sender_identifier,
+            payer.identifier, payer.name, amount, tip, method, kind, share, vatRouted })
 
         local updated = GetInvoiceRow(row.id)
         local paid = updated.status == 'paid'
@@ -201,15 +214,22 @@ function ProcessPayment(opts)
     return result, err
 end
 
+-- Invoices the caller isn't part of can only be reached with their reference (pay by reference),
+-- so sequential ids can't be used to probe or pay strangers' invoices
+local function payableRow(source, ctx, id, ref)
+    local row = GetInvoiceRow(tonumber(id) or NormalizeReference(ref) or '')
+    if not row or not ctx then return nil end
+    if CanViewInvoice(source, ctx, row) then return row end
+    if Config.Payment.PayByReference and NormalizeReference(ref) == row.invoice_id then return row end
+    return nil
+end
+
 RPC('invoices:pay', function(source, payload)
     if Throttle(source, 'pay', 0.8) then return Err(L('error.slow_down', 'Slow down a little')) end
-    local id = tonumber(payload.id)
-    if not id and payload.ref then
-        local row = GetInvoiceRow(NormalizeReference(payload.ref) or '')
-        id = row and row.id
-    end
-    if not id then return Err(L('error.not_found', 'Invoice not found')) end
-    local result, err = ProcessPayment({ source = source, id = id, method = payload.method, amount = payload.amount, tip = payload.tip })
+    local ctx = GetCtx(source)
+    local row = payableRow(source, ctx, payload.id, payload.ref)
+    if not row then return Err(L('error.not_found', 'Invoice not found')) end
+    local result, err = ProcessPayment({ source = source, id = row.id, method = payload.method, amount = payload.amount, tip = payload.tip })
     if not result then return Err(err) end
     return result
 end)
@@ -218,10 +238,14 @@ end)
 RPC('invoices:payMany', function(source, payload)
     if Throttle(source, 'paymany', 2) then return Err(L('error.slow_down', 'Slow down a little')) end
     if type(payload.ids) ~= 'table' or #payload.ids == 0 then return Err(L('error.none_selected', 'Select at least one invoice')) end
+    local ctx = GetCtx(source)
     local paid, failed, total = 0, {}, 0
     for i, id in ipairs(payload.ids) do
         if i > 50 then break end
-        local result, err = ProcessPayment({ source = source, id = tonumber(id), method = payload.method, kind = 'bulk' })
+        local row = payableRow(source, ctx, id)
+        local result, err
+        if row then result, err = ProcessPayment({ source = source, id = row.id, method = payload.method, kind = 'bulk' })
+        else err = L('error.not_found', 'Invoice not found') end
         if result then
             paid = paid + 1
             total = total + result.charged
@@ -240,64 +264,143 @@ end)
 -- ██║  ██║███████╗██║     ╚██████╔╝██║ ╚████║██████╔╝███████║
 -- ╚═╝  ╚═╝╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚══════╝
 
--- Returns every payment to whoever made it (personal bank or society account), out of the sender society account
-function RefundInvoice(row, actorSource, reason)
-    if not row.company_id then return nil, L('error.refund_society_only', 'Only society invoices can be refunded') end
+local function requeue(rows)
+    for _, r in ipairs(rows or {}) do
+        MySQL.insert.await([[INSERT INTO nayzeee_billing_pending_payouts (identifier, amount, invoice_id, payment_method, requires_collection, reason)
+            VALUES (?, ?, ?, ?, ?, ?)]], { r.identifier, r.amount, r.invoice_id or '', r.payment_method or 'bank', (r.requires_collection == true or tonumber(r.requires_collection) == 1) and 1 or 0, r.reason })
+    end
+end
+
+-- Takes back money a character earned from an invoice: unclaimed payouts first, then their bank (offline too).
+-- Returns the amount recovered and a function that undoes it.
+local function clawBack(identifier, amount, ref, reason)
+    amount = Shared.Round(amount)
+    if amount <= 0 or not identifier or isSystem(identifier) then return 0, function() end end
+    local taken, removed = 0, {}
+    local rows = MySQL.query.await('SELECT * FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND invoice_id = ? ORDER BY amount DESC',
+        { identifier, ref }) or {}
+    for _, r in ipairs(rows) do
+        local a = tonumber(r.amount) or 0
+        if taken + a <= amount + 0.005 and (MySQL.update.await('DELETE FROM nayzeee_billing_pending_payouts WHERE id = ?', { r.id }) or 0) == 1 then
+            taken = taken + a
+            removed[#removed + 1] = r
+        end
+    end
+    local rest, charged = Shared.Round(amount - taken), 0
+    if rest > 0 and Money.ChargeBank(identifier, rest, reason, true, true) then charged = rest end
+    return Shared.Round(taken + charged), function()
+        requeue(removed)
+        if charged > 0 then Money.DepositTo(identifier, charged, reason .. ' (reverted)') end
+    end
+end
+
+--[[
+    Returns every payment to whoever made it (personal bank or society account).
+    Society invoices: the revenue share is taken back from the issuer and routed VAT from the VAT society;
+    the society account covers the rest. Personal invoices: the sender pays it back.
+]]
+function RefundInvoice(row, actorSource, reason, actorIdentifier)
     if not RefundableStatuses[row.status] then return nil, L('error.cannot_refund', 'This invoice cannot be refunded') end
     local amount = Shared.Round(tonumber(row.amount_paid) or 0)
     if amount <= 0 then return nil, L('error.nothing_to_refund', 'Nothing to refund') end
-    if not Banking.IsAvailable() then return nil, L('error.no_banking', 'No society bank account is configured') end
-    if not Banking.RemoveSociety(row.company_id, amount, 'Refund · ' .. row.invoice_id) then
-        return nil, L('error.society_funds', 'The society account cannot cover {amount}', { amount = Shared.Money(amount) })
+    local ref, label = row.invoice_id, 'Refund · ' .. row.invoice_id
+
+    local payments = MySQL.query.await([[SELECT payer_identifier, target_society, method, SUM(amount) AS amount,
+        COALESCE(SUM(share), 0) AS share, COALESCE(SUM(vat_routed), 0) AS vat
+        FROM nayzeee_billing_payments WHERE invoice_id = ? AND kind <> 'refund' GROUP BY payer_identifier, target_society, method]], { ref }) or {}
+    local shareTotal, vatTotal, payers = 0, 0, {}
+    for _, p in ipairs(payments) do
+        shareTotal = shareTotal + (tonumber(p.share) or 0)
+        vatTotal = vatTotal + (tonumber(p.vat) or 0)
+        payers[p.payer_identifier] = true
+    end
+    shareTotal, vatTotal = Shared.Round(math.min(shareTotal, amount)), Shared.Round(vatTotal)
+
+    local reverts = {}
+    local function undo() for i = #reverts, 1, -1 do reverts[i]() end end
+
+    if row.company_id then
+        if not Banking.IsAvailable() then return nil, L('error.no_banking', 'No society bank account is configured') end
+        local recovered = 0
+        if vatTotal > 0 and Config.VAT.Society and Banking.RemoveSociety(Config.VAT.Society, vatTotal, label) then
+            recovered = recovered + vatTotal
+            reverts[#reverts + 1] = function() Banking.AddSociety(Config.VAT.Society, vatTotal, label .. ' (reverted)') end
+        end
+        if shareTotal > 0 then
+            local got, revert = clawBack(row.sender_identifier, shareTotal, ref, label)
+            reverts[#reverts + 1] = revert
+            -- The society only covers a missing share when the refund isn't self-dealing
+            if got < shareTotal - 0.005 and actorIdentifier and (actorIdentifier == row.sender_identifier or payers[actorIdentifier]) then
+                undo()
+                return nil, L('error.refund_share', 'The revenue share paid on this invoice could not be recovered')
+            end
+            recovered = recovered + got
+        end
+        local fromSociety = Shared.Round(amount - recovered)
+        if fromSociety > 0 then
+            if not Banking.RemoveSociety(row.company_id, fromSociety, label) then
+                undo()
+                return nil, L('error.society_funds', 'The society account cannot cover {amount}', { amount = Shared.Money(fromSociety) })
+            end
+            reverts[#reverts + 1] = function() Banking.AddSociety(row.company_id, fromSociety, label .. ' (reverted)') end
+        end
+    else
+        local got, revert = clawBack(row.sender_identifier, amount, ref, label)
+        reverts[#reverts + 1] = revert
+        if got < amount - 0.005 then
+            undo()
+            return nil, L('error.refund_funds', '{name} cannot cover the refund of {amount}', { name = row.sender_name or '?', amount = Shared.Money(amount) })
+        end
     end
 
     local affected = MySQL.update.await([[UPDATE nayzeee_billing_invoices SET status = 'refunded', cancel_reason = ?
         WHERE id = ? AND amount_paid = ? AND status IN ('paid','partial','overdue','disputed')]], { reason, row.id, row.amount_paid })
     if (affected or 0) == 0 then
-        Banking.AddSociety(row.company_id, amount, 'Refund reverted · ' .. row.invoice_id)
+        undo()
         return nil, L('error.changed_refund', 'The invoice changed - nothing was refunded')
     end
 
-    local payments = MySQL.query.await([[SELECT payer_identifier, target_society, method, SUM(amount) AS amount FROM nayzeee_billing_payments
-        WHERE invoice_id = ? AND kind <> 'refund' GROUP BY payer_identifier, target_society, method]], { row.invoice_id }) or {}
     local returned = 0
     for _, p in ipairs(payments) do
         local part = math.min(Shared.Round(tonumber(p.amount) or 0), amount - returned)
         if part > 0 then
             if p.method == 'society' and p.target_society then
-                Banking.AddSociety(p.target_society, part, 'Refund · ' .. row.invoice_id)
+                if not Banking.AddSociety(p.target_society, part, label) then QueueSociety(p.target_society, part, label, ref) end
             else
-                Payout(p.payer_identifier, part, 'Refund · ' .. row.invoice_id, row.invoice_id)
+                Payout(p.payer_identifier, part, label, ref)
             end
             returned = returned + part
         end
     end
     if returned < amount and (row.recipient_type or 'citizen') == 'citizen' then
-        Payout(row.target_identifier, amount - returned, 'Refund · ' .. row.invoice_id, row.invoice_id)
+        Payout(row.target_identifier, amount - returned, label, ref)
     end
 
     MySQL.insert.await([[INSERT INTO nayzeee_billing_payments (invoice_id, company_id, sender_identifier, payer_identifier, payer_name, amount, method, kind)
-        VALUES (?, ?, ?, ?, ?, ?, 'bank', 'refund')]], { row.invoice_id, row.company_id, row.sender_identifier, row.target_identifier, row.target_name, -amount })
+        VALUES (?, ?, ?, ?, ?, ?, 'bank', 'refund')]], { ref, row.company_id, row.sender_identifier, row.target_identifier, row.target_name, -amount })
 
+    local from = row.company_id and SocietyLabel(row.company_id) or row.sender_name
     local src = (row.recipient_type or 'citizen') == 'citizen' and Framework.GetSource(row.target_identifier)
     if src then
         Notify(src, L('notify.refunded', 'Refund issued'), L('notify.refunded_body', '{society} refunded {amount} for {ref}',
-            { society = SocietyLabel(row.company_id), amount = Shared.Money(amount), ref = row.invoice_id }), 'success')
+            { society = from, amount = Shared.Money(amount), ref = ref }), 'success')
         Refresh(src)
     end
-    Log(actorSource, 'invoice_refunded', { ref = row.invoice_id, amount = amount, reason = reason, target = row.target_name }, row.company_id)
-    TriggerEvent('nayzeee-billing:server:invoiceRefunded', row.invoice_id, amount)
+    Log(actorSource, 'invoice_refunded', { ref = ref, amount = amount, reason = reason, target = row.target_name }, row.company_id)
+    TriggerEvent('nayzeee-billing:server:invoiceRefunded', ref, amount)
     return amount
 end
 
 RPC('invoices:refund', function(source, payload)
     local ctx = GetCtx(source)
     local row = GetInvoiceRow(tonumber(payload.id))
-    if not row or not row.company_id then return Err(L('error.not_found', 'Invoice not found')) end
-    if not ctx.isAdmin and not Can(ctx, 'refund', row.company_id) then return Err(L('error.no_permission', 'You do not have permission')) end
+    if not row then return Err(L('error.not_found', 'Invoice not found')) end
+    local allowed = ctx.isAdmin or (row.company_id and Can(ctx, 'refund', row.company_id))
+        or (not row.company_id and row.sender_identifier == ctx.identifier)
+    if not allowed then return Err(L('error.no_permission', 'You do not have permission')) end
     local reason = Shared.Sanitize(payload.reason, 200)
     if reason == '' then reason = L('label.refunded_by', 'Refunded by {name}', { name = ctx.name }) end
-    local amount, err = RefundInvoice(row, source, reason)
+    local amount, err = RefundInvoice(row, source, reason, ctx.identifier)
     if not amount then return Err(err) end
     return { amount = amount }
 end)
@@ -309,15 +412,42 @@ end)
 -- ██║     ██║  ██║   ██║   ╚██████╔╝╚██████╔╝   ██║   ███████║
 -- ╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝
 
-local function claim(rows)
-    local total = 0
+-- Deletes the rows it can claim and hands them to deposit(total); puts them back if the deposit fails
+local function claim(rows, deposit)
+    local total, taken = 0, {}
     for _, r in ipairs(rows) do
         if (MySQL.update.await('DELETE FROM nayzeee_billing_pending_payouts WHERE id = ?', { r.id }) or 0) == 1 then
             total = total + (tonumber(r.amount) or 0)
+            taken[#taken + 1] = r
         end
     end
-    return Shared.Round(total)
+    total = Shared.Round(total)
+    if total > 0 and not deposit(total) then
+        requeue(taken)
+        return 0
+    end
+    return total
 end
+
+-- Society money held back because the society account couldn't be credited at the time
+local function flushSocietyQueue()
+    if not Banking.IsAvailable() then return end
+    local rows = MySQL.query.await("SELECT * FROM nayzeee_billing_pending_payouts WHERE identifier LIKE 'society:%' LIMIT 200") or {}
+    for _, r in ipairs(rows) do
+        if (MySQL.update.await('DELETE FROM nayzeee_billing_pending_payouts WHERE id = ?', { r.id }) or 0) == 1 then
+            if not Banking.AddSociety(r.identifier:sub(9), tonumber(r.amount) or 0, r.reason or 'Billing') then requeue({ r }) end
+        end
+    end
+end
+
+CreateThread(function()
+    while not BillingReady do Wait(1000) end
+    while true do
+        local ok, err = pcall(flushSocietyQueue)
+        if not ok then print('^1[NAYZEEE-BILLING]^7 Society queue: ' .. tostring(err)) end
+        Wait(5 * 60000)
+    end
+end)
 
 AddEventHandler('nayzeee-billing:server:ready', function()
     Framework.OnPlayerLoaded(function(source)
@@ -325,9 +455,9 @@ AddEventHandler('nayzeee-billing:server:ready', function()
             local identifier = Framework.GetIdentifier(source)
             if not identifier then return end
 
-            local total = claim(MySQL.query.await('SELECT id, amount FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND requires_collection = 0', { identifier }) or {})
+            local total = claim(MySQL.query.await('SELECT * FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND requires_collection = 0', { identifier }) or {},
+                function(amount) return Money.Add(source, 'bank', amount, 'Billing payouts') end)
             if total > 0 then
-                Money.Add(source, 'bank', total, 'Billing payouts')
                 Notify(source, L('notify.payouts', 'Payments received'), L('notify.payouts_body', '{amount} from paid invoices', { amount = Shared.Money(total) }), 'success')
             end
 
@@ -349,9 +479,9 @@ RPC('collectCash', function(source)
     end
     if not near then return Err(L('error.not_at_teller', 'You need to be at a bank teller')) end
     local identifier = Framework.GetIdentifier(source)
-    local total = claim(MySQL.query.await('SELECT id, amount FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND requires_collection = 1', { identifier }) or {})
+    local total = claim(MySQL.query.await('SELECT * FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND requires_collection = 1', { identifier }) or {},
+        function(amount) return Money.Add(source, 'cash', amount, 'Collected invoice cash') end)
     if total > 0 then
-        Money.Add(source, 'cash', total, 'Collected invoice cash')
         Log(source, 'cash_collected', { amount = total })
     end
     return { amount = total }

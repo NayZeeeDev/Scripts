@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS `nayzeee_billing_payments` (
     `tip` DECIMAL(15,2) DEFAULT 0,
     `method` VARCHAR(20) DEFAULT 'bank',
     `kind` VARCHAR(20) DEFAULT 'payment',
+    `share` DECIMAL(15,2) DEFAULT 0,
+    `vat_routed` DECIMAL(15,2) DEFAULT 0,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_invoice` (`invoice_id`),
     INDEX `idx_company_date` (`company_id`, `created_at`),
@@ -93,6 +95,7 @@ CREATE TABLE IF NOT EXISTS `nayzeee_billing_members` (
     `society` VARCHAR(50) NOT NULL,
     `identifier` VARCHAR(64) NOT NULL,
     `group_id` VARCHAR(40) NOT NULL,
+    `grade` INT DEFAULT NULL,
     PRIMARY KEY (`society`, `identifier`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

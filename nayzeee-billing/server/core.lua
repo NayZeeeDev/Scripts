@@ -118,8 +118,8 @@ end
 function LoadMembers(society)
     if Members[society] then return Members[society] end
     local map = {}
-    for _, r in ipairs(MySQL.query.await('SELECT identifier, group_id FROM nayzeee_billing_members WHERE society = ?', { society }) or {}) do
-        map[r.identifier] = r.group_id
+    for _, r in ipairs(MySQL.query.await('SELECT identifier, group_id, grade FROM nayzeee_billing_members WHERE society = ?', { society }) or {}) do
+        map[r.identifier] = { group = r.group_id, grade = tonumber(r.grade) }
     end
     Members[society] = map
     return map
@@ -136,10 +136,24 @@ function DefaultGroupFor(society, grade, isBoss)
     return d.other
 end
 
+function IsManagerGrade(society, grade, isBoss)
+    return isBoss == true or (tonumber(grade) or 0) >= ((Config.Societies[society] or {}).manageGrade or 99)
+end
+
+-- Assigned group id, or nil when it doesn't apply: bosses always get the manager group,
+-- and an assignment lapses when the employee's grade changes (promoted, demoted, fired and rehired)
+function AssignedGroup(society, identifier, grade, isBoss)
+    if IsManagerGrade(society, grade, isBoss) then return nil end
+    local a = LoadMembers(society)[identifier]
+    if not a then return nil end
+    if a.grade ~= nil and a.grade ~= (tonumber(grade) or 0) then return nil end
+    return a.group
+end
+
 -- perms table + group for an identifier in a society
 function MemberPerms(society, identifier, grade, isBoss)
     local groups = LoadGroups(society)
-    local assigned = LoadMembers(society)[identifier]
+    local assigned = AssignedGroup(society, identifier, grade, isBoss)
     local group = assigned and groups.byId[assigned]
     if not group then group = groups.byId[DefaultGroupFor(society, grade or 0, isBoss)] end
     return group and group.perms or {}, group
@@ -321,6 +335,14 @@ function Payout(identifier, amount, reason, invoiceRef, requiresCollection)
     MySQL.insert.await([[INSERT INTO nayzeee_billing_pending_payouts (identifier, amount, invoice_id, payment_method, requires_collection, reason)
         VALUES (?, ?, ?, ?, ?, ?)]], { identifier, amount, invoiceRef, requiresCollection and 'cash' or 'bank', requiresCollection and 1 or 0, reason })
     return false
+end
+
+-- Society money that couldn't be credited right now; payments.lua retries it every few minutes
+function QueueSociety(society, amount, reason, invoiceRef)
+    amount = Shared.Round(amount)
+    if not society or amount <= 0 then return end
+    MySQL.insert.await([[INSERT INTO nayzeee_billing_pending_payouts (identifier, amount, invoice_id, payment_method, requires_collection, reason)
+        VALUES (?, ?, ?, 'society', 0, ?)]], { 'society:' .. society, amount, invoiceRef or '', reason })
 end
 
 --  ██████╗ ██████╗ ███╗   ██╗████████╗███████╗██╗  ██╗████████╗    ██████╗ ██████╗  ██████╗

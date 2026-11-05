@@ -58,7 +58,10 @@ AddEventHandler('nayzeee-billing:server:ready', function()
             cb(bills)
         end)
         ESX.RegisterServerCallback('esx_billing:payBill', function(source, cb, billId)
-            local result = ProcessPayment({ source = source, id = tonumber(billId), method = 'bank' })
+            -- esx_billing only ever paid your own bills
+            local row = GetInvoiceRow(tonumber(billId) or 0)
+            if not row or row.target_identifier ~= Framework.GetIdentifier(source) then return cb(false) end
+            local result = ProcessPayment({ source = source, id = row.id, method = 'bank' })
             cb(result ~= nil)
         end)
     end

@@ -43,8 +43,10 @@ Adapters['qb-banking'] = {
     remove = function(s, a, r) return exports['qb-banking']:RemoveMoney(s, a, r) == true end,
     balance = function(s) return tonumber(exports['qb-banking']:GetAccountBalance(s)) end,
     log = function(d)
-        if not d.identifier then return end
-        exports['qb-banking']:CreateBankStatement(d.identifier, 'checking', d.amount, d.title, d.type == 'deposit' and 'deposit' or 'withdraw', 'checking')
+        -- qb-banking statements are created for an online player (server id)
+        local src = d.identifier and Framework.GetSource(d.identifier)
+        if not src then return end
+        exports['qb-banking']:CreateBankStatement(src, 'checking', d.amount, d.title, d.type == 'deposit' and 'deposit' or 'withdraw', 'checking')
     end,
 }
 

@@ -56,6 +56,11 @@ RegisterNetEvent('nayzeee-billing:client:display', function(d)
         UI.Send('displayUpdate', d)
     elseif d.action == 'checkout' then
         UI.display = true
+        if UI.mode == 'pos' and ActiveRegister then
+            -- Our own register session can't stay open behind the checkout
+            Rpc('register:cancel', { registerId = ActiveRegister })
+            ActiveRegister = nil
+        end
         if UI.mode ~= 'checkout' then
             if UI.open then UI.Send('close') end
             UI.Focus('checkout')

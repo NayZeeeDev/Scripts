@@ -127,6 +127,8 @@ CreateThread(function()
             `tip` DECIMAL(15,2) DEFAULT 0,
             `method` VARCHAR(20) DEFAULT 'bank',
             `kind` VARCHAR(20) DEFAULT 'payment',
+            `share` DECIMAL(15,2) DEFAULT 0,
+            `vat_routed` DECIMAL(15,2) DEFAULT 0,
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX `idx_invoice` (`invoice_id`),
             INDEX `idx_company_date` (`company_id`, `created_at`),
@@ -135,6 +137,8 @@ CreateThread(function()
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
     ensureColumn('nayzeee_billing_payments', 'target_society', 'VARCHAR(50) DEFAULT NULL')
+    ensureColumn('nayzeee_billing_payments', 'share', 'DECIMAL(15,2) DEFAULT 0')
+    ensureColumn('nayzeee_billing_payments', 'vat_routed', 'DECIMAL(15,2) DEFAULT 0')
     ensureIndex('nayzeee_billing_payments', 'idx_target_society_date', '`target_society`, `created_at`')
 
     -- ████████╗███████╗███╗   ███╗██████╗ ██╗      █████╗ ████████╗███████╗███████╗
@@ -182,9 +186,11 @@ CreateThread(function()
             `society` VARCHAR(50) NOT NULL,
             `identifier` VARCHAR(64) NOT NULL,
             `group_id` VARCHAR(40) NOT NULL,
+            `grade` INT DEFAULT NULL,
             PRIMARY KEY (`society`, `identifier`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
+    ensureColumn('nayzeee_billing_members', 'grade', 'INT DEFAULT NULL')
     MySQL.query.await([[
         CREATE TABLE IF NOT EXISTS `nayzeee_billing_meta` (
             `k` VARCHAR(80) PRIMARY KEY,

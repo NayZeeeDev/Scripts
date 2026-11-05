@@ -21,6 +21,7 @@ Discord: discord.gg/nayzeeedev
 - Side detail panel with a paper-style invoice, reference copy button, payment history, disputes, refunds and print
 - **Pay by reference**: look up any invoice by reference (e.g. `LSPD-7KQ2MZ4P`) and pay it from your own cash or bank, even if it's someone else's. References carry 8 random characters, so they can't be guessed.
 - Installments, tips (society invoices), disputes, refunds to whoever paid
+- **Refunds** take the revenue share back from the issuer (unclaimed payouts first, then their bank) and routed VAT back from the VAT society; the society covers the rest. Personal invoices are refunded by their sender.
 
 **Society billing**
 - Send invoices as your job, and bill other configured societies (society-to-society)
@@ -38,6 +39,7 @@ Discord: discord.gg/nayzeeedev
 - Groups (Manager, Finance, Sales, Limited, plus your own) with toggles across 17 permissions in Invoices / Templates / Management
 - Assign any employee, online or offline, to a group from the UI
 - Defaults come from job grades (`sendGrade`, `manageGrade`, framework boss)
+- Bosses and `manageGrade` employees always have the Manager group. An assignment lapses when the employee's grade changes (promotion, demotion, rehire), so it falls back to the grade default.
 
 **Activity log**
 - Every invoice, payment, template change and permission change, with who did it and when
@@ -107,7 +109,7 @@ The default ESX inventory keeps no item metadata. Use ox_inventory, or set `Conf
 7. `wasabi_banking`
 8. `none`
 
-Personal invoices only need the framework. Society invoices need a society backend; without one, society money goes to the issuing employee.
+Personal invoices only need the framework. Society invoices need a society backend; without one, society money goes to the issuing employee. Invoices from scripts (no employee) are held and credited to the society account as soon as it can be reached.
 
 `fd_banking` and `custom` (your own functions in `Config.Banking.Custom`) can be selected explicitly.
 

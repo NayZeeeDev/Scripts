@@ -20,13 +20,14 @@ end
 
 local function snapshot(ctx)
     local groups = LoadGroups(ctx.society)
-    local assigned = LoadMembers(ctx.society)
     local members = {}
     for _, m in ipairs(Framework.GetSocietyMembers(ctx.job.name) or {}) do
-        local groupId = assigned[m.identifier] or DefaultGroupFor(ctx.society, m.grade, m.isBoss)
+        local assigned = AssignedGroup(ctx.society, m.identifier, m.grade, m.isBoss)
+        if assigned and not groups.byId[assigned] then assigned = nil end
         members[#members + 1] = {
             identifier = m.identifier, name = m.name, grade = m.grade, gradeLabel = m.gradeLabel, online = m.online,
-            group = groupId, assigned = assigned[m.identifier] ~= nil, isMe = m.identifier == ctx.identifier,
+            group = assigned or DefaultGroupFor(ctx.society, m.grade, m.isBoss), assigned = assigned ~= nil,
+            isMe = m.identifier == ctx.identifier, locked = IsManagerGrade(ctx.society, m.grade, m.isBoss),
         }
     end
     table.sort(members, function(a, b)
@@ -57,14 +58,18 @@ RPC('perms:assign', function(source, payload)
     if identifier == ctx.identifier and payload.group ~= ctx.group.id and not groups.byId[payload.group].perms.permissions then
         return Err(L('error.lock_out', 'You would lock yourself out of permissions'))
     end
-    local isMember = false
+    local member
     for _, m in ipairs(Framework.GetSocietyMembers(ctx.job.name) or {}) do
-        if m.identifier == identifier then isMember = true break end
+        if m.identifier == identifier then member = m break end
     end
-    if not isMember then return Err(L('error.not_member', 'That person does not work here')) end
+    if not member then return Err(L('error.not_member', 'That person does not work here')) end
+    if IsManagerGrade(ctx.society, member.grade, member.isBoss) then
+        return Err(L('error.boss_locked', 'Bosses and manager grades always have the manager group'))
+    end
 
-    MySQL.insert.await('INSERT INTO nayzeee_billing_members (society, identifier, group_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE group_id = VALUES(group_id)',
-        { ctx.society, identifier, payload.group })
+    MySQL.insert.await([[INSERT INTO nayzeee_billing_members (society, identifier, group_id, grade) VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE group_id = VALUES(group_id), grade = VALUES(grade)]],
+        { ctx.society, identifier, payload.group, tonumber(member.grade) or 0 })
     InvalidateMembers(ctx.society)
     Log(source, 'member_assigned', { name = Framework.GetCharacterName(identifier) or identifier, group = groups.byId[payload.group].label }, ctx.society)
     local src = Framework.GetSource(identifier)
@@ -119,6 +124,7 @@ RPC('perms:deleteGroup', function(source, payload)
     local groups = LoadGroups(ctx.society)
     local g = groups.byId[payload.id]
     if not g then return Err(L('error.group_missing', 'Group not found')) end
+    if ctx.group and ctx.group.id == g.id then return Err(L('error.lock_out', 'You would lock yourself out of permissions')) end
     MySQL.query.await('DELETE FROM nayzeee_billing_members WHERE society = ? AND group_id = ?', { ctx.society, g.id })
     MySQL.query.await('DELETE FROM nayzeee_billing_groups WHERE society = ? AND group_id = ?', { ctx.society, g.id })
     InvalidateGroups(ctx.society)

@@ -293,13 +293,13 @@ end)
 
 RPC('display:view', function(source, payload)
     local session, register = customerSession(source)
-    if not session or (payload.registerId and register.id ~= payload.registerId) then return Err(L('error.no_order', 'There is no order waiting for you here')) end
+    if not session or not register or (payload.registerId and register.id ~= payload.registerId) then return Err(L('error.no_order', 'There is no order waiting for you here')) end
     TriggerClientEvent('nayzeee-billing:client:display', source, {
         action = 'open', register = register.label, society = SocietyLabel(register.society), employee = Framework.GetName(session.employee) })
     push(session)
     if session.invoice then
         local row = GetInvoiceRow(session.invoice.id)
-        TriggerClientEvent('nayzeee-billing:client:display', source, { action = 'checkout', invoice = FormatInvoice(row, { identifier = row.target_identifier }) })
+        if row then TriggerClientEvent('nayzeee-billing:client:display', source, { action = 'checkout', invoice = FormatInvoice(row, { identifier = row.target_identifier }) }) end
     end
     return true
 end)

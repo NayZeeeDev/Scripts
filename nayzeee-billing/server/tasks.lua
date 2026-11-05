@@ -26,6 +26,8 @@ local function markOverdue()
 end
 
 local function collect(row)
+    row = GetInvoiceRow(row.id)
+    if not row or row.status ~= 'overdue' then return end
     local remaining = Remaining(row)
     if remaining <= 0 then return end
     local label = ('Overdue invoice %s'):format(row.invoice_id)
@@ -39,7 +41,7 @@ local function collect(row)
     end
     if not charged then return end
 
-    local result = ProcessPayment({ id = row.id, method = method, payer = payer, kind = 'autocollect', charged = true })
+    local result = ProcessPayment({ id = row.id, method = method, payer = payer, kind = 'autocollect', charged = true, amount = remaining })
     if not result then
         -- Couldn't book it (invoice changed meanwhile): give the money back
         if method == 'society' then Banking.AddSociety(row.target_society, remaining, 'Collection reverted · ' .. row.invoice_id)
@@ -55,15 +57,21 @@ local function collect(row)
     end
 end
 
-local function collectDue(extraWhere, params)
-    local sql = ([[SELECT * FROM nayzeee_billing_invoices WHERE status = 'overdue'
-        AND due_date < DATE_SUB(NOW(), INTERVAL ? DAY) %s LIMIT 200]]):format(extraWhere or '')
-    local p = { tonumber(Config.Overdue.CollectAfterDays) or 0 }
+-- Walks the overdue invoices in id order, 200 per pass, so invoices nobody can pay don't block newer ones
+local Cursors = {}
+
+local function collectDue(extraWhere, params, cursorKey)
+    local after = cursorKey and Cursors[cursorKey] or 0
+    local sql = ([[SELECT id FROM nayzeee_billing_invoices WHERE status = 'overdue'
+        AND due_date < DATE_SUB(NOW(), INTERVAL ? DAY) AND id > ? %s ORDER BY id ASC LIMIT 200]]):format(extraWhere or '')
+    local p = { tonumber(Config.Overdue.CollectAfterDays) or 0, after }
     for _, v in ipairs(params or {}) do p[#p + 1] = v end
-    for _, row in ipairs(MySQL.query.await(sql, p) or {}) do
+    local rows = MySQL.query.await(sql, p) or {}
+    for _, row in ipairs(rows) do
         local ok, err = pcall(collect, row)
         if not ok then print('^1[NAYZEEE-BILLING]^7 Collection error: ' .. tostring(err)) end
     end
+    if cursorKey then Cursors[cursorKey] = #rows < 200 and 0 or rows[#rows].id end
 end
 
 -- Run collection for one character (when they load in)
@@ -81,9 +89,9 @@ CreateThread(function()
         local ok, err = pcall(function()
             markOverdue()
             if Config.Overdue.Mode == 'collect' then
-                if Config.Overdue.IncludeOffline then collectDue() else
+                if Config.Overdue.IncludeOffline then collectDue(nil, nil, 'all') else
                     -- Online citizens + every society
-                    collectDue("AND recipient_type = 'society'")
+                    collectDue("AND recipient_type = 'society'", nil, 'society')
                     for _, id in ipairs(GetPlayers()) do
                         local identifier = Framework.GetIdentifier(tonumber(id))
                         if identifier then CollectFor(identifier) end

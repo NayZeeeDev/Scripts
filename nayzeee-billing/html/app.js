@@ -704,7 +704,7 @@ async function payInvoice(id, preset) {
     m.pay = state; m.render = render; render();
     m.ok = async () => {
         $('#payGo', m.el).disabled = true;
-        const res = await call('invoices:pay', { id: inv.id, method: state.method, amount: state.full ? null : state.computed.amount, tip: state.computed.tip });
+        const res = await call('invoices:pay', { id: inv.id, ref: inv.ref, method: state.method, amount: state.full ? null : state.computed.amount, tip: state.computed.tip });
         if (!res) { $('#payGo', m.el).disabled = false; return; }
         m.close();
         toast(res.status === 'paid' ? t('toast.paid', 'Invoice paid') : t('toast.installment', 'Installment paid'),
@@ -776,7 +776,7 @@ async function createInvoice(recipientId) {
     const allowCustom = soc ? S.ctx.society.allowCustom : S.ctx.settings.personalCustom;
     const societies = (S.ctx.societies || []).filter((s) => s.billable && (!soc || s.id !== S.ctx.society.id));
     const state = { type: 'citizen', recipient: recipientId ? String(recipientId) : '', template: templates[0] ? String(templates[0].id) : '', item: '', items: [], custom: false, due: '', notes: '', nearby: nearby || [] };
-    const m = openModal(`<div class="modal w680">${mh(t('create.title', 'Create Invoice'), soc ? t('create.as_society', 'Billing as {name}', { name: S.ctx.society.label }) : t('create.as_personal', 'Personal invoice'), 'send')}
+    const m = openModal(`<div class="modal w680">${mh(t('create.title', 'Create Invoice'), soc ? t('create.as_society', 'Billing as {name}', { name: esc(S.ctx.society.label) }) : t('create.as_personal', 'Personal invoice'), 'send')}
         <div class="mb" id="ciB"></div><div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk" id="ciGo">${t('btn.create_invoice', 'Create Invoice')}</button></div></div>`);
     const tplById = (id) => templates.find((x) => String(x.id) === String(id));
     const render = () => {
@@ -1079,7 +1079,7 @@ function renderProfile() {
     const active = tb.statuses.length + (tb.due !== 'all' ? 1 : 0);
     const size = tb.pageSize || 8; const n = Math.max(1, Math.ceil(tb.total / size));
     setPage(`<div style="display:flex;align-items:center;gap:10px"><button class="back" data-act="iBack">${ic('chevl')}${t('insp.back', 'Back to search')}</button>
-            <span style="margin-left:auto" class="inspecting">${ic('eye')}${t('insp.inspecting', 'Inspecting {name}', { name: d.subject.name })}${d.subject.identifier ? ` <span class="mono" style="opacity:.75">(${esc(d.subject.identifier)})</span>` : ''}</span>
+            <span style="margin-left:auto" class="inspecting">${ic('eye')}${t('insp.inspecting', 'Inspecting {name}', { name: esc(d.subject.name) })}${d.subject.identifier ? ` <span class="mono" style="opacity:.75">(${esc(d.subject.identifier)})</span>` : ''}</span>
             ${d.canClear ? `<button class="btn red" data-act="iClear">${ic('trash')}${t('insp.clear', 'Clear records')}</button>` : ''}</div>
         <div class="grid-${d.subject.balance !== undefined && d.subject.balance !== null ? 4 : 3}">
             <div class="card stat">${ic('doc')}<span>${t('insp.total', 'Total Invoices')}</span><b>${d.stats.total}</b></div>
@@ -1186,9 +1186,11 @@ function onPosState(s) {
 }
 
 // ═══════════════ CUSTOMER DISPLAY ═══════════════
-function displayOpen(d) { S.display = { society: d.society, register: d.register, employee: d.employee, items: [], totals: {}, stage: 'order', method: 'bank', tip: 0 }; renderDisplay(); }
+let dispTimer = null;
+function displayOpen(d) { clearTimeout(dispTimer); S.display = { society: d.society, register: d.register, employee: d.employee, items: [], totals: {}, stage: 'order', method: 'bank', tip: 0 }; renderDisplay(); }
 function displayUpdate(d) { if (!S.display) return; S.display.items = d.items || []; S.display.totals = d; renderDisplay(); }
 function displayCheckout(d) {
+    clearTimeout(dispTimer);
     if (!S.display) S.display = { society: d.invoice.sender, register: '', employee: d.invoice.senderName, method: 'bank', tip: 0 };
     Object.assign(S.display, { stage: 'checkout', invoice: d.invoice, items: d.invoice.items });
     renderDisplay();
@@ -1219,10 +1221,9 @@ function renderDisplay() {
         foot = `<div class="totals"><div><span>${t('paper.subtotal', 'Subtotal')}</span><b>${money(tt.subtotal)}</b></div><div><span>${t('paper.vat', 'VAT ({rate})', { rate: pct(tt.vatRate) })}</span><b>${money(tt.vat)}</b></div>
             <div class="grand"><span>${t('paper.total_cap', 'Total')}</span><b>${money(tt.total)}</b></div></div><div class="dhint"><span class="key">BACKSPACE</span>${t('disp.leave', 'Leave the counter')}</div>`;
     }
-    el.innerHTML = `<div class="dpanel">${head}<div class="dstate"><span class="dot ${d.stage === 'checkout' ? 'pending' : 'on'}"></span>${d.stage === 'checkout' ? t('disp.ready', 'Ready to pay') : t('disp.served_by', 'Served by {name}', { name: d.employee })}</div>
+    el.innerHTML = `<div class="dpanel">${head}<div class="dstate"><span class="dot ${d.stage === 'checkout' ? 'pending' : 'on'}"></span>${d.stage === 'checkout' ? t('disp.ready', 'Ready to pay') : t('disp.served_by', 'Served by {name}', { name: esc(d.employee) })}</div>
         <div class="dbody">${lines}</div><div class="dfoot">${foot}</div></div>`;
 }
-let dispTimer = null;
 function finishDisplay() { clearTimeout(dispTimer); S.display = null; $('#display').classList.add('hidden'); nui('displayDone'); }
 
 // ═══════════════ ACTIONS ═══════════════

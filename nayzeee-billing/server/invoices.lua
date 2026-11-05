@@ -78,7 +78,8 @@ function PayOptions(ctx, row)
     if isRecipient or Config.Payment.PayByReference then
         for m, on in pairs(Config.Payment.Methods) do if on then opts[m] = true end end
     end
-    if row.recipient_type == 'society' and row.target_society == ctx.society and Can(ctx, 'pay') then
+    if row.recipient_type == 'society' and row.target_society == ctx.society and Can(ctx, 'pay')
+        and row.sender_identifier ~= ctx.identifier then
         opts.society = true
     end
     return next(opts) and opts or nil
@@ -221,7 +222,8 @@ RPC('invoices:create', function(source, payload)
         local target = Config.Societies[r.id]
         if not target or target.billable == false then return Err(L('error.society_not_billable', 'That society cannot be billed')) end
         if account == 'personal' and not Config.Personal.AllowSocietyRecipients then return Err(L('error.no_permission', 'You do not have permission')) end
-        if r.id == society then return Err(L('error.bill_self', 'You cannot bill yourself')) end
+        -- Never your own society, not even as a personal invoice (you could then pay yourself from its account)
+        if r.id == (society or ctx.society) then return Err(L('error.bill_self', 'You cannot bill yourself')) end
         recipient.society, recipient.name, recipient.identifier = r.id, target.label, 'society:' .. r.id
     else
         local target = tonumber(r.id)
@@ -472,7 +474,7 @@ RPC('invoices:resolve', function(source, payload)
     if payload.action == 'accept' then
         local reason = L('label.dispute_accepted', 'Dispute accepted: {reason}', { reason = row.dispute_reason or '' })
         if (tonumber(row.amount_paid) or 0) > 0 then
-            local ok, err = RefundInvoice(row, source, reason)
+            local ok, err = RefundInvoice(row, source, reason, ctx.identifier)
             if not ok then return Err(err) end
         elseif not CancelInvoice(row, reason, source) then
             return Err(L('error.cannot_cancel', 'You cannot cancel this invoice'))

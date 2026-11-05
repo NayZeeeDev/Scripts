@@ -57,7 +57,8 @@ RegisterNUICallback('uiReady', function(_, cb) sendInit() cb('ok') end)
 -- extra: { invoiceId, payRef, create = { recipientId } }
 function OpenBilling(page, extra)
     if UI.open then
-        if extra or page then UI.Send('navigate', { page = page, extra = extra }) end
+        -- Only the billing window can navigate; the POS, paper and checkout views stay as they are
+        if UI.mode == 'billing' and (extra or page) then UI.Send('navigate', { page = page, extra = extra }) end
         return
     end
     local ok, ctx = Rpc('getContext')

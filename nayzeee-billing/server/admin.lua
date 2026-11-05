@@ -34,6 +34,26 @@ RPC('inspect:search', function(source, payload)
     end
 
     if #query < 2 then return {} end
+
+    -- Society inspectors only find people who appear on their society's invoices
+    if not ctx.isAdmin then
+        local rows = MySQL.query.await([[
+            SELECT id, MAX(name) AS name FROM (
+                SELECT target_identifier AS id, target_name AS name FROM nayzeee_billing_invoices
+                WHERE company_id = @soc AND COALESCE(recipient_type, 'citizen') = 'citizen' AND (target_name LIKE @q OR target_identifier = @x)
+                UNION ALL
+                SELECT sender_identifier AS id, sender_name AS name FROM nayzeee_billing_invoices
+                WHERE (company_id = @soc OR (recipient_type = 'society' AND target_society = @soc)) AND (sender_name LIKE @q OR sender_identifier = @x)
+            ) t WHERE id IS NOT NULL AND id NOT LIKE 'system:%' GROUP BY id LIMIT 10
+        ]], { soc = ctx.society, q = '%' .. query .. '%', x = query }) or {}
+        local out = {}
+        for _, r in ipairs(rows) do
+            local src = Framework.GetSource(r.id)
+            out[#out + 1] = { id = r.id, name = r.name, online = src ~= nil, serverId = src }
+        end
+        return out
+    end
+
     local out, seen, lower = {}, {}, query:lower()
     for _, id in ipairs(GetPlayers()) do
         local src = tonumber(id)
