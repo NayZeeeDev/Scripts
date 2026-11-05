@@ -98,17 +98,38 @@ function ChainProps.run(mode, src)
     return true
 end
 
+local function aceOk(cmd)
+    local ok, yes = pcall(IsPrincipalAceAllowed, 'resource.' .. SELF, 'command.' .. cmd)
+    return not ok or yes -- old builds without the native: assume yes
+end
+
 local function restartProps()
     RestoreStudioIcons()
     ExecuteCommand('refresh')
     if GetResourceState(RES) == 'started' then ExecuteCommand('restart ' .. RES) else ExecuteCommand('ensure ' .. RES) end
-    SetTimeout(4000, function()
-        if GetResourceState(RES) ~= 'started' then
-            print(('^3[%s] Couldn\'t start %s. Let this resource run the commands, in server.cfg:^0'):format(SELF, RES))
-            print(('^3    add_ace resource.%s command.refresh allow^0'):format(SELF))
-            print(('^3    add_ace resource.%s command.ensure allow^0'):format(SELF))
-            print(('^3    add_ace resource.%s command.restart allow^0'):format(SELF))
-            print(('^3  or add "ensure %s" to server.cfg after this resource.^0'):format(RES))
+    -- restarting re-hashes every streamed model first, which can take a while on a slow (or OneDrive-synced) disk:
+    -- wait for it instead of judging after a few seconds
+    CreateThread(function()
+        local state
+        for _ = 1, 60 do
+            Wait(1000)
+            state = GetResourceState(RES)
+            if state == 'started' then break end
+        end
+        if state ~= 'started' then
+            print(('^3[%s] %s didn\'t start (it is "%s").^0'):format(SELF, RES, tostring(state)))
+            local missing = {}
+            for _, c in ipairs({ 'refresh', 'ensure', 'restart' }) do
+                if not aceOk(c) then missing[#missing + 1] = c end
+            end
+            if #missing > 0 then
+                print('^3  This resource isn\'t allowed to run those commands. Add to server.cfg:^0')
+                for _, c in ipairs(missing) do print(('^3    add_ace resource.%s command.%s allow^0'):format(SELF, c)) end
+            elseif state == 'missing' then
+                print(('^3  The server can\'t see the folder. It should be at %s^0'):format(outDir()))
+            else
+                print(('^3  Type  ensure %s  in this console: the error it prints is why.^0'):format(RES))
+            end
         end
         Registry.reload()
         CopyKitIcons(false)
