@@ -116,7 +116,7 @@ RegisterCommand('forceck', function(src, args)
     if not IsStaff(src) then return Notify(src, 'No permission', 'error', 'CK') end
 
     local function reply(msg, type)
-        if src == 0 then print('[nayzeee-bodybag] ' .. msg) else Notify(src, msg, type, 'CK') end
+        if src == 0 then Console.log(type == 'error' and 'warn' or 'info', msg) else Notify(src, msg, type, 'CK') end
     end
 
     local targetId = tonumber(args[1])

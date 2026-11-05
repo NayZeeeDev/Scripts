@@ -14,8 +14,9 @@ function Notify(target, msg, type, title)
     TriggerClientEvent('nayzeee-bodybag:client:notify', target, msg, type, title)
 end
 
-function Debug(...)
-    if Config.Debug then print('[' .. RESOURCE .. ':debug]', ...) end
+-- Debug('bagged %s', name) -> only printed when Config.Debug = true
+function Debug(text, ...)
+    if Config.Debug then Console.log('info', 'debug: ' .. tostring(text), ...) end
 end
 
 -- ═══════════════════════════════════════════════════════════════
@@ -42,7 +43,8 @@ end
 -- Log(src, 'CK', 'John Smith', true)     -> console + Config.Logs.CKWebhook
 function Log(src, action, detail, isCK)
     local who = (src and src > 0) and ('%s [%s]'):format(GetPlayerName(src) or '?', src) or 'Server'
-    print(('[%s] %s | %s | %s'):format(RESOURCE, who, action, detail or ''))
+    local label = action:gsub('_', ' '):lower():gsub('^%l', string.upper) -- 'WATER_DUMP_RAW' -> 'Water dump raw'
+    Console.log(isCK and 'warn' or 'info', '%s | %s | Player: %s', label, detail or '-', who)
 
     local url = Config.Logs.Webhook
     if isCK and Config.Logs.CKWebhook ~= '' then url = Config.Logs.CKWebhook end
@@ -158,7 +160,7 @@ function SpawnProp(propKey, coords, heading, settle)
     local model = Config.Props[propKey]
     coords = ToVec3(coords)
     if not model or not coords then
-        print(('[%s] ^1SpawnProp: bad prop "%s" or coords^0'):format(RESOURCE, tostring(propKey)))
+        Console.log('error', 'could not spawn "%s": unknown prop or bad coords. Check Config.Props', tostring(propKey))
         return nil
     end
     if settle == nil then settle = true end
@@ -167,7 +169,7 @@ function SpawnProp(propKey, coords, heading, settle)
     local timeout = GetGameTimer() + 2000
     while not DoesEntityExist(obj) and GetGameTimer() < timeout do Wait(10) end
     if not DoesEntityExist(obj) then
-        print(('[%s] ^1FAILED to spawn prop %s^0'):format(RESOURCE, propKey))
+        Console.log('error', 'prop "%s" failed to spawn: is the model name in Config.Props valid?', propKey)
         return nil
     end
 
@@ -249,8 +251,9 @@ local function columnExists(tbl, column)
 end
 
 DatabaseReady = false
+Console.wait('database')
 
-MySQL.ready(function()
+local function setupDatabase()
     MySQL.query.await([[CREATE TABLE IF NOT EXISTS `nayzeee_bodybag_cks` (
         `id` INT AUTO_INCREMENT PRIMARY KEY,
         `identifier` VARCHAR(60) NOT NULL,
@@ -304,6 +307,30 @@ MySQL.ready(function()
         MySQL.query.await('ALTER TABLE `users` ADD COLUMN `ck_locked` TINYINT(1) DEFAULT 0')
     end
 
-    DatabaseReady = true
-    TriggerEvent('nayzeee-bodybag:databaseReady')
+end
+
+MySQL.ready(function()
+    local ok, err = pcall(setupDatabase)
+    if ok then
+        DatabaseReady = true
+        Console.check('database', 'ok', 'Database', 'oxmysql, tables ready')
+
+        -- the funeral job has to exist in ESX or nobody can be hired
+        if FuneralEnabled() then
+            local queried, found = pcall(MySQL.scalar.await, 'SELECT 1 FROM jobs WHERE name = ?', { Config.Funeral.Job })
+            if queried and found then
+                Console.check('funeraljob', 'ok', 'Funeral job', ('"%s" job found'):format(Config.Funeral.Job))
+            else
+                Console.check('funeraljob', 'warn', 'Funeral job',
+                    ('"%s" not in the jobs table: run sql/funeral_job.sql, then restart'):format(Config.Funeral.Job))
+            end
+        end
+    else
+        Console.check('database', 'error', 'Database',
+            'table setup failed: run sql/install.sql by hand or give the DB user CREATE/ALTER rights')
+        Console.log('error', 'database: %s', tostring(err))
+    end
+    -- graves / funeral restore listen for this; they report their own rows
+    TriggerEvent('nayzeee-bodybag:databaseReady', ok)
+    Console.done('database')
 end)

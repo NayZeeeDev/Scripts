@@ -27,6 +27,7 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'server/console.lua',   -- the NayZeee startup block + every console line (load first)
     'server/utils.lua',     -- helpers, logs, anti-exploit checks, DB auto-setup (load first)
     'server/main.lua',      -- body registry + every disposal method
     'server/trunk.lua',     -- vehicle trunks

@@ -5,7 +5,7 @@
 -- ═══════════════════════════════════════════════════════════════
 
 RegisterCommand(Config.Admin.Command, function(src)
-    if src == 0 then return print('[nayzeee-bodybag] /' .. Config.Admin.Command .. ' is in-game only') end
+    if src == 0 then return Console.log('warn', '/%s only works in-game', Config.Admin.Command) end
     if not IsStaff(src) then return Notify(src, 'No permission', 'error') end
     TriggerClientEvent('nayzeee-bodybag:client:openAdmin', src)
 end, false)

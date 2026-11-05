@@ -563,7 +563,7 @@ RegisterNetEvent('nayzeee-bodybag:server:bury', function(netId)
     }
     DestroyBody(body, 'buried')
     if not createGrave(gCoords, gHeading, info) then
-        print('[nayzeee-bodybag] ^1grave prop failed to spawn - body was still buried^0')
+        Console.log('error', 'grave prop failed to spawn at %.1f, %.1f (the body was still buried)', gCoords.x, gCoords.y)
     end
 
     MySQL.insert('INSERT INTO nayzeee_bodybag_graves (coords, heading, data, cemetery) VALUES (?, ?, ?, ?)', {
@@ -609,8 +609,16 @@ RegisterNetEvent('nayzeee-bodybag:server:exhume', function(netId)
 end)
 
 -- shallow graves come back after a restart
-AddEventHandler('nayzeee-bodybag:databaseReady', function()
-    if not Config.Burial.PersistShallowGraves then return end
+Console.wait('graves')
+AddEventHandler('nayzeee-bodybag:databaseReady', function(dbOk)
+    if not dbOk then
+        Console.check('graves', 'warn', 'Graves', 'not restored: the database is not ready')
+        return Console.done('graves')
+    end
+    if not Config.Burial.PersistShallowGraves then
+        Console.check('graves', 'info', 'Graves', 'saving disabled (Config.Burial.PersistShallowGraves)')
+        return Console.done('graves')
+    end
     if (Config.Burial.GraveLifetimeDays or 0) > 0 then
         MySQL.update.await('DELETE FROM nayzeee_bodybag_graves WHERE created < (NOW() - INTERVAL ? DAY)',
             { Config.Burial.GraveLifetimeDays })
@@ -630,7 +638,12 @@ AddEventHandler('nayzeee-bodybag:databaseReady', function()
             if createGrave(coords, row.heading, info) then restored = restored + 1 end
         end
     end
-    if restored > 0 then print(('[nayzeee-bodybag] restored %d shallow grave(s)'):format(restored)) end
+    if restored > 0 then
+        Console.check('graves', 'info', 'Graves', ('%d shallow %s back in the ground'):format(restored, restored == 1 and 'grave' or 'graves'))
+    else
+        Console.check('graves', 'ok', 'Graves', 'none waiting')
+    end
+    Console.done('graves')
 end)
 
 -- ═══════════════════════════════════════════════════════════════

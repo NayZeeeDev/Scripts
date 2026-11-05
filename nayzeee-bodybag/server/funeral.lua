@@ -3,10 +3,21 @@
 --  duty · hearse garage · coroner calls · morgue records · death
 --  certificates · cremation · shop · funeral services · headstones
 -- ═══════════════════════════════════════════════════════════════
-if not FuneralEnabled() then return end
+if not FuneralEnabled() then
+    Console.check('funeral', 'info', 'Funeral home', 'disabled (Config.Funeral.Enabled = false)')
+    return
+end
 
 local F = Config.Funeral
 local L = F.Locations
+
+if F.SetupDone then
+    Console.check('funeral', 'ok', 'Funeral home', ('%d plot(s), job "%s"'):format(#F.Plots, F.Job))
+else
+    Console.check('funeral', 'warn', 'Funeral home',
+        'placeholder spots: use /nzcoords in-game, then set Config.Funeral.SetupDone = true')
+end
+Console.wait('funeral')
 
 local Hearses     = {} -- src -> vehicle entity
 local paidFor     = {} -- identifier -> os.time() of the last morgue payout for that character
@@ -575,24 +586,45 @@ end)
 -- ═══════════════════════════════════════════════════════════════
 --  STARTUP / CLEANUP
 -- ═══════════════════════════════════════════════════════════════
-AddEventHandler('nayzeee-bodybag:databaseReady', function()
+local function restoreFuneral()
     -- prepared coffins don't survive a restart -> back into their drawers
     MySQL.update.await("UPDATE nayzeee_funeral_morgue SET status = 'stored' WHERE status = 'prepared'")
     if (F.Morgue.RecordLifetimeDays or 0) > 0 then
         MySQL.update.await('DELETE FROM nayzeee_funeral_morgue WHERE created < (NOW() - INTERVAL ? DAY)', { F.Morgue.RecordLifetimeDays })
     end
+    local records = MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_funeral_morgue') or 0
+    Console.check('morgue', 'info', 'Morgue', records > 0
+        and ('%d %s in the drawers'):format(records, records == 1 and 'body' or 'bodies') or 'empty')
+
+    local restored, skipped = 0, 0
     for _, row in ipairs(MySQL.query.await('SELECT * FROM nayzeee_funeral_memorials') or {}) do
         local i = tonumber(row.plot)
         if i and F.Plots[i] and not Memorials[i] then
-            spawnMemorial(i, { dbId = row.id, name = row.name, epitaph = row.epitaph, died = row.died,
-                respects = row.respects or 0, flowers = row.flowers or 0 })
+            if spawnMemorial(i, { dbId = row.id, name = row.name, epitaph = row.epitaph, died = row.died,
+                respects = row.respects or 0, flowers = row.flowers or 0 }) then restored = restored + 1 end
+        else
+            skipped = skipped + 1
         end
     end
     syncPlots()
-    if not F.SetupDone then
-        print('^3[nayzeee-bodybag] Funeral home is using PLACEHOLDER coordinates. Set Config.Funeral.Locations '
-            .. '(stand on the spot + /nzcoords), then set Config.Funeral.SetupDone = true.^0')
+    Console.check('memorials', restored > 0 and 'info' or 'ok', 'Headstones',
+        restored > 0 and ('%d back on their plots'):format(restored) or 'none yet')
+    if skipped > 0 then
+        Console.log('warn', '%d headstone(s) point at a plot that no longer exists in Config.Funeral.Plots', skipped)
     end
+end
+
+AddEventHandler('nayzeee-bodybag:databaseReady', function(dbOk)
+    if not dbOk then
+        Console.check('memorials', 'warn', 'Headstones', 'not restored: the database is not ready')
+        return Console.done('funeral')
+    end
+    local ok, err = pcall(restoreFuneral)
+    if not ok then
+        Console.check('memorials', 'error', 'Headstones', 'restore failed: see the note below')
+        Console.log('error', 'funeral restore: %s', tostring(err))
+    end
+    Console.done('funeral')
 end)
 
 AddEventHandler('playerDropped', function()
