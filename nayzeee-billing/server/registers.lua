@@ -17,7 +17,7 @@ end
 
 local function public(r)
     return { id = r.id, label = r.label, society = r.society, societyLabel = SocietyLabel(r.society), jobs = jobsOf(r.society),
-        coords = r.coords, radius = r.radius, source = r.source }
+        coords = r.coords, radius = r.radius, heading = r.heading or 0.0, model = r.model, source = r.source }
 end
 
 function RegisterList()
@@ -35,22 +35,37 @@ local function load()
     for _, r in ipairs(Config.Registers.List or {}) do
         if r.id and r.coords and Config.Societies[r.society] then
             Registers[r.id] = { id = r.id, label = r.label or r.id, society = r.society,
-                coords = { x = r.coords.x, y = r.coords.y, z = r.coords.z }, radius = tonumber(r.radius) or 2.0, source = 'config' }
+                coords = { x = r.coords.x, y = r.coords.y, z = r.coords.z }, radius = tonumber(r.radius) or 2.0,
+                heading = tonumber(r.heading) or 0.0, model = r.model, source = 'config' }
         end
     end
     for _, row in ipairs(MySQL.query.await('SELECT * FROM nayzeee_billing_registers') or {}) do
         Registers[row.id] = { id = row.id, label = row.label, society = row.company,
-            coords = { x = tonumber(row.x), y = tonumber(row.y), z = tonumber(row.z) }, radius = tonumber(row.radius) or 2.0, source = 'db' }
+            coords = { x = tonumber(row.x), y = tonumber(row.y), z = tonumber(row.z) }, radius = tonumber(row.radius) or 2.0,
+            heading = tonumber(row.heading) or 0.0, model = row.model, source = 'db' }
     end
 end
 
 function AddRegister(data)
     local id = 'reg_' .. Shared.Slug(data.label) .. '_' .. Shared.RandomCode(4):lower()
-    MySQL.insert.await('INSERT INTO nayzeee_billing_registers (id, label, company, x, y, z, heading, radius) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        { id, data.label, data.society, data.coords.x, data.coords.y, data.coords.z, data.heading or 0, data.radius })
-    Registers[id] = { id = id, label = data.label, society = data.society, coords = data.coords, radius = data.radius, source = 'db' }
+    MySQL.insert.await('INSERT INTO nayzeee_billing_registers (id, label, company, x, y, z, heading, radius, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        { id, data.label, data.society, data.coords.x, data.coords.y, data.coords.z, data.heading or 0, data.radius, data.model })
+    Registers[id] = { id = id, label = data.label, society = data.society, coords = data.coords, radius = data.radius,
+        heading = data.heading or 0.0, model = data.model, source = 'db' }
     broadcast()
     return Registers[id]
+end
+
+-- New position / heading / radius / prop for an in-game register
+function MoveRegister(id, data)
+    local r = Registers[id]
+    if not r then return false, L('error.not_found_generic', 'Not found') end
+    if r.source == 'config' then return false, L('error.config_register', 'This register is defined in config.lua') end
+    MySQL.update.await('UPDATE nayzeee_billing_registers SET x = ?, y = ?, z = ?, heading = ?, radius = ?, model = ? WHERE id = ?',
+        { data.coords.x, data.coords.y, data.coords.z, data.heading or 0, data.radius, data.model, id })
+    r.coords, r.heading, r.radius, r.model = data.coords, data.heading or 0.0, data.radius, data.model
+    broadcast()
+    return true
 end
 
 function DeleteRegister(id)

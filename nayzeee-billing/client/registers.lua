@@ -103,11 +103,37 @@ RegisterKeyMapping('billing_leave_counter', 'Billing: leave the register counter
 -- ███████╗╚██████╔╝██║ ╚████║███████╗███████║
 -- ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝╚══════╝
 
+-- Till props for registers placed with "Spawn prop": local objects, created only when a player is near
+local function spawnProp(r, zone)
+    local model = joaat(r.model)
+    if not IsModelInCdimage(model) then return end
+    zone.propPoint = lib.points.new({
+        coords = vector3(r.coords.x, r.coords.y, r.coords.z), distance = Config.Registers.Placement.PropDistance or 60.0,
+        onEnter = function()
+            if zone.prop and DoesEntityExist(zone.prop) then return end
+            if not pcall(lib.requestModel, model, 5000) then return end
+            local obj = CreateObject(model, r.coords.x, r.coords.y, r.coords.z, false, false, false)
+            SetEntityCoordsNoOffset(obj, r.coords.x, r.coords.y, r.coords.z, false, false, false)
+            SetEntityHeading(obj, (r.heading or 0.0) + 0.0)
+            FreezeEntityPosition(obj, true)
+            SetEntityInvincible(obj, true)
+            SetModelAsNoLongerNeeded(model)
+            zone.prop = obj
+        end,
+        onExit = function()
+            if zone.prop and DoesEntityExist(zone.prop) then DeleteEntity(zone.prop) end
+            zone.prop = nil
+        end,
+    })
+end
+
 local function removeZone(id)
     local z = Zones[id]
     if not z then return end
     if z.target then ClientBridge.RemoveZone(z.target) end
     if z.point then z.point:remove() end
+    if z.propPoint then z.propPoint:remove() end
+    if z.prop and DoesEntityExist(z.prop) then DeleteEntity(z.prop) end
     if z.blip then RemoveBlip(z.blip) end
     Zones[id] = nil
 end
@@ -116,6 +142,7 @@ local function createZone(r)
     local coords = vector3(r.coords.x, r.coords.y, r.coords.z)
     local cfg = Config.Registers
     local zone = {}
+    if r.model then spawnProp(r, zone) end
     if cfg.InteractionMethod == 'target' and ClientBridge.HasTarget() then
         zone.target = ClientBridge.AddSphereZone('billing_register_' .. r.id, coords, r.radius, {
             { name = 'register_employee_' .. r.id, icon = cfg.Target.EmployeeIcon, label = cfg.Target.EmployeeLabel,

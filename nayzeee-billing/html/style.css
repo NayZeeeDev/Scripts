@@ -657,6 +657,19 @@ table.t{width:100%;border-collapse:collapse}
 .nx-empty{padding:16px 20px;font-size:11.5px;color:var(--ink-3);line-height:1.5}
 .nx>.btn.block{margin:0 20px 20px;width:auto}
 
+/* ═══════════════ REGISTER PLACEMENT (admin) ═══════════════ */
+.reg-modes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.reg-mode{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-md);background:var(--inset);border:1px solid var(--line-soft);text-align:left;transition:all var(--fast)}
+.reg-mode:hover{border-color:var(--line)}
+.reg-mode.on{border-color:var(--accent-edge);background:linear-gradient(90deg,var(--accent-wash),transparent);box-shadow:0 1px 0 var(--lift) inset}
+.reg-mode b{display:block;font-size:12.5px;font-weight:600;color:var(--white)}
+.reg-mode small{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px}
+.reg-form{display:grid;grid-template-columns:1.3fr 1.3fr 110px auto;gap:10px;align-items:end}
+.reg-form.with-prop{grid-template-columns:1.2fr 1.2fr 1.1fr 100px auto}
+.badge svg{flex:none}
+.reg-hint{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-sm);background:var(--inset);border:1px solid var(--line-hair);font-size:11.5px;color:var(--ink-2);line-height:1.5}
+.reg-hint svg{width:15px;height:15px;stroke-width:1.7;color:var(--accent);margin-top:1px}
+
 @media (max-width:1150px){
   .win{--side-w:210px}
   .grid-ov{grid-template-columns:1fr}

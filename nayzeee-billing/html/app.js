@@ -168,6 +168,7 @@ const P = {
     hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
     register: '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M6 11V5h8v6M14 7h4l1 4M7 15h2M11 15h2M15 15h2"/>',
     pin: '<path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    crosshair: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="1.2"/>',
     teleport: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
     // template picker
@@ -459,6 +460,7 @@ function handleExtra(extra) {
     if (extra.invoiceId) openRail(extra.invoiceId);
     if (extra.payRef !== undefined) payByReference(extra.payRef);
     if (extra.create) createInvoice(extra.create.recipientId);
+    if (extra.registers && S.ctx.isAdmin) { S.insp.tab = 'registers'; S.insp.registers = null; if (S.page === 'inspect') pageInspect(); else go('inspect'); }
 }
 async function refreshCtx() {
     if (S.mode !== 'billing') return;
@@ -1228,18 +1230,37 @@ async function pageRegisters(tabs) {
     const I = S.insp;
     if (!I.registers) { setPage(`<div class="card pad">${skel(4, 44)}</div>`); I.registers = await call('admin:registers') || []; if (S.page !== 'inspect') return; }
     const socOpts = (S.ctx.societies || []).map((s) => ({ value: s.id, label: s.label }));
+    const props = S.ctx.settings.registerProps || [];
     I.regSociety = I.regSociety || (socOpts[0] || {}).value;
-    setPage(`<div class="card"><div class="tbar">${tabs}</div><div class="card-b">
-            <div style="display:grid;grid-template-columns:1.3fr 1.3fr 110px auto;gap:10px;align-items:end">
-                <div class="field"><label>${t('reg.label', 'Label')}</label><input id="rLabel" maxlength="100" placeholder="${t('reg.label_ph', 'Front counter')}"></div>
-                <div class="field"><label>${t('reg.society', 'Society')}</label>${dd('regSociety', { value: I.regSociety, options: socOpts, onChange: (v) => { I.regSociety = v; pageInspect(); } })}</div>
-                <div class="field"><label>${t('reg.radius', 'Radius (m)')}</label><input id="rRadius" type="number" min="0.5" max="10" step="0.5" value="2"></div>
-                <button class="btn pri" data-act="regAdd">${ic('pin')}${t('reg.add_here', 'Add at my position')}</button></div></div></div>
-        <div class="card tcard"><div class="tscroll">${I.registers.length ? `<table class="t"><thead><tr><th>${t('reg.label', 'Label')}</th><th>${t('reg.society', 'Society')}</th><th>${t('reg.coords', 'Coords')}</th><th>${t('reg.radius', 'Radius (m)')}</th><th>${t('reg.source', 'Source')}</th><th></th></tr></thead><tbody>
-            ${I.registers.map((r) => `<tr style="cursor:default"><td class="b">${esc(r.label)}</td><td>${esc(r.societyLabel)}</td><td class="mono">${num(r.coords.x).toFixed(1)}, ${num(r.coords.y).toFixed(1)}, ${num(r.coords.z).toFixed(1)}</td><td>${esc(r.radius)}</td>
+    I.regMode = I.regMode || (props.length ? 'prop' : 'point');
+    I.regModel = I.regModel || (props[0] || {}).model;
+    I.regRadius = I.regRadius || S.ctx.settings.registerRadius || 1;
+    const modes = [
+        ['prop', 'box', t('reg.mode_prop', 'Spawn prop'), t('reg.mode_prop_sub', 'No till here yet')],
+        ['point', 'crosshair', t('reg.mode_point', 'Existing register'), t('reg.mode_point_sub', 'Mark the till in the map')],
+        ['here', 'pin', t('reg.mode_here', 'My position'), t('reg.mode_here_sub', 'Where you stand')],
+    ].filter(([m]) => m !== 'prop' || props.length);
+    const how = {
+        prop: t('reg.how_prop', 'The till follows your crosshair. Scroll or ← → to rotate, ↑ ↓ to raise it, Shift for fine steps, E to place, Backspace to cancel.'),
+        point: t('reg.how_point', 'Aim the line and ball at the existing till. The cylinder is the third-eye radius: scroll to resize, E to place, Backspace to cancel.'),
+        here: t('reg.how_here', 'Adds the register where you are standing right now.'),
+    }[I.regMode];
+    const typeOf = (r) => (r.model ? `<span class="badge acc">${ic('box')}${esc((props.find((p) => p.model === r.model) || {}).label || r.model)}</span>` : `<span class="badge mute">${ic('crosshair')}${t('reg.type_point', 'Map till')}</span>`);
+    setPage(`<div class="card"><div class="tbar">${tabs}</div><div class="card-b" style="gap:14px">
+            <div class="reg-modes">${modes.map(([m, icon, label, sub]) => `<button class="reg-mode ${I.regMode === m ? 'on' : ''}" data-act="regMode" data-v="${m}"><span class="tile ${I.regMode === m ? 'teal' : 'gray'}">${ic(icon)}</span><span><b>${label}</b><small>${sub}</small></span></button>`).join('')}</div>
+            <div class="reg-form ${I.regMode === 'prop' ? 'with-prop' : ''}">
+                <div class="field"><label>${t('reg.label', 'Label')}</label><input id="rLabel" maxlength="100" placeholder="${t('reg.label_ph', 'Front counter')}" value="${esc(I.regLabel || '')}"></div>
+                <div class="field"><label>${t('reg.society', 'Society')}</label>${dd('regSociety', { value: I.regSociety, options: socOpts, onChange: (v) => { I.regLabel = $('#rLabel').value; I.regSociety = v; pageInspect(); } })}</div>
+                ${I.regMode === 'prop' ? `<div class="field"><label>${t('reg.prop', 'Prop')}</label>${dd('regModel', { value: I.regModel, options: props.map((p) => ({ value: p.model, label: p.label, sub: p.model })), onChange: (v) => { I.regLabel = $('#rLabel').value; I.regModel = v; } })}</div>` : ''}
+                <div class="field"><label>${t('reg.radius', 'Radius (m)')}</label><input id="rRadius" type="number" min="0.5" max="10" step="0.25" value="${esc(I.regRadius)}"></div>
+                <button class="btn pri md" data-act="regAdd">${ic(I.regMode === 'here' ? 'pin' : 'crosshair')}${I.regMode === 'here' ? t('reg.add_here', 'Add at my position') : t('reg.start', 'Start placing')}</button>
+            </div>
+            <div class="reg-hint">${ic('info')}<span>${esc(how)}</span></div></div></div>
+        <div class="card tcard"><div class="tscroll">${I.registers.length ? `<table class="t"><thead><tr><th>${t('reg.label', 'Label')}</th><th>${t('reg.society', 'Society')}</th><th>${t('reg.type', 'Type')}</th><th>${t('reg.coords', 'Coords')}</th><th>${t('reg.radius', 'Radius (m)')}</th><th>${t('reg.source', 'Source')}</th><th></th></tr></thead><tbody>
+            ${I.registers.map((r) => `<tr style="cursor:default"><td class="b">${esc(r.label)}</td><td>${esc(r.societyLabel)}</td><td>${typeOf(r)}</td><td class="mono">${num(r.coords.x).toFixed(1)}, ${num(r.coords.y).toFixed(1)}, ${num(r.coords.z).toFixed(1)}</td><td>${esc(r.radius)}</td>
                 <td>${r.source === 'config' ? `<span class="badge mute">config</span>` : `<span class="badge acc">${t('reg.ingame', 'in-game')}</span>`}</td>
-                <td class="r"><span style="display:inline-flex;gap:6px"><button class="ibtn sm" data-act="regWaypoint" data-id="${esc(r.id)}">${ic('pin')}</button><button class="ibtn sm" data-act="regTeleport" data-id="${esc(r.id)}">${ic('teleport')}</button>
-                ${r.source !== 'config' ? `<button class="ibtn sm danger" data-act="regDelete" data-id="${esc(r.id)}">${ic('trash')}</button>` : ''}</span></td></tr>`).join('')}</tbody></table>`
+                <td class="r"><span style="display:inline-flex;gap:6px"><button class="ibtn sm" data-act="regWaypoint" data-id="${esc(r.id)}" title="${t('reg.waypoint', 'Waypoint')}">${ic('pin')}</button><button class="ibtn sm" data-act="regTeleport" data-id="${esc(r.id)}" title="${t('reg.teleport', 'Teleport')}">${ic('teleport')}</button>
+                ${r.source !== 'config' ? `<button class="ibtn sm" data-act="regMove" data-id="${esc(r.id)}" title="${t('reg.move', 'Move')}">${ic('crosshair')}</button><button class="ibtn sm danger" data-act="regDelete" data-id="${esc(r.id)}">${ic('trash')}</button>` : ''}</span></td></tr>`).join('')}</tbody></table>`
         : emptyState('register', t('reg.none', 'No registers'), t('reg.none_sub', 'Add one above or define them in config.lua'))}</div></div>`);
 }
 
@@ -1573,9 +1594,25 @@ const A = {
         if (r) { toast(t('toast.cleared', 'Records cleared'), t('toast.cleared_body', '{n} invoice(s) deleted', { n: r.deleted }), 'success'); S.insp.profile = null; renderProfile(); }
     },
     iRegisters: () => { S.insp.tab = 'registers'; S.insp.registers = null; pageInspect(); },
+    regMode: (d) => { S.insp.regLabel = $('#rLabel').value; S.insp.regRadius = num($('#rRadius').value, S.insp.regRadius); S.insp.regMode = d.v; pageInspect(); },
     regAdd: async () => {
-        const list = await call('admin:addRegister', { label: $('#rLabel').value, society: S.insp.regSociety, radius: num($('#rRadius').value, 2) });
-        if (list) { S.insp.registers = list; toast(t('toast.register_added', 'Register added'), '', 'success'); pageInspect(); }
+        const I = S.insp;
+        const label = $('#rLabel').value.trim(); const radius = num($('#rRadius').value, 1);
+        I.regLabel = label; I.regRadius = radius;
+        if (!label) { toast(t('label.error', 'Error'), t('error.register_label', 'Give the register a label'), 'error'); return; }
+        if (!I.regSociety) { toast(t('label.error', 'Error'), t('error.pick_society', 'Pick a society'), 'error'); return; }
+        if (I.regMode === 'here') {
+            const list = await call('admin:addRegister', { label, society: I.regSociety, radius });
+            if (list) { I.registers = list; I.regLabel = ''; toast(t('toast.register_added', 'Register added'), '', 'success'); pageInspect(); }
+            return;
+        }
+        I.regLabel = ''; I.registers = null;
+        nui('placeRegister', { mode: I.regMode, label, society: I.regSociety, radius, model: I.regMode === 'prop' ? I.regModel : null });
+    },
+    regMove: (d) => {
+        const r = (S.insp.registers || []).find((x) => x.id === d.id); if (!r) return;
+        S.insp.registers = null;
+        nui('placeRegister', { id: r.id, mode: r.model ? 'prop' : 'point', label: r.label, society: r.society, radius: r.radius, model: r.model || null, heading: r.heading });
     },
     regDelete: async (d) => {
         if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.register_delete', 'Remove this register for everyone?'), danger: true, ok: t('btn.delete', 'Delete') })) return;
@@ -1751,7 +1788,8 @@ const Mock = (() => {
         isAdmin: true,
         societies: [{ id: 'police', label: 'Los Santos Police Department', short: 'LSPD', billable: true }, { id: 'ambulance', label: 'Pillbox Medical Center', short: 'PMC', billable: true }, { id: 'mechanic', label: 'Los Santos Customs', short: 'LSC', billable: true }],
         settings: { version: '1.0.0', personalEnabled: true, personalCustom: true, personalSocietyRecipients: true, personalVat: 0, dueDays: 7, customDue: true, maxDueDays: 30, maxItems: 25, maxQuantity: 100, maxNote: 250,
-            methods: { bank: true, cash: true }, allowPartial: true, minPartial: 50, payByReference: true, disputes: true, tips: [0, 10, 15, 20], maxTip: 50, print: true, pageSize: 7, banking: 'nayzeee-banking', adminDelete: true, adminClear: true },
+            methods: { bank: true, cash: true }, allowPartial: true, minPartial: 50, payByReference: true, disputes: true, tips: [0, 10, 15, 20], maxTip: 50, print: true, pageSize: 7, banking: 'nayzeee-banking', adminDelete: true, adminClear: true, registerRadius: 1,
+            registerProps: [{ model: 'prop_till_01', label: 'Till (classic)' }, { model: 'prop_till_02', label: 'Till (modern)' }, { model: 'prop_till_03', label: 'Till (compact)' }] },
     };
     const days = [5, 6, 0, 1, 2, 3, 4];
     const dash = { account: 'personal', due: 3, unpaid: 2000, paidWeek: 188050, receivedWeek: 270475, delta: 44,
@@ -1787,7 +1825,8 @@ const Mock = (() => {
             { timestamp: now - 27 * H, player: 'Nine Films', action: 'invoice_paid', data: { target: 'Joe Doe1g', amount: 107000 } }, { timestamp: now - 28 * H, player: 'Jordan Vale', action: 'invoice_created', data: { target: 'Mia Chen', ref: 'PDM-K2', amount: 5000 } }], total: 10, page: 1, pageSize: 7 }),
         'perms:get': () => ok(perms), 'inspect:search': () => ok([{ id: 'I6NH41BE', name: 'Joe Doe1g', online: true, serverId: 12 }]),
         'inspect:profile': (p) => ok(Object.assign(page([...received.slice(0, 3).map((r) => Object.assign({}, r, { direction: 'received' })), ...sent.slice(1, 3)], p), { subject: { type: 'citizen', id: 'I6NH41BE', name: 'Joe Doe1g', identifier: 'I6NH41BE' }, stats: { total: 36, outstanding: 13100, paid: 122680 }, canClear: true })),
-        'admin:registers': () => ok([{ id: 'r1', label: 'PDM Front Desk', society: 'cardealer', societyLabel: 'Nine Films', coords: { x: -56.2, y: -1097.4, z: 26.4 }, radius: 2, source: 'config' }]),
+        'admin:registers': () => ok([{ id: 'r1', label: 'PDM Front Desk', society: 'cardealer', societyLabel: 'Nine Films', coords: { x: -56.2, y: -1097.4, z: 26.4 }, radius: 2, source: 'config' },
+            { id: 'r2', label: 'Burgershot Counter 2', society: 'burgershot', societyLabel: 'Burgershot', coords: { x: 196.12, y: -852.3, z: 31.02 }, radius: 1, heading: 160, model: 'prop_till_01', source: 'db' }]),
         'invoices:pay': () => ok({ charged: 100, status: 'paid', method: 'bank' }), 'invoices:payMany': () => ok({ paid: 2, failed: [], total: 2400 }), 'invoices:create': () => ok({ ref: 'PDM-NEW1', total: 100, recipient: 'Joe' }),
     };
     return {

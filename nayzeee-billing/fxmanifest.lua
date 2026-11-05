@@ -20,6 +20,7 @@ client_scripts {
     'bridge/client.lua',
     'client/main.lua',
     'client/registers.lua',
+    'client/placement.lua',
 }
 
 server_scripts {

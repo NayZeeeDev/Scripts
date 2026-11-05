@@ -137,5 +137,6 @@ CREATE TABLE IF NOT EXISTS `nayzeee_billing_registers` (
     `z` DECIMAL(10,2) NOT NULL,
     `heading` DECIMAL(5,1) DEFAULT 0,
     `radius` DECIMAL(4,2) DEFAULT 2.00,
+    `model` VARCHAR(60) DEFAULT NULL,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

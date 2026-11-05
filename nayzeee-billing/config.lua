@@ -240,7 +240,22 @@ Config.Registers = {
     Blip = { Enabled = false, Sprite = 52, Color = 2, Scale = 0.6 },
     Debug = false,
 
+    -- In-game placement (billing admin > Inspect > Registers)
+    --   Spawn prop: a till prop follows your crosshair (raycast); rotate it and place it on the counter
+    --   Existing register: aim a line + ball at the till that's already in the map; the cylinder shows the third-eye radius
+    Placement = {
+        Distance = 12.0,          -- how far the placement ray reaches (m)
+        DefaultRadius = 1.0,      -- third-eye / interaction radius for new registers (scroll to change while marking)
+        PropDistance = 60.0,      -- spawned till props are created when a player is this close
+        Props = {
+            { model = 'prop_till_01', label = 'Till (classic)' },
+            { model = 'prop_till_02', label = 'Till (modern)' },
+            { model = 'prop_till_03', label = 'Till (compact)' },
+        },
+    },
+
     -- Registers from config (admins can also add them in-game: Inspect > Registers)
+    -- Optional: model = 'prop_till_01', heading = 90.0 to spawn a till prop at the spot
     List = {
         { id = 'burgershot_counter1', label = 'Burgershot Counter', society = 'burgershot', coords = vector3(197.42, -850.75, 30.96), radius = 2.0 },
     },

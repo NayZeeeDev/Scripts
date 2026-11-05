@@ -268,6 +268,7 @@ CreateThread(function()
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
     ensureColumn('nayzeee_billing_registers', 'radius', 'DECIMAL(4,2) DEFAULT 2.00')
+    ensureColumn('nayzeee_billing_registers', 'model', 'VARCHAR(60) DEFAULT NULL')
 
     DB.ready = true
     print('^2[NAYZEEE-BILLING]^7 Database ready')

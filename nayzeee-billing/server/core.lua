@@ -393,6 +393,8 @@ RPC('getContext', function(source)
             print = Config.Items.AllowPrint and Config.Items.Invoice.Enabled,
             pageSize = Config.UI.PageSize, banking = Banking.name,
             adminDelete = Config.Admin.AllowDelete, adminClear = Config.Admin.AllowClearIdentifier,
+            registerProps = ctx.isAdmin and Config.Registers.Placement.Props or nil,
+            registerRadius = Config.Registers.Placement.DefaultRadius,
         },
     }
 end)

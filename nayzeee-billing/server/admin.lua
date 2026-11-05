@@ -152,16 +152,52 @@ RPC('admin:registers', function(source)
     return RegisterList()
 end)
 
+-- Validates a raycast placement sent by the admin's client: a spot near them and, for spawned props, an allowed model
+local function placement(source, payload)
+    local p = type(payload.placement) == 'table' and payload.placement or nil
+    local radius = Shared.Clamp(payload.radius or Config.Registers.Placement.DefaultRadius or 1.0, 0.5, 10.0)
+    if not p then
+        local ped = GetPlayerPed(source)
+        local c = GetEntityCoords(ped)
+        return { coords = { x = Shared.Round(c.x), y = Shared.Round(c.y), z = Shared.Round(c.z) }, heading = Shared.Round(GetEntityHeading(ped), 1), radius = radius }
+    end
+    local c = type(p.coords) == 'table' and p.coords or {}
+    local x, y, z = tonumber(c.x), tonumber(c.y), tonumber(c.z)
+    if not (x and y and z) then return nil, L('error.place_invalid', 'Invalid position') end
+    if DistanceTo(source, { x = x, y = y, z = z }) > (Config.Registers.Placement.Distance or 12.0) + 15.0 then
+        return nil, L('error.place_far', 'That spot is too far from you')
+    end
+    local model
+    if p.model ~= nil then
+        for _, prop in ipairs(Config.Registers.Placement.Props or {}) do
+            if prop.model == p.model then model = prop.model break end
+        end
+        if not model then return nil, L('error.bad_prop', 'That prop is not allowed') end
+    end
+    return { coords = { x = Shared.Round(x), y = Shared.Round(y), z = Shared.Round(z) }, heading = Shared.Round((tonumber(p.heading) or 0) % 360, 1), radius = radius, model = model }
+end
+
 RPC('admin:addRegister', function(source, payload)
     if not admin(source) then return Err(L('error.no_permission', 'You do not have permission')) end
     local label = Shared.Sanitize(payload.label, 100)
     if label == '' then return Err(L('error.register_label', 'Give the register a label')) end
     if not Config.Societies[payload.society] then return Err(L('error.pick_society', 'Pick a society')) end
-    local ped = GetPlayerPed(source)
-    local c = GetEntityCoords(ped)
-    AddRegister({ label = label, society = payload.society, coords = { x = Shared.Round(c.x), y = Shared.Round(c.y), z = Shared.Round(c.z) },
-        heading = Shared.Round(GetEntityHeading(ped), 1), radius = Shared.Clamp(payload.radius or 2.0, 0.5, 10.0) })
-    Log(source, 'admin_register_added', { label = label, society = payload.society })
+    local place, err = placement(source, payload)
+    if not place then return Err(err) end
+    place.label, place.society = label, payload.society
+    AddRegister(place)
+    Log(source, 'admin_register_added', { label = label, society = payload.society, prop = place.model })
+    return RegisterList()
+end)
+
+RPC('admin:moveRegister', function(source, payload)
+    if not admin(source) then return Err(L('error.no_permission', 'You do not have permission')) end
+    if type(payload.placement) ~= 'table' then return Err(L('error.place_invalid', 'Invalid position')) end
+    local place, err = placement(source, payload)
+    if not place then return Err(err) end
+    local ok, moveErr = MoveRegister(payload.id, place)
+    if not ok then return Err(moveErr) end
+    Log(source, 'admin_register_moved', { register = payload.id, prop = place.model })
     return RegisterList()
 end)
 
