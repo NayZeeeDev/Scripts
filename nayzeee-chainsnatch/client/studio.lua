@@ -258,6 +258,14 @@ local function applyPreset(key)
         if not c then return Config.Notify('This chain has no clothing position (it wasn\'t converted by chainkit).', 'error') end
         -- clothing is modelled in the ped's own space, so the ped matrix puts it back on the body,
         -- on the bone the clothing was skinned to (so it moves the way the clothing did)
+        -- measured in game, the same as the automatic fit (exact whatever GTA does with attach angles)
+        local f = AutoFit.solve(ped, currentKey)
+        if f then
+            tune.bone, tune.pos, tune.rot = f.bone, tbl(f.pos), tbl(f.rot, 3)
+            attachHelper(tune.bone)
+            attachPreview()
+            return
+        end
         placeAt(AutoFit.boneFor(ped, currentKey), GetOffsetFromEntityInWorldCoords(ped, c.x, c.y, c.z), 0, 0)
         return
     end
