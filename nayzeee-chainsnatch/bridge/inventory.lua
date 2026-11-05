@@ -4,24 +4,36 @@
 
 Inv = {}
 
-local INV = Config.Inventory
-if INV == 'auto' then
-    if GetResourceState('ox_inventory') == 'started' then INV = 'ox_inventory'
-    elseif GetResourceState('qs-inventory') == 'started' then INV = 'qs-inventory'
-    elseif Bridge.Name == 'qb' or Bridge.Name == 'qbx' then INV = 'qb-inventory'
-    else INV = 'framework' end
-end
-Inv.Name = INV
+local INV, ox, qs, qbinv
 
-if INV == 'framework' then
-    print(('^1[%s] No inventory with item metadata found. Chains need ox_inventory, qb-inventory or qs-inventory.^0'):format(GetCurrentResourceName()))
+local function up(res)
+    local st = GetResourceState(res)
+    return st == 'started' or st == 'starting'
 end
 
-local ox = INV == 'ox_inventory' and exports.ox_inventory or nil
-local qs = INV == 'qs-inventory' and exports['qs-inventory'] or nil
+-- Which inventory, worked out again on use until it's found: when this resource starts before ox_inventory
+-- (or qs / qb), deciding once at load would leave chains with no inventory for the whole session
+local function detect()
+    INV = Config.Inventory
+    if INV == 'auto' then
+        if up('ox_inventory') then INV = 'ox_inventory'
+        elseif up('qs-inventory') then INV = 'qs-inventory'
+        elseif up('qb-inventory') or up('ps-inventory') or up('lj-inventory') or Bridge.Name == 'qb' or Bridge.Name == 'qbx' then INV = 'qb-inventory'
+        else INV = 'framework' end
+    end
+    Inv.Name = INV
+    ox = INV == 'ox_inventory' and exports.ox_inventory or nil
+    qs = INV == 'qs-inventory' and exports['qs-inventory'] or nil
+    -- qb-inventory 2.x moved AddItem / RemoveItem out of the player object: use its exports when they exist
+    qbinv = INV == 'qb-inventory' and up('qb-inventory') and exports['qb-inventory'] or nil
+end
+detect()
 
--- qb-inventory 2.x moved AddItem / RemoveItem out of the player object: use its exports when they exist
-local qbinv = INV == 'qb-inventory' and GetResourceState('qb-inventory') == 'started' and exports['qb-inventory'] or nil
+local function ensure()
+    if Config.Inventory == 'auto' and (INV == 'framework' or (INV == 'qb-inventory' and not qbinv and up('qb-inventory'))) then detect() end
+end
+Inv.Detect = detect
+
 local function qbAdd(p, src, item, count, slot, info)
     if qbinv then
         local ok, res = pcall(function() return qbinv:AddItem(src, item, count, slot, info, 'nayzeee-chainsnatch') end)
@@ -44,6 +56,7 @@ local function qbItemBox(src, item, kind, count)
 end
 
 function Inv.CanCarry(src, meta)
+    ensure()
     local item = Config.Item
     if ox then return ox:CanCarryItem(src, item, 1, meta) == true end
     if qs then
@@ -59,6 +72,7 @@ end
 
 --- Is the chain item set up in the inventory? true / false, or nil when we can't tell
 function Inv.ItemExists()
+    ensure()
     local item = Config.Item
     if ox then
         local ok, it = pcall(function() return ox:Items(item) end)
@@ -74,6 +88,7 @@ end
 
 --- Why a chain doesn't fit: 'no_item' (not installed) | 'too_heavy' | 'no_room' (no free slot)
 function Inv.WhyNot(src)
+    ensure()
     if Inv.ItemExists() == false then return 'no_item' end
     if ox then
         local ok, why = pcall(function()
@@ -87,6 +102,7 @@ function Inv.WhyNot(src)
 end
 
 function Inv.Add(src, meta)
+    ensure()
     local item = Config.Item
     if ox then return (ox:AddItem(src, item, 1, meta)) == true end
     if qs then return qs:AddItem(src, item, 1, nil, meta) ~= false end
@@ -102,6 +118,7 @@ end
 
 --- Take the chain in `slot` out of the player's inventory. Returns its metadata, or nil.
 function Inv.TakeSlot(src, slot)
+    ensure()
     local item = Config.Item
     slot = tonumber(slot)
     if not slot then return nil end
@@ -134,6 +151,7 @@ end
 
 --- Every chain the player carries: { slot, meta }
 function Inv.Chains(src)
+    ensure()
     local item, out = Config.Item, {}
     if ox then
         for _, it in pairs(ox:Search(src, 'slots', item) or {}) do out[#out + 1] = { slot = it.slot, meta = it.metadata or {} } end
@@ -153,14 +171,14 @@ end
 
 --- ox_inventory: using the item calls this export (item server = { export = 'nayzeee-chainsnatch.nz_chain' })
 function Inv.HookUse(cb)
-    if ox then
-        exports(Config.Item, function(event, item, inventory, slot)
-            if event == 'usingItem' then
-                cb(inventory.id, slot)
-                return false -- we take the item ourselves
-            end
-        end)
-    end
+    ensure()
+    -- always defined (only ox_inventory ever calls it), so it works even when ox_inventory started after us
+    exports(Config.Item, function(event, item, inventory, slot)
+        if event == 'usingItem' then
+            cb(inventory.id, slot)
+            return false -- we take the item ourselves
+        end
+    end)
     -- QBCore / Qbox / ESX usable items (also how qb-inventory and qs-inventory use items)
     Bridge.RegisterUsable(Config.Item, function(src, data)
         if ox then return end
@@ -170,6 +188,7 @@ end
 
 --- How many of an item (materials for crafting)
 function Inv.Count(src, item)
+    ensure()
     if ox then return ox:GetItemCount(src, item) or 0 end
     if qs then
         local ok, n = pcall(function() return qs:GetItemTotalAmount(src, item) end)
@@ -185,6 +204,7 @@ function Inv.Count(src, item)
 end
 
 function Inv.RemoveItem(src, item, count)
+    ensure()
     if ox then return ox:RemoveItem(src, item, count) == true end
     if qs then return qs:RemoveItem(src, item, count) ~= false end
     if INV == 'qb-inventory' then
@@ -199,6 +219,7 @@ end
 
 --- Change a chain's metadata where it is (repairs). Falls back to taking it out and putting it back.
 function Inv.SetMeta(src, slot, meta)
+    ensure()
     if ox then
         local it = ox:GetSlot(src, slot)
         if not it or it.name ~= Config.Item then return false end
@@ -214,6 +235,7 @@ end
 
 --- Give back a plain item (crafting materials)
 function Inv.AddItem(src, item, count)
+    ensure()
     if ox then return ox:AddItem(src, item, count) == true end
     if qs then return qs:AddItem(src, item, count) ~= false end
     if INV == 'qb-inventory' then
@@ -225,6 +247,7 @@ end
 
 --- The chain in a slot without taking it
 function Inv.Peek(src, slot)
+    ensure()
     slot = tonumber(slot)
     for _, it in ipairs(Inv.Chains(src)) do
         if it.slot == slot then return it.meta end
@@ -239,5 +262,15 @@ CreateThread(function()
         print(('^1[%s] The item "%s" is missing from %s. Chains can\'t be given, bought or picked up until you add it:^0'):format(GetCurrentResourceName(), Config.Item, INV))
         print(('^1    paste %s into %s and restart the server.^0'):format(
             ox and 'install/ox_inventory.lua' or 'install/qb-core.lua', ox and 'ox_inventory/data/items.lua' or 'qb-core/shared/items.lua'))
+    end
+end)
+
+CreateThread(function()
+    Wait(4000)
+    ensure()
+    if INV == 'framework' then
+        print(('^1[%s] No inventory with item metadata found (ox_inventory, qb-inventory or qs-inventory). Chains can\'t be given or bought.^0'):format(GetCurrentResourceName()))
+    else
+        print(('^5[%s]^7 inventory: %s'):format(GetCurrentResourceName(), INV))
     end
 end)

@@ -3,36 +3,80 @@
 
 Bridge = {}
 
-local FW, Core = Config.Framework, nil
+local FW, Core = nil, nil
+local usables, applied = {}, {}
 
-if FW == 'auto' then
-    if GetResourceState('qbx_core') == 'started' then FW = 'qbx'
-    elseif GetResourceState('es_extended') == 'started' then FW = 'esx'
-    elseif GetResourceState('qb-core') == 'started' then FW = 'qb'
-    else FW = 'none' end
+local function up(res)
+    local st = GetResourceState(res)
+    return st == 'started' or st == 'starting'
 end
 
-if FW == 'esx' then
-    local ok, obj = pcall(function() return exports.es_extended:getSharedObject() end)
-    if ok and obj then Core = obj else print(('^1[%s] Couldn\'t get ESX (es_extended): start it before this resource.^0'):format(GetCurrentResourceName())) end
-elseif FW == 'qb' then
-    Core = exports['qb-core']:GetCoreObject()
+local function core()
+    if Core then return Core end
+    if FW == 'esx' then
+        local ok, obj = pcall(function() return exports.es_extended:getSharedObject() end)
+        if ok and obj then Core = obj end
+    elseif FW == 'qb' then
+        local ok, obj = pcall(function() return exports['qb-core']:GetCoreObject() end)
+        if ok and obj then Core = obj end
+    end
+    return Core
 end
 
-Bridge.Name = FW
+local function applyUsables()
+    for item, cb in pairs(usables) do
+        if applied[item] ~= FW and FW ~= 'none' then
+            local ok
+            if FW == 'esx' then
+                local c = core()
+                if c then c.RegisterUsableItem(item, function(src, a, b) cb(src, type(a) == 'table' and a or b) end); ok = true end
+            elseif FW == 'qb' then
+                local c = core()
+                if c then c.Functions.CreateUseableItem(item, function(src, data) cb(src, data) end); ok = true end
+            elseif FW == 'qbx' then
+                ok = pcall(function() exports.qbx_core:CreateUseableItem(item, function(src, data) cb(src, data) end) end)
+            end
+            if ok then applied[item] = FW end
+        end
+    end
+end
+
+-- Which framework, worked out again on use while none is found: this resource may start before es_extended / qb-core
+local function detect()
+    FW = Config.Framework
+    if FW == 'auto' then
+        if up('qbx_core') then FW = 'qbx'
+        elseif up('es_extended') then FW = 'esx'
+        elseif up('qb-core') then FW = 'qb'
+        else FW = 'none' end
+    end
+    Bridge.Name = FW
+    Core = nil
+    core()
+    applyUsables()
+end
+detect()
+
+local function ensure()
+    if Config.Framework == 'auto' and FW == 'none' and (up('es_extended') or up('qb-core') or up('qbx_core')) then detect() end
+    if (FW == 'esx' or FW == 'qb') and not Core then core(); if Core then applyUsables() end end
+end
 
 local function getPlayer(src)
-    if FW == 'esx' then
-        if not Core then
-            local ok, obj = pcall(function() return exports.es_extended:getSharedObject() end)
-            if ok and obj then Core = obj else return nil end
-        end
-        return Core.GetPlayerFromId(src)
-    end
-    if FW == 'qb' then return Core.Functions.GetPlayer(src) end
+    ensure()
+    local c = Core
+    if FW == 'esx' then return c and c.GetPlayerFromId(src) or nil end
+    if FW == 'qb' then return c and c.Functions.GetPlayer(src) or nil end
     if FW == 'qbx' then return exports.qbx_core:GetPlayer(src) end
 end
 Bridge.GetPlayer = getPlayer
+
+CreateThread(function()
+    Wait(4000)
+    ensure()
+    print(('^5[%s]^7 framework: %s'):format(GetCurrentResourceName(), FW))
+    if FW == 'esx' and not Core then print(('^1[%s] Couldn\'t get ESX (es_extended).^0'):format(GetCurrentResourceName())) end
+end)
 
 local function license(src)
     for _, id in ipairs(GetPlayerIdentifiers(src) or {}) do
@@ -151,20 +195,24 @@ function Bridge.IsAdmin(src)
     return false
 end
 
+--- Registered as soon as the framework is there (now, or when it shows up)
 function Bridge.RegisterUsable(item, cb)
-    if FW == 'esx' then
-        if Core then Core.RegisterUsableItem(item, function(src, a, b) cb(src, type(a) == 'table' and a or b) end) end
-    elseif FW == 'qb' then
-        Core.Functions.CreateUseableItem(item, function(src, data) cb(src, data) end)
-    elseif FW == 'qbx' then
-        exports.qbx_core:CreateUseableItem(item, function(src, data) cb(src, data) end)
-    end
+    usables[item] = cb
+    applyUsables()
+end
+
+-- with 'auto' every framework's event is listened to: only the running one ever fires
+local function listens(...)
+    if Config.Framework == 'auto' then return true end
+    for _, f in ipairs({ ... }) do if FW == f then return true end end
+    return false
 end
 
 function Bridge.OnLoaded(cb)
-    if FW == 'esx' then
+    if listens('esx') then
         AddEventHandler('esx:playerLoaded', function(src) cb(src) end)
-    elseif FW == 'qb' or FW == 'qbx' then
+    end
+    if listens('qb', 'qbx') then
         AddEventHandler('QBCore:Server:PlayerLoaded', function(p)
             local src = type(p) == 'table' and p.PlayerData and p.PlayerData.source or source
             cb(src)
@@ -173,14 +221,16 @@ function Bridge.OnLoaded(cb)
 end
 
 function Bridge.OnUnloaded(cb)
-    if FW == 'esx' then
+    if listens('esx') then
         AddEventHandler('esx:playerLogout', function(src) cb(src) end)
-    elseif FW == 'qb' or FW == 'qbx' then
+    end
+    if listens('qb', 'qbx') then
         AddEventHandler('QBCore:Server:OnPlayerUnload', function(src) cb(src) end)
     end
 end
 
 function Bridge.IsLoaded(src)
+    ensure()
     if FW == 'none' then return GetPlayerName(src) ~= nil end
     return getPlayer(src) ~= nil
 end

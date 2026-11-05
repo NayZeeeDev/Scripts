@@ -154,6 +154,7 @@ Nothing in your clothing packs is blocked unless you list it.
 | The chain floats in front of the neck when they run | it was converted by an older chainkit: restart the server (it converts it again once, then it fits itself). Or the studio has a saved fit for it that's off: **Fit** → **From clothing** → **Save** |
 | No picture on the item | restart `ox_inventory` once after the first build (it loads new pictures on start) |
 | *could not start chainkit: Access to this API has been restricted* / *child spawn not allowed* | add `add_unsafe_child_process_permission "nayzeee-chainsnatch"` to `server.cfg` and restart |
+| *No room in your pockets* with empty pockets | update to 1.2.2+ (older versions gave up on ox_inventory if it started after this script). The console prints `inventory: ox_inventory` a few seconds after start: if it says anything else, `ensure ox_inventory` above `ensure nayzeee-chainsnatch` |
 | *could not write into ox_inventory/web/images* | add `add_filesystem_permission nayzeee-chainsnatch write ox_inventory` to `server.cfg` |
 | Looks right on men, wrong on women | the chain was made for men only: fit it on a female ped and **Save** (fits are per body) |
 
