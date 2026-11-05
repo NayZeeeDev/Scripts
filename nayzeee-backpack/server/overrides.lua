@@ -22,6 +22,12 @@ local function load()
     local ok, data = pcall(json.decode, raw or '{}')
     overrides = (ok and type(data) == 'table') and data or {}
 
+    -- settings saved under a bag's old key move to its new one
+    for old, new in pairs(Bags.RENAMED or {}) do
+        if overrides[old] and not Config.Backpacks[old] and Config.Backpacks[new] and not overrides[new] then
+            overrides[new], overrides[old] = overrides[old], nil
+        end
+    end
     -- drop entries for bags that were removed from the config (clothing bags,
     -- nzb_*, register a moment after start: their studio settings stay)
     for key in pairs(overrides) do

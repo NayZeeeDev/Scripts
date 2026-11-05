@@ -40,7 +40,7 @@ end
 local function stillThere(dropId, bagKey)
     local inv = ox:GetInventory(dropId, false)
     for _, it in pairs(inv and inv.items or {}) do
-        if Bags.keyOf(it) == bagKey then return true end
+        if Bags.rawKeyOf(it) == bagKey then return true end -- registered or not (clothing bags register late)
     end
     return false
 end
@@ -70,6 +70,39 @@ CreateThread(function()
     end
 end)
 
+local waiting = {} -- dropped clothing bags that aren't registered yet
+
+--- Put one saved drop back on the ground. Returns true when it's back.
+local function putBack(row)
+    local key = Bags.fixKey(row.bag)
+    if not Config.Backpacks[key] then return false end
+    local metadata = json.decode(row.metadata or '{}') or {}
+    local coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0)
+    local dropId = ox:CustomDrop(Bags.label(key), { { Bags.itemName(key), 1, Bags.stamp(key, metadata) } }, coords, 1,
+        Bags.storage(key).weight, nil, dropModel(key, metadata))
+    if not dropId then
+        Console.log('error', 'could not put dropped %s (bag id %s) back on the ground', key, tostring(metadata.bagid))
+        return false
+    end
+    -- only forget the old row once the bag is really back (never lose it)
+    MySQL.query.await('DELETE FROM nayzeee_dropped_bags WHERE drop_id = ?', { row.drop_id })
+    Drop.track(dropId, key, metadata, coords)
+    return true
+end
+
+-- clothing bags are registered (again): put back the drops that were waiting
+AddEventHandler('nayzeee-backpack:clothingBagsReady', function()
+    CreateThread(function()
+        local still, back = {}, 0
+        for _, row in ipairs(waiting) do
+            if putBack(row) then back = back + 1
+            elseif not Config.Backpacks[Bags.fixKey(row.bag)] then still[#still + 1] = row end
+        end
+        waiting = still
+        if back > 0 then Console.log('info', 'put %d dropped clothing bag(s) back on the ground', back) end
+    end)
+end)
+
 -- put back what was lying on the ground when the server went down
 Console.wait('drops')
 CreateThread(function()
@@ -90,22 +123,14 @@ CreateThread(function()
     local rows = MySQL.query.await('SELECT * FROM nayzeee_dropped_bags') or {}
     local restored = 0
     for _, row in ipairs(rows) do
-        local metadata = json.decode(row.metadata or '{}') or {}
+        local key = Bags.fixKey(row.bag)
         if ox:GetInventory(row.drop_id, false) then
             -- only this resource restarted: ox still has the drop
-            active[tostring(row.drop_id)] = { at = os.time(), bag = row.bag }
-        elseif Config.Backpacks[row.bag] then
-            local coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0)
-            local dropId = ox:CustomDrop(Bags.label(row.bag), { { Bags.itemName(row.bag), 1, Bags.stamp(row.bag, metadata) } }, coords, 1,
-                Bags.storage(row.bag).weight, nil, dropModel(row.bag, metadata))
-            if dropId then
-                -- only forget the old row once the bag is really back (never lose it)
-                MySQL.query.await('DELETE FROM nayzeee_dropped_bags WHERE drop_id = ?', { row.drop_id })
-                Drop.track(dropId, row.bag, metadata, coords)
-                restored = restored + 1
-            else
-                Console.log('error', 'could not put dropped %s (bag id %s) back on the ground', row.bag, tostring(metadata.bagid))
-            end
+            active[tostring(row.drop_id)] = { at = os.time(), bag = key }
+        elseif Config.Backpacks[key] then
+            if putBack(row) then restored = restored + 1 end
+        elseif type(key) == 'string' and key:find('^nzb_') then
+            waiting[#waiting + 1] = row -- a clothing bag: back once it's registered
         end
     end
     Console.check('drops', restored > 0 and 'info' or 'ok', 'Dropped bags',

@@ -57,6 +57,43 @@ local function saveOne(p)
           p.heading or 0.0, p.owner, p.variant or 0, p.access or 'private' })
 end
 
+local waiting = {} -- saved rows of clothing bags that aren't registered yet
+
+local function restoreRow(row)
+    local id = tonumber(row.id)
+    local key = Bags.fixKey(row.bag)
+    if not id or not Config.Backpacks[key] then return false end
+    placed[id] = {
+        id = id,
+        bag = key,
+        metadata = json.decode(row.metadata or '{}') or {},
+        coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0),
+        heading = row.heading + 0.0,
+        owner = row.owner,
+        variant = row.variant,
+        access = row.access or 'private',
+        at = os.time(),
+    }
+    placed[id].full = BagHasCash(key, placed[id].metadata.bagid) or nil
+    if key ~= row.bag then saveOne(placed[id]) end -- the old key, renamed: save it under the new one
+    return true
+end
+
+-- clothing bags are registered (again): put back the ones that were waiting
+AddEventHandler('nayzeee-backpack:clothingBagsReady', function()
+    local still, back = {}, 0
+    for _, row in ipairs(waiting) do
+        if restoreRow(row) then
+            back = back + 1
+            BroadcastPlaced(placed[tonumber(row.id)])
+        else
+            still[#still + 1] = row
+        end
+    end
+    waiting = still
+    if back > 0 then Console.log('info', 'put %d set-down clothing bag(s) back on the ground', back) end
+end)
+
 local function deleteOne(id)
     if not hasDb then return end
     MySQL.query('DELETE FROM nayzeee_placed_bags WHERE id = ?', { id })
@@ -84,22 +121,15 @@ CreateThread(function()
     local rows = MySQL.query.await('SELECT * FROM nayzeee_placed_bags') or {}
 
     for _, row in ipairs(rows) do
-        if not Config.Backpacks[row.bag] then goto skip end
         local id = tonumber(row.id)
-        placed[id] = {
-            id = id,
-            bag = row.bag,
-            metadata = json.decode(row.metadata or '{}') or {},
-            coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0),
-            heading = row.heading + 0.0,
-            owner = row.owner,
-            variant = row.variant,
-            access = row.access or 'private',
-            at = os.time(),
-        }
-        placed[id].full = BagHasCash(row.bag, placed[id].metadata.bagid) or nil
-        if id >= nextId then nextId = id + 1 end
-        ::skip::
+        -- every saved id stays taken, restored or not, so a new bag never overwrites a row
+        if id and id >= nextId then nextId = id + 1 end
+        local key = Bags.fixKey(row.bag)
+        if Config.Backpacks[key] then
+            restoreRow(row)
+        elseif type(key) == 'string' and key:find('^nzb_') then
+            waiting[#waiting + 1] = row -- a clothing bag: back once it's registered
+        end
     end
 
     ready = true

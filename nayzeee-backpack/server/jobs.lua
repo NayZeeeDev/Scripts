@@ -155,8 +155,10 @@ RegisterNetEvent('nayzeee-backpack:policeSearch', function(targetId)
             if not now or not now.metadata or now.metadata.bagid ~= bagid then return end
             local a2, b2 = GetPlayerPed(src), GetPlayerPed(targetId)
             if a2 == 0 or b2 == 0 or #(GetEntityCoords(a2) - GetEntityCoords(b2)) > (search.distance or 2.0) + 1.5 then return end
-            if Logs then Logs.search(src, targetId, now.name) end
-            local stash = PrepareStash(now.name, bagid)
+            local key = Bags.keyOf(now)
+            if not key then return end
+            if Logs then Logs.search(src, targetId, key) end
+            local stash = PrepareStash(key, bagid)
             AllowStash(src, stash)
             TriggerClientEvent('nayzeee-backpack:open', src, stash)
         end,

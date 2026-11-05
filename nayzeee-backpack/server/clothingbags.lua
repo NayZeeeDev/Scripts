@@ -79,7 +79,10 @@ function ClothingBags.reload()
                     variants = #vars > 1 and vars or nil,
                     converted = { resource = RES, source = source, bone = tonumber(e.bone), centre = vec(e.centre) },
                 }
-                for k, v in pairs(type(CC.bags) == 'table' and CC.bags[e.label] or {}) do
+                -- per-bag settings by folder name ("Mew Backpack" also covers "Mew Backpack (Male)" and "… 2")
+                local base = tostring(e.label or ''):gsub(' %((%a+)%)$', ''):gsub(' %d+$', '')
+                local per = type(CC.bags) == 'table' and (CC.bags[e.label] or CC.bags[base]) or {}
+                for k, v in pairs(per) do
                     if k ~= 'converted' then def[k] = v end
                 end
                 if Config.Backpacks[e.id] and not Config.Backpacks[e.id].converted then
@@ -94,12 +97,20 @@ function ClothingBags.reload()
     ClothingBags.list = list
     TriggerLatentClientEvent('nayzeee-backpack:clothingBags', -1, 200000, list)
     for _, id in ipairs(GetPlayers()) do RefreshBagState(tonumber(id)) end
+    -- set-down and dropped clothing bags saved before a restart can come back now
+    TriggerEvent('nayzeee-backpack:clothingBagsReady')
     return count(list)
 end
 
+local asked = {} -- [src] = last time they asked for the list
 RegisterNetEvent('nayzeee-backpack:clothingBags:get', function()
-    TriggerLatentClientEvent('nayzeee-backpack:clothingBags', source, 200000, ClothingBags.list)
+    local src = source
+    local now = GetGameTimer()
+    if asked[src] and now - asked[src] < 5000 then return end
+    asked[src] = now
+    TriggerLatentClientEvent('nayzeee-backpack:clothingBags', src, 200000, ClothingBags.list)
 end)
+AddEventHandler('playerDropped', function() asked[source] = nil end)
 
 AddEventHandler('onResourceStart', function(res)
     if res == RES then SetTimeout(500, ClothingBags.reload) end
@@ -196,7 +207,7 @@ end
 local function reportProps(done)
     CreateThread(function()
         local state
-        for _ = 1, 20 do
+        for _ = 1, 60 do -- a first start hashes every model: give it time
             state = GetResourceState(RES)
             if state == 'started' then break end
             Wait(500)
@@ -311,7 +322,8 @@ AddEventHandler('nayzeee-backpack:bagkit:exit', function(src, mode, code, tail)
         autoBuild = false
         local s = ClothingBags.scan or {}
         local n = #(s.new or {}) + #(s.changed or {})
-        if ClothingBags.run('build', 0) then
+        -- (a converter that fails to start reports that synchronously: then nothing is building)
+        if ClothingBags.run('build', 0) and ClothingBags.running == 'build' then
             bootPhase, bootBuild = false, true
             -- a first conversion can take a minute: the start-up block doesn't wait for it, the result prints after
             Console.check('converter', 'info', 'Converter', ('converting %d bag(s), the props start when it\'s done'):format(n))
@@ -369,9 +381,16 @@ CreateThread(function()
     Wait(200)
     if ClothingBags.kit then
         ClothingBags.run('scan', 0)
-        -- the props start when the scan (and the build after it) is done; never wait forever
+        -- the props start when the scan (and the build after it) is done. A scan that never answers
+        -- mustn't hold them back; a long build is fine (it starts them when it's done)
         SetTimeout(180000, function()
-            if bootPhase or bootBuild then bootPhase, bootBuild = false, false; startProps(); reportProps(false) end
+            if bootPhase then
+                bootPhase = false
+                if ClothingBags.running == 'scan' then ClothingBags.running = false end
+                Console.check('converter', 'warn', 'Converter', 'bagkit did not answer in 3 minutes: started the props as they are')
+                startProps()
+                reportProps(true)
+            end
         end)
     else
         bootPhase = false

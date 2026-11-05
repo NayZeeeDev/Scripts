@@ -17,6 +17,8 @@ local function apply(list)
     Bags.cache = {}
     -- a clothing bag someone already wears could only now be drawn
     if RefreshAllBags then RefreshAllBags() end
+    -- and our own inventory check only now knows it's a bag (no equip animation replay)
+    if ResyncBackpack then ResyncBackpack() end
 end
 
 RegisterNetEvent('nayzeee-backpack:clothingBags', apply)

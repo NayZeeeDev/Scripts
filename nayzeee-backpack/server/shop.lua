@@ -71,7 +71,7 @@ RegisterNetEvent('nayzeee-backpack:buy', function(bagKey, variant)
         return result(src, false, Strings.one_bag_only)
     end
 
-    if not ox:CanCarryItem(src, bagKey, 1) then
+    if not ox:CanCarryItem(src, Bags.itemName(bagKey), 1, Bags.stamp(bagKey, {})) then
         return result(src, false, Strings.shop_full)
     end
 

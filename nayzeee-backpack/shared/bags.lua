@@ -57,14 +57,31 @@ end
 
 Bags.ITEM = Config.ClothingBags and Config.ClothingBags.item or 'backpack'
 
---- The bag an inventory item is, or nil when it isn't one.
-function Bags.keyOf(item)
+-- bag keys renamed since an earlier build: items and saved rows that still
+-- carry the old one keep working (the Polar Bear used to be 'backpack')
+Bags.RENAMED = { backpack = 'nayzeee_backpack_polarbear' }
+
+--- A saved bag key, with a renamed one mapped to its new name.
+function Bags.fixKey(key)
+    local new = key and not Config.Backpacks[key] and Bags.RENAMED[key]
+    return (new and Config.Backpacks[new]) and new or key
+end
+
+--- Which bag an item says it is, whether or not that bag is registered yet
+--- (clothing bags register a few seconds after start).
+function Bags.rawKeyOf(item)
     if type(item) ~= 'table' or not item.name then return nil end
     if item.name == Bags.ITEM then
-        local key = type(item.metadata) == 'table' and item.metadata.bag
-        return key and Config.Backpacks[key] and key or nil
+        local meta = type(item.metadata) == 'table' and item.metadata or {}
+        return meta.bag or Bags.fixKey(item.name)
     end
-    return Config.Backpacks[item.name] and item.name or nil
+    return Bags.fixKey(item.name)
+end
+
+--- The bag an inventory item is, or nil when it isn't one.
+function Bags.keyOf(item)
+    local key = Bags.rawKeyOf(item)
+    return key and Config.Backpacks[key] and key or nil
 end
 
 --- Is this ox item name a bag item at all?
@@ -88,7 +105,14 @@ function Bags.stamp(key, meta)
         if not meta.tag then meta.label = Bags.label(key) end
         local v = Bags.variant(key, meta.variant) or Bags.variants(key)[1]
         local prop = v and v.model or bag.model
-        meta.imageurl = ('nui://%s/icons/%s.png'):format(bag.converted.resource, prop)
+        -- a picture made in the icon studio (ox_inventory/web/images) beats the converter's drawing
+        local first = Bags.variants(key)[1]
+        local studio = (v and first and v.id ~= first.id) and ('%s_%s'):format(key, v.id) or key
+        if IS_SERVER and LoadResourceFile('ox_inventory', ('web/images/%s.png'):format(studio)) then
+            meta.image, meta.imageurl = studio, nil
+        else
+            meta.imageurl = ('nui://%s/icons/%s.png'):format(bag.converted.resource, prop)
+        end
     end
     return meta
 end
@@ -170,8 +194,9 @@ function Bags.offset(key)
     local o = overrides[key] and overrides[key].offset
     local b = bag and bag.offset
 
-    -- a clothing bag sits where the clothing sat, unless fitted in /bagstudio or the config
-    if not o and not b and bag and bag.converted and AutoFit then
+    -- a clothing bag sits where the clothing sat, unless fitted in /bagstudio, the config
+    -- or given a carry style (a purse hold has its own grip)
+    if not o and not b and bag and bag.converted and AutoFit and not Bags.carryStyle(key) then
         local auto = AutoFit.get(key)
         if auto then
             AutoFit.request(key) -- checks GTA's attach angles for that bone once, in the background

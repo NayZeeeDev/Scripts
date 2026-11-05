@@ -114,10 +114,12 @@ end
 function Console.check(key, level, label, text)
     local r = { rank = rank[key], level = level, label = label, text = text or '' }
     if not r.rank then nextRank = nextRank + 1; r.rank = nextRank end
+    local replaced = false
     for i, old in ipairs(rows) do
-        if old.label == label then rows[i] = r return end
+        if old.label == label then rows[i] = r; replaced = true break end
     end
-    rows[#rows + 1] = r
+    if not replaced then rows[#rows + 1] = r end
+    -- after the block printed (a result that came later, e.g. a long first conversion): say it now
     if flushed then print(line(level, ('%s: %s'):format(label, text or ''))) end
 end
 
