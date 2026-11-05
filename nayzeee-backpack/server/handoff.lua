@@ -42,12 +42,13 @@ local function itemFor(src, slot)
         item = FindBagItem(src)
     end
     if not item or not item.name then return nil end
-    if not Config.Backpacks[item.name] and not isOutfitBag(item.name) then return nil end
+    if not Bags.keyOf(item) and not isOutfitBag(item.name) then return nil end
     return item
 end
 
-local function label(name)
-    if Config.Backpacks[name] then return Bags.label(name) end
+local function label(item)
+    local key = Bags.keyOf(item)
+    if key then return Bags.label(key) end
     return Strings.ob_title
 end
 
@@ -62,10 +63,11 @@ local function blocked(src, taker, item)
         return 'ho_busy'
     end
 
-    if Config.Backpacks[item.name] then
-        if Bags.isJobBag(item.name) and not cfg.jobBags then return 'ho_job' end
+    local key = Bags.keyOf(item)
+    if key then
+        if Bags.isJobBag(key) and not cfg.jobBags then return 'ho_job' end
         if Config.OneBagOnly and FindBagItem(taker) then return 'ho_has_bag' end
-        if not ServerCanUseBag(taker, item.name) then return 'ho_cant_use' end
+        if not ServerCanUseBag(taker, key) then return 'ho_cant_use' end
     end
     if not ox:CanCarryItem(taker, item.name, 1, item.metadata) then return 'ho_cant_carry' end
 end
@@ -90,8 +92,8 @@ RegisterNetEvent('nayzeee-backpack:handoff:offer', function(taker, slot)
         expires = os.time() + cfg.timeout,
     }
     offers[taker] = offer
-    TriggerClientEvent('nayzeee-backpack:handoff:ask', taker, label(item.name), cfg.timeout)
-    tell(src, 'ho_offered', 'inform', label(item.name))
+    TriggerClientEvent('nayzeee-backpack:handoff:ask', taker, label(item), cfg.timeout)
+    tell(src, 'ho_offered', 'inform', label(item))
 
     SetTimeout(cfg.timeout * 1000 + 1000, function()
         if offers[taker] == offer then
@@ -105,15 +107,16 @@ end)
 local function transfer(src, taker, item)
     -- a copy: the original is what RemoveItem matches against
     local meta = lib.table.deepclone(item.metadata or {})
-    if Config.Backpacks[item.name] then meta.stowed = nil end
+    local key = Bags.keyOf(item)
+    if key then meta.stowed = nil end
 
     if not ox:RemoveItem(src, item.name, 1, item.metadata, item.slot) then return false end
     if ox:AddItem(taker, item.name, 1, meta) then return true end
 
     if not ox:AddItem(src, item.name, 1, meta) then
         local at = GetEntityCoords(GetPlayerPed(src))
-        local dropId = ox:CustomDrop(label(item.name), { { item.name, 1, meta } }, at)
-        if Drop and Config.Backpacks[item.name] then Drop.track(dropId, item.name, meta, at) end -- survives a restart
+        local dropId = ox:CustomDrop(label(item), { { item.name, 1, meta } }, at)
+        if Drop and key then Drop.track(dropId, key, meta, at) end -- survives a restart
     end
     return false
 end
@@ -150,9 +153,10 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
     end
 
     local model, texture, worn
-    if Config.Backpacks[item.name] then
-        model, texture = Bags.resolve(item.name, item.metadata and item.metadata.variant, true,
-            BagHasCash(item.name, item.metadata and item.metadata.bagid))
+    local key = Bags.keyOf(item)
+    if key then
+        model, texture = Bags.resolve(key, item.metadata and item.metadata.variant, true,
+            BagHasCash(key, item.metadata and item.metadata.bagid))
         local wearing = FindBagItem(src)
         worn = wearing and wearing.slot == item.slot and not (item.metadata and item.metadata.stowed) or false
     else
@@ -194,14 +198,15 @@ RegisterNetEvent('nayzeee-backpack:handoff:answer', function(accept)
             return finish(src, taker)
         end
 
-        if Config.Backpacks[now.name] then
+        local nowKey = Bags.keyOf(now)
+        if nowKey then
             RefreshBagState(src)
             RefreshBagState(taker)
         end
-        tell(src, 'ho_given', 'success', label(now.name))
-        tell(taker, 'ho_received', 'success', label(now.name))
-        if Logs then Logs.handoff(src, taker, now.name, now.metadata) end
-        TriggerEvent('nayzeee-backpack:server:handedOver', src, taker, now.name)
+        tell(src, 'ho_given', 'success', label(now))
+        tell(taker, 'ho_received', 'success', label(now))
+        if Logs then Logs.handoff(src, taker, nowKey or now.name, now.metadata) end
+        TriggerEvent('nayzeee-backpack:server:handedOver', src, taker, nowKey or now.name)
         finish(src, taker)
     end)
 end)

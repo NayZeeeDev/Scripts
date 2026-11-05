@@ -35,6 +35,60 @@ Config.Framework = 'auto'
 -- that warns when it isn't running. false = your props live elsewhere.
 Config.PropsResource = 'nayzeee-backpack-props'
 
+--  ██████╗██╗      ██████╗ ████████╗██╗  ██╗██╗███╗   ██╗ ██████╗
+-- ██╔════╝██║     ██╔═══██╗╚══██╔══╝██║  ██║██║████╗  ██║██╔════╝
+-- ██║     ██║     ██║   ██║   ██║   ███████║██║██╔██╗ ██║██║  ███╗
+-- ██║     ██║     ██║   ██║   ██║   ██╔══██║██║██║╚██╗██║██║   ██║
+-- ╚██████╗███████╗╚██████╔╝   ██║   ██║  ██║██║██║ ╚████║╚██████╔╝
+--  ╚═════╝╚══════╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝
+--
+-- Bags you download for FiveM are usually CLOTHING (a hand_###_u.ydd or
+-- task_###_u.ydd plus a _diff_ .ytd per colour). Drop them in this script's
+-- bags/ folder, one folder per bag, and restart: the script turns them into
+-- props by itself (no CodeWalker, no config entry), each sitting exactly where
+-- the clothing sat. They all share ONE ox_inventory item, `item` below.
+--
+--   nayzeee-backpack/bags/Mew Backpack/hand_005_u.ydd
+--                                     /hand_diff_005_a_uni.ytd   <- every colour
+--
+-- The props go into nayzeee-bagprops, a resource the script makes next to this
+-- one and starts by itself. server.cfg needs (see INSTALL.md):
+--   add_unsafe_child_process_permission "nayzeee-backpack"
+--   add_ace resource.nayzeee-backpack command.refresh allow
+--   add_ace resource.nayzeee-backpack command.ensure allow
+--   add_ace resource.nayzeee-backpack command.restart allow
+-- Props you add yourself (Config.Backpacks below) keep working as always.
+Config.ClothingBags = {
+    enabled   = true,
+    folder    = 'bags',              -- inside this resource
+    resource  = 'nayzeee-bagprops',  -- made by the script: don't ensure it, don't edit it
+    item      = 'backpack',          -- the ox_inventory item every clothing bag uses (install/ox_items.lua)
+    autoBuild = true,                -- convert new / changed bags on start (or /bagconvert)
+
+    -- also turn bags into props that other resources stream as clothing:
+    -- {} none, { 'my_clothing_pack' }, or 'all'
+    scanResources = {},
+
+    -- what a converted bag is in the shop, unless set per bag below or in /bagstudio
+    defaults = { category = 'backpack', theme = 'realistic', price = 2500, slots = 8, weight = 10000 },
+
+    -- per bag, by its folder name: anything a Config.Backpacks entry takes
+    -- (label, category, price, slots, weight, carry, offset, job ...)
+    bags = {
+        -- ['Mew Backpack'] = { price = 4000, slots = 10 },
+        -- ['Cash Bag']     = { category = 'pocketbook', carry = 'purse' },
+    },
+
+    textureSize  = 1024,   -- max texture size of the props
+    iconSize     = 256,    -- a picture is drawn for every colour (the icon studio makes nicer ones)
+    maxTriangles = 45000,  -- heavier bags are simplified
+    lodDistance  = 100,
+    kit = {
+        linux   = 'tools/bagkit/linux-x64/bagkit',
+        windows = 'tools/bagkit/win-x64/bagkit.exe',
+    },
+}
+
 Config.OneBagOnly    = true  -- Only one backpack in a player's inventory at a time
 Config.BlockBagInBag = true  -- Stop a backpack being stuffed inside another backpack
 Config.ShowInVehicle = false -- Only when Config.Vehicle is off: keep the bag on your back while driving
@@ -880,7 +934,7 @@ Config.IconCapture = {
 
 Config.Backpacks = {
 
-    ['backpack'] = {
+    ['nayzeee_backpack_polarbear'] = {
         label    = 'Polar Bear Backpack',
         model    = 'nayzeee_backpack_016',
         category = 'backpack',

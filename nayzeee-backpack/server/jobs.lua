@@ -47,7 +47,7 @@ function IssueJobBag(src, bagKey, variant)
     local meta = { bagid = bagid, issued = true }
     if variant and Bags.variant(bagKey, variant) then meta.variant = tonumber(variant) end
 
-    if not ox:AddItem(src, bagKey, 1, meta) then return false end
+    if not ox:AddItem(src, Bags.itemName(bagKey), 1, Bags.stamp(bagKey, meta)) then return false end
 
     SetResourceKvp(key, bagid)
     if fresh then giveKit(bagKey, bagid) end
@@ -60,11 +60,11 @@ end
 function ReturnJobBag(src, bagKey)
     local items = ox:GetInventoryItems(src) or {}
     for _, item in pairs(items) do
-        if item and item.name == bagKey then
+        if Bags.keyOf(item) == bagKey then
             if item.metadata and item.metadata.bagid then
                 SetResourceKvp(kvpKey(src, bagKey), item.metadata.bagid)
             end
-            return ox:RemoveItem(src, bagKey, 1, item.metadata, item.slot)
+            return ox:RemoveItem(src, item.name, 1, item.metadata, item.slot)
         end
     end
     return false
@@ -94,9 +94,10 @@ Framework.onJobChange(function(src, job)
     local onDuty = job and job.onDuty
     local held = FindBagItem(src)
 
-    if cfg.autoReturn and held and Bags.isJobBag(held.name) then
-        if not Bags.jobAllows(held.name, job) or not onDuty then
-            if ReturnJobBag(src, held.name) then
+    local heldKey = Bags.keyOf(held)
+    if cfg.autoReturn and heldKey and Bags.isJobBag(heldKey) then
+        if not Bags.jobAllows(heldKey, job) or not onDuty then
+            if ReturnJobBag(src, heldKey) then
                 TriggerClientEvent('nayzeee-backpack:notify', src, Strings.job_returned, 'inform')
             end
             held = nil
@@ -143,7 +144,7 @@ RegisterNetEvent('nayzeee-backpack:policeSearch', function(targetId)
 
     local slot, bagid = item.slot, item.metadata.bagid
     Locks.gate(src, item.metadata, {
-        bag = item.name,
+        bag = Bags.keyOf(item),
         police = true,
         near = function()
             local a2, b2 = GetPlayerPed(src), GetPlayerPed(targetId)

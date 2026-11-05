@@ -207,7 +207,7 @@ exports('usePadlock', function(event, item, inventory)
     local bag, meta = wornBag(src)
     if not bag then tell(src, 'no_bag') return false end
     if Locks.isLocked(meta) then tell(src, 'lk_already') return false end
-    TriggerClientEvent('nayzeee-backpack:lock:set', src, Bags.label(bag.name), cfg.digits or 4)
+    TriggerClientEvent('nayzeee-backpack:lock:set', src, Bags.label(Bags.keyOf(bag)), cfg.digits or 4)
     return false -- taken when the lock actually goes on
 end)
 
@@ -224,7 +224,7 @@ RegisterNetEvent('nayzeee-backpack:lock:apply', function(code)
     if not ox:RemoveItem(src, cfg.item, 1) then return tell(src, 'lk_no_padlock') end
 
     meta.lock = { h = hash(code, meta.bagid), owner = Framework.getIdentifier(src), at = os.time() }
-    meta.description = BagDescription(bag.name, meta)
+    meta.description = BagDescription(Bags.keyOf(bag), meta)
     ox:SetMetadata(src, bag.slot, meta)
     known[meta.bagid] = nil
     remember(src, meta.bagid)
@@ -232,7 +232,7 @@ RegisterNetEvent('nayzeee-backpack:lock:apply', function(code)
 
     sound('lock', src)
     tell(src, 'lk_locked', 'success')
-    if Logs then Logs.lock(src, bag.name, 'locked') end
+    if Logs then Logs.lock(src, Bags.keyOf(bag), 'locked') end
 end)
 
 --- Owner (or someone with the code) changes it or takes the lock off.
@@ -250,7 +250,7 @@ RegisterNetEvent('nayzeee-backpack:lock:manage', function(action, oldCode, newCo
 
     if action == 'remove' then
         meta.lock = nil
-        meta.description = BagDescription(bag.name, meta)
+        meta.description = BagDescription(Bags.keyOf(bag), meta)
         ox:SetMetadata(src, bag.slot, meta)
         known[meta.bagid] = nil
         if cfg.returnPadlock ~= false then ox:AddItem(src, cfg.item, 1) end

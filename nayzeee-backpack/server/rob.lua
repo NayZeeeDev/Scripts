@@ -50,7 +50,7 @@ RegisterNetEvent('nayzeee-backpack:rob', function(victimId)
 
     -- confirm they really hold it
     local item = FindBagItem(victimId)
-    if not item or item.name ~= bagKey then
+    if not item or Bags.keyOf(item) ~= bagKey then
         RefreshBagState(victimId)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_failed, 'error')
     end
@@ -71,14 +71,14 @@ RegisterNetEvent('nayzeee-backpack:rob', function(victimId)
     else
         if Logs then Logs.rob(src, victimId, bagKey, metadata, false) end
 
-        if not ox:RemoveItem(victimId, bagKey, 1, metadata, item.slot) then
+        if not ox:RemoveItem(victimId, item.name, 1, metadata, item.slot) then
             return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.rob_failed, 'error')
         end
 
-        if (Config.OneBagOnly and FindBagItem(src)) or not ox:AddItem(src, bagKey, 1, metadata) then
+        if (Config.OneBagOnly and FindBagItem(src)) or not ox:AddItem(src, item.name, 1, metadata) then
             -- robber already has a bag or is full, so it lands on the ground instead
             local at = GetEntityCoords(robberPed)
-            local dropId = ox:CustomDrop(Bags.label(bagKey), { { bagKey, 1, metadata } }, at,
+            local dropId = ox:CustomDrop(Bags.label(bagKey), { { item.name, 1, metadata } }, at,
                 1, Bags.storage(bagKey).weight, nil, joaat((Bags.resolve(bagKey, metadata.variant, true, BagHasCash(bagKey, metadata.bagid)))))
             Drop.track(dropId, bagKey, metadata, at) -- survives a restart
         end

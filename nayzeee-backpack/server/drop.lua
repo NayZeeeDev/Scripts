@@ -40,7 +40,7 @@ end
 local function stillThere(dropId, bagKey)
     local inv = ox:GetInventory(dropId, false)
     for _, it in pairs(inv and inv.items or {}) do
-        if it and it.name == bagKey then return true end
+        if Bags.keyOf(it) == bagKey then return true end
     end
     return false
 end
@@ -96,7 +96,7 @@ CreateThread(function()
             active[tostring(row.drop_id)] = { at = os.time(), bag = row.bag }
         elseif Config.Backpacks[row.bag] then
             local coords = vector3(row.x + 0.0, row.y + 0.0, row.z + 0.0)
-            local dropId = ox:CustomDrop(Bags.label(row.bag), { { row.bag, 1, metadata } }, coords, 1,
+            local dropId = ox:CustomDrop(Bags.label(row.bag), { { Bags.itemName(row.bag), 1, Bags.stamp(row.bag, metadata) } }, coords, 1,
                 Bags.storage(row.bag).weight, nil, dropModel(row.bag, metadata))
             if dropId then
                 -- only forget the old row once the bag is really back (never lose it)
@@ -123,7 +123,7 @@ function Drop.bag(src, bagKey, coords, skipLog)
     if not bag then return nil end
 
     local item = FindBagItem(src)
-    if not item or item.name ~= bagKey then return nil end
+    if not item or Bags.keyOf(item) ~= bagKey then return nil end
 
     local metadata = item.metadata or {}
     metadata.stowed = nil
@@ -133,7 +133,7 @@ function Drop.bag(src, bagKey, coords, skipLog)
         Logs.drop(src, bagKey, metadata, coords or GetEntityCoords(GetPlayerPed(src)), 'death')
     end
 
-    if not ox:RemoveItem(src, bagKey, 1, metadata, item.slot) then
+    if not ox:RemoveItem(src, item.name, 1, metadata, item.slot) then
         return nil
     end
 
@@ -147,7 +147,7 @@ function Drop.bag(src, bagKey, coords, skipLog)
     local storage = Bags.storage(bagKey)
     local dropId = ox:CustomDrop(
         Bags.label(bagKey),
-        { { bagKey, 1, metadata } },
+        { { item.name, 1, metadata } },
         coords,
         1,                      -- the drop holds the bag item itself
         storage.weight,

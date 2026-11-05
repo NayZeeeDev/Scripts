@@ -17,7 +17,7 @@ function FindBagItem(src)
     if not items then return nil end
     local best
     for _, item in pairs(items) do
-        if item and item.name and Config.Backpacks[item.name] then
+        if Bags.keyOf(item) then
             if not best or (item.slot or 99) < (best.slot or 99) then best = item end
         end
     end
@@ -54,11 +54,12 @@ function RefreshBagState(src)
         return nil
     end
 
-    local ok, why = ServerCanUseBag(src, item.name)
+    local key = Bags.keyOf(item)
+    local ok, why = ServerCanUseBag(src, key)
     if not ok then
         if current then Player(src).state:set('nayzeee_backpack', nil, true) end
-        if denied[src] ~= item.name then
-            denied[src] = item.name
+        if denied[src] ~= key then
+            denied[src] = key
             TriggerClientEvent('nayzeee-backpack:notify', src, why or Strings.job_only, 'error')
         end
         return nil
@@ -67,19 +68,19 @@ function RefreshBagState(src)
 
     local m = item.metadata or {}
     local variant = tonumber(m.variant)
-    if variant and not Bags.variant(item.name, variant) then variant = nil end
+    if variant and not Bags.variant(key, variant) then variant = nil end
 
     local state = {
-        bag = item.name,
-        variant = variant or Bags.defaultVariant(item.name),
+        bag = key,
+        variant = variant or Bags.defaultVariant(key),
         stowed = m.stowed and true or nil,
         pose = m.pose,
         slot = item.slot,
         locked = m.lock and true or nil,
         tag = m.tag,
-        full = BagHasCash(item.name, m.bagid) or nil, -- shows its fullModel while it holds cash
+        full = BagHasCash(key, m.bagid) or nil, -- shows its fullModel while it holds cash
     }
-    if m.bagid and Bags.def(item.name).fullModel then wornStash[stashId(m.bagid)] = src end
+    if m.bagid and Bags.def(key).fullModel then wornStash[stashId(m.bagid)] = src end
 
     -- only write when something changed; statebag writes go to everyone
     if not current or current.bag ~= state.bag or current.variant ~= state.variant
@@ -97,7 +98,7 @@ end
 -- give every backpack a unique id and its own stash
 -----------------------------------------------------------------
 
-local itemFilter = {}
+local itemFilter = { [Bags.ITEM] = true } -- the one item every clothing bag shares
 for name in pairs(Config.Backpacks) do itemFilter[name] = true end
 
 --- Item tooltip: storage, plus whether it's padlocked.
@@ -111,11 +112,12 @@ end
 ox:registerHook('createItem', function(payload)
     local meta = payload.metadata or {}
     local name = payload.item and payload.item.name
+    local key = Bags.keyOf({ name = name, metadata = meta })
 
     if not meta.bagid then
         meta.bagid = ('%s%s'):format(os.time(), math.random(100000, 999999))
     end
-    meta.description = meta.description or BagDescription(name, meta)
+    if key then meta.description = meta.description or BagDescription(key, meta) end
     return meta
 end, { itemFilter = itemFilter })
 
@@ -126,7 +128,7 @@ end, { itemFilter = itemFilter })
 if Config.OneBagOnly then
     ox:registerHook('swapItems', function(payload)
         local moved = payload.fromSlot
-        if not moved or not Config.Backpacks[moved.name] then return true end
+        if not moved or not Bags.isItem(moved.name) then return true end
 
         local dest = payload.toInventory
         if dest ~= payload.fromInventory and type(dest) == 'number' then
@@ -143,7 +145,7 @@ end
 if Config.BlockBagInBag then
     ox:registerHook('swapItems', function(payload)
         local moved = payload.fromSlot
-        if not moved or not Config.Backpacks[moved.name] then return true end
+        if not moved or not Bags.isItem(moved.name) then return true end
 
         local dest = payload.toInventory
         if type(dest) == 'string' and dest:find('^backpack_') then
@@ -233,7 +235,7 @@ local function openBackpack(src, item)
 
     local slot, bagid = item.slot, meta.bagid
     Locks.gate(src, meta, {
-        bag = item.name,
+        bag = Bags.keyOf(item),
         open = function()
             local now = ox:GetSlot(src, slot)
             if now and now.metadata and now.metadata.bagid == bagid then openUnlocked(src, now) end
@@ -248,16 +250,18 @@ end
 
 openUnlocked = function(src, item)
     local meta = item.metadata
+    local key = Bags.keyOf(item)
+    if not key then return end
 
-    local id = PrepareStash(item.name, meta.bagid)
-    local info = Bags.openInfo(item.name)
+    local id = PrepareStash(key, meta.bagid)
+    local info = Bags.openInfo(key)
     if info.cashModel or info.grabAnim then
         info.cash = hasAny(id, info.cashItems)
-        watching[id] = { bag = item.name, src = src }
+        watching[id] = { bag = key, src = src }
     end
 
     -- keep the item tooltip honest after a storage edit
-    local desc = BagDescription(item.name, meta)
+    local desc = BagDescription(key, meta)
     if meta.description ~= desc then
         meta.description = desc
         ox:SetMetadata(src, item.slot, meta)
@@ -267,7 +271,7 @@ openUnlocked = function(src, item)
     TriggerClientEvent('nayzeee-backpack:open', src, id, info)
     -- kneeling down takes a moment before the zip
     if Sounds then Sounds.play('zip_open', src, info.style == 'kneel' and 900 or 250) end
-    if Logs then Logs.simple('open', 'Backpack opened', src, item.name) end
+    if Logs then Logs.simple('open', 'Backpack opened', src, key) end
 end
 
 -- cash going in or out of an open duffel: swap its model, play the grab
@@ -335,13 +339,15 @@ AddEventHandler('ox_inventory:closedInventory', function(playerId, inventoryId)
     if w and w.src == playerId then watching[inventoryId] = nil end
 end)
 
-for name in pairs(Config.Backpacks) do
-    exports('use' .. name, function(event, item, inventory)
-        if event ~= 'usingItem' then return end
-        TriggerClientEvent('nayzeee-backpack:menu', inventory.id, item.name)
-        return false -- don't consume the item
-    end)
+local function useBag(event, item, inventory)
+    if event ~= 'usingItem' then return end
+    local key = Bags.keyOf(item)
+    if key then TriggerClientEvent('nayzeee-backpack:menu', inventory.id, key) end
+    return false -- don't consume the item
 end
+for name in pairs(Config.Backpacks) do exports('use' .. name, useBag) end
+-- the one item every clothing bag shares (server = { export = 'nayzeee-backpack.usebackpack' })
+if not Config.Backpacks[Bags.ITEM] then exports('use' .. Bags.ITEM, useBag) end
 
 -----------------------------------------------------------------
 -- client requests
@@ -358,7 +364,7 @@ RegisterNetEvent('nayzeee-backpack:openWorn', function()
         RefreshBagState(src)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.no_bag, 'error')
     end
-    if not ServerCanUseBag(src, item.name) then
+    if not ServerCanUseBag(src, Bags.keyOf(item)) then
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.job_only, 'error')
     end
     openBackpack(src, item)
@@ -379,7 +385,7 @@ RegisterNetEvent('nayzeee-backpack:setStowed', function(stowed)
     if Sounds then Sounds.play('strap', src, 500) end
 
     if Logs then
-        Logs.simple('stow', stowed and 'Backpack taken off' or 'Backpack put on', src, item.name)
+        Logs.simple('stow', stowed and 'Backpack taken off' or 'Backpack put on', src, Bags.keyOf(item))
     end
     TriggerClientEvent('nayzeee-backpack:notify', src, stowed and Strings.stowed or Strings.worn, 'inform')
 end)
@@ -388,7 +394,7 @@ RegisterNetEvent('nayzeee-backpack:setPose', function(poseKey)
     local src = source
     if not Bags.pose(poseKey) then return end
     local item = FindBagItem(src)
-    if not item or not Bags.carryStyle(item.name) then return end
+    if not item or not Bags.carryStyle(Bags.keyOf(item)) then return end
 
     local meta = item.metadata or {}
     meta.pose = poseKey
@@ -436,7 +442,7 @@ end)
 exports('GetBagStash', function(src)
     local item = FindBagItem(src)
     if not item or not item.metadata or not item.metadata.bagid then return nil end
-    local id = PrepareStash(item.name, item.metadata.bagid)
+    local id = PrepareStash(Bags.keyOf(item), item.metadata.bagid)
     AllowStash(src, id)
     return id
 end)
@@ -450,5 +456,5 @@ exports('GiveBag', function(src, bagKey, variant)
     if not Config.Backpacks[bagKey] then return false end
     local meta = {}
     if variant and Bags.variant(bagKey, variant) then meta.variant = tonumber(variant) end
-    return ox:AddItem(src, bagKey, 1, meta) and true or false
+    return ox:AddItem(src, Bags.itemName(bagKey), 1, Bags.stamp(bagKey, meta)) and true or false
 end)

@@ -33,10 +33,16 @@ lib.addCommand('bagitems', {
     if src ~= 0 and not Framework.isAdmin(src) then return end
     local missing, out = 0, {}
     for _, key in ipairs(Bags.keys()) do
-        if not ox:Items(key) then
+        if not Bags.def(key).converted and not ox:Items(key) then -- clothing bags share one item (below)
             missing = missing + 1
             out[#out + 1] = entryFor(key)
         end
+    end
+    local cb = Config.ClothingBags
+    if cb and cb.enabled and not ox:Items(Bags.ITEM) then
+        missing = missing + 1
+        out[#out + 1] = ("['%s'] = {\n    label = 'Backpack',\n    weight = 1000,\n    stack = false,\n    close = true,\n    description = 'A bag',\n    server = { export = '%s.use%s' },\n},"):format(
+            Bags.ITEM, GetCurrentResourceName(), Bags.ITEM)
     end
     local lock = Config.Padlock
     if lock and lock.enabled then
@@ -112,10 +118,12 @@ CreateThread(function()
     Wait(3000)
     local missing = {}
     for _, key in ipairs(Bags.keys()) do
-        if not ox:Items(key) then missing[#missing + 1] = key end
+        if not Bags.def(key).converted and not ox:Items(key) then missing[#missing + 1] = key end
     end
+    local cb = Config.ClothingBags
+    if cb and cb.enabled and not ox:Items(Bags.ITEM) then missing[#missing + 1] = Bags.ITEM .. ' (clothing bags)' end
     if #missing == 0 then
-        Console.check('items', 'ok', 'Items', ('all %d bags are ox_inventory items'):format(#Bags.keys()))
+        Console.check('items', 'ok', 'Items', 'every bag has its ox_inventory item')
     else
         Console.check('items', 'warn', 'Items', ('%d bag(s) have no ox_inventory item: paste install/ox_items.lua, or /bagitems'):format(#missing))
         Console.log('warn', 'no item yet: %s', table.concat(missing, ', '))

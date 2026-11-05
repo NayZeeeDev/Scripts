@@ -46,6 +46,53 @@ function Bags.exists(key)
     return key ~= nil and Config.Backpacks[key] ~= nil
 end
 
+-----------------------------------------------------------------
+-- items
+--
+-- A bag in Config.Backpacks is its own ox_inventory item (the item
+-- name is the bag's key). Bags made from clothing (bags/ folder, see
+-- server/clothingbags.lua) all share ONE item, Config.ClothingBags.item
+-- ('backpack'), and say which bag they are in metadata.bag.
+-----------------------------------------------------------------
+
+Bags.ITEM = Config.ClothingBags and Config.ClothingBags.item or 'backpack'
+
+--- The bag an inventory item is, or nil when it isn't one.
+function Bags.keyOf(item)
+    if type(item) ~= 'table' or not item.name then return nil end
+    if item.name == Bags.ITEM then
+        local key = type(item.metadata) == 'table' and item.metadata.bag
+        return key and Config.Backpacks[key] and key or nil
+    end
+    return Config.Backpacks[item.name] and item.name or nil
+end
+
+--- Is this ox item name a bag item at all?
+function Bags.isItem(name)
+    return name ~= nil and (name == Bags.ITEM or Config.Backpacks[name] ~= nil)
+end
+
+--- The ox_inventory item a bag lives in.
+function Bags.itemName(key)
+    local bag = Config.Backpacks[key]
+    return bag and bag.converted and Bags.ITEM or key
+end
+
+--- Metadata a bag needs on its item: which bag it is, plus its name and
+--- picture for a bag that shares the one clothing-bag item.
+function Bags.stamp(key, meta)
+    meta = meta or {}
+    local bag = Config.Backpacks[key]
+    if bag and bag.converted then
+        meta.bag = key
+        if not meta.tag then meta.label = Bags.label(key) end
+        local v = Bags.variant(key, meta.variant) or Bags.variants(key)[1]
+        local prop = v and v.model or bag.model
+        meta.imageurl = ('nui://%s/icons/%s.png'):format(bag.converted.resource, prop)
+    end
+    return meta
+end
+
 function Bags.label(key)
     local bag = Bags.def(key)
     local o = overrides[key]
@@ -122,6 +169,15 @@ function Bags.offset(key)
     local bag = Bags.def(key)
     local o = overrides[key] and overrides[key].offset
     local b = bag and bag.offset
+
+    -- a clothing bag sits where the clothing sat, unless fitted in /bagstudio or the config
+    if not o and not b and bag and bag.converted and AutoFit then
+        local auto = AutoFit.get(key)
+        if auto then
+            AutoFit.request(key) -- checks GTA's attach angles for that bone once, in the background
+            return auto.bone, copyVec(auto.pos), copyVec(auto.rot)
+        end
+    end
     local style = Bags.carryStyle(key)
     local s = style and style.offset
 

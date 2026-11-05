@@ -22,9 +22,10 @@ local function load()
     local ok, data = pcall(json.decode, raw or '{}')
     overrides = (ok and type(data) == 'table') and data or {}
 
-    -- drop entries for bags that were removed from the config
+    -- drop entries for bags that were removed from the config (clothing bags,
+    -- nzb_*, register a moment after start: their studio settings stay)
     for key in pairs(overrides) do
-        if not Config.Backpacks[key] then overrides[key] = nil end
+        if not Config.Backpacks[key] and not key:find('^nzb_') then overrides[key] = nil end
     end
     publish()
 end

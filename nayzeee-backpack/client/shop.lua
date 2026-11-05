@@ -86,7 +86,8 @@ local function ownedMap()
     local owned = {}
     local items = exports.ox_inventory:GetPlayerItems() or {}
     for _, item in pairs(items) do
-        if item and Bags.exists(item.name) then owned[item.name] = true end
+        local key = Bags.keyOf(item)
+        if key then owned[key] = true end
     end
     return owned
 end

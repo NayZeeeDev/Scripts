@@ -179,12 +179,12 @@ RegisterNetEvent('nayzeee-backpack:place', function(bagKey, coords, heading, acc
     end
 
     local item = FindBagItem(src)
-    if not item or item.name ~= bagKey then
+    if not item or Bags.keyOf(item) ~= bagKey then
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.no_bag, 'error')
     end
 
     local metadata = item.metadata or {}
-    if not ox:RemoveItem(src, bagKey, 1, metadata, item.slot) then
+    if not ox:RemoveItem(src, item.name, 1, metadata, item.slot) then
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.place_bad, 'error')
     end
 
@@ -299,7 +299,7 @@ RegisterNetEvent('nayzeee-backpack:pickup', function(id)
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.one_bag_only, 'error')
     end
 
-    if not ox:AddItem(src, entry.bag, 1, entry.metadata) then
+    if not ox:AddItem(src, Bags.itemName(entry.bag), 1, Bags.stamp(entry.bag, entry.metadata)) then
         return TriggerClientEvent('nayzeee-backpack:notify', src, Strings.place_bad, 'error')
     end
 

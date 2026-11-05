@@ -130,14 +130,71 @@ client picks up live. **Keep `data/overrides.json` when you update the script.**
 
 ---
 
-### Bags made as clothing
+## Bags made as clothing (no converting by hand)
 
-Clothing bags (`.ydd` + a `.ytd` per colour) get converted to props first:
-`nayzeee-backpack-props/tools/convert_bag.sh` (see the props README). Each
-colour becomes its own small texture pack sharing one model, listed as
-`variants` in `Config.Backpacks`. After converting, fit purses once in
-`/bagstudio` (**Carry preset → Right hand**, nudge, **Save**). Bags worn on the
-body sit where the clothing did on the default fit.
+Most bags you download for FiveM are **clothing**: a `hand_###_u.ydd` (or
+`task_###_u.ydd`) plus a `_diff_` `.ytd` per colour. Clothing can't be set down,
+handed over or put on a car seat, so the script **turns them into props for you**:
+no CodeWalker, no config entry, no fitting.
+
+| | Props you add (above) | Clothing bags |
+|---|---|---|
+| The files | `.ydr` / `.ytd` / `.ytyp` in nayzeee-backpack-props + a `Config.Backpacks` entry | the clothing files in `nayzeee-backpack/bags/`, nothing else |
+| Items | one item per bag | **one item for every clothing bag**: `backpack` (in `install/ox_items.lua`) |
+| Fitting | `/bagstudio` | **automatic**: it sits exactly where the clothing sat (studio only to change it) |
+| Pictures | icon studio | drawn **automatically** for every colour (icon studio for nicer ones) |
+
+Both work side by side: use whichever a bag came as.
+
+**Once, in `server.cfg`:**
+
+```
+add_unsafe_child_process_permission "nayzeee-backpack"
+add_ace resource.nayzeee-backpack command.refresh allow
+add_ace resource.nayzeee-backpack command.ensure allow
+add_ace resource.nayzeee-backpack command.restart allow
+```
+
+- The first line lets the script run its converter (`tools/bagkit`, ready-made for
+  Windows and Linux in the zip). Without it the console says the server blocks it.
+- The three `add_ace` lines let it start and restart **nayzeee-bagprops**, the
+  resource it makes next to this one for the converted props. **Don't** add
+  `ensure nayzeee-bagprops`: the script starts it itself once new bags are converted,
+  so a new bag shows up after **one** restart. Don't edit that folder.
+
+**Add a bag (every time):**
+
+1. Make a folder in `nayzeee-backpack/bags/` named what players should see,
+   e.g. `bags/Mew Backpack/`.
+2. Put the bag's `.ydd` and **every** `.ytd` that came with it in it. Each colour
+   (`_a_`, `_b_` …) becomes its own colour. Male + female files can share the folder:
+   they become *Name (Male)* and *Name (Female)*.
+3. Restart the server, or in game `/bagconvert`. The startup block in the console
+   says how many were converted.
+
+That's it. The bag is in the shop with `Config.ClothingBags.defaults` (price,
+slots, weight, category). Change one bag in `Config.ClothingBags.bags` by its
+folder name, or live in `/bagstudio` (price, storage, fit, carry style, icon).
+Heavy bags (over `maxTriangles`) are simplified automatically.
+
+> **How does it fit itself?** Clothing is skinned to the character's bones (the
+> upper spine for backpacks, a hand for hand bags). The converter notes the bone and
+> where the bag sat, so the prop is stuck to the same bone with the clothing's exact
+> offset, measured once per bone in game. A fit saved in `/bagstudio` always wins.
+
+Bags already in a clothing pack on your server: `Config.ClothingBags.scanResources
+= { 'my_clothing_pack' }` turns those into props too (they stay clothing as well).
+
+| `/bagconvert` | |
+|---|---|
+| (nothing) / `build` | convert what's new or changed |
+| `rebuild` | convert everything again |
+| `icons` | draw the pictures again |
+| `prune` | delete props of bags whose folders are gone (never automatic) |
+| `scan` | only say what's new |
+
+The older way still works too: `nayzeee-backpack-props/tools/convert_bag.sh`
+converts a clothing bag into props for the props resource (see its README).
 
 ## The studio — `/bagstudio` (admin)
 
@@ -454,6 +511,7 @@ exports['nayzeee-backpack']:GiveBag(src, key, variant)
 |---|---|---|
 | `/bagstudio` | admin | studio |
 | `/bagitems` | admin / console | print missing ox_inventory items |
+| `/bagconvert [build/rebuild/icons/prune/scan]` | admin / console | convert bag clothing in `bags/` |
 | `/givebag id bag [variant]` | admin / console | give a bag |
 | `/bagmenu` `/openbag` `/placebag` `/bagnearby` | everyone | bindable in key settings (defaults: `Config.Keybinds`) |
 | `/mybags` | everyone | find bags you've set down |

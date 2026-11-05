@@ -82,7 +82,7 @@ local function openEditor(src)
     if not current and not hasItem(src) then return tell(src, 'nt_need_item') end
     TriggerClientEvent('nayzeee-backpack:tag:edit', src, {
         tag = current,
-        bag = Bags.label(bag.name),
+        bag = Bags.label(Bags.keyOf(bag)),
         free = current ~= nil and cfg.editFree ~= false,
     })
 end
@@ -124,6 +124,7 @@ RegisterNetEvent('nayzeee-backpack:tag:remove', function()
     local meta = bag.metadata
     meta.tag = nil
     meta.label = nil
+    Bags.stamp(Bags.keyOf(bag), meta) -- a clothing bag gets its own name back
     ox:SetMetadata(src, bag.slot, meta)
     RefreshBagState(src)
     tell(src, 'nt_removed', 'inform')

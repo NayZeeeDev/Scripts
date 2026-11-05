@@ -115,14 +115,14 @@
     client = { image = 'nayzeee_backpack_moodybear.png' },
     server = { export = 'nayzeee-backpack.usenayzeee_backpack_moodybear' },
 },
-['backpack'] = {
+['nayzeee_backpack_polarbear'] = {
     label = 'Polar Bear Backpack',
     weight = 1000,
     stack = false,
     close = true,
     description = '8 slots · 10.0kg',
-    client = { image = 'backpack.png' },
-    server = { export = 'nayzeee-backpack.usebackpack' },
+    client = { image = 'nayzeee_backpack_polarbear.png' },
+    server = { export = 'nayzeee-backpack.usenayzeee_backpack_polarbear' },
 },
 ['nayzeee_backpack_psykitty'] = {
     label = 'Psy Kitty Backpack',
@@ -390,6 +390,18 @@
     description = '15 slots · 30.0kg',
     client = { image = 'nayzeee_bag_weekender.png' },
     server = { export = 'nayzeee-backpack.usenayzeee_bag_weekender' },
+},
+
+-- CLOTHING BAGS ----------------------------------------------
+-- One item for every bag made from clothing (the bags/ folder): it says which bag it is
+-- in its metadata, with the bag's own name and picture. Nothing to add per bag.
+['backpack'] = {
+    label = 'Backpack',
+    weight = 1000,
+    stack = false,
+    close = true,
+    description = 'A bag',
+    server = { export = 'nayzeee-backpack.usebackpack' },
 },
 
 -- OUTFIT BAG -------------------------------------------------

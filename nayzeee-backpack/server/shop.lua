@@ -89,8 +89,9 @@ RegisterNetEvent('nayzeee-backpack:buy', function(bagKey, variant)
     local metadata = {}
     if variant then metadata.variant = variant end
     metadata.image = variantImage(bagKey, variant)
+    Bags.stamp(bagKey, metadata) -- a clothing bag: which one, its name and picture
 
-    if not ox:AddItem(src, bagKey, 1, metadata) then
+    if not ox:AddItem(src, Bags.itemName(bagKey), 1, metadata) then
         Framework.addMoney(src, account, price) -- refund rather than eat their money
         return result(src, false, Strings.shop_full)
     end
@@ -108,7 +109,7 @@ RegisterNetEvent('nayzeee-backpack:sell', function(bagKey)
     if Bags.isJobBag(bagKey) then return result(src, false, Strings.shop_job) end
 
     local item = FindBagItem(src)
-    if not item or item.name ~= bagKey then
+    if not item or Bags.keyOf(item) ~= bagKey then
         return result(src, false, Strings.shop_nothing)
     end
 
@@ -121,7 +122,7 @@ RegisterNetEvent('nayzeee-backpack:sell', function(bagKey)
         end
     end
 
-    if not ox:RemoveItem(src, bagKey, 1, item.metadata, item.slot) then
+    if not ox:RemoveItem(src, item.name, 1, item.metadata, item.slot) then
         return result(src, false, Strings.shop_nothing)
     end
 

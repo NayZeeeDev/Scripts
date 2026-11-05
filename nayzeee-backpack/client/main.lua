@@ -272,10 +272,11 @@ local function inventorySig()
     if not items then return nil, nil end
 
     for _, item in pairs(items) do
-        if item and Bags.exists(item.name) then
+        local key = Bags.keyOf(item)
+        if key then
             local m = item.metadata or {}
-            return ('%s|%s|%s|%s|%s'):format(item.name, item.slot, tostring(m.variant), tostring(m.stowed), tostring(m.pose)),
-                   item.name, m
+            return ('%s|%s|%s|%s|%s'):format(key, item.slot, tostring(m.variant), tostring(m.stowed), tostring(m.pose)),
+                   key, m
         end
     end
     return 'none', nil, nil

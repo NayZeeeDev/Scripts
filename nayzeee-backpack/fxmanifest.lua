@@ -3,19 +3,22 @@ game 'gta5'
 lua54 'yes'
 
 author 'NAYZEEE Development'
-description 'Backpacks, purses & job bags for ox_inventory (ESX / Qbox / QBCore / standalone)'
+description 'Backpacks, purses & job bags for ox_inventory (ESX / Qbox / QBCore / standalone), props or bag clothing'
 version '1.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',
     'config.lua',
     'shared/bags.lua',
+    'shared/skeleton.lua',
     'bridge/framework.lua',
     'integrations.lua',
 }
 
 client_scripts {
     'client/util.lua',
+    'client/autofit.lua',
+    'client/clothingbags.lua',
     'client/sounds.lua',
     'client/vehicle.lua',
     'client/anim.lua',
@@ -57,6 +60,8 @@ server_scripts {
     'server/icons.js',
     'server/admin.lua',
     'server/outfits.lua',
+    'server/bagkit.js',
+    'server/clothingbags.lua',
 }
 
 ui_page 'web/index.html'
