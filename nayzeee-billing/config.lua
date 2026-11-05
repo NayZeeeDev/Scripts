@@ -283,9 +283,13 @@ Config.Admin = {
 -- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
 
 Config.Notify = {
-    System = 'ox_lib',            -- 'ox_lib' / 'esx' / 'qb' / 'okokNotify' / 'mythic' / 'custom'
+    -- 'auto' (ox_lib > qbx_core > qb-core > es_extended) / 'ox_lib' / 'esx' / 'qb' / 'qbx' / 'okokNotify' / 'mythic' / 'custom'
+    -- All billing notifications use this, including the ones from inside the billing window
+    System = 'auto',
+    Duration = 5000,
+    Position = nil,               -- ox_lib only, e.g. 'top-right' (nil = ox_lib default)
     Sounds = true,
-    Custom = function(title, message, kind) end,
+    Custom = function(title, message, kind) end,   -- kind: 'success' | 'error' | 'warning' | 'info'
 }
 
 -- ██╗      ██████╗  ██████╗ ███████╗

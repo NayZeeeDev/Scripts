@@ -212,14 +212,10 @@ const ic = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" st
 const ticon = (icon, color, lg) => `<span class="ticon ${lg ? 'lg' : ''} c-${esc(TEMPLATE_COLORS.includes(color) ? color : 'gray')}">${ic(icon)}</span>`;
 
 // ═══════════════ TOASTS ═══════════════
+// Notifications go to the game's notify system (ox_lib / ESX / QBCore / Qbox / ... via Config.Notify)
 function toast(title, message, type = 'info') {
-    const box = $('#toasts');
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    el.innerHTML = `<div class="ti">${ic(type === 'error' ? 'info' : type === 'warning' ? 'alert' : type === 'success' ? 'check' : 'bell')}</div><div><b>${esc(title)}</b><p>${esc(message)}</p></div>`;
-    box.appendChild(el);
-    while (box.children.length > 4) box.firstChild.remove();
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, 4600);
+    if (!IN_GAME) { console.info(`[notify:${type}] ${title}${message ? ' - ' + message : ''}`); return; }
+    nui('notify', { title: String(title ?? ''), message: String(message ?? ''), type });
 }
 
 // ═══════════════ MODALS ═══════════════
@@ -1761,7 +1757,6 @@ window.addEventListener('message', (ev) => {
         case 'open': open(data); break;
         case 'navigate': if (data.page) go(data.page); handleExtra(data.extra); break;
         case 'close': hide(); break;
-        case 'toast': toast(data.title, data.message, data.type); break;
         case 'refresh': refreshCtx(); break;
         case 'paper': showPaper(data); break;
         case 'posOpen': openPos(data); break;

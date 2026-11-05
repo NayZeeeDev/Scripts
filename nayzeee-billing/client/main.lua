@@ -23,9 +23,14 @@ function UI.Focus(mode)
 end
 
 function UI.Toast(title, message, kind)
-    if UI.open then UI.Send('toast', { title = title, message = message, type = kind or 'info' })
-    else ClientBridge.Notify(title, message, kind) end
+    ClientBridge.Notify(title, message, kind)
 end
+
+-- Notifications raised inside the billing window use the configured notify system too
+RegisterNUICallback('notify', function(d, cb)
+    if type(d) == 'table' then ClientBridge.Notify(d.title, d.message, d.type) end
+    cb('ok')
+end)
 
 function Rpc(name, payload)
     local res = lib.callback.await('nayzeee-billing:' .. name, false, payload or {})

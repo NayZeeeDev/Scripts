@@ -487,22 +487,6 @@ table.t{width:100%;border-collapse:collapse}
 .paper .foot{text-align:center;color:#6b7176;font-size:11.5px;margin-top:12px;padding-top:12px;border-top:1px dashed #d4d6d4}
 .paper .qty{color:#8a9095;font-weight:400}
 
-/* ═══════════════ TOASTS ═══════════════ */
-#toasts{position:fixed;top:22px;right:22px;display:flex;flex-direction:column;gap:9px;z-index:300;pointer-events:none}
-.toast{display:flex;gap:11px;align-items:flex-start;width:330px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--accent);
-  border-radius:var(--r-sm);box-shadow:var(--sh-2);position:relative;overflow:hidden;animation:tIn .22s cubic-bezier(.2,.8,.2,1)}
-.toast.out{animation:tOut .2s ease forwards}
-@keyframes tIn{from{opacity:0;transform:translateX(16px)}}
-@keyframes tOut{to{opacity:0;transform:translateX(16px)}}
-.toast .ti{width:26px;height:26px;flex:none;border-radius:var(--r-xs);display:grid;place-items:center;color:var(--accent);background:var(--accent-wash);border:1px solid var(--accent-edge)}
-.toast .ti svg{width:14px;height:14px;stroke-width:1.9}
-.toast b{display:block;font-size:12.5px;font-weight:600;color:var(--white);margin-bottom:3px}
-.toast p{font-size:11.5px;color:var(--ink-2);line-height:1.5}
-.toast.error{border-left-color:var(--danger)} .toast.error .ti{color:var(--danger);background:var(--danger-wash);border-color:var(--danger-edge)}
-.toast.warning{border-left-color:var(--warning)} .toast.warning .ti{color:var(--warning);background:var(--warning-wash);border-color:var(--warning-edge)}
-.toast.success{border-left-color:var(--success)} .toast.success .ti{color:var(--success);background:var(--success-wash);border-color:var(--success-edge)}
-.toast::after{content:'';position:absolute;left:0;bottom:0;height:2px;width:100%;background:currentColor;opacity:.0}
-
 /* ═══════════════ POS / DISPLAY ═══════════════ */
 .pos-grid{display:grid;grid-template-columns:1fr 360px;gap:12px;flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
 .menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;align-content:start;overflow-y:auto;padding:2px}

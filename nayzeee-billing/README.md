@@ -60,6 +60,7 @@ Discord: discord.gg/nayzeeedev
 - **F7 keymapping** (configurable and rebindable)
 - **Editable bridges**: framework, banking, inventory, notifications, logger
 - **JSON locales** (`locales/en.json`), **UI colours** from config
+- **Notifications** all go through `Config.Notify` (`auto`, ox_lib, ESX, QBCore, Qbox, okokNotify, mythic or your own), including the ones from inside the billing window
 - **Imports** from esx_billing, okokBilling and qb-phone
 - **Compatibility**: `esx_billing:sendBill` and the esx_billing callbacks keep working
 
@@ -194,6 +195,7 @@ nayzeee-billing:server:invoiceRefunded  (ref, amount)
 - **Colours**: `Config.UI.Colors` (accent, chart colours, danger/warning/success, background, panel)
 - **Text**: copy `locales/en.json` to `locales/<lang>.json`, translate it and set `Config.Locale`. Missing keys fall back to English.
 - **Framework**: `bridge/framework/esx.lua`, `qb.lua`, or implement `custom.lua` and set `Config.Framework = 'custom'`
+- **Notifications**: `Config.Notify.System` (or `custom` with your own function)
 - **Banking / inventory / notifications / logs**: `bridge/banking.lua`, `bridge/inventory.lua`, `bridge/client.lua`, `bridge/logger.lua`
 
 ## Browser preview
