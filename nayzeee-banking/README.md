@@ -483,12 +483,13 @@ Change that does not fit in the player's pockets is owed and handed over as soon
 | Framework | Inventory | server.cfg |
 |---|---|---|
 | QBCore | qb-inventory | nothing |
+| QBCore | ox_inventory | `setr inventory:accounts []` |
 | Qbox | ox_inventory | `setr inventory:accounts []` |
 | ESX | ox_inventory | `setr inventory:accounts ["black_money"]` |
 | QBCore / ESX | qs-inventory | nothing, as long as qs-inventory is not set to keep cash as an item |
 
 {% hint style="warning" %}
-On ox_inventory, cash must not also be an ox account item, or the framework's figure would be the `money` item and every dollar would exist twice. The resource checks this on start and, if `money` is still listed, leaves the mirror off and says what to add. Scripts that remove the `money` **item** directly (rather than framework cash) are the one thing it cannot follow; point those at `payCash` / `addCash` above.
+On ox_inventory, cash must not also be an ox account item, or the framework's figure would be the `money` item and every dollar would exist twice. The resource checks this on start and, if `money` is still listed, leaves the mirror off and says what to add. ox_inventory shops take notes either way; it is the HUD cash figure and the scripts that charge framework cash (garages, job menus…) that need the line. Scripts that remove the `money` **item** directly (rather than framework cash) are the one thing it cannot follow; point those at `payCash` / `addCash` above.
 {% endhint %}
 
 ---

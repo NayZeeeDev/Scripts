@@ -413,10 +413,12 @@ CreateThread(function()
         local ok, list = pcall(json.decode, GetConvar('inventory:accounts', '["money"]'))
         for _, name in ipairs(ok and type(list) == 'table' and list or { 'money' }) do
             if name == MONEY then
-                print(('^1[nayzeee-banking]^7 Config.Cash: ox_inventory still treats "%s" as the cash account, so ' ..
-                    'shops cannot see banknotes and every dollar would exist twice. Add to server.cfg: ' ..
-                    '^3setr inventory:accounts []^7 (Qbox) or ^3setr inventory:accounts ["black_money"]^7 (ESX), ' ..
-                    'then restart.'):format(MONEY))
+                local warning = ('^1[nayzeee-banking]^7 Config.Cash: ox_inventory still treats "%s" as the cash account, so ' ..
+                    'scripts that charge framework cash cannot see banknotes (ox shops still work). Add to server.cfg: ' ..
+                    '^3setr inventory:accounts []^7 (QBCore/Qbox) or ^3setr inventory:accounts ["black_money"]^7 (ESX), ' ..
+                    'then restart.'):format(MONEY)
+                print(warning)
+                SetTimeout(20000, function() print(warning) end)   -- again, once the startup noise has passed
                 return
             end
         end
@@ -437,41 +439,6 @@ CreateThread(function()
         end)
     end
 
-    -- ox_inventory: notes moved by hand, and its shops
-    if isOx() then
-        local filter = {}
-        for _, n in ipairs(NOTES) do filter[n.item] = true end
-        filter[MONEY] = true
-        pcall(function()
-            exports.ox_inventory:registerHook('swapItems', function(payload)
-                SetTimeout(150, function()
-                    for _, inv in ipairs({ payload.fromInventory, payload.toInventory }) do
-                        if type(inv) == 'number' then sync(inv) end
-                    end
-                end)
-                return true
-            end, { itemFilter = filter })
-
-            -- a shop charges `money`: the notes become `money` while it is open
-            exports.ox_inventory:registerHook('openShop', function(payload)
-                local src = payload.source
-                local have, total = wallet(src)
-                if total > 0 and takeSet(src, have) then
-                    if add(src, MONEY, total) then shopping[src] = true
-                    else giveSet(src, have) end
-                end
-                return true
-            end)
-        end)
-        -- and back into notes when it closes
-        RegisterNetEvent('ox_inventory:closeInventory', function()
-            local src = source
-            if not shopping[src] then return end
-            shopping[src] = nil
-            SetTimeout(100, function() sync(src) end)
-        end)
-    end
-
     -- notes picked up, given, dropped or robbed: the figure follows
     local every = math.max(1, tonumber(C.syncSeconds) or 2) * 1000
     while true do
@@ -480,6 +447,78 @@ CreateThread(function()
             if xPlayer.source then sync(xPlayer.source) end
         end
     end
+end)
+
+-- ═══════════════════════════════════════════════════════════
+--  ox_inventory SHOPS AND HAND MOVES
+--  Registered whenever notes are on with ox_inventory, whether or not the
+--  framework mirror is running: a shop charges the `money` item, so the
+--  notes become `money` while it is open and notes again when it closes.
+--  ox drops every hook when it restarts, so they go on again each time.
+-- ═══════════════════════════════════════════════════════════
+local hooked = false   -- ox forgets our hooks when it restarts
+
+local function oxHooks()
+    if hooked or not active or not isOx() or GetResourceState('ox_inventory') ~= 'started' then return end
+    local filter = {}
+    for _, n in ipairs(NOTES) do filter[n.item] = true end
+    filter[MONEY] = true
+
+    local ok, err = pcall(function()
+        exports.ox_inventory:registerHook('swapItems', function(payload)
+            SetTimeout(150, function()
+                for _, inv in ipairs({ payload.fromInventory, payload.toInventory }) do
+                    if type(inv) == 'number' then sync(inv) end
+                end
+            end)
+            return true
+        end, { itemFilter = filter })
+
+        exports.ox_inventory:registerHook('openShop', function(payload)
+            local src = payload.source
+            local have, total = wallet(src)
+            if total > 0 and takeSet(src, have) then
+                if add(src, MONEY, total) then shopping[src] = true
+                else giveSet(src, have) end
+            end
+            return true
+        end)
+    end)
+    if ok then
+        hooked = true
+        Bank.debug('ox_inventory shops take banknotes')
+    else
+        print('^1[nayzeee-banking]^7 could not hook ox_inventory shops: ' .. tostring(err))
+    end
+end
+
+CreateThread(function()
+    if not active or not isOx() then return end
+    for _ = 1, 120 do
+        if GetResourceState('ox_inventory') == 'started' then break end
+        Wait(500)
+    end
+    Wait(500)
+    oxHooks()
+end)
+
+AddEventHandler('onResourceStart', function(res)
+    if res == 'ox_inventory' then SetTimeout(1000, oxHooks) end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res == 'ox_inventory' then hooked = false end
+end)
+
+-- the shop closes: what is left of the `money` goes back into notes
+RegisterNetEvent('ox_inventory:closeInventory', function()
+    local src = source
+    if not shopping[src] then return end
+    shopping[src] = nil
+    SetTimeout(100, function()
+        pcall(settleLoose, src)
+        sync(src)
+    end)
 end)
 
 Framework.onPlayerLoaded(function(src)
