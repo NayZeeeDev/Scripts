@@ -1,39 +1,42 @@
 --[[
-    NAYZEEE BILLING - Database Auto-Initialization & Migrations
-    Discord: discord.gg/nayzeeedev
-
-    Tables are created / upgraded automatically on resource start (MySQL 5.7+, MySQL 8, MariaDB).
-    Upgrading from 1.x keeps all existing invoices, companies and registers.
+    NAYZEEE BILLING - Database setup & upgrades
+    Tables are created and upgraded automatically (MySQL 5.7+, MySQL 8, MariaDB 10.2+).
+    v1 / v2 installs keep every invoice.
 ]]
 
 DB = { ready = false }
 
-local function columnInfo(tbl, column)
-    return MySQL.single.await([[
-        SELECT DATA_TYPE AS dataType FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
-    ]], { tbl, column })
+local function column(tbl, col)
+    return MySQL.single.await([[SELECT DATA_TYPE AS t FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?]], { tbl, col })
 end
 
--- Portable "ADD COLUMN IF NOT EXISTS" (MySQL 8 doesn't support the MariaDB syntax)
-local function ensureColumn(tbl, column, definition)
-    if columnInfo(tbl, column) then return end
-    MySQL.query.await(('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(tbl, column, definition))
-    print(('^3[NAYZEEE-BILLING]^7 Migrated: added %s.%s'):format(tbl, column))
+function DB.TableExists(tbl)
+    return (tonumber(MySQL.scalar.await([[SELECT COUNT(*) FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?]], { tbl })) or 0) > 0
 end
 
-local function ensureIndex(tbl, index, columns)
-    local exists = MySQL.scalar.await([[
-        SELECT COUNT(*) FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?
-    ]], { tbl, index })
-    if (tonumber(exists) or 0) > 0 then return end
-    MySQL.query.await(('ALTER TABLE `%s` ADD INDEX `%s` (%s)'):format(tbl, index, columns))
+function DB.Columns(tbl)
+    local out = {}
+    for _, r in ipairs(MySQL.query.await([[SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?]], { tbl }) or {}) do out[r.c] = true end
+    return out
+end
+
+local function ensureColumn(tbl, col, def)
+    if column(tbl, col) then return end
+    MySQL.query.await(('ALTER TABLE `%s` ADD COLUMN `%s` %s'):format(tbl, col, def))
+    print(('^3[NAYZEEE-BILLING]^7 Upgraded: %s.%s'):format(tbl, col))
+end
+
+local function ensureIndex(tbl, name, cols)
+    local n = MySQL.scalar.await([[SELECT COUNT(*) FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?]], { tbl, name })
+    if (tonumber(n) or 0) > 0 then return end
+    MySQL.query.await(('ALTER TABLE `%s` ADD INDEX `%s` (%s)'):format(tbl, name, cols))
 end
 
 CreateThread(function()
-    print('^3[NAYZEEE-BILLING]^7 Initializing database...')
-
     -- ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗███████╗
     -- ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝██╔════╝
     -- ██║██╔██╗ ██║██║   ██║██║   ██║██║██║     █████╗  ███████╗
@@ -43,17 +46,21 @@ CreateThread(function()
     MySQL.query.await([[
         CREATE TABLE IF NOT EXISTS `nayzeee_billing_invoices` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
-            `invoice_id` VARCHAR(20) NOT NULL UNIQUE,
+            `invoice_id` VARCHAR(24) NOT NULL UNIQUE,
             `company_id` VARCHAR(50) DEFAULT NULL,
-            `sender_identifier` VARCHAR(60) NOT NULL,
+            `sender_identifier` VARCHAR(64) NOT NULL,
             `sender_name` VARCHAR(100) NOT NULL,
             `sender_job` VARCHAR(50) DEFAULT NULL,
-            `target_identifier` VARCHAR(60) NOT NULL,
+            `recipient_type` VARCHAR(10) DEFAULT 'citizen',
+            `target_identifier` VARCHAR(64) NOT NULL,
+            `target_society` VARCHAR(50) DEFAULT NULL,
             `target_name` VARCHAR(100) NOT NULL,
             `company_name` VARCHAR(100) DEFAULT 'Personal',
+            `reason` VARCHAR(120) DEFAULT NULL,
             `items` LONGTEXT NOT NULL,
             `notes` TEXT DEFAULT NULL,
             `subtotal` DECIMAL(15,2) DEFAULT 0,
+            `vat_rate` DECIMAL(6,4) DEFAULT 0,
             `tax` DECIMAL(15,2) DEFAULT 0,
             `discount` DECIMAL(15,2) DEFAULT 0,
             `total` DECIMAL(15,2) NOT NULL,
@@ -62,9 +69,13 @@ CreateThread(function()
             `tip` DECIMAL(15,2) DEFAULT 0,
             `status` VARCHAR(20) DEFAULT 'pending',
             `payment_method` VARCHAR(20) DEFAULT NULL,
+            `paid_by_identifier` VARCHAR(64) DEFAULT NULL,
+            `paid_by_name` VARCHAR(100) DEFAULT NULL,
             `register_id` VARCHAR(50) DEFAULT NULL,
             `cancel_reason` VARCHAR(255) DEFAULT NULL,
             `dispute_reason` VARCHAR(255) DEFAULT NULL,
+            `import_source` VARCHAR(20) DEFAULT NULL,
+            `import_id` VARCHAR(64) DEFAULT NULL,
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             `paid_at` DATETIME DEFAULT NULL,
             `due_date` DATETIME DEFAULT NULL,
@@ -74,34 +85,28 @@ CreateThread(function()
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
 
-    -- 1.x -> 2.0 migrations
-    local status = columnInfo('nayzeee_billing_invoices', 'status')
-    if status and status.dataType == 'enum' then
+    -- v1 / v2 upgrades
+    local st = column('nayzeee_billing_invoices', 'status')
+    if st and st.t == 'enum' then
         MySQL.query.await("ALTER TABLE `nayzeee_billing_invoices` MODIFY `status` VARCHAR(20) DEFAULT 'pending'")
-        print('^3[NAYZEEE-BILLING]^7 Migrated: invoice status enum -> varchar')
     end
-    ensureColumn('nayzeee_billing_invoices', 'sender_job', 'VARCHAR(50) DEFAULT NULL AFTER `sender_name`')
-    ensureColumn('nayzeee_billing_invoices', 'company_id', 'VARCHAR(50) DEFAULT NULL AFTER `invoice_id`')
-    ensureColumn('nayzeee_billing_invoices', 'notes', 'TEXT DEFAULT NULL AFTER `items`')
-    ensureColumn('nayzeee_billing_invoices', 'late_fee', 'DECIMAL(15,2) DEFAULT 0 AFTER `total`')
-    ensureColumn('nayzeee_billing_invoices', 'amount_paid', 'DECIMAL(15,2) DEFAULT 0 AFTER `late_fee`')
-    ensureColumn('nayzeee_billing_invoices', 'tip', 'DECIMAL(15,2) DEFAULT 0 AFTER `amount_paid`')
-    ensureColumn('nayzeee_billing_invoices', 'register_id', 'VARCHAR(50) DEFAULT NULL AFTER `payment_method`')
-    ensureColumn('nayzeee_billing_invoices', 'cancel_reason', 'VARCHAR(255) DEFAULT NULL AFTER `register_id`')
-    ensureColumn('nayzeee_billing_invoices', 'dispute_reason', 'VARCHAR(255) DEFAULT NULL AFTER `cancel_reason`')
+    MySQL.query.await('ALTER TABLE `nayzeee_billing_invoices` MODIFY `invoice_id` VARCHAR(24) NOT NULL')
+    for _, c in ipairs({
+        { 'company_id', 'VARCHAR(50) DEFAULT NULL' }, { 'sender_job', 'VARCHAR(50) DEFAULT NULL' },
+        { 'recipient_type', "VARCHAR(10) DEFAULT 'citizen'" }, { 'target_society', 'VARCHAR(50) DEFAULT NULL' },
+        { 'reason', 'VARCHAR(120) DEFAULT NULL' }, { 'notes', 'TEXT DEFAULT NULL' },
+        { 'vat_rate', 'DECIMAL(6,4) DEFAULT 0' }, { 'late_fee', 'DECIMAL(15,2) DEFAULT 0' },
+        { 'amount_paid', 'DECIMAL(15,2) DEFAULT 0' }, { 'tip', 'DECIMAL(15,2) DEFAULT 0' },
+        { 'paid_by_identifier', 'VARCHAR(64) DEFAULT NULL' }, { 'paid_by_name', 'VARCHAR(100) DEFAULT NULL' },
+        { 'register_id', 'VARCHAR(50) DEFAULT NULL' }, { 'cancel_reason', 'VARCHAR(255) DEFAULT NULL' },
+        { 'dispute_reason', 'VARCHAR(255) DEFAULT NULL' }, { 'import_source', 'VARCHAR(20) DEFAULT NULL' },
+        { 'import_id', 'VARCHAR(64) DEFAULT NULL' },
+    }) do ensureColumn('nayzeee_billing_invoices', c[1], c[2]) end
     ensureIndex('nayzeee_billing_invoices', 'idx_company', '`company_id`, `created_at`')
+    ensureIndex('nayzeee_billing_invoices', 'idx_target_society', '`target_society`, `status`')
     ensureIndex('nayzeee_billing_invoices', 'idx_due', '`status`, `due_date`')
-
-    -- Paid 1.x invoices had no amount_paid
+    ensureIndex('nayzeee_billing_invoices', 'idx_import', '`import_source`, `import_id`')
     MySQL.query.await("UPDATE `nayzeee_billing_invoices` SET `amount_paid` = `total` WHERE `status` = 'paid' AND `amount_paid` = 0")
-
-    -- Per-prefix reference counters (BS-000142)
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS `nayzeee_billing_sequences` (
-            `prefix` VARCHAR(10) PRIMARY KEY,
-            `value` INT NOT NULL DEFAULT 0
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    ]])
 
     -- ██████╗  █████╗ ██╗   ██╗███╗   ███╗███████╗███╗   ██╗████████╗███████╗
     -- ██╔══██╗██╔══██╗╚██╗ ██╔╝████╗ ████║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
@@ -112,10 +117,11 @@ CreateThread(function()
     MySQL.query.await([[
         CREATE TABLE IF NOT EXISTS `nayzeee_billing_payments` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
-            `invoice_id` VARCHAR(20) NOT NULL,
+            `invoice_id` VARCHAR(24) NOT NULL,
             `company_id` VARCHAR(50) DEFAULT NULL,
-            `sender_identifier` VARCHAR(60) DEFAULT NULL,
-            `payer_identifier` VARCHAR(60) NOT NULL,
+            `target_society` VARCHAR(50) DEFAULT NULL,
+            `sender_identifier` VARCHAR(64) DEFAULT NULL,
+            `payer_identifier` VARCHAR(64) NOT NULL,
             `payer_name` VARCHAR(100) DEFAULT NULL,
             `amount` DECIMAL(15,2) NOT NULL,
             `tip` DECIMAL(15,2) DEFAULT 0,
@@ -124,34 +130,67 @@ CreateThread(function()
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX `idx_invoice` (`invoice_id`),
             INDEX `idx_company_date` (`company_id`, `created_at`),
+            INDEX `idx_payer_date` (`payer_identifier`, `created_at`),
             INDEX `idx_sender_date` (`sender_identifier`, `created_at`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
+    ensureColumn('nayzeee_billing_payments', 'target_society', 'VARCHAR(50) DEFAULT NULL')
+    ensureIndex('nayzeee_billing_payments', 'idx_target_society_date', '`target_society`, `created_at`')
 
-    --  ██████╗ ██████╗ ███╗   ███╗██████╗  █████╗ ███╗   ██╗██╗███████╗███████╗
-    -- ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██╔══██╗████╗  ██║██║██╔════╝██╔════╝
-    -- ██║     ██║   ██║██╔████╔██║██████╔╝███████║██╔██╗ ██║██║█████╗  ███████╗
-    -- ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██╔══██║██║╚██╗██║██║██╔══╝  ╚════██║
-    -- ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ██║  ██║██║ ╚████║██║███████╗███████║
-    --  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚══════╝╚══════╝
+    -- ████████╗███████╗███╗   ███╗██████╗ ██╗      █████╗ ████████╗███████╗███████╗
+    -- ╚══██╔══╝██╔════╝████╗ ████║██╔══██╗██║     ██╔══██╗╚══██╔══╝██╔════╝██╔════╝
+    --    ██║   █████╗  ██╔████╔██║██████╔╝██║     ███████║   ██║   █████╗  ███████╗
+    --    ██║   ██╔══╝  ██║╚██╔╝██║██╔═══╝ ██║     ██╔══██║   ██║   ██╔══╝  ╚════██║
+    --    ██║   ███████╗██║ ╚═╝ ██║██║     ███████╗██║  ██║   ██║   ███████╗███████║
+    --    ╚═╝   ╚══════╝╚═╝     ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝
     MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS `nayzeee_billing_companies` (
-            `id` VARCHAR(50) PRIMARY KEY,
-            `label` VARCHAR(100) NOT NULL,
-            `short_name` VARCHAR(10) DEFAULT NULL,
-            `logo` VARCHAR(255) DEFAULT NULL,
-            `job` VARCHAR(50) DEFAULT NULL,
-            `tax_rate` DECIMAL(5,4) DEFAULT 0.0800,
-            `allow_discounts` TINYINT(1) DEFAULT 1,
-            `categories` LONGTEXT,
-            `products` LONGTEXT,
-            `quick_bills` LONGTEXT,
-            `settings` LONGTEXT,
-            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS `nayzeee_billing_templates` (
+            `id` INT AUTO_INCREMENT PRIMARY KEY,
+            `owner_type` VARCHAR(10) NOT NULL,
+            `owner` VARCHAR(64) NOT NULL,
+            `name` VARCHAR(60) NOT NULL,
+            `icon` VARCHAR(30) DEFAULT 'file',
+            `color` VARCHAR(20) DEFAULT 'teal',
+            `items` LONGTEXT,
+            `sort` INT DEFAULT 0,
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX `idx_owner` (`owner_type`, `owner`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
-    ensureColumn('nayzeee_billing_companies', 'quick_bills', 'LONGTEXT AFTER `products`')
-    ensureColumn('nayzeee_billing_companies', 'settings', 'LONGTEXT AFTER `quick_bills`')
+
+    -- ██████╗ ███████╗██████╗ ███╗   ███╗██╗███████╗███████╗██╗ ██████╗ ███╗   ██╗███████╗
+    -- ██╔══██╗██╔════╝██╔══██╗████╗ ████║██║██╔════╝██╔════╝██║██╔═══██╗████╗  ██║██╔════╝
+    -- ██████╔╝█████╗  ██████╔╝██╔████╔██║██║███████╗███████╗██║██║   ██║██╔██╗ ██║███████╗
+    -- ██╔═══╝ ██╔══╝  ██╔══██╗██║╚██╔╝██║██║╚════██║╚════██║██║██║   ██║██║╚██╗██║╚════██║
+    -- ██║     ███████╗██║  ██║██║ ╚═╝ ██║██║███████║███████║██║╚██████╔╝██║ ╚████║███████║
+    -- ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚══════╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `nayzeee_billing_groups` (
+            `society` VARCHAR(50) NOT NULL,
+            `group_id` VARCHAR(40) NOT NULL,
+            `label` VARCHAR(40) NOT NULL,
+            `access` VARCHAR(10) DEFAULT 'normal',
+            `icon` VARCHAR(30) DEFAULT 'users',
+            `color` VARCHAR(20) DEFAULT 'gray',
+            `perms` LONGTEXT,
+            `sort` INT DEFAULT 0,
+            PRIMARY KEY (`society`, `group_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]])
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `nayzeee_billing_members` (
+            `society` VARCHAR(50) NOT NULL,
+            `identifier` VARCHAR(64) NOT NULL,
+            `group_id` VARCHAR(40) NOT NULL,
+            PRIMARY KEY (`society`, `identifier`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]])
+    MySQL.query.await([[
+        CREATE TABLE IF NOT EXISTS `nayzeee_billing_meta` (
+            `k` VARCHAR(80) PRIMARY KEY,
+            `v` VARCHAR(255) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ]])
 
     -- ██████╗  █████╗ ██╗   ██╗ ██████╗ ██╗   ██╗████████╗███████╗
     -- ██╔══██╗██╔══██╗╚██╗ ██╔╝██╔═══██╗██║   ██║╚══██╔══╝██╔════╝
@@ -162,20 +201,19 @@ CreateThread(function()
     MySQL.query.await([[
         CREATE TABLE IF NOT EXISTS `nayzeee_billing_pending_payouts` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
-            `identifier` VARCHAR(60) NOT NULL,
+            `identifier` VARCHAR(64) NOT NULL,
             `amount` DECIMAL(15,2) NOT NULL,
-            `invoice_id` VARCHAR(20) NOT NULL,
+            `invoice_id` VARCHAR(24) NOT NULL,
             `payment_method` VARCHAR(20) DEFAULT 'bank',
             `requires_collection` TINYINT(1) DEFAULT 0,
             `reason` VARCHAR(100) DEFAULT NULL,
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX `idx_identifier` (`identifier`),
-            INDEX `idx_collection` (`requires_collection`)
+            INDEX `idx_identifier` (`identifier`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
-    ensureColumn('nayzeee_billing_pending_payouts', 'payment_method', "VARCHAR(20) DEFAULT 'bank' AFTER `invoice_id`")
-    ensureColumn('nayzeee_billing_pending_payouts', 'requires_collection', 'TINYINT(1) DEFAULT 0 AFTER `payment_method`')
-    ensureColumn('nayzeee_billing_pending_payouts', 'reason', 'VARCHAR(100) DEFAULT NULL AFTER `requires_collection`')
+    ensureColumn('nayzeee_billing_pending_payouts', 'payment_method', "VARCHAR(20) DEFAULT 'bank'")
+    ensureColumn('nayzeee_billing_pending_payouts', 'requires_collection', 'TINYINT(1) DEFAULT 0')
+    ensureColumn('nayzeee_billing_pending_payouts', 'reason', 'VARCHAR(100) DEFAULT NULL')
 
     -- ██╗      ██████╗  ██████╗ ███████╗
     -- ██║     ██╔═══██╗██╔════╝ ██╔════╝
@@ -187,7 +225,7 @@ CreateThread(function()
         CREATE TABLE IF NOT EXISTS `nayzeee_billing_logs` (
             `id` INT AUTO_INCREMENT PRIMARY KEY,
             `player` VARCHAR(100) NOT NULL,
-            `identifier` VARCHAR(60) DEFAULT NULL,
+            `identifier` VARCHAR(64) DEFAULT NULL,
             `company_id` VARCHAR(50) DEFAULT NULL,
             `action` VARCHAR(50) NOT NULL,
             `data` LONGTEXT DEFAULT NULL,
@@ -196,11 +234,13 @@ CreateThread(function()
             INDEX `idx_timestamp` (`timestamp`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
-    if columnInfo('nayzeee_billing_logs', 'player_name') and not columnInfo('nayzeee_billing_logs', 'player') then
+    if column('nayzeee_billing_logs', 'player_name') and not column('nayzeee_billing_logs', 'player') then
         MySQL.query.await('ALTER TABLE `nayzeee_billing_logs` CHANGE COLUMN `player_name` `player` VARCHAR(100) NOT NULL')
     end
-    ensureColumn('nayzeee_billing_logs', 'identifier', 'VARCHAR(60) DEFAULT NULL AFTER `player`')
-    ensureColumn('nayzeee_billing_logs', 'company_id', 'VARCHAR(50) DEFAULT NULL AFTER `identifier`')
+    ensureColumn('nayzeee_billing_logs', 'identifier', 'VARCHAR(64) DEFAULT NULL')
+    ensureColumn('nayzeee_billing_logs', 'company_id', 'VARCHAR(50) DEFAULT NULL')
+    ensureIndex('nayzeee_billing_logs', 'idx_identifier', '`identifier`, `id`')
+    ensureIndex('nayzeee_billing_logs', 'idx_company', '`company_id`, `id`')
 
     -- ██████╗ ███████╗ ██████╗ ██╗███████╗████████╗███████╗██████╗ ███████╗
     -- ██╔══██╗██╔════╝██╔════╝ ██║██╔════╝╚══██╔══╝██╔════╝██╔══██╗██╔════╝
@@ -221,13 +261,17 @@ CreateThread(function()
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
-    ensureColumn('nayzeee_billing_registers', 'radius', 'DECIMAL(4,2) DEFAULT 2.00 AFTER `heading`')
+    ensureColumn('nayzeee_billing_registers', 'radius', 'DECIMAL(4,2) DEFAULT 2.00')
 
     DB.ready = true
-    TriggerEvent('nayzeee-billing:server:dbReady')
     print('^2[NAYZEEE-BILLING]^7 Database ready')
 end)
 
 function DB.Await()
     while not DB.ready do Wait(100) end
+end
+
+function DB.Meta(key, value)
+    if value == nil then return MySQL.scalar.await('SELECT v FROM nayzeee_billing_meta WHERE k = ?', { key }) end
+    MySQL.insert.await('INSERT INTO nayzeee_billing_meta (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)', { key, tostring(value) })
 end

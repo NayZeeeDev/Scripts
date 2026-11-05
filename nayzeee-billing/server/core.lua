@@ -1,12 +1,9 @@
 --[[
-    NAYZEEE BILLING - Server Core
-    Companies, player context, permissions, RPC plumbing, logging.
-    Discord: discord.gg/nayzeeedev
+    NAYZEEE BILLING - Server core
+    RPC plumbing, societies, permission groups, player context, shared helpers.
 ]]
 
-Companies = {}
 BillingReady = false
-local JobToCompany = {}
 
 -- ██████╗ ██████╗  ██████╗
 -- ██╔══██╗██╔══██╗██╔════╝
@@ -15,23 +12,18 @@ local JobToCompany = {}
 -- ██║  ██║██║     ╚██████╗
 -- ╚═╝  ╚═╝╚═╝      ╚═════╝
 
--- Every NUI action goes through lib.callback 'nayzeee-billing:<name>'.
--- Handlers return data, or Err('message'). Permissions are ALWAYS checked here on the server.
-function Err(message)
-    return { __err = message }
-end
+function Err(message) return { __err = message } end
 
+-- Every UI action is lib.callback 'nayzeee-billing:<name>'. Permissions are always checked here.
 function RPC(name, handler)
     lib.callback.register('nayzeee-billing:' .. name, function(source, payload)
-        if not BillingReady then return { ok = false, error = 'Billing is still starting up' } end
+        if not BillingReady then return { ok = false, error = L('error.starting', 'Billing is still starting up') } end
         local ok, result = pcall(handler, source, type(payload) == 'table' and payload or {})
         if not ok then
-            print(('^1[NAYZEEE-BILLING]^7 RPC %s failed: %s'):format(name, tostring(result)))
-            return { ok = false, error = 'Something went wrong' }
+            print(('^1[NAYZEEE-BILLING]^7 %s: %s'):format(name, tostring(result)))
+            return { ok = false, error = L('error.generic', 'Something went wrong') }
         end
-        if type(result) == 'table' and result.__err then
-            return { ok = false, error = result.__err }
-        end
+        if type(result) == 'table' and result.__err then return { ok = false, error = result.__err } end
         return { ok = true, data = result }
     end)
 end
@@ -46,164 +38,111 @@ function Throttle(source, key, seconds)
 end
 
 AddEventHandler('playerDropped', function()
-    local src = tostring(source)
-    for k in pairs(throttles) do
-        if k:sub(1, #src + 1) == src .. ':' then throttles[k] = nil end
-    end
+    local prefix = tostring(source) .. ':'
+    for k in pairs(throttles) do if k:sub(1, #prefix) == prefix then throttles[k] = nil end end
 end)
 
---  ██████╗ ██████╗ ███╗   ███╗██████╗  █████╗ ███╗   ██╗██╗███████╗███████╗
--- ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██╔══██╗████╗  ██║██║██╔════╝██╔════╝
--- ██║     ██║   ██║██╔████╔██║██████╔╝███████║██╔██╗ ██║██║█████╗  ███████╗
--- ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██╔══██║██║╚██╗██║██║██╔══╝  ╚════██║
--- ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ██║  ██║██║ ╚████║██║███████╗███████║
---  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚══════╝╚══════╝
+-- ███████╗ ██████╗  ██████╗██╗███████╗████████╗██╗███████╗███████╗
+-- ██╔════╝██╔═══██╗██╔════╝██║██╔════╝╚══██╔══╝██║██╔════╝██╔════╝
+-- ███████╗██║   ██║██║     ██║█████╗     ██║   ██║█████╗  ███████╗
+-- ╚════██║██║   ██║██║     ██║██╔══╝     ██║   ██║██╔══╝  ╚════██║
+-- ███████║╚██████╔╝╚██████╗██║███████╗   ██║   ██║███████╗███████║
+-- ╚══════╝ ╚═════╝  ╚═════╝╚═╝╚══════╝   ╚═╝   ╚═╝╚══════╝╚══════╝
 
-local function decode(str, fallback)
-    if type(str) ~= 'string' or str == '' then return fallback end
-    local ok, value = pcall(json.decode, str)
-    if ok and value ~= nil then return value end
-    return fallback
+-- job -> society id (the key in Config.Societies, or a society listing the job in `jobs`)
+function SocietyOfJob(job)
+    if not job then return nil end
+    if Config.Societies[job] then return job end
+    for id, s in pairs(Config.Societies) do
+        if type(s.jobs) == 'table' and Shared.Contains(s.jobs, job) then return id end
+    end
+    return nil
 end
 
-local function copy(t)
-    if type(t) ~= 'table' then return t end
-    local out = {}
-    for k, v in pairs(t) do out[k] = copy(v) end
-    return out
+function SocietyLabel(id)
+    local s = Config.Societies[id]
+    return s and s.label or Framework.GetJobLabel(id) or id
 end
 
-local SettingKeys = {
-    'jobs', 'account', 'minGrade', 'bossGrade', 'maxDiscount', 'allowCustomItems',
-    'allowTips', 'commission', 'dueDays', 'webhook', 'refPrefix',
-}
-
-BoolSettings = { allowCustomItems = true, allowTips = true }
-
-local function NormalizeCompany(id, c)
-    c.id = id
-    c.label = c.label or id
-    c.shortName = c.shortName or c.label:sub(1, 4):upper()
-    c.taxRate = tonumber(c.taxRate) or Config.DefaultTaxRate
-    c.allowDiscounts = c.allowDiscounts == true
-    c.maxDiscount = Shared.Clamp(c.maxDiscount or 100, 0, 100)
-    c.allowCustomItems = c.allowCustomItems == true
-    c.allowTips = c.allowTips ~= false
-    c.minGrade = tonumber(c.minGrade) or 0
-    c.bossGrade = tonumber(c.bossGrade)
-    c.categories = c.categories or copy(Config.DefaultCategories)
-    c.products = c.products or {}
-    c.quickBills = c.quickBills or {}
-    return c
+function SocietyPrefix(id)
+    local s = Config.Societies[id]
+    local raw = s and (s.short or id) or Config.Invoices.PersonalPrefix or 'INV'
+    local p = tostring(raw):upper():gsub('[^%w]', ''):sub(1, 6)
+    return p ~= '' and p or 'INV'
 end
 
-local function RebuildJobIndex()
-    JobToCompany = {}
-    for id, c in pairs(Companies) do
-        if c.job and c.job ~= '' then JobToCompany[c.job] = id end
-        for _, job in ipairs(type(c.jobs) == 'table' and c.jobs or {}) do
-            JobToCompany[job] = id
+function PublicSocieties()
+    local list = {}
+    for id, s in pairs(Config.Societies) do
+        list[#list + 1] = { id = id, label = s.label, short = s.short or id:upper(), color = s.color, billable = s.billable ~= false }
+    end
+    table.sort(list, function(a, b) return a.label < b.label end)
+    return list
+end
+
+-- ██████╗ ███████╗██████╗ ███╗   ███╗██╗███████╗███████╗██╗ ██████╗ ███╗   ██╗███████╗
+-- ██╔══██╗██╔════╝██╔══██╗████╗ ████║██║██╔════╝██╔════╝██║██╔═══██╗████╗  ██║██╔════╝
+-- ██████╔╝█████╗  ██████╔╝██╔████╔██║██║███████╗███████╗██║██║   ██║██╔██╗ ██║███████╗
+-- ██╔═══╝ ██╔══╝  ██╔══██╗██║╚██╔╝██║██║╚════██║╚════██║██║██║   ██║██║╚██╗██║╚════██║
+-- ██║     ███████╗██║  ██║██║ ╚═╝ ██║██║███████║███████║██║╚██████╔╝██║ ╚████║███████║
+-- ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚══════╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+
+local Groups = {}   -- [society] = { list = { group... }, byId = {} }
+local Members = {}  -- [society] = { [identifier] = groupId }
+
+local function decodePerms(raw)
+    local ok, t = pcall(json.decode, raw or '{}')
+    return ok and type(t) == 'table' and t or {}
+end
+
+function LoadGroups(society)
+    if Groups[society] then return Groups[society] end
+    local rows = MySQL.query.await('SELECT * FROM nayzeee_billing_groups WHERE society = ? ORDER BY sort ASC', { society }) or {}
+    if #rows == 0 then
+        for i, g in ipairs(Config.PermissionGroups) do
+            MySQL.insert.await([[INSERT IGNORE INTO nayzeee_billing_groups (society, group_id, label, access, icon, color, perms, sort)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)]], { society, g.id, g.label, g.access, g.icon, g.color, json.encode(g.perms), i })
         end
+        rows = MySQL.query.await('SELECT * FROM nayzeee_billing_groups WHERE society = ? ORDER BY sort ASC', { society }) or {}
     end
+    local data = { list = {}, byId = {} }
+    for _, r in ipairs(rows) do
+        local g = { id = r.group_id, label = r.label, access = r.access, icon = r.icon, color = r.color, perms = decodePerms(r.perms), sort = r.sort }
+        data.list[#data.list + 1] = g
+        data.byId[g.id] = g
+    end
+    Groups[society] = data
+    return data
 end
 
-function LoadCompanies()
-    Companies = {}
-    for id, c in pairs(Config.Companies or {}) do
-        Companies[id] = NormalizeCompany(id, copy(c))
-        Companies[id].isConfig = true
+function LoadMembers(society)
+    if Members[society] then return Members[society] end
+    local map = {}
+    for _, r in ipairs(MySQL.query.await('SELECT identifier, group_id FROM nayzeee_billing_members WHERE society = ?', { society }) or {}) do
+        map[r.identifier] = r.group_id
     end
-
-    -- Database rows (admin-created companies and edits to config companies) override config
-    for _, row in ipairs(MySQL.query.await('SELECT * FROM nayzeee_billing_companies') or {}) do
-        local base = Companies[row.id] or {}
-        local c = copy(base)
-        c.label = row.label
-        c.shortName = row.short_name
-        c.job = row.job
-        c.taxRate = tonumber(row.tax_rate)
-        c.allowDiscounts = row.allow_discounts == true or tonumber(row.allow_discounts) == 1
-        c.categories = decode(row.categories, base.categories)
-        c.products = decode(row.products, base.products)
-        c.quickBills = decode(row.quick_bills, base.quickBills)
-        local settings = decode(row.settings, {})
-        for _, key in ipairs(SettingKeys) do
-            local value = settings[key]
-            if value ~= nil then
-                -- false = explicitly cleared in-game (except real boolean settings)
-                if value == false and not BoolSettings[key] then value = nil end
-                c[key] = value
-            end
-        end
-        Companies[row.id] = NormalizeCompany(row.id, c)
-        Companies[row.id].isConfig = base.isConfig == true
-        Companies[row.id].hasOverride = true
-    end
-
-    RebuildJobIndex()
-    Shared.Debug('Loaded', Shared.Count(Companies), 'companies')
+    Members[society] = map
+    return map
 end
 
-function SaveCompany(id)
-    local c = Companies[id]
-    if not c then return false end
-    local settings = {}
-    for _, key in ipairs(SettingKeys) do
-        local value = c[key]
-        if value == nil then value = false end -- json can't store nil; false marks "cleared"
-        settings[key] = value
-    end
+function InvalidateGroups(society) Groups[society] = nil end
+function InvalidateMembers(society) Members[society] = nil end
 
-    MySQL.query.await([[
-        INSERT INTO nayzeee_billing_companies (id, label, short_name, job, tax_rate, allow_discounts, categories, products, quick_bills, settings)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE label = VALUES(label), short_name = VALUES(short_name), job = VALUES(job),
-            tax_rate = VALUES(tax_rate), allow_discounts = VALUES(allow_discounts), categories = VALUES(categories),
-            products = VALUES(products), quick_bills = VALUES(quick_bills), settings = VALUES(settings)
-    ]], {
-        id, c.label, c.shortName, c.job, c.taxRate, c.allowDiscounts and 1 or 0,
-        json.encode(c.categories or {}), json.encode(c.products or {}), json.encode(c.quickBills or {}),
-        json.encode(settings),
-    })
-    c.hasOverride = true
-    RebuildJobIndex()
-    TriggerClientEvent('nayzeee-billing:client:companiesChanged', -1)
-    return true
+function DefaultGroupFor(society, grade, isBoss)
+    local s = Config.Societies[society] or {}
+    local d = Config.DefaultGroups
+    if isBoss or grade >= (s.manageGrade or 99) then return d.manage end
+    if grade >= (s.sendGrade or 0) then return d.send end
+    return d.other
 end
 
--- Remove the DB row. Config companies revert to companies.lua, custom companies are deleted.
-function ResetCompany(id)
-    MySQL.query.await('DELETE FROM nayzeee_billing_companies WHERE id = ?', { id })
-    LoadCompanies()
-    TriggerClientEvent('nayzeee-billing:client:companiesChanged', -1)
-end
-
-function GetCompanyByJob(job)
-    local id = job and JobToCompany[job]
-    return id and Companies[id] or nil
-end
-
--- Safe for the client (no webhooks)
-function PublicCompany(c, full)
-    if not c then return nil end
-    local out = {
-        id = c.id, label = c.label, shortName = c.shortName, job = c.job, jobs = c.jobs,
-        taxRate = c.taxRate, allowDiscounts = c.allowDiscounts, maxDiscount = c.maxDiscount,
-        allowCustomItems = c.allowCustomItems, allowTips = c.allowTips,
-        dueDays = c.dueDays or Config.Invoices.DueDays,
-        categories = c.categories, products = c.products, quickBills = c.quickBills,
-    }
-    if full then
-        out.account = c.account
-        out.minGrade = c.minGrade
-        out.bossGrade = c.bossGrade
-        out.commission = c.commission
-        out.webhook = c.webhook
-        out.refPrefix = c.refPrefix
-        out.isConfig = c.isConfig
-        out.hasOverride = c.hasOverride
-    end
-    return out
+-- perms table + group for an identifier in a society
+function MemberPerms(society, identifier, grade, isBoss)
+    local groups = LoadGroups(society)
+    local assigned = LoadMembers(society)[identifier]
+    local group = assigned and groups.byId[assigned]
+    if not group then group = groups.byId[DefaultGroupFor(society, grade or 0, isBoss)] end
+    return group and group.perms or {}, group
 end
 
 --  ██████╗ ██████╗ ███╗   ██╗████████╗███████╗██╗  ██╗████████╗
@@ -213,43 +152,33 @@ end
 -- ╚██████╗╚██████╔╝██║ ╚████║   ██║   ███████╗██╔╝ ██╗   ██║
 --  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝
 
--- Everything permission-related about a player in one place
+function IsAdmin(source)
+    source = tonumber(source)
+    if not source or source <= 0 then return false end
+    if Config.Admin.Ace and IsPlayerAceAllowed(source, Config.Admin.Ace) then return true end
+    return Framework.IsAdminGroup(source) == true
+end
+
+-- Everything about a player's access in one table
 function GetCtx(source)
-    local identifier = Bridge.GetIdentifier(source)
+    local identifier = Framework.GetIdentifier(source)
     if not identifier then return nil end
-
-    local job = Bridge.GetJob(source) or { name = 'unemployed', grade = 0 }
-    local company = GetCompanyByJob(job.name)
+    local job = Framework.GetJob(source) or { name = 'unemployed', grade = 0 }
+    local society = SocietyOfJob(job.name)
     local ctx = {
-        source = source,
-        identifier = identifier,
-        name = Bridge.GetName(source),
-        job = job,
-        company = company,
-        canBill = false,
-        isBoss = false,
-        canRemote = false,
-        isAdmin = Bridge.IsAdmin(source),
+        source = source, identifier = identifier, name = Framework.GetName(source),
+        job = job, society = society, perms = {}, group = nil, isAdmin = IsAdmin(source),
     }
-
-    if company then
-        local onDuty = not Config.Billing.RequireOnDuty or job.onDuty
-        ctx.canBill = onDuty and job.grade >= (company.minGrade or 0)
-        if company.bossGrade then
-            ctx.isBoss = job.grade >= company.bossGrade
-        else
-            ctx.isBoss = job.isBoss == true
-        end
-        ctx.canRemote = ctx.canBill and Shared.TableContains(Config.Billing.RemoteBillingJobs, job.name)
+    if society then
+        ctx.perms, ctx.group = MemberPerms(society, identifier, job.grade, job.isBoss)
     end
-    ctx.canPersonal = Config.Billing.AllowPersonalBilling == true
     return ctx
 end
 
-function IsBossOf(ctx, companyId)
+function Can(ctx, perm, society)
     if not ctx then return false end
-    if ctx.isAdmin then return true end
-    return ctx.isBoss and ctx.company and ctx.company.id == companyId
+    if society and ctx.society ~= society then return false end
+    return ctx.society ~= nil and ctx.perms[perm] == true
 end
 
 -- ██╗  ██╗███████╗██╗     ██████╗ ███████╗██████╗ ███████╗
@@ -259,229 +188,203 @@ end
 -- ██║  ██║███████╗███████╗██║     ███████╗██║  ██║███████║
 -- ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝
 
-function GetDistanceBetween(a, b)
+function Distance(a, b)
     local pa, pb = GetPlayerPed(a), GetPlayerPed(b)
     if pa == 0 or pb == 0 then return 9999.0 end
     return #(GetEntityCoords(pa) - GetEntityCoords(pb))
 end
 
-function GetDistanceTo(source, coords)
+function DistanceTo(source, c)
     local ped = GetPlayerPed(source)
     if ped == 0 then return 9999.0 end
-    return #(GetEntityCoords(ped) - vector3(coords.x, coords.y, coords.z))
+    return #(GetEntityCoords(ped) - vector3(c.x, c.y, c.z))
 end
 
-function Notify(source, title, message, notifType)
-    if not source or source <= 0 then return end
-    TriggerClientEvent('nayzeee-billing:client:notify', source, {
-        title = title, message = message, type = notifType or 'info',
-    })
+function Notify(source, title, message, kind)
+    if source and source > 0 then
+        TriggerClientEvent('nayzeee-billing:client:notify', source, { title = title, message = message, type = kind or 'info' })
+    end
 end
 
-function NotifyCompanyBosses(companyId, title, message, notifType)
+-- Notify every online member of a society holding a permission
+function NotifySociety(society, perm, title, message, kind)
     for _, id in ipairs(GetPlayers()) do
         local src = tonumber(id)
         local ctx = GetCtx(src)
-        if ctx and ctx.company and ctx.company.id == companyId and ctx.isBoss then
-            Notify(src, title, message, notifType)
-        end
+        if ctx and ctx.society == society and ctx.perms[perm] then Notify(src, title, message, kind) end
     end
 end
 
-function Remaining(inv)
-    return Shared.Round((tonumber(inv.total) or 0) + (tonumber(inv.late_fee) or 0) - (tonumber(inv.amount_paid) or 0))
+function Refresh(source)
+    if source then TriggerClientEvent('nayzeee-billing:client:refresh', source) end
 end
 
-function FormatInvoice(inv, viewer)
-    local items = inv.items
-    if type(items) == 'string' then
-        local ok, decoded = pcall(json.decode, items)
-        items = ok and decoded or {}
+function Remaining(row)
+    return Shared.Round((tonumber(row.total) or 0) + (tonumber(row.late_fee) or 0) - (tonumber(row.amount_paid) or 0))
+end
+
+function GetInvoiceRow(ref)
+    if type(ref) == 'number' then
+        return MySQL.single.await('SELECT *, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_minutes FROM nayzeee_billing_invoices WHERE id = ?', { ref })
     end
+    if type(ref) ~= 'string' or #ref > 24 then return nil end
+    return MySQL.single.await('SELECT *, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_minutes FROM nayzeee_billing_invoices WHERE invoice_id = ?', { ref:upper() })
+end
+
+local function decodeItems(raw)
+    if type(raw) ~= 'string' then return raw or {} end
+    local ok, items = pcall(json.decode, raw)
+    items = ok and items or {}
+    -- v1/v2 items used price instead of amount
+    for _, it in ipairs(items) do
+        if it.amount == nil and it.price ~= nil then it.amount = it.price end
+        if it.label == nil and it.name ~= nil then it.label = it.name end
+    end
+    return items
+end
+
+-- viewer: { identifier, society } decides the direction tag
+function FormatInvoice(row, viewer)
+    local direction
+    if viewer then
+        if row.recipient_type == 'society' and viewer.society and row.target_society == viewer.society then direction = 'received'
+        elseif row.company_id and viewer.society and row.company_id == viewer.society then direction = 'sent'
+        elseif row.target_identifier == viewer.identifier then direction = 'received'
+        elseif row.sender_identifier == viewer.identifier then direction = 'sent' end
+    end
+    local senderSociety = row.company_id
     return {
-        id = inv.invoice_id,
-        companyId = inv.company_id,
-        company = inv.company_name,
-        senderName = inv.sender_name,
-        senderJob = inv.sender_job,
-        targetName = inv.target_name,
-        direction = viewer and (inv.sender_identifier == viewer and 'sent' or (inv.target_identifier == viewer and 'received' or nil)) or nil,
-        items = items or {},
-        notes = inv.notes,
-        subtotal = tonumber(inv.subtotal) or 0,
-        tax = tonumber(inv.tax) or 0,
-        discount = tonumber(inv.discount) or 0,
-        total = tonumber(inv.total) or 0,
-        lateFee = tonumber(inv.late_fee) or 0,
-        amountPaid = tonumber(inv.amount_paid) or 0,
-        tip = tonumber(inv.tip) or 0,
-        tipsAllowed = Config.Tips.Enabled and inv.company_id ~= nil and Companies[inv.company_id] ~= nil
-            and Companies[inv.company_id].allowTips == true,
-        remaining = math.max(0, Remaining(inv)),
-        status = inv.status,
-        method = inv.payment_method,
-        registerId = inv.register_id,
-        cancelReason = inv.cancel_reason,
-        disputeReason = inv.dispute_reason,
-        createdAt = inv.created_at,
-        dueDate = inv.due_date,
-        paidAt = inv.paid_at,
+        id = row.id,
+        ref = row.invoice_id,
+        senderType = senderSociety and 'society' or 'personal',
+        senderSociety = senderSociety,
+        sender = senderSociety and (row.company_name or SocietyLabel(senderSociety)) or row.sender_name,
+        senderName = row.sender_name,
+        recipientType = row.recipient_type or 'citizen',
+        recipientSociety = row.target_society,
+        recipient = row.target_name,
+        direction = direction,
+        reason = row.reason or (decodeItems(row.items)[1] or {}).label,
+        items = decodeItems(row.items),
+        notes = row.notes,
+        subtotal = tonumber(row.subtotal) or 0,
+        vatRate = tonumber(row.vat_rate) or 0,
+        vat = tonumber(row.tax) or 0,
+        discount = tonumber(row.discount) or 0,
+        total = tonumber(row.total) or 0,
+        lateFee = tonumber(row.late_fee) or 0,
+        amountPaid = tonumber(row.amount_paid) or 0,
+        tip = tonumber(row.tip) or 0,
+        remaining = math.max(0, Remaining(row)),
+        status = row.status,
+        method = row.payment_method,
+        paidBy = row.paid_by_name,
+        cancelReason = row.cancel_reason,
+        disputeReason = row.dispute_reason,
+        createdAt = row.created_at,
+        dueDate = row.due_date,
+        paidAt = row.paid_at,
+        tipsAllowed = Config.Tips.Enabled and senderSociety ~= nil
+            and (Config.Societies[senderSociety] or {}).allowTips ~= false,
     }
 end
 
-function GetInvoiceRow(invoiceId)
-    if type(invoiceId) ~= 'string' or #invoiceId > 20 then return nil end
-    return MySQL.single.await('SELECT *, TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_minutes FROM nayzeee_billing_invoices WHERE invoice_id = ?', { invoiceId })
-end
+-- ██╗      ██████╗  ██████╗ ███████╗
+-- ██║     ██╔═══██╗██╔════╝ ██╔════╝
+-- ██║     ██║   ██║██║  ███╗███████╗
+-- ██║     ██║   ██║██║   ██║╚════██║
+-- ███████╗╚██████╔╝╚██████╔╝███████║
+-- ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝
 
--- ██╗      ██████╗  ██████╗  ██████╗ ██╗███╗   ██╗ ██████╗
--- ██║     ██╔═══██╗██╔════╝ ██╔════╝ ██║████╗  ██║██╔════╝
--- ██║     ██║   ██║██║  ███╗██║  ███╗██║██╔██╗ ██║██║  ███╗
--- ██║     ██║   ██║██║   ██║██║   ██║██║██║╚██╗██║██║   ██║
--- ███████╗╚██████╔╝╚██████╔╝╚██████╔╝██║██║ ╚████║╚██████╔╝
--- ╚══════╝ ╚═════╝  ╚═════╝  ╚═════╝ ╚═╝╚═╝  ╚═══╝ ╚═════╝
-
-local function sendWebhook(url, title, fields)
-    if not url or url == '' then return end
-    PerformHttpRequest(url, function() end, 'POST', json.encode({
-        username = Config.Logging.DiscordTitle,
-        embeds = { {
-            title = title,
-            color = Config.Logging.DiscordColor,
-            fields = fields,
-            footer = { text = 'nayzeee-billing v' .. Shared.Version },
-            timestamp = os.date('!%Y-%m-%dT%H:%M:%SZ'),
-        } },
-    }), { ['Content-Type'] = 'application/json' })
-end
-
-function Log(source, action, data, companyId)
-    if not Config.Logging.Enabled then return end
+-- Writes the Activity log row + sends to the logger bridge
+function Log(source, action, data, society)
     data = data or {}
-    local name = (source and source > 0) and Bridge.GetName(source) or 'System'
-    local identifier = (source and source > 0) and Bridge.GetIdentifier(source) or nil
-
+    local name = (source and source > 0) and Framework.GetName(source) or (data.by or 'System')
+    local identifier = (source and source > 0) and Framework.GetIdentifier(source) or data.byIdentifier
     MySQL.insert('INSERT INTO nayzeee_billing_logs (player, identifier, company_id, action, data) VALUES (?, ?, ?, ?, ?)',
-        { name, identifier, companyId, action, json.encode(data) })
-
-    local fields = { { name = 'Player', value = name, inline = true } }
-    if source and source > 0 then
-        fields[#fields + 1] = { name = 'Server ID', value = tostring(source), inline = true }
-    end
-    for k, v in pairs(data) do
-        if type(v) ~= 'table' then
-            local value = type(v) == 'number' and (k:find('amount') or k:find('total')) and Shared.FormatCurrency(v) or tostring(v)
-            fields[#fields + 1] = { name = k, value = value, inline = true }
-        end
-    end
-    local title = Config.Logging.DiscordTitle .. ' · ' .. action:gsub('_', ' '):upper()
-    sendWebhook(Config.Logging.DiscordWebhook, title, fields)
-    local company = companyId and Companies[companyId]
-    if company and company.webhook then
-        sendWebhook(company.webhook, title, fields)
-    end
+        { name, identifier, society, action, json.encode(data) })
+    Logger.Send(action, source, data, society and (Config.Societies[society] or {}).webhook or nil)
 end
 
---  ██████╗ ██████╗ ███╗   ██╗████████╗███████╗██╗  ██╗████████╗
--- ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██╔════╝╚██╗██╔╝╚══██╔══╝
--- ██║     ██║   ██║██╔██╗ ██║   ██║   █████╗   ╚███╔╝    ██║
--- ██║     ██║   ██║██║╚██╗██║   ██║   ██╔══╝   ██╔██╗    ██║
--- ╚██████╗╚██████╔╝██║ ╚████║   ██║   ███████╗██╔╝ ██╗   ██║
---  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝
+-- ██████╗  █████╗ ██╗   ██╗ ██████╗ ██╗   ██╗████████╗███████╗
+-- ██╔══██╗██╔══██╗╚██╗ ██╔╝██╔═══██╗██║   ██║╚══██╔══╝██╔════╝
+-- ██████╔╝███████║ ╚████╔╝ ██║   ██║██║   ██║   ██║   ███████╗
+-- ██╔═══╝ ██╔══██║  ╚██╔╝  ██║   ██║██║   ██║   ██║   ╚════██║
+-- ██║     ██║  ██║   ██║   ╚██████╔╝╚██████╔╝   ██║   ███████║
+-- ╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝
+
+-- Bank deposit to a character (online or offline). Falls back to a pending payout on failure
+function Payout(identifier, amount, reason, invoiceRef, requiresCollection)
+    amount = Shared.Round(amount)
+    if not identifier or amount <= 0 or tostring(identifier):sub(1, 7) == 'system:' then return end
+    if not requiresCollection and Money.DepositTo(identifier, amount, reason) then return true end
+    MySQL.insert.await([[INSERT INTO nayzeee_billing_pending_payouts (identifier, amount, invoice_id, payment_method, requires_collection, reason)
+        VALUES (?, ?, ?, ?, ?, ?)]], { identifier, amount, invoiceRef, requiresCollection and 'cash' or 'bank', requiresCollection and 1 or 0, reason })
+    return false
+end
+
+--  ██████╗ ██████╗ ███╗   ██╗████████╗███████╗██╗  ██╗████████╗    ██████╗ ██████╗  ██████╗
+-- ██╔════╝██╔═══██╗████╗  ██║╚══██╔══╝██╔════╝╚██╗██╔╝╚══██╔══╝    ██╔══██╗██╔══██╗██╔════╝
+-- ██║     ██║   ██║██╔██╗ ██║   ██║   █████╗   ╚███╔╝    ██║       ██████╔╝██████╔╝██║
+-- ██║     ██║   ██║██║╚██╗██║   ██║   ██╔══╝   ██╔██╗    ██║       ██╔══██╗██╔═══╝ ██║
+-- ╚██████╗╚██████╔╝██║ ╚████║   ██║   ███████╗██╔╝ ██╗   ██║       ██║  ██║██║     ╚██████╗
+--  ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝       ╚═╝  ╚═╝╚═╝      ╚═════╝
 
 RPC('getContext', function(source)
     local ctx = GetCtx(source)
-    if not ctx then return Err('Character not loaded') end
+    if not ctx then return Err(L('error.not_loaded', 'Character not loaded')) end
 
-    local received = MySQL.query.await([[
-        SELECT * FROM nayzeee_billing_invoices
-        WHERE target_identifier = ? AND status IN ('pending', 'partial', 'overdue', 'disputed')
-        ORDER BY created_at DESC LIMIT 100
-    ]], { ctx.identifier }) or {}
-
-    local invoices = {}
-    local owed = 0
-    for _, row in ipairs(received) do
-        invoices[#invoices + 1] = FormatInvoice(row, ctx.identifier)
-        if row.status ~= 'disputed' then owed = owed + Remaining(row) end
+    local society
+    if ctx.society then
+        local s = Config.Societies[ctx.society]
+        society = {
+            id = ctx.society, label = s.label, short = s.short or ctx.society:upper(), color = s.color,
+            perms = ctx.perms, group = ctx.group and { id = ctx.group.id, label = ctx.group.label } or nil,
+            balance = ctx.perms.overview and Banking.SocietyBalance(ctx.society) or nil,
+            vatRate = Shared.VatRate(ctx.society), allowCustom = s.allowCustom ~= false,
+            dueDays = s.dueDays or Config.Invoices.DueDays,
+        }
     end
 
-    local stats = MySQL.single.await([[
-        SELECT
-            (SELECT COALESCE(SUM(amount + tip), 0) FROM nayzeee_billing_payments WHERE payer_identifier = ? AND kind <> 'refund' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS paid30,
-            (SELECT COUNT(*) FROM nayzeee_billing_invoices WHERE sender_identifier = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS sent30,
-            (SELECT COALESCE(SUM(amount), 0) FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND requires_collection = 1) AS toCollect
-    ]], { ctx.identifier, ctx.identifier, ctx.identifier }) or {}
+    local toCollect = MySQL.scalar.await('SELECT COALESCE(SUM(amount), 0) FROM nayzeee_billing_pending_payouts WHERE identifier = ? AND requires_collection = 1',
+        { ctx.identifier })
 
-    local recent = MySQL.query.await([[
-        SELECT * FROM nayzeee_billing_invoices
-        WHERE sender_identifier = ? OR target_identifier = ?
-        ORDER BY created_at DESC LIMIT 6
-    ]], { ctx.identifier, ctx.identifier }) or {}
-    for i, row in ipairs(recent) do recent[i] = FormatInvoice(row, ctx.identifier) end
-
-    local company = ctx.company
     return {
         player = {
-            name = ctx.name,
-            job = ctx.job.label,
-            jobName = ctx.job.name,
-            grade = ctx.job.gradeLabel,
-            cash = Bridge.GetMoney(source, 'cash'),
-            bank = Bridge.GetMoney(source, 'bank'),
+            name = ctx.name, job = ctx.job.label, grade = ctx.job.gradeLabel,
+            cash = Money.Get(source, 'cash'), bank = Money.Get(source, 'bank'),
+            toCollect = tonumber(toCollect) or 0,
         },
-        company = (ctx.canBill or ctx.isBoss) and PublicCompany(company) or nil,
-        perms = {
-            canBill = ctx.canBill,
-            canPersonal = ctx.canPersonal,
-            canRemote = ctx.canRemote,
-            canOffline = ctx.canRemote and Config.Billing.OfflineBilling,
-            isBoss = ctx.isBoss and company ~= nil,
-            isAdmin = ctx.isAdmin,
-            canManageCatalog = ctx.isBoss and Config.Boss.CanManageCatalog,
-            canRefund = ctx.isBoss and Config.Boss.CanRefund,
-            canDispute = Config.Invoices.AllowDisputes,
-        },
+        society = society,
+        isAdmin = ctx.isAdmin,
+        societies = PublicSocieties(),
         settings = {
-            currency = Config.Currency,
-            version = Shared.Version,
-            defaultTaxRate = Config.DefaultTaxRate,
-            maxItems = Config.Billing.MaxItems,
-            maxQuantity = Config.Billing.MaxQuantity,
-            maxNote = Config.Billing.MaxNoteLength,
-            dueDays = company and company.dueDays or Config.Invoices.DueDays,
-            customDue = Config.Invoices.AllowCustomDueDays,
-            maxDueDays = Config.Invoices.MaxDueDays,
-            allowPartial = Config.Payment.AllowPartial,
-            minPartial = Config.Payment.MinPartialAmount,
-            methods = Config.Payment.Methods,
-            tips = Config.Tips.Enabled and Config.Tips.Presets or false,
-            maxTip = Config.Tips.MaxPercent,
-            imagePath = Inventory.ImagePath(),
-            maxDistance = Config.Billing.MaxDistance,
-        },
-        invoices = invoices,
-        recent = recent,
-        stats = {
-            owed = Shared.Round(owed),
-            open = #invoices,
-            paid30 = tonumber(stats.paid30) or 0,
-            sent30 = tonumber(stats.sent30) or 0,
-            toCollect = tonumber(stats.toCollect) or 0,
+            version = Shared.Version, currency = Config.Currency, currencyPosition = Config.CurrencyPosition,
+            personalEnabled = Config.Personal.Enabled, personalCustom = Config.Personal.AllowCustomItems,
+            personalSocietyRecipients = Config.Personal.AllowSocietyRecipients,
+            personalVat = Shared.VatRate(nil, true),
+            dueDays = Config.Invoices.DueDays, customDue = Config.Invoices.AllowCustomDueDays, maxDueDays = Config.Invoices.MaxDueDays,
+            maxItems = Config.Invoices.MaxItems, maxQuantity = Config.Invoices.MaxQuantity, maxNote = Config.Invoices.MaxNoteLength,
+            methods = Config.Payment.Methods, allowPartial = Config.Payment.AllowPartial, minPartial = Config.Payment.MinPartialAmount,
+            payByReference = Config.Payment.PayByReference, disputes = Config.Invoices.AllowDisputes,
+            tips = Config.Tips.Enabled and Config.Tips.Presets or false, maxTip = Config.Tips.MaxPercent,
+            print = Config.Items.AllowPrint and Config.Items.Invoice.Enabled,
+            pageSize = Config.UI.PageSize, banking = Banking.name,
+            adminDelete = Config.Admin.AllowDelete, adminClear = Config.Admin.AllowClearIdentifier,
         },
     }
 end)
 
--- Players near the caller (server-side coords, OneSync)
+-- Nearby characters (server-side coords)
 RPC('getNearby', function(source)
-    local maxDist = tonumber(Config.Billing.MaxDistance) or 10.0
+    local max = tonumber(Config.Invoices.MaxDistance) or 10.0
     local list = {}
     for _, id in ipairs(GetPlayers()) do
-        local target = tonumber(id)
-        if target ~= source or Config.Billing.AllowSelfBilling then
-            local dist = GetDistanceBetween(source, target)
-            if dist <= maxDist and Bridge.GetIdentifier(target) then
-                list[#list + 1] = { id = target, name = Bridge.GetName(target), distance = Shared.Round(dist, 1) }
+        local t = tonumber(id)
+        if t ~= source then
+            local d = Distance(source, t)
+            if d <= max and Framework.GetIdentifier(t) then
+                list[#list + 1] = { id = t, name = Framework.GetName(t), distance = Shared.Round(d, 1) }
             end
         end
     end
@@ -489,54 +392,13 @@ RPC('getNearby', function(source)
     return list
 end)
 
-RPC('searchPlayers', function(source, payload)
-    if Throttle(source, 'search', 0.5) then return {} end
-    local query = Shared.Sanitize(payload.query, 40)
-    if query == '' then return {} end
-    local ctx = GetCtx(source)
-    if not ctx then return {} end
-
-    local lower = query:lower()
-    local idQuery = tonumber(query)
-    local maxDist = tonumber(Config.Billing.MaxDistance)
-    local results, seen = {}, {}
-
-    for _, id in ipairs(GetPlayers()) do
-        local target = tonumber(id)
-        local name = Bridge.GetName(target)
-        local identifier = Bridge.GetIdentifier(target)
-        if identifier and (target ~= source or Config.Billing.AllowSelfBilling)
-            and (target == idQuery or name:lower():find(lower, 1, true)) then
-            local dist = GetDistanceBetween(source, target)
-            -- Non-remote billers only see players in range
-            if ctx.canRemote or not maxDist or dist <= maxDist then
-                seen[identifier] = true
-                results[#results + 1] = { type = 'online', id = target, name = name, distance = Shared.Round(dist, 1) }
-            end
-        end
-    end
-
-    if ctx.canRemote and Config.Billing.OfflineBilling and #query >= 3 then
-        for _, row in ipairs(Bridge.SearchCharacters(query, 8)) do
-            if not seen[row.identifier] and row.identifier ~= ctx.identifier then
-                results[#results + 1] = { type = 'offline', identifier = row.identifier, name = row.name }
-            end
-        end
-    end
-
-    return results
-end)
-
-RPC('getItems', function(source)
-    local ctx = GetCtx(source)
-    if not ctx or not (ctx.isAdmin or ctx.isBoss) then return {} end
-    return Inventory.GetItems()
-end)
-
 CreateThread(function()
     DB.Await()
-    LoadCompanies()
+    if not Framework then
+        print('^1[NAYZEEE-BILLING]^7 No framework bridge loaded - check Config.Framework')
+        return
+    end
     BillingReady = true
     TriggerEvent('nayzeee-billing:server:ready')
-    print(('^2[NAYZEEE-BILLING]^7 v%s loaded · %d companies'):format(Shared.Version, Shared.Count(Companies)))
+    print(('^2[NAYZEEE-BILLING]^7 v%s ready · %s · %d societies'):format(Shared.Version, Framework.Name, Shared.Count(Config.Societies)))
 end)

@@ -1,100 +1,122 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- NAYZEEE BILLING 2.0 - Database Schema Reference
--- Discord: discord.gg/nayzeeedev
+-- NAYZEEE BILLING 3.0 - Database schema reference
 --
--- NOTE: Tables are created AND migrated automatically on resource start
--- (server/database.lua). This file is for reference only - you do NOT need to run it.
--- Upgrading from 1.x keeps all invoices, companies and registers.
+-- Tables are created and upgraded automatically on resource start (server/database.lua).
+-- You do NOT need to run this file. v1 / v2 installs are upgraded in place.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- Invoices
 CREATE TABLE IF NOT EXISTS `nayzeee_billing_invoices` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `invoice_id` VARCHAR(20) NOT NULL UNIQUE,
+    `invoice_id` VARCHAR(24) NOT NULL UNIQUE,
     `company_id` VARCHAR(50) DEFAULT NULL,
-    `sender_identifier` VARCHAR(60) NOT NULL,
+    `sender_identifier` VARCHAR(64) NOT NULL,
     `sender_name` VARCHAR(100) NOT NULL,
     `sender_job` VARCHAR(50) DEFAULT NULL,
-    `target_identifier` VARCHAR(60) NOT NULL,
+    `recipient_type` VARCHAR(10) DEFAULT 'citizen',
+    `target_identifier` VARCHAR(64) NOT NULL,
+    `target_society` VARCHAR(50) DEFAULT NULL,
     `target_name` VARCHAR(100) NOT NULL,
     `company_name` VARCHAR(100) DEFAULT 'Personal',
+    `reason` VARCHAR(120) DEFAULT NULL,
     `items` LONGTEXT NOT NULL,
     `notes` TEXT DEFAULT NULL,
     `subtotal` DECIMAL(15,2) DEFAULT 0,
+    `vat_rate` DECIMAL(6,4) DEFAULT 0,
     `tax` DECIMAL(15,2) DEFAULT 0,
     `discount` DECIMAL(15,2) DEFAULT 0,
     `total` DECIMAL(15,2) NOT NULL,
     `late_fee` DECIMAL(15,2) DEFAULT 0,
     `amount_paid` DECIMAL(15,2) DEFAULT 0,
     `tip` DECIMAL(15,2) DEFAULT 0,
-    `status` VARCHAR(20) DEFAULT 'pending',      -- pending / partial / overdue / disputed / paid / cancelled / refunded
+    `status` VARCHAR(20) DEFAULT 'pending',
     `payment_method` VARCHAR(20) DEFAULT NULL,
+    `paid_by_identifier` VARCHAR(64) DEFAULT NULL,
+    `paid_by_name` VARCHAR(100) DEFAULT NULL,
     `register_id` VARCHAR(50) DEFAULT NULL,
     `cancel_reason` VARCHAR(255) DEFAULT NULL,
     `dispute_reason` VARCHAR(255) DEFAULT NULL,
+    `import_source` VARCHAR(20) DEFAULT NULL,
+    `import_id` VARCHAR(64) DEFAULT NULL,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `paid_at` DATETIME DEFAULT NULL,
     `due_date` DATETIME DEFAULT NULL,
     INDEX `idx_sender` (`sender_identifier`),
     INDEX `idx_target` (`target_identifier`),
-    INDEX `idx_status` (`status`),
-    INDEX `idx_company` (`company_id`, `created_at`),
-    INDEX `idx_due` (`status`, `due_date`)
+    INDEX `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Payment ledger (installments, tips, auto-collections, refunds)
 CREATE TABLE IF NOT EXISTS `nayzeee_billing_payments` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `invoice_id` VARCHAR(20) NOT NULL,
+    `invoice_id` VARCHAR(24) NOT NULL,
     `company_id` VARCHAR(50) DEFAULT NULL,
-    `sender_identifier` VARCHAR(60) DEFAULT NULL,
-    `payer_identifier` VARCHAR(60) NOT NULL,
+    `target_society` VARCHAR(50) DEFAULT NULL,
+    `sender_identifier` VARCHAR(64) DEFAULT NULL,
+    `payer_identifier` VARCHAR(64) NOT NULL,
     `payer_name` VARCHAR(100) DEFAULT NULL,
-    `amount` DECIMAL(15,2) NOT NULL,             -- negative for refunds
+    `amount` DECIMAL(15,2) NOT NULL,
     `tip` DECIMAL(15,2) DEFAULT 0,
     `method` VARCHAR(20) DEFAULT 'bank',
-    `kind` VARCHAR(20) DEFAULT 'payment',        -- payment / autocollect / refund
+    `kind` VARCHAR(20) DEFAULT 'payment',
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_invoice` (`invoice_id`),
     INDEX `idx_company_date` (`company_id`, `created_at`),
+    INDEX `idx_payer_date` (`payer_identifier`, `created_at`),
     INDEX `idx_sender_date` (`sender_identifier`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Companies created / edited in-game (override companies.lua)
-CREATE TABLE IF NOT EXISTS `nayzeee_billing_companies` (
-    `id` VARCHAR(50) PRIMARY KEY,
-    `label` VARCHAR(100) NOT NULL,
-    `short_name` VARCHAR(10) DEFAULT NULL,
-    `logo` VARCHAR(255) DEFAULT NULL,
-    `job` VARCHAR(50) DEFAULT NULL,
-    `tax_rate` DECIMAL(5,4) DEFAULT 0.0800,
-    `allow_discounts` TINYINT(1) DEFAULT 1,
-    `categories` LONGTEXT,
-    `products` LONGTEXT,
-    `quick_bills` LONGTEXT,
-    `settings` LONGTEXT,                         -- JSON: jobs, account, grades, commission, tips, webhook...
-    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS `nayzeee_billing_templates` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `owner_type` VARCHAR(10) NOT NULL,
+    `owner` VARCHAR(64) NOT NULL,
+    `name` VARCHAR(60) NOT NULL,
+    `icon` VARCHAR(30) DEFAULT 'file',
+    `color` VARCHAR(20) DEFAULT 'teal',
+    `items` LONGTEXT,
+    `sort` INT DEFAULT 0,
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_owner` (`owner_type`, `owner`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Pending payouts (offline employees, cash awaiting bank-teller collection)
+CREATE TABLE IF NOT EXISTS `nayzeee_billing_groups` (
+    `society` VARCHAR(50) NOT NULL,
+    `group_id` VARCHAR(40) NOT NULL,
+    `label` VARCHAR(40) NOT NULL,
+    `access` VARCHAR(10) DEFAULT 'normal',
+    `icon` VARCHAR(30) DEFAULT 'users',
+    `color` VARCHAR(20) DEFAULT 'gray',
+    `perms` LONGTEXT,
+    `sort` INT DEFAULT 0,
+    PRIMARY KEY (`society`, `group_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `nayzeee_billing_members` (
+    `society` VARCHAR(50) NOT NULL,
+    `identifier` VARCHAR(64) NOT NULL,
+    `group_id` VARCHAR(40) NOT NULL,
+    PRIMARY KEY (`society`, `identifier`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `nayzeee_billing_meta` (
+    `k` VARCHAR(80) PRIMARY KEY,
+    `v` VARCHAR(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `nayzeee_billing_pending_payouts` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `identifier` VARCHAR(60) NOT NULL,
+    `identifier` VARCHAR(64) NOT NULL,
     `amount` DECIMAL(15,2) NOT NULL,
-    `invoice_id` VARCHAR(20) NOT NULL,
+    `invoice_id` VARCHAR(24) NOT NULL,
     `payment_method` VARCHAR(20) DEFAULT 'bank',
     `requires_collection` TINYINT(1) DEFAULT 0,
     `reason` VARCHAR(100) DEFAULT NULL,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX `idx_identifier` (`identifier`),
-    INDEX `idx_collection` (`requires_collection`)
+    INDEX `idx_identifier` (`identifier`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Activity log
 CREATE TABLE IF NOT EXISTS `nayzeee_billing_logs` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `player` VARCHAR(100) NOT NULL,
-    `identifier` VARCHAR(60) DEFAULT NULL,
+    `identifier` VARCHAR(64) DEFAULT NULL,
     `company_id` VARCHAR(50) DEFAULT NULL,
     `action` VARCHAR(50) NOT NULL,
     `data` LONGTEXT DEFAULT NULL,
@@ -103,7 +125,6 @@ CREATE TABLE IF NOT EXISTS `nayzeee_billing_logs` (
     INDEX `idx_timestamp` (`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Cash registers added in-game (/billingadmin > Registers)
 CREATE TABLE IF NOT EXISTS `nayzeee_billing_registers` (
     `id` VARCHAR(50) PRIMARY KEY,
     `label` VARCHAR(100) NOT NULL,

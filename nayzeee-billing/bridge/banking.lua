@@ -1,17 +1,13 @@
 --[[
-    NAYZEEE BILLING - Banking Bridge (server)
+    NAYZEEE BILLING - Banking bridge (server)
+    Editable. Society accounts + optional personal accounts, and the Money layer every payment uses.
 
-    Adapters for society / company accounts and transaction history.
-    Supported: nayzeee-banking, Renewed-Banking, okokBanking, fd_banking,
-               qb-banking (v2), qb-management, esx_addonaccount, custom
-
-    Every adapter implements:
-        add(account, amount, reason)    -> bool
-        remove(account, amount, reason) -> bool
-        balance(account)                -> number | nil
-        log(data)                       -> nil   (optional, personal/company statements)
-
-    Adding another banking script = one more table in `Adapters` + its name in `DetectOrder`.
+    Adapter shape:
+        add(society, amount, reason) -> bool
+        remove(society, amount, reason) -> bool   (false if it can't cover it)
+        balance(society) -> number|nil
+        log(data)                                 optional statements
+        personal = { balance(id), add(id, amount, reason), remove(id, amount, reason) }   optional
 ]]
 
 Banking = { name = 'none' }
@@ -19,7 +15,7 @@ Banking = { name = 'none' }
 local function safe(fn, ...)
     local ok, result = pcall(fn, ...)
     if not ok then
-        print(('^1[NAYZEEE-BILLING]^7 Banking (%s) error: %s'):format(Banking.name, tostring(result)))
+        print(('^1[NAYZEEE-BILLING]^7 Banking (%s): %s'):format(Banking.name, tostring(result)))
         return nil
     end
     return result
@@ -27,317 +23,244 @@ end
 
 local Adapters = {}
 
--- ███╗   ██╗ █████╗ ██╗   ██╗███████╗███████╗███████╗███████╗
--- ████╗  ██║██╔══██╗╚██╗ ██╔╝╚══███╔╝██╔════╝██╔════╝██╔════╝
--- ██╔██╗ ██║███████║ ╚████╔╝   ███╔╝ █████╗  █████╗  █████╗
--- ██║╚██╗██║██╔══██║  ╚██╔╝   ███╔╝  ██╔══╝  ██╔══╝  ██╔══╝
--- ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗███████╗
--- ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝╚══════╝
-
--- Every movement is written to nayzeee-banking's own ledger with our label, so no separate log call
-local function nz() return exports[Config.Banking.Nayzeee.Resource or 'nayzeee-banking'] end
-
+-- nayzeee-banking (ESX / QBCore / Qbox) - its ledger records every movement with our label
+local function nz() return exports['nayzeee-banking'] end
 Adapters['nayzeee-banking'] = {
-    resource = function() return Config.Banking.Nayzeee.Resource or 'nayzeee-banking' end,
-    add = function(account, amount, reason)
-        return nz():addSocietyMoney(account, amount, reason) == true
-    end,
-    remove = function(account, amount, reason)
-        return nz():removeSocietyMoney(account, amount, reason) == true
-    end,
-    balance = function(account)
-        return tonumber(nz():getSocietyBalance(account))
-    end,
-    -- Personal accounts (keyed by identifier, work for offline players too)
+    add = function(s, a, r) return nz():addSocietyMoney(s, a, r) == true end,
+    remove = function(s, a, r) return nz():removeSocietyMoney(s, a, r) == true end,
+    balance = function(s) return tonumber(nz():getSocietyBalance(s)) end,
     personal = {
-        enabled = function() return Config.Banking.Nayzeee.UsePersonalAccounts ~= false end,
-        balance = function(identifier) return tonumber(nz():getBalance(identifier)) or 0 end,
-        add = function(identifier, amount, reason)
-            return nz():addMoney(identifier, amount, reason, 'deposit') == true
-        end,
-        remove = function(identifier, amount, reason)
-            return nz():removeMoney(identifier, amount, reason, Config.Banking.Nayzeee.BillCategory or 'bill') == true
-        end,
+        enabled = function() return Config.Banking.NayzeeePersonalAccounts ~= false end,
+        balance = function(id) return tonumber(nz():getBalance(id)) or 0 end,
+        add = function(id, a, r) return nz():addMoney(id, a, r, 'deposit') == true end,
+        remove = function(id, a, r) return nz():removeMoney(id, a, r, 'bill') == true end,
     },
 }
 
--- ██████╗ ███████╗███╗   ██╗███████╗██╗    ██╗███████╗██████╗
--- ██╔══██╗██╔════╝████╗  ██║██╔════╝██║    ██║██╔════╝██╔══██╗
--- ██████╔╝█████╗  ██╔██╗ ██║█████╗  ██║ █╗ ██║█████╗  ██║  ██║
--- ██╔══██╗██╔══╝  ██║╚██╗██║██╔══╝  ██║███╗██║██╔══╝  ██║  ██║
--- ██║  ██║███████╗██║ ╚████║███████╗╚███╔███╔╝███████╗██████╔╝
--- ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚══════╝ ╚══╝╚══╝ ╚══════╝╚═════╝
-
-Adapters['Renewed-Banking'] = {
-    add = function(account, amount)
-        return exports['Renewed-Banking']:addAccountMoney(account, amount) ~= false
-    end,
-    remove = function(account, amount)
-        return exports['Renewed-Banking']:removeAccountMoney(account, amount) == true
-    end,
-    balance = function(account)
-        return tonumber(exports['Renewed-Banking']:getAccountMoney(account))
-    end,
-    log = function(data)
-        -- handleTransaction(account, title, amount, message, issuer, receiver, transType)
-        exports['Renewed-Banking']:handleTransaction(
-            data.account or data.identifier, data.title, data.amount, data.description,
-            data.issuer or 'Billing', data.receiver or data.name or 'Billing',
-            data.type == 'deposit' and 'deposit' or 'withdraw')
+-- qb-banking (current QBCore)
+Adapters['qb-banking'] = {
+    add = function(s, a, r) return exports['qb-banking']:AddMoney(s, a, r) ~= false end,
+    remove = function(s, a, r) return exports['qb-banking']:RemoveMoney(s, a, r) == true end,
+    balance = function(s) return tonumber(exports['qb-banking']:GetAccountBalance(s)) end,
+    log = function(d)
+        if not d.identifier then return end
+        exports['qb-banking']:CreateBankStatement(d.identifier, 'checking', d.amount, d.title, d.type == 'deposit' and 'deposit' or 'withdraw', 'checking')
     end,
 }
-
---  ██████╗ ██╗  ██╗ ██████╗ ██╗  ██╗
--- ██╔═══██╗██║ ██╔╝██╔═══██╗██║ ██╔╝
--- ██║   ██║█████╔╝ ██║   ██║█████╔╝
--- ██║   ██║██╔═██╗ ██║   ██║██╔═██╗
--- ╚██████╔╝██║  ██╗╚██████╔╝██║  ██╗
---  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝
 
 Adapters['okokBanking'] = {
-    add = function(account, amount)
-        exports['okokBanking']:AddMoney(account, amount)
+    add = function(s, a) exports['okokBanking']:AddMoney(s, a) return true end,
+    remove = function(s, a)
+        if (tonumber(exports['okokBanking']:GetAccount(s)) or 0) < a then return false end
+        exports['okokBanking']:RemoveMoney(s, a)
         return true
     end,
-    remove = function(account, amount)
-        local bal = tonumber(exports['okokBanking']:GetAccount(account)) or 0
-        if bal < amount then return false end
-        exports['okokBanking']:RemoveMoney(account, amount)
-        return true
-    end,
-    balance = function(account)
-        return tonumber(exports['okokBanking']:GetAccount(account))
+    balance = function(s) return tonumber(exports['okokBanking']:GetAccount(s)) end,
+}
+
+Adapters['Renewed-Banking'] = {
+    add = function(s, a) return exports['Renewed-Banking']:addAccountMoney(s, a) ~= false end,
+    remove = function(s, a) return exports['Renewed-Banking']:removeAccountMoney(s, a) == true end,
+    balance = function(s) return tonumber(exports['Renewed-Banking']:getAccountMoney(s)) end,
+    log = function(d)
+        exports['Renewed-Banking']:handleTransaction(d.account or d.identifier, d.title, d.amount, d.description,
+            d.issuer or 'Billing', d.receiver or 'Billing', d.type == 'deposit' and 'deposit' or 'withdraw')
     end,
 }
 
--- ███████╗██████╗     ██████╗  █████╗ ███╗   ██╗██╗  ██╗██╗███╗   ██╗ ██████╗
--- ██╔════╝██╔══██╗    ██╔══██╗██╔══██╗████╗  ██║██║ ██╔╝██║████╗  ██║██╔════╝
--- █████╗  ██║  ██║    ██████╔╝███████║██╔██╗ ██║█████╔╝ ██║██╔██╗ ██║██║  ███╗
--- ██╔══╝  ██║  ██║    ██╔══██╗██╔══██║██║╚██╗██║██╔═██╗ ██║██║╚██╗██║██║   ██║
--- ██║     ██████╔╝    ██████╔╝██║  ██║██║ ╚████║██║  ██╗██║██║ ╚████║╚██████╔╝
--- ╚═╝     ╚═════╝     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝
-
-Adapters['fd_banking'] = {
-    add = function(account, amount, reason)
-        return exports['fd_banking']:AddMoney(account, amount, reason) ~= false
-    end,
-    remove = function(account, amount, reason)
-        local bal = tonumber(exports['fd_banking']:GetAccount(account)) or 0
-        if bal < amount then return false end
-        return exports['fd_banking']:RemoveMoney(account, amount, reason) ~= false
-    end,
-    balance = function(account)
-        return tonumber(exports['fd_banking']:GetAccount(account))
-    end,
-}
-
---  ██████╗ ██████╗     ██████╗  █████╗ ███╗   ██╗██╗  ██╗██╗███╗   ██╗ ██████╗
--- ██╔═══██╗██╔══██╗    ██╔══██╗██╔══██╗████╗  ██║██║ ██╔╝██║████╗  ██║██╔════╝
--- ██║   ██║██████╔╝    ██████╔╝███████║██╔██╗ ██║█████╔╝ ██║██╔██╗ ██║██║  ███╗
--- ██║▄▄ ██║██╔══██╗    ██╔══██╗██╔══██║██║╚██╗██║██╔═██╗ ██║██║╚██╗██║██║   ██║
--- ╚██████╔╝██████╔╝    ██████╔╝██║  ██║██║ ╚████║██║  ██╗██║██║ ╚████║╚██████╔╝
---  ╚══▀▀═╝ ╚═════╝     ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝
-
-Adapters['qb-banking'] = {
-    add = function(account, amount, reason)
-        return exports['qb-banking']:AddMoney(account, amount, reason) ~= false
-    end,
-    remove = function(account, amount, reason)
-        return exports['qb-banking']:RemoveMoney(account, amount, reason) == true
-    end,
-    balance = function(account)
-        return tonumber(exports['qb-banking']:GetAccountBalance(account))
-    end,
-    log = function(data)
-        if not data.identifier then return end
-        -- CreateBankStatement(citizenid, accountName, amount, reason, statementType, accountType)
-        exports['qb-banking']:CreateBankStatement(data.identifier, data.account or 'checking', data.amount,
-            data.title, data.type == 'deposit' and 'deposit' or 'withdraw', data.account and 'shared' or 'checking')
-    end,
-}
-
+-- Older QBCore: qb-management exposes the same calls as the qb-banking adapter expects
 Adapters['qb-management'] = {
-    add = function(account, amount)
-        exports['qb-management']:AddMoney(account, amount)
-        return true
-    end,
-    remove = function(account, amount)
-        return exports['qb-management']:RemoveMoney(account, amount) == true
-    end,
-    balance = function(account)
-        return tonumber(exports['qb-management']:GetAccount(account))
-    end,
+    add = function(s, a) exports['qb-management']:AddMoney(s, a) return true end,
+    remove = function(s, a) return exports['qb-management']:RemoveMoney(s, a) == true end,
+    balance = function(s) return tonumber(exports['qb-management']:GetAccount(s)) end,
 }
 
--- ███████╗███████╗██╗  ██╗
--- ██╔════╝██╔════╝╚██╗██╔╝
--- █████╗  ███████╗ ╚███╔╝
--- ██╔══╝  ╚════██║ ██╔██╗
--- ███████╗███████║██╔╝ ██╗
--- ╚══════╝╚══════╝╚═╝  ╚═╝
-
-local function esxAccount(account)
-    local name = account
+-- ESX shared accounts (esx_addonaccount: society_<job>)
+local function esxAccount(society)
     local prefix = Config.Banking.EsxSocietyPrefix or 'society_'
-    if prefix ~= '' and name:sub(1, #prefix) ~= prefix then
-        name = prefix .. name
-    end
+    local name = society:sub(1, #prefix) == prefix and society or prefix .. society
+    if GetResourceState('esx_addonaccount') ~= 'started' then return nil end
+    local ok, acc = pcall(function() return exports.esx_addonaccount:GetSharedAccount(name) end)
+    if ok and acc then return acc end
     local result
-    TriggerEvent('esx_addonaccount:getSharedAccount', name, function(acc) result = acc end)
+    TriggerEvent('esx_addonaccount:getSharedAccount', name, function(a) result = a end)
     return result
 end
-
-Adapters['esx_addonaccount'] = {
-    add = function(account, amount)
-        local acc = esxAccount(account)
-        if not acc then return false end
-        acc.addMoney(amount)
+Adapters['framework'] = {
+    add = function(s, a) local acc = esxAccount(s) if not acc then return false end acc.addMoney(a) return true end,
+    remove = function(s, a)
+        local acc = esxAccount(s)
+        if not acc or (tonumber(acc.money) or 0) < a then return false end
+        acc.removeMoney(a)
         return true
     end,
-    remove = function(account, amount)
-        local acc = esxAccount(account)
-        if not acc or (tonumber(acc.money) or 0) < amount then return false end
-        acc.removeMoney(amount)
-        return true
-    end,
-    balance = function(account)
-        local acc = esxAccount(account)
-        return acc and tonumber(acc.money) or nil
-    end,
+    balance = function(s) local acc = esxAccount(s) return acc and tonumber(acc.money) or nil end,
 }
 
---  ██████╗██╗   ██╗███████╗████████╗ ██████╗ ███╗   ███╗
--- ██╔════╝██║   ██║██╔════╝╚══██╔══╝██╔═══██╗████╗ ████║
--- ██║     ██║   ██║███████╗   ██║   ██║   ██║██╔████╔██║
--- ██║     ██║   ██║╚════██║   ██║   ██║   ██║██║╚██╔╝██║
--- ╚██████╗╚██████╔╝███████║   ██║   ╚██████╔╝██║ ╚═╝ ██║
---  ╚═════╝ ╚═════╝ ╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝
+-- wasabi_banking (verify these export names against your version)
+Adapters['wasabi_banking'] = {
+    add = function(s, a) return exports.wasabi_banking:AddMoney('society', s, a) ~= false end,
+    remove = function(s, a)
+        if (tonumber(exports.wasabi_banking:GetAccountBalance(s, 'society')) or 0) < a then return false end
+        return exports.wasabi_banking:RemoveMoney('society', s, a) ~= false
+    end,
+    balance = function(s) return tonumber(exports.wasabi_banking:GetAccountBalance(s, 'society')) end,
+}
+
+Adapters['fd_banking'] = {
+    add = function(s, a, r) return exports['fd_banking']:AddMoney(s, a, r) ~= false end,
+    remove = function(s, a, r)
+        if (tonumber(exports['fd_banking']:GetAccount(s)) or 0) < a then return false end
+        return exports['fd_banking']:RemoveMoney(s, a, r) ~= false
+    end,
+    balance = function(s) return tonumber(exports['fd_banking']:GetAccount(s)) end,
+}
 
 Adapters['custom'] = {
-    add = function(account, amount, reason) return Config.Banking.Custom.AddMoney(account, amount, reason) == true end,
-    remove = function(account, amount, reason) return Config.Banking.Custom.RemoveMoney(account, amount, reason) == true end,
-    balance = function(account) return tonumber(Config.Banking.Custom.GetBalance(account)) end,
+    add = function(s, a, r) return Config.Banking.Custom.AddMoney(s, a, r) == true end,
+    remove = function(s, a, r) return Config.Banking.Custom.RemoveMoney(s, a, r) == true end,
+    balance = function(s) return tonumber(Config.Banking.Custom.GetBalance(s)) end,
 }
-
--- ██████╗ ███████╗████████╗███████╗ ██████╗████████╗
--- ██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
--- ██║  ██║█████╗     ██║   █████╗  ██║        ██║
--- ██║  ██║██╔══╝     ██║   ██╔══╝  ██║        ██║
--- ██████╔╝███████╗   ██║   ███████╗╚██████╗   ██║
--- ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝ ╚═════╝   ╚═╝
 
 local DetectOrder = {
-    'nayzeee-banking', 'Renewed-Banking', 'okokBanking', 'fd_banking',
-    'qb-banking', 'qb-management', 'esx_addonaccount',
+    { 'nayzeee-banking', 'nayzeee-banking' },
+    { 'qb-banking', 'qb-banking' },
+    { 'okokBanking', 'okokBanking' },
+    { 'Renewed-Banking', 'Renewed-Banking' },
+    { 'qb-management', 'qb-management' },
+    { 'framework', 'es_extended' },
+    { 'wasabi_banking', 'wasabi_banking' },
 }
 
-local function resourceFor(name)
-    local adapter = Adapters[name]
-    if adapter and adapter.resource then return adapter.resource() end
-    return name
-end
-
-local function Detect()
-    local system = Config.Banking.System or 'auto'
-    if system == 'none' then return 'none' end
-    if system ~= 'auto' then
-        if not Adapters[system] then
-            print(('^1[NAYZEEE-BILLING]^7 Unknown banking system "%s", falling back to auto-detect'):format(system))
-        else
-            return system
-        end
+local function detect()
+    local wanted = Config.BankingIntegration or 'auto'
+    if wanted == 'none' then return 'none' end
+    if wanted ~= 'auto' then
+        if Adapters[wanted] then return wanted end
+        print(('^1[NAYZEEE-BILLING]^7 Unknown BankingIntegration "%s", auto-detecting'):format(wanted))
     end
-    for _, name in ipairs(DetectOrder) do
-        if GetResourceState(resourceFor(name)) == 'started' then
-            return name
-        end
+    for _, pair in ipairs(DetectOrder) do
+        if GetResourceState(pair[2]) == 'started' then return pair[1] end
     end
     return 'none'
 end
 
-local function adapter()
-    return Adapters[Banking.name]
+local function adapter() return Adapters[Banking.name] end
+
+-- ███████╗ ██████╗  ██████╗██╗███████╗████████╗██╗   ██╗
+-- ██╔════╝██╔═══██╗██╔════╝██║██╔════╝╚══██╔══╝╚██╗ ██╔╝
+-- ███████╗██║   ██║██║     ██║█████╗     ██║    ╚████╔╝
+-- ╚════██║██║   ██║██║     ██║██╔══╝     ██║     ╚██╔╝
+-- ███████║╚██████╔╝╚██████╗██║███████╗   ██║      ██║
+-- ╚══════╝ ╚═════╝  ╚═════╝╚═╝╚══════╝   ╚═╝      ╚═╝
+
+function Banking.IsAvailable() return adapter() ~= nil end
+
+function Banking.Account(societyId)
+    local s = Shared.Society(societyId)
+    return (s and s.account) or societyId
 end
 
---  █████╗ ██████╗ ██╗
--- ██╔══██╗██╔══██╗██║
--- ███████║██████╔╝██║
--- ██╔══██║██╔═══╝ ██║
--- ██║  ██║██║     ██║
--- ╚═╝  ╚═╝╚═╝     ╚═╝
-
-function Banking.IsAvailable()
-    return adapter() ~= nil
-end
-
--- Company account name for a company id (account override > first job > id)
-function Banking.AccountFor(company)
-    if not company then return nil end
-    return company.account or company.job or (type(company.jobs) == 'table' and company.jobs[1]) or company.id
-end
-
-function Banking.AddSociety(account, amount, reason)
+function Banking.AddSociety(societyId, amount, reason)
     local a = adapter()
-    if not a or not account or amount <= 0 then return false end
-    return safe(a.add, account, Shared.Round(amount), reason or 'Invoice payment') == true
+    if not a or not societyId or amount <= 0 then return false end
+    return safe(a.add, Banking.Account(societyId), Shared.Round(amount), reason or 'Invoice') == true
 end
 
-function Banking.RemoveSociety(account, amount, reason)
+function Banking.RemoveSociety(societyId, amount, reason)
     local a = adapter()
-    if not a or not account or amount <= 0 then return false end
-    return safe(a.remove, account, Shared.Round(amount), reason or 'Invoice refund') == true
+    if not a or not societyId or amount <= 0 then return false end
+    return safe(a.remove, Banking.Account(societyId), Shared.Round(amount), reason or 'Invoice') == true
 end
 
-function Banking.GetSocietyBalance(account)
+function Banking.SocietyBalance(societyId)
     local a = adapter()
-    if not a or not account then return nil end
-    return safe(a.balance, account)
+    if not a or not societyId then return nil end
+    return safe(a.balance, Banking.Account(societyId))
 end
 
---@@ PERSONAL
-
--- Banking scripts that own personal balances (nayzeee-banking). nil = use the framework's bank account
-local function personal()
-    local a = adapter()
-    if a and a.personal and a.personal.enabled() then return a.personal end
-    return nil
-end
-
-function Banking.HasPersonal()
-    return personal() ~= nil
-end
-
-function Banking.PersonalBalance(identifier)
-    local p = personal()
-    if not p or not identifier then return nil end
-    return safe(p.balance, identifier)
-end
-
-function Banking.AddPersonal(identifier, amount, reason)
-    local p = personal()
-    if not p or not identifier or amount <= 0 then return false end
-    return safe(p.add, identifier, Shared.Round(amount), reason or 'Billing') == true
-end
-
-function Banking.RemovePersonal(identifier, amount, reason)
-    local p = personal()
-    if not p or not identifier or amount <= 0 then return false end
-    return safe(p.remove, identifier, Shared.Round(amount), reason or 'Billing') == true
-end
-
--- data = { identifier, name, account?, amount, type = 'deposit'|'withdraw', title, description }
 function Banking.Log(data)
     if not Config.Banking.LogTransactions then return end
     local a = adapter()
     if a and a.log then safe(a.log, data) end
 end
 
+-- ██████╗ ███████╗██████╗ ███████╗ ██████╗ ███╗   ██╗ █████╗ ██╗
+-- ██╔══██╗██╔════╝██╔══██╗██╔════╝██╔═══██╗████╗  ██║██╔══██╗██║
+-- ██████╔╝█████╗  ██████╔╝███████╗██║   ██║██╔██╗ ██║███████║██║
+-- ██╔═══╝ ██╔══╝  ██╔══██╗╚════██║██║   ██║██║╚██╗██║██╔══██║██║
+-- ██║     ███████╗██║  ██║███████║╚██████╔╝██║ ╚████║██║  ██║███████╗
+-- ╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝
+
+local function personal()
+    local a = adapter()
+    if a and a.personal and a.personal.enabled() then return a.personal end
+    return nil
+end
+
+function Banking.HasPersonal() return personal() ~= nil end
+
+-- ███╗   ███╗ ██████╗ ███╗   ██╗███████╗██╗   ██╗
+-- ████╗ ████║██╔═══██╗████╗  ██║██╔════╝╚██╗ ██╔╝
+-- ██╔████╔██║██║   ██║██╔██╗ ██║█████╗   ╚████╔╝
+-- ██║╚██╔╝██║██║   ██║██║╚██╗██║██╔══╝    ╚██╔╝
+-- ██║ ╚═╝ ██║╚██████╔╝██║ ╚████║███████╗   ██║
+-- ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝
+
+-- Every player money movement in billing goes through Money.*
+Money = {}
+
+function Money.Get(source, account)
+    if account == 'bank' and personal() then
+        return safe(personal().balance, Framework.GetIdentifier(source)) or 0
+    end
+    return Framework.GetMoney(source, account)
+end
+
+function Money.Remove(source, account, amount, reason)
+    amount = Shared.Round(amount)
+    if amount <= 0 then return true end
+    if account == 'bank' and personal() then
+        return safe(personal().remove, Framework.GetIdentifier(source), amount, reason) == true
+    end
+    return Framework.RemoveMoney(source, account, amount, reason) == true
+end
+
+function Money.Add(source, account, amount, reason)
+    amount = Shared.Round(amount)
+    if amount <= 0 then return true end
+    if account == 'bank' and personal() then
+        return safe(personal().add, Framework.GetIdentifier(source), amount, reason) == true
+    end
+    return Framework.AddMoney(source, account, amount, reason) ~= false
+end
+
+-- Bank deposit to a character, online or offline. Returns true when the money landed
+function Money.DepositTo(identifier, amount, reason)
+    amount = Shared.Round(amount)
+    if not identifier or amount <= 0 then return amount <= 0 end
+    if personal() then return safe(personal().add, identifier, amount, reason) == true end
+    local src = Framework.GetSource(identifier)
+    if src then return Money.Add(src, 'bank', amount, reason) end
+    return Framework.AddOfflineBank(identifier, amount) == true
+end
+
+-- Bank charge on a character, online or offline (overdue collection)
+function Money.ChargeBank(identifier, amount, reason, allowNegative, includeOffline)
+    amount = Shared.Round(amount)
+    if not identifier or amount <= 0 then return false end
+    local src = Framework.GetSource(identifier)
+    if personal() then
+        if not src and not includeOffline then return false end
+        return safe(personal().remove, identifier, amount, reason) == true
+    end
+    if src then return Money.Remove(src, 'bank', amount, reason) end
+    if not includeOffline then return false end
+    return Framework.RemoveOfflineBank(identifier, amount, allowNegative) == true
+end
+
 CreateThread(function()
     Wait(500)
-    Banking.name = Detect()
-    if Banking.name == 'none' then
-        print('^3[NAYZEEE-BILLING]^7 No banking system detected - company payments will go to the employee')
-    else
-        print(('^2[NAYZEEE-BILLING]^7 Banking: ^5%s^7'):format(Banking.name))
-    end
+    Banking.name = detect()
+    print(('^2[NAYZEEE-BILLING]^7 Banking: ^5%s^7%s'):format(Banking.name, Banking.HasPersonal() and ' (personal accounts)' or ''))
 end)

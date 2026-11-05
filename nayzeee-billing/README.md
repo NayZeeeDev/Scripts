@@ -1,7 +1,7 @@
-# NAYZEEE Billing 2.0
+# NAYZEEE Billing 3.0
 
-Billing, invoicing and point-of-sale for FiveM, built on the NAYZEEE UI v5 design system.
-Works with **ESX, QBCore and Qbox** and connects to **nayzeee-banking, Renewed-Banking, okokBanking, fd_banking, qb-banking, qb-management and ESX society accounts**.
+Personal and society billing, invoice templates, group permissions, pay by reference, physical invoices and cash registers for FiveM.
+Works on **ESX, QBCore and Qbox**. Built on the NAYZEEE UI v5 design system; every colour and every string is configurable.
 
 Discord: discord.gg/nayzeeedev
 
@@ -9,195 +9,176 @@ Discord: discord.gg/nayzeeedev
 
 ## Features
 
-**For citizens**
-- A billing tablet that **everyone** can open (`/billing` or `F6`) to see, pay and track their bills
-- Pay with bank or cash, **in full or in installments**
-- **Tips** on company invoices (preset %), sent to the employee or the company
-- **Dispute** an invoice; the company's managers review it and accept or reject it
-- Full history with search and filters, plus receipts with a barcode and a receipt item
-- **Reference numbers** per company (`BS-000142`, `LSPD-000031`): find any invoice by typing its reference in the title bar or with `/invoice BS-142`, and copy it with one click
-- Notifications on login for unpaid invoices and payouts
+**Dashboard**
+- Invoices due, unpaid amount, paid this week, received this week
+- Weekly summary chart (money in vs money out), pending payments with **Pay All**, payment alerts, recent activity
+- **Personal and society accounts**, each with its own balance. Switch from the sidebar.
 
-**For employees**
-- Catalog billing with categories, search and item images. **Prices are enforced by the server**
-- Custom line items (per-company toggle), discounts capped per company, notes, custom due dates
-- Quick bills (one-click presets)
-- **Offline billing** for remote jobs (police, EMS): search any character in the database
-- Commission on every paid invoice (global or per-company rate)
-- **Cash registers** with a live customer display: the customer watches the order build up, then pays from their own screen with card/cash and a tip
+**Invoices**
+- **Received / Sent** tables with search, status filters (with counts), due-date filters and pagination
+- Right-click any row to **View**, **Pay**, **Print** or **Cancel**
+- **Bulk payments**: tick several invoices and pay them in one click
+- Side detail panel with a paper-style invoice, reference copy button, payment history, disputes, refunds and print
+- **Pay by reference**: look up any invoice by reference (e.g. `LSPD-7KQ2MZ4P`) and pay it from your own cash or bank, even if it's someone else's. References carry 8 random characters, so they can't be guessed.
+- Installments, tips (society invoices), disputes, refunds to whoever paid
 
-**For bosses**
-- Company dashboard: today / 7 days / 30 days revenue, outstanding balance, 7-day revenue chart, top employees, live company account balance
-- Company invoice list: cancel, **refund** and resolve disputes. A refund returns everything the customer paid and comes fully out of the company account (commission already paid out and routed tax are not clawed back). Accepting a dispute on a partly paid invoice refunds it.
-- Manage the company's own products, categories and quick bills in-game
+**Society billing**
+- Send invoices as your job, and bill other configured societies (society-to-society)
+- Society-received invoices are paid from the society account
+- **VAT** on new invoices (per-society rate or exempt), optionally routed to a dedicated society (e.g. `government`)
+- **Revenue share**: the issuing employee earns a % of every society invoice they send (excluding VAT)
 
-**For admins** (`/billingadmin`)
-- Server overview: revenue by company, outstanding totals, detected framework/banking/inventory
-- Create, edit, reset or delete companies (stored in the database, overrides `companies.lua`)
-- Catalog editor for any company, with an inventory item picker for images
-- Place cash registers at your position, teleport to them, set waypoints, delete them
-- Search every invoice on the server, plus an activity log (also sent to Discord webhooks, globally and per company)
+**Templates**
+- Tabs with custom name, icon and colour, plus a live preview
+- Drag & drop to reorder, edit prices inline, add and delete items
+- Society templates are seeded from `presets.lua` and then edited in-game; global presets are shared by everyone; players can keep personal templates
+- The create-invoice modal picks a template and an item, or a custom reason and amount
 
-**Automation**
-- Due dates, automatic **overdue** status and a one-time **late fee**
-- Optional **auto-collect**: overdue invoices are charged from the bank after X days
-- Sales tax can be routed to a government account (`Config.Tax.Account`)
+**Permissions** (per society)
+- Groups (Manager, Finance, Sales, Limited, plus your own) with toggles across 17 permissions in Invoices / Templates / Management
+- Assign any employee, online or offline, to a group from the UI
+- Defaults come from job grades (`sendGrade`, `manageGrade`, framework boss)
+
+**Activity log**
+- Every invoice, payment, template change and permission change, with who did it and when
+- Search, category filters, pagination; personal and society views
+
+**Inspect** (admins, and society members with the *inspect* permission)
+- Look up any citizen by name or identifier, or any society, and see their full billing history, outstanding balance and total paid
+- Non-admins only see invoices involving their own society ("Job View")
+- Admins can cancel, **delete single records**, **clear every record for an identifier**, and manage cash registers
+
+**More**
+- **Physical invoice item** for online citizen recipients; using it opens the paper invoice with a Pay button. Receipt item on payment. **Print invoice** gives a copy.
+- **Overdue collection**: flag expired invoices with a one-time late fee, or collect automatically from the bank after X days, **including offline characters**. Society recipients are charged from their society account.
+- **Cash registers** with a live customer display and checkout on the customer's screen
+- **F7 keymapping** (configurable and rebindable)
+- **Editable bridges**: framework, banking, inventory, notifications, logger
+- **JSON locales** (`locales/en.json`), **UI colours** from config
+- **Imports** from esx_billing, okokBilling and qb-phone
+- **Compatibility**: `esx_billing:sendBill` and the esx_billing callbacks keep working
 
 ---
 
 ## Installation
 
-1. Requirements: [ox_lib](https://github.com/overextended/ox_lib), [oxmysql](https://github.com/overextended/oxmysql), OneSync (default on modern servers).
-2. Drop `nayzeee-billing` into your resources folder and add it to `server.cfg` **after** your framework, inventory and banking resources:
+1. Requirements: [ox_lib](https://github.com/overextended/ox_lib), [oxmysql](https://github.com/overextended/oxmysql), OneSync.
+2. Put `nayzeee-billing` in your resources and start it **after** your framework, inventory and banking:
    ```cfg
    ensure ox_lib
    ensure oxmysql
-   ensure qbx_core        # or es_extended / qb-core
-   ensure nayzeee-banking # or your banking script
+   ensure es_extended        # or qb-core / qbx_core
+   ensure ox_inventory
+   ensure nayzeee-banking    # or your banking script
    ensure nayzeee-billing
-   ```
-3. Grant admin access (either works):
-   ```cfg
    add_ace group.admin nayzeee.billing.admin allow
    ```
-   or put the framework group in `Config.AdminGroups`.
-4. Start the server. Database tables are created and migrated automatically. Upgrading from 1.x keeps all your data.
+3. Configure `config.lua`, `societies.lua` (jobs that bill as a society) and `presets.lua` (starting templates).
+4. Restart. Tables are created and upgraded automatically; v1 / v2 data is kept.
 
-### Receipt item
+### Items
 
 **ox_inventory** (`ox_inventory/data/items.lua`):
 ```lua
-['receipt'] = {
-    label = 'Receipt',
-    weight = 10,
-    stack = false,
-    close = true,
-    client = { export = 'nayzeee-billing.useReceipt' },
-},
+['billing_invoice'] = { label = 'Invoice', weight = 5, stack = false, close = true, client = { export = 'nayzeee-billing.useInvoice' } },
+['billing_receipt'] = { label = 'Receipt', weight = 5, stack = false, close = true, client = { export = 'nayzeee-billing.useInvoice' } },
 ```
 
 **qb-core** (`qb-core/shared/items.lua`):
 ```lua
-receipt = { name = 'receipt', label = 'Receipt', weight = 10, type = 'item', image = 'receipt.png', unique = true, useable = true, shouldClose = true, description = 'A payment receipt' },
+billing_invoice = { name = 'billing_invoice', label = 'Invoice', weight = 5, type = 'item', image = 'billing_invoice.png', unique = true, useable = true, shouldClose = true, description = 'An invoice' },
+billing_receipt = { name = 'billing_receipt', label = 'Receipt', weight = 5, type = 'item', image = 'billing_receipt.png', unique = true, useable = true, shouldClose = true, description = 'A payment receipt' },
 ```
 
-**ESX** without ox_inventory has no item metadata, so the receipt item can't show which invoice it belongs to. Set `Config.Receipts.GiveReceiptItem = false` or use ox_inventory.
+The default ESX inventory keeps no item metadata. Use ox_inventory, or set `Config.Items.Invoice.Enabled` / `Receipt.Enabled` to `false`.
 
 ---
 
 ## Banking
 
-`Config.Banking.System = 'auto'` detects the first started resource in this order:
+`Config.BankingIntegration = 'auto'` uses the first started backend:
 
-| System | Company money | Balance on dashboard | Statements |
-|---|---|---|---|
-| nayzeee-banking (ESX / QBCore / Qbox) | ✓ | ✓ | ✓ (personal + company ledger) |
-| Renewed-Banking | ✓ | ✓ | ✓ (`handleTransaction`) |
-| okokBanking | ✓ | ✓ | – |
-| fd_banking | ✓ | ✓ | – |
-| qb-banking (v2) | ✓ | ✓ | ✓ (`CreateBankStatement`) |
-| qb-management | ✓ | ✓ | – |
-| esx_addonaccount | ✓ (`society_<job>`) | ✓ | – |
-| custom | your functions in `Config.Banking.Custom` | | |
+1. `nayzeee-banking` (personal and society accounts; statements read "Invoice LSPD-7KQ2MZ4P · LSPD" under *Bill*)
+2. `qb-banking`
+3. `okokBanking`
+4. `Renewed-Banking`
+5. `qb-management`
+6. ESX shared accounts (`esx_addonaccount`, when `es_extended` runs)
+7. `wasabi_banking`
+8. `none`
 
-If no banking system is found, company payments go to the employee who sent the invoice.
+Personal invoices only need the framework. Society invoices need a society backend; without one, society money goes to the issuing employee.
 
-### nayzeee-banking integration
+`fd_banking` and `custom` (your own functions in `Config.Banking.Custom`) can be selected explicitly.
 
-nayzeee-banking (ESX, QBCore or Qbox) owns the real bank balances, so billing goes through it instead of the framework's `bank` money. Both resources key players the same way (ESX identifier, or `citizenid` on QBCore/Qbox), so no mapping is needed.
+> **wasabi_banking**: the adapter uses `AddMoney('society', job, amount)`, `RemoveMoney('society', job, amount)` and `GetAccountBalance(job, 'society')`. Check these against your version.
 
-On QBCore/Qbox, if you keep `qb-banking` or `Renewed-Banking` running next to nayzeee-banking, leave `Config.Banking.System = 'auto'`: it picks nayzeee-banking first, and nayzeee-banking keeps their society balances in step. Pointing billing at qb-banking/Renewed directly would bypass the bank's ledger.
-
-- **Company money** uses `addSocietyMoney`, `removeSocietyMoney` and `getSocietyBalance`. The company's job (or its `account` field) must be listed in nayzeee-banking's `Config.Accounts.societyAccess`, otherwise the society account doesn't exist and payments fall back to the employee.
-- **Personal bank payments** use `getBalance`, `removeMoney` and `addMoney`, so the customer's statement shows `Invoice BS-000142 · Burgershot` under the **Bill** category, frozen accounts can't pay, and payouts to offline employees land in their account immediately.
-- Turn the personal part off with `Config.Banking.Nayzeee.UsePersonalAccounts = false`.
-
-Your banking app can also read and pay bills through billing's exports (see below). For example, a "Bills" tab in nayzeee-banking can call `GetPlayerInvoices` and `PayInvoice`.
+**nayzeee-banking**: list every society job in its `Config.Accounts.societyAccess` so the society account exists. If nayzeee-banking intercepts `esx_billing:sendBill` (its `Config.Bridge.events`), remove that entry so invoices aren't created twice.
 
 ---
 
-## Exports
+## Imports
 
-### Server
+Run in the server console (or as an admin):
+```
+billingimport esx_billing
+billingimport okokBilling
+billingimport qb-phone
+```
+Each row is imported once (re-running skips what's already there). Imported invoices get new references.
+
+---
+
+## Developer interfaces
+
+### Client exports
 ```lua
--- Create an invoice from any script (system invoice when sender is omitted)
-local invoiceId, err = exports['nayzeee-billing']:CreateInvoice({
-    target = playerSourceOrIdentifier,
-    company = 'police',                 -- optional company id
-    sender = officerSource,             -- optional
-    senderName = 'LS DMV',              -- optional, for system invoices
-    items = {
-        { name = 'Speeding', price = 500, quantity = 1 },
-        { productId = 'fine_dui' },     -- catalog product (company price)
-    },
-    notes = 'Plate 46EEK572',
-    dueDays = 7,
-})
+exports['nayzeee-billing']:OpenBilling(page?)            -- overview / received / sent / templates / activity / permissions / inspect
+exports['nayzeee-billing']:CloseBilling()
+exports['nayzeee-billing']:OpenCreate(recipientServerId?)
+exports['nayzeee-billing']:OpenPayByReference(ref?)
+exports['nayzeee-billing']:OpenInvoice(invoiceId)
+exports['nayzeee-billing']:IsOpen()
+```
+UI state event: `AddEventHandler('nayzeee-billing:client:uiState', function(open, mode) end)`
 
-exports['nayzeee-billing']:GetPlayerInvoices(sourceOrIdentifier, includeClosed)
+### Server exports
+```lua
+local ref, err = exports['nayzeee-billing']:CreateInvoice({
+    target = source or identifier,     -- or targetSociety = 'police'
+    society = 'mechanic',              -- sender society (optional)
+    sender = employeeSource,           -- optional
+    senderName = 'LS DMV',             -- optional, system invoices
+    items = { { label = 'Tow', amount = 250, quantity = 1 } },
+    reason = 'Towing', notes = '...', dueDays = 7, vat = 0.08,
+})
+exports['nayzeee-billing']:GetInvoice(ref)
+exports['nayzeee-billing']:GetInvoices(sourceOrIdentifier, { status = 'open' | 'all', limit = 50 })
 exports['nayzeee-billing']:GetUnpaidTotal(sourceOrIdentifier)
 exports['nayzeee-billing']:HasUnpaidInvoices(sourceOrIdentifier)
-exports['nayzeee-billing']:PayInvoice(source, invoiceId, 'bank', partialAmount)
-exports['nayzeee-billing']:CancelInvoice(invoiceId, reason)
-exports['nayzeee-billing']:GetInvoice(invoiceId)
-exports['nayzeee-billing']:GetCompany(companyId)
-exports['nayzeee-billing']:GetCompanyStats(companyId)
+exports['nayzeee-billing']:PayInvoice(source, ref, 'bank' | 'cash', partialAmount?)
+exports['nayzeee-billing']:CancelInvoice(ref, reason)
+exports['nayzeee-billing']:GetSocietyStats(society)
 ```
-The 1.x signature `CreateInvoice(sender, target, items, companyLabel)` still works.
+The v1/v2 `CreateInvoice(sender, target, items, company)` and `GetPlayerInvoices` still work.
 
 ### Server events
 ```lua
-AddEventHandler('nayzeee-billing:server:invoiceCreated', function(invoice) end)
-AddEventHandler('nayzeee-billing:server:invoicePaid', function(invoice, payment) end) -- payment = { amount, tip, method, payer }
-AddEventHandler('nayzeee-billing:server:invoiceCancelled', function(invoiceId, reason) end)
-AddEventHandler('nayzeee-billing:server:invoiceRefunded', function(invoiceId, amount) end)
-```
-
-### Client
-```lua
-exports['nayzeee-billing']:OpenBilling()   -- optional tab: 'bills', 'new', 'history', 'dash'
-exports['nayzeee-billing']:OpenAdmin()
-exports['nayzeee-billing']:IsOpen()
+nayzeee-billing:server:invoiceCreated   (invoice)
+nayzeee-billing:server:invoicePaid      (invoice, { amount, tip, method, payer })
+nayzeee-billing:server:invoiceCancelled (ref, reason)
+nayzeee-billing:server:invoiceRefunded  (ref, amount)
 ```
 
 ---
 
-## Reference numbers
+## Customising
 
-Every invoice gets a reference players can quote, search and type:
+- **Colours**: `Config.UI.Colors` (accent, chart colours, danger/warning/success, background, panel)
+- **Text**: copy `locales/en.json` to `locales/<lang>.json`, translate it and set `Config.Locale`. Missing keys fall back to English.
+- **Framework**: `bridge/framework/esx.lua`, `qb.lua`, or implement `custom.lua` and set `Config.Framework = 'custom'`
+- **Banking / inventory / notifications / logs**: `bridge/banking.lua`, `bridge/inventory.lua`, `bridge/client.lua`, `bridge/logger.lua`
 
-- `Config.Invoices.ReferenceFormat = 'company'` gives each company its own counter: `BS-000001`, `BS-000002`, ... The prefix is the company's **Reference prefix** (set in `/billingadmin`) or its short name. Personal invoices and invoices from other scripts use `Config.Invoices.PersonalPrefix` (`INV`).
-- `'random'` uses codes like `INV-7KQ2MZ4P` instead.
-- Find an invoice from the box in the title bar or with `/invoice BS-000142`. The short form `/invoice bs-142` works too. You only get a result for invoices you're allowed to see (sender, recipient, the company's bosses, admins, or holding the receipt), and "not found" looks the same either way so references can't be guessed.
-- Every invoice and receipt has a copy button next to its reference.
+## Browser preview
 
-Existing invoices keep their old references.
-
-## Previewing the UI
-
-Open `html/index.html` in a browser to see the UI with sample data:
-`?tab=home|bills|new|history|dash|cinvoices|catalog`, `?view=admin`, `?view=pos`, `?view=display`.
-
----
-
-## What changed from 1.x
-
-**Security**
-- Invoice prices, quantities, discounts and totals were trusted from the client. The server now rebuilds every line from the company catalog, clamps discounts per company and enforces the maximum amount.
-- Admin callbacks (save company, products, registers...) had no server-side permission check. Every admin and boss action is now checked on the server.
-- Anyone could read any invoice by ID. Invoices are now visible only to the sender, the recipient, the company's bosses, admins, or a player holding its receipt.
-- Paying the same invoice twice in quick succession could charge twice. Payments are now locked per invoice and use an optimistic database update.
-- Any client could open the register display (and steal NUI focus) on any player. Register sessions are now validated on the server: the employee's job and both players' distance to the register.
-- XSS in the UI: player and product names were inserted as raw HTML. All text is now escaped.
-
-**Bugs**
-- `StartRegisterSession` was defined twice, so registers never assigned a customer. The register flow is rebuilt.
-- Bank teller cash collection never worked (`Config.CashRegister.UseTarget` didn't exist).
-- A company with 0% tax (police, EMS) showed and charged 8% in the UI.
-- Edits to `companies.lua` companies made in the admin panel were lost on restart. They now persist.
-- Companies created in the admin panel never reached the client.
-- Offline payouts used `playerConnecting`, which runs before the character is loaded. They now run on the framework's player-loaded event.
-- The `CreateInvoice` export called a client callback from the server and never worked.
-- `ADD COLUMN IF NOT EXISTS` failed on MySQL 8. Migrations are now portable.
-- Due dates and `InvoiceExpiry` were never used. Overdue handling is now implemented.
-- The "Pay Now" button on the register sent invoice ID `'register'`, which always failed.
+Open `html/index.html` in a browser to see the UI with sample data. Pages: `?page=overview|received|sent|templates|activity|permissions|inspect`, with `&account=society` for the society view, `&modal=create|ref|tpl`, `&rail=91`, or `?view=paper|pos|display`.

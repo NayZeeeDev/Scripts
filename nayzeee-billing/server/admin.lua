@@ -1,247 +1,164 @@
 --[[
-    NAYZEEE BILLING - Admin
-    Every handler checks Bridge.IsAdmin on the server (ACE or framework group).
+    NAYZEEE BILLING - Inspect & admin tools
+    Admins see everything. Society members with the "inspect" permission see invoices that involve their society.
 ]]
 
-local function AdminRPC(name, handler)
-    RPC('admin:' .. name, function(source, payload)
-        if not Bridge.IsAdmin(source) then
-            Log(source, 'admin_denied', { action = name })
-            return Err('No admin access')
+local function inspector(source)
+    local ctx = GetCtx(source)
+    if not ctx then return nil end
+    if ctx.isAdmin or Can(ctx, 'inspect') then return ctx end
+    return nil
+end
+
+-- Non-admins are always scoped to their own society ("job view")
+local function scope(ctx, jobView)
+    if not ctx.isAdmin then return ctx.society end
+    if jobView and ctx.society then return ctx.society end
+    return nil
+end
+
+RPC('inspect:search', function(source, payload)
+    local ctx = inspector(source)
+    if not ctx then return Err(L('error.no_permission', 'You do not have permission')) end
+    if Throttle(source, 'inspect', 0.4) then return {} end
+    local query = Shared.Sanitize(payload.query, 40)
+
+    if payload.type == 'society' then
+        local out, q = {}, query:lower()
+        for _, s in ipairs(PublicSocieties()) do
+            if q == '' or s.label:lower():find(q, 1, true) or s.id:find(q, 1, true) then
+                out[#out + 1] = { id = s.id, name = s.label, short = s.short, color = s.color }
+            end
         end
-        return handler(source, payload)
-    end)
-end
+        return out
+    end
 
-lib.callback.register('nayzeee-billing:isAdmin', function(source)
-    return Bridge.IsAdmin(source)
+    if #query < 2 then return {} end
+    local out, seen, lower = {}, {}, query:lower()
+    for _, id in ipairs(GetPlayers()) do
+        local src = tonumber(id)
+        local identifier = Framework.GetIdentifier(src)
+        local name = identifier and Framework.GetName(src) or ''
+        if identifier and (identifier == query or tostring(src) == query or name:lower():find(lower, 1, true)) then
+            seen[identifier] = true
+            out[#out + 1] = { id = identifier, name = name, online = true, serverId = src }
+        end
+    end
+    for _, r in ipairs(Framework.SearchCharacters(query, 10) or {}) do
+        if not seen[r.identifier] then out[#out + 1] = { id = r.identifier, name = r.name, online = false } end
+    end
+    return out
 end)
 
-local function CompanyList()
-    local list = {}
-    for _, c in pairs(Companies) do list[#list + 1] = PublicCompany(c, true) end
-    table.sort(list, function(a, b) return a.label < b.label end)
+RPC('inspect:profile', function(source, payload)
+    local ctx = inspector(source)
+    if not ctx then return Err(L('error.no_permission', 'You do not have permission')) end
+    local scoped = scope(ctx, payload.jobView)
+    local params, where, recipientWhere = { x = Shared.Sanitize(payload.id, 64), soc = scoped }, nil, nil
+    local name
+
+    if payload.type == 'society' then
+        if not Config.Societies[params.x] then return Err(L('error.not_found_generic', 'Not found')) end
+        name = SocietyLabel(params.x)
+        where = "(company_id = @x OR (recipient_type = 'society' AND target_society = @x))"
+        recipientWhere = "recipient_type = 'society' AND target_society = @x"
+    else
+        name = Framework.GetCharacterName(params.x)
+        if not name then return Err(L('error.not_found_generic', 'Not found')) end
+        where = '(sender_identifier = @x OR target_identifier = @x)'
+        recipientWhere = 'target_identifier = @x'
+    end
+    if scoped and not (payload.type == 'society' and params.x == scoped) then
+        where = where .. " AND (company_id = @soc OR (recipient_type = 'society' AND target_society = @soc))"
+    end
+
+    local stats = MySQL.single.await(([[SELECT COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN %s AND status IN ('pending','partial','overdue') THEN total + late_fee - amount_paid ELSE 0 END), 0) AS outstanding,
+        COALESCE(SUM(CASE WHEN %s THEN amount_paid ELSE 0 END), 0) AS paid
+        FROM nayzeee_billing_invoices WHERE %s]]):format(recipientWhere, recipientWhere, where), params) or {}
+
+    local viewer = payload.type == 'society' and { identifier = '-', society = params.x } or { identifier = params.x }
+    local list = QueryInvoices(where, params, payload, viewer)
+    list.subject = { type = payload.type == 'society' and 'society' or 'citizen', id = params.x, name = name, scoped = scoped ~= nil }
+    list.stats = { total = tonumber(stats.total) or 0, outstanding = tonumber(stats.outstanding) or 0, paid = tonumber(stats.paid) or 0 }
+    if ctx.isAdmin then
+        list.subject.identifier = params.x
+        list.canClear = payload.type ~= 'society' and Config.Admin.AllowClearIdentifier
+    end
+    if payload.type == 'society' and (ctx.isAdmin or params.x == ctx.society) then
+        list.subject.balance = Banking.SocietyBalance(params.x)
+    end
     return list
+end)
+
+--  █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗
+-- ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║
+-- ███████║██║  ██║██╔████╔██║██║██╔██╗ ██║
+-- ██╔══██║██║  ██║██║╚██╔╝██║██║██║╚██╗██║
+-- ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║
+-- ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝
+
+local function admin(source)
+    if not IsAdmin(source) then
+        Log(source, 'admin_denied', {})
+        return false
+    end
+    return true
 end
 
---  ██████╗ ██╗   ██╗███████╗██████╗ ██╗   ██╗██╗███████╗██╗    ██╗
--- ██╔═══██╗██║   ██║██╔════╝██╔══██╗██║   ██║██║██╔════╝██║    ██║
--- ██║   ██║██║   ██║█████╗  ██████╔╝██║   ██║██║█████╗  ██║ █╗ ██║
--- ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗╚██╗ ██╔╝██║██╔══╝  ██║███╗██║
--- ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║ ╚████╔╝ ██║███████╗╚███╔███╔╝
---  ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝
-
-AdminRPC('getData', function()
-    local stats = MySQL.single.await([[
-        SELECT
-            (SELECT COUNT(*) FROM nayzeee_billing_invoices WHERE created_at >= CURDATE()) AS invoicesToday,
-            (SELECT COALESCE(SUM(amount), 0) FROM nayzeee_billing_payments WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS revenueWeek,
-            (SELECT COALESCE(SUM(total + late_fee - amount_paid), 0) FROM nayzeee_billing_invoices WHERE status IN ('pending', 'partial', 'overdue')) AS outstanding,
-            (SELECT COUNT(*) FROM nayzeee_billing_invoices WHERE status IN ('pending', 'partial', 'overdue')) AS openCount,
-            (SELECT COUNT(*) FROM nayzeee_billing_invoices WHERE status = 'disputed') AS disputedCount,
-            (SELECT COALESCE(SUM(amount), 0) FROM nayzeee_billing_pending_payouts) AS pendingPayouts
-    ]]) or {}
-
-    local byCompany = MySQL.query.await([[
-        SELECT company_id AS id, COALESCE(SUM(amount), 0) AS revenue, COUNT(*) AS payments
-        FROM nayzeee_billing_payments
-        WHERE company_id IS NOT NULL AND created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
-        GROUP BY company_id ORDER BY revenue DESC LIMIT 8
-    ]]) or {}
-    for _, row in ipairs(byCompany) do
-        row.label = Companies[row.id] and Companies[row.id].label or row.id
-        row.revenue = tonumber(row.revenue) or 0
-    end
-
-    return {
-        companies = CompanyList(),
-        registers = GetRegisterList(),
-        stats = {
-            invoicesToday = tonumber(stats.invoicesToday) or 0,
-            revenueWeek = tonumber(stats.revenueWeek) or 0,
-            outstanding = tonumber(stats.outstanding) or 0,
-            openCount = tonumber(stats.openCount) or 0,
-            disputedCount = tonumber(stats.disputedCount) or 0,
-            pendingPayouts = tonumber(stats.pendingPayouts) or 0,
-            byCompany = byCompany,
-        },
-        system = {
-            framework = Shared.GetFramework(),
-            banking = Banking.name,
-            inventory = Inventory.Name(),
-            version = Shared.Version,
-            imagePath = Inventory.ImagePath(),
-        },
-        defaultCategories = Config.DefaultCategories,
-    }
+RPC('admin:delete', function(source, payload)
+    if not admin(source) or not Config.Admin.AllowDelete then return Err(L('error.no_permission', 'You do not have permission')) end
+    local row = GetInvoiceRow(tonumber(payload.id))
+    if not row then return Err(L('error.not_found', 'Invoice not found')) end
+    MySQL.query.await('DELETE FROM nayzeee_billing_invoices WHERE id = ?', { row.id })
+    MySQL.query.await('DELETE FROM nayzeee_billing_payments WHERE invoice_id = ?', { row.invoice_id })
+    Log(source, 'admin_delete', { ref = row.invoice_id, amount = tonumber(row.total) })
+    return true
 end)
 
---  ██████╗ ██████╗ ███╗   ███╗██████╗  █████╗ ███╗   ██╗██╗███████╗███████╗
--- ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██╔══██╗████╗  ██║██║██╔════╝██╔════╝
--- ██║     ██║   ██║██╔████╔██║██████╔╝███████║██╔██╗ ██║██║█████╗  ███████╗
--- ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██╔══██║██║╚██╗██║██║██╔══╝  ╚════██║
--- ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ██║  ██║██║ ╚████║██║███████╗███████║
---  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝╚══════╝╚══════╝
-
-AdminRPC('saveCompany', function(source, payload)
-    local data = type(payload.company) == 'table' and payload.company or {}
-    local id = Shared.Slug(data.id or '')
-    if id == '' then return Err('Company ID is required') end
-    local label = Shared.Sanitize(data.label, 100)
-    if label == '' then return Err('Company name is required') end
-
-    local isNew = Companies[id] == nil
-    if payload.isNew and not isNew then return Err('A company with that ID already exists') end
-
-    local c = Companies[id] or { id = id, categories = {}, products = {}, quickBills = {} }
-    c.label = label
-    c.shortName = Shared.Sanitize(data.shortName, 10)
-    if c.shortName == '' then c.shortName = label:sub(1, 4):upper() end
-    c.job = Shared.Sanitize(data.job, 50)
-    if c.job == '' then c.job = nil end
-
-    local jobs = {}
-    for job in tostring(data.jobs or ''):gmatch('[^,%s]+') do
-        jobs[#jobs + 1] = Shared.Sanitize(job, 50)
-    end
-    c.jobs = #jobs > 0 and jobs or nil
-
-    c.account = Shared.Sanitize(data.account, 60)
-    if c.account == '' then c.account = nil end
-    c.taxRate = Shared.Round(Shared.Clamp(data.taxRate, 0, 100) / 100, 4)
-    c.allowDiscounts = data.allowDiscounts == true
-    c.maxDiscount = Shared.Clamp(data.maxDiscount or 100, 0, 100)
-    c.allowCustomItems = data.allowCustomItems == true
-    c.allowTips = data.allowTips == true
-    c.minGrade = math.floor(Shared.Clamp(data.minGrade or 0, 0, 100))
-    c.bossGrade = (data.bossGrade ~= nil and data.bossGrade ~= '') and math.floor(Shared.Clamp(data.bossGrade, 0, 100)) or nil
-    c.commission = (data.commission ~= nil and data.commission ~= '') and Shared.Round(Shared.Clamp(data.commission, 0, 100) / 100, 4) or nil
-    c.dueDays = (data.dueDays ~= nil and data.dueDays ~= '') and math.floor(Shared.Clamp(data.dueDays, 0, 365)) or nil
-
-    local refPrefix = tostring(data.refPrefix or ''):upper():gsub('[^%w]', ''):sub(1, 6)
-    c.refPrefix = refPrefix ~= '' and refPrefix or nil
-
-    local webhook = Shared.Sanitize(data.webhook, 255)
-    c.webhook = webhook:match('^https://') and webhook or nil
-
-    Companies[id] = c
-    SaveCompany(id)
-    LoadCompanies() -- normalize + rebuild indexes
-    BroadcastRegisters()
-    Log(source, isNew and 'company_created' or 'company_updated', { company = id, label = label }, id)
-    return CompanyList()
+RPC('admin:clear', function(source, payload)
+    if not admin(source) or not Config.Admin.AllowClearIdentifier then return Err(L('error.no_permission', 'You do not have permission')) end
+    local identifier = Shared.Sanitize(payload.identifier, 64)
+    if identifier == '' or identifier:sub(1, 8) == 'society:' then return Err(L('error.not_found_generic', 'Not found')) end
+    local refs = MySQL.query.await('SELECT invoice_id FROM nayzeee_billing_invoices WHERE sender_identifier = ? OR target_identifier = ?', { identifier, identifier }) or {}
+    local n = MySQL.update.await('DELETE FROM nayzeee_billing_invoices WHERE sender_identifier = ? OR target_identifier = ?', { identifier, identifier }) or 0
+    for _, r in ipairs(refs) do MySQL.query.await('DELETE FROM nayzeee_billing_payments WHERE invoice_id = ?', { r.invoice_id }) end
+    Log(source, 'admin_clear', { identifier = identifier, deleted = n })
+    return { deleted = n }
 end)
 
-AdminRPC('deleteCompany', function(source, payload)
-    local c = Companies[payload.id]
-    if not c then return Err('Company not found') end
-    ResetCompany(payload.id)
-    BroadcastRegisters()
-    Log(source, c.isConfig and 'company_reset' or 'company_deleted', { company = payload.id }, payload.id)
-    return CompanyList()
+RPC('admin:registers', function(source)
+    if not admin(source) then return Err(L('error.no_permission', 'You do not have permission')) end
+    return RegisterList()
 end)
 
--- ██████╗ ███████╗ ██████╗ ██╗███████╗████████╗███████╗██████╗ ███████╗
--- ██╔══██╗██╔════╝██╔════╝ ██║██╔════╝╚══██╔══╝██╔════╝██╔══██╗██╔════╝
--- ██████╔╝█████╗  ██║  ███╗██║███████╗   ██║   █████╗  ██████╔╝███████╗
--- ██╔══██╗██╔══╝  ██║   ██║██║╚════██║   ██║   ██╔══╝  ██╔══██╗╚════██║
--- ██║  ██║███████╗╚██████╔╝██║███████║   ██║   ███████╗██║  ██║███████║
--- ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝
-
-AdminRPC('saveRegister', function(source, payload)
+RPC('admin:addRegister', function(source, payload)
+    if not admin(source) then return Err(L('error.no_permission', 'You do not have permission')) end
     local label = Shared.Sanitize(payload.label, 100)
-    if label == '' then return Err('Register label is required') end
-    if not Companies[payload.company] then return Err('Select a company') end
-
+    if label == '' then return Err(L('error.register_label', 'Give the register a label')) end
+    if not Config.Societies[payload.society] then return Err(L('error.pick_society', 'Pick a society')) end
     local ped = GetPlayerPed(source)
-    local coords = GetEntityCoords(ped)
-    local register = AddRegister({
-        label = label,
-        company = payload.company,
-        coords = { x = Shared.Round(coords.x), y = Shared.Round(coords.y), z = Shared.Round(coords.z) },
-        heading = Shared.Round(GetEntityHeading(ped), 1),
-        radius = Shared.Clamp(payload.radius or 2.0, 0.5, 10.0),
-    })
-    Log(source, 'register_created', { register = register.id, company = payload.company }, payload.company)
-    return GetRegisterList()
+    local c = GetEntityCoords(ped)
+    AddRegister({ label = label, society = payload.society, coords = { x = Shared.Round(c.x), y = Shared.Round(c.y), z = Shared.Round(c.z) },
+        heading = Shared.Round(GetEntityHeading(ped), 1), radius = Shared.Clamp(payload.radius or 2.0, 0.5, 10.0) })
+    Log(source, 'admin_register_added', { label = label, society = payload.society })
+    return RegisterList()
 end)
 
-AdminRPC('deleteRegister', function(source, payload)
+RPC('admin:deleteRegister', function(source, payload)
+    if not admin(source) then return Err(L('error.no_permission', 'You do not have permission')) end
     local ok, err = DeleteRegister(payload.id)
     if not ok then return Err(err) end
-    Log(source, 'register_deleted', { register = payload.id })
-    return GetRegisterList()
+    Log(source, 'admin_register_deleted', { register = payload.id })
+    return RegisterList()
 end)
 
-AdminRPC('teleport', function(source, payload)
+RPC('admin:teleport', function(source, payload)
+    if not admin(source) then return Err(L('error.no_permission', 'You do not have permission')) end
     local r = Registers[payload.id]
-    if not r then return Err('Register not found') end
+    if not r then return Err(L('error.not_found_generic', 'Not found')) end
     SetEntityCoords(GetPlayerPed(source), r.coords.x, r.coords.y, r.coords.z, false, false, false, false)
     return true
 end)
 
--- ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗███████╗
--- ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝██╔════╝
--- ██║██╔██╗ ██║██║   ██║██║   ██║██║██║     █████╗  ███████╗
--- ██║██║╚██╗██║╚██╗ ██╔╝██║   ██║██║██║     ██╔══╝  ╚════██║
--- ██║██║ ╚████║ ╚████╔╝ ╚██████╔╝██║╚██████╗███████╗███████║
--- ╚═╝╚═╝  ╚═══╝  ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚══════╝
-
-local StatusFilters = {
-    open = "status IN ('pending', 'partial', 'overdue')",
-    overdue = "status = 'overdue'",
-    disputed = "status = 'disputed'",
-    paid = "status = 'paid'",
-    closed = "status IN ('cancelled', 'refunded')",
-}
-
-AdminRPC('getInvoices', function(source, payload)
-    local where, params = { '1 = 1' }, {}
-    if StatusFilters[payload.status] then where[#where + 1] = StatusFilters[payload.status] end
-    if payload.companyId and Companies[payload.companyId] then
-        where[#where + 1] = 'company_id = @company'
-        params.company = payload.companyId
-    end
-    local search = Shared.Sanitize(payload.search, 40)
-    if search ~= '' then
-        where[#where + 1] = '(invoice_id LIKE @q OR sender_name LIKE @q OR target_name LIKE @q OR company_name LIKE @q)'
-        params.q = '%' .. search .. '%'
-    end
-    local page = math.floor(Shared.Clamp(payload.page, 0, 10000))
-    params.limit, params.offset = 31, page * 30
-
-    local rows = MySQL.query.await(('SELECT * FROM nayzeee_billing_invoices WHERE %s ORDER BY created_at DESC LIMIT @limit OFFSET @offset')
-        :format(table.concat(where, ' AND ')), params) or {}
-    local out = {}
-    for i = 1, math.min(#rows, 30) do out[i] = FormatInvoice(rows[i]) end
-    return { rows = out, hasMore = #rows > 30, page = page }
-end)
-
--- ██╗      ██████╗  ██████╗ ███████╗
--- ██║     ██╔═══██╗██╔════╝ ██╔════╝
--- ██║     ██║   ██║██║  ███╗███████╗
--- ██║     ██║   ██║██║   ██║╚════██║
--- ███████╗╚██████╔╝╚██████╔╝███████║
--- ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝
-
-AdminRPC('getLogs', function(source, payload)
-    local where, params = { '1 = 1' }, {}
-    local search = Shared.Sanitize(payload.search, 40)
-    if search ~= '' then
-        where[#where + 1] = '(player LIKE @q OR action LIKE @q OR data LIKE @q)'
-        params.q = '%' .. search .. '%'
-    end
-    local page = math.floor(Shared.Clamp(payload.page, 0, 10000))
-    params.limit, params.offset = 41, page * 40
-
-    local rows = MySQL.query.await(('SELECT id, player, company_id AS companyId, action, data, timestamp FROM nayzeee_billing_logs WHERE %s ORDER BY id DESC LIMIT @limit OFFSET @offset')
-        :format(table.concat(where, ' AND ')), params) or {}
-    local out = {}
-    for i = 1, math.min(#rows, 40) do
-        local row = rows[i]
-        local ok, data = pcall(json.decode, row.data or '{}')
-        row.data = ok and data or {}
-        out[i] = row
-    end
-    return { rows = out, hasMore = #rows > 40, page = page }
-end)
+lib.callback.register('nayzeee-billing:isAdmin', function(source) return IsAdmin(source) end)

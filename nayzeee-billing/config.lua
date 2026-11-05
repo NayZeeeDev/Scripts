@@ -6,21 +6,14 @@
     ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗
     ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝
 
-    NAYZEEE BILLING - 2.0.0
+    NAYZEEE BILLING - 3.0.0
     Discord: discord.gg/nayzeeedev
+
+    Societies live in societies.lua, invoice presets in presets.lua,
+    every player-facing text in locales/<lang>.json.
 ]]
 
 Config = {}
-
--- ███████╗██████╗  █████╗ ███╗   ███╗███████╗██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗
--- ██╔════╝██╔══██╗██╔══██╗████╗ ████║██╔════╝██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝
--- █████╗  ██████╔╝███████║██╔████╔██║█████╗  ██║ █╗ ██║██║   ██║██████╔╝█████╔╝
--- ██╔══╝  ██╔══██╗██╔══██║██║╚██╔╝██║██╔══╝  ██║███╗██║██║   ██║██╔══██╗██╔═██╗
--- ██║     ██║  ██║██║  ██║██║ ╚═╝ ██║███████╗╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗
--- ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝ ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
-
-Config.Framework = 'auto' -- 'auto' / 'esx' / 'qbcore' / 'qbox'
-Config.Debug = false
 
 --  ██████╗ ███████╗███╗   ██╗███████╗██████╗  █████╗ ██╗
 -- ██╔════╝ ██╔════╝████╗  ██║██╔════╝██╔══██╗██╔══██╗██║
@@ -29,42 +22,21 @@ Config.Debug = false
 -- ╚██████╔╝███████╗██║ ╚████║███████╗██║  ██║██║  ██║███████╗
 --  ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
 
-Config.Command = 'billing'            -- Opens the billing tablet (everyone can open it to see/pay their bills)
-Config.AdminCommand = 'billingadmin'  -- Opens the admin panel
-Config.OpenKey = 'F6'                 -- Keybind for Config.Command (players can rebind in GTA settings). false to disable
-
+Config.Framework = 'auto'      -- 'auto' / 'esx' / 'qbcore' / 'qbox' / 'custom' (bridge/framework/custom.lua)
+Config.Locale = 'en'           -- locales/<Locale>.json
 Config.Currency = '$'
-Config.DefaultTaxRate = 0.08          -- Used for personal invoices and companies without a taxRate
-Config.MaxInvoiceAmount = 1000000
+Config.CurrencyPosition = 'before' -- 'before' ($100) or 'after' (100€)
+Config.Debug = false
 
--- ██████╗ ██╗██╗     ██╗     ██╗███╗   ██╗ ██████╗
--- ██╔══██╗██║██║     ██║     ██║████╗  ██║██╔════╝
--- ██████╔╝██║██║     ██║     ██║██╔██╗ ██║██║  ███╗
--- ██╔══██╗██║██║     ██║     ██║██║╚██╗██║██║   ██║
--- ██████╔╝██║███████╗███████╗██║██║ ╚████║╚██████╔╝
--- ╚═════╝ ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
-
-Config.Billing = {
-    -- Who can create invoices
-    AllowPersonalBilling = true,  -- Players without a billing company can send personal invoices (custom items only)
-    AllowSelfBilling = false,     -- Allow billing yourself (handy for testing)
-    RequireOnDuty = false,        -- QBCore/Qbox: employees must be on duty to bill as their company
-
-    -- Proximity: target must be within this distance (meters) of the sender. false = anywhere
-    MaxDistance = 10.0,
-    -- Jobs allowed to bill players remotely / offline (e.g. police fines, hospital follow-ups)
-    RemoteBillingJobs = { 'police', 'ambulance' },
-
-    -- Offline billing: search the players/users table for characters that are not online
-    OfflineBilling = true,
-
-    -- Limits
-    MaxItems = 30,                -- Max line items per invoice
-    MaxQuantity = 100,            -- Max quantity per line item
-    MaxNoteLength = 250,
-    Cooldown = 3,                 -- Seconds between invoices per player (anti-spam)
-    MaxPendingPerTarget = 15,     -- Max unpaid invoices a single player can have from the same company
+-- Keymapping (players can rebind in Settings > Key Bindings > FiveM)
+Config.Keybind = {
+    Enabled = true,
+    Command = 'billing',
+    Key = 'F7',
+    Description = 'Open billing',
 }
+
+Config.AdminCommand = 'billingadmin'  -- opens billing on the Inspect page
 
 -- ██╗███╗   ██╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗███████╗
 -- ██║████╗  ██║██║   ██║██╔═══██╗██║██╔════╝██╔════╝██╔════╝
@@ -74,24 +46,105 @@ Config.Billing = {
 -- ╚═╝╚═╝  ╚═══╝  ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝╚══════╝
 
 Config.Invoices = {
-    DueDays = 3,                  -- Default days until an invoice is due (companies can override with dueDays)
-    AllowCustomDueDays = true,    -- Senders can pick 1..MaxDueDays
-    MaxDueDays = 14,
+    MaxAmount = 1000000,
+    MaxItems = 25,
+    MaxQuantity = 100,
+    MaxNoteLength = 250,
+    MaxDistance = 10.0,           -- recipients must be this close (citizen invoices). false = anywhere
+    DueDays = 7,                  -- default; societies can override with dueDays
+    AllowCustomDueDays = true,
+    MaxDueDays = 30,
+    Cooldown = 3,                 -- seconds between invoices per player
+    MaxOpenPerRecipient = 15,     -- open invoices one sender (person or society) can have on one recipient
 
-    -- Reference numbers players quote and search for
-    -- 'company' = per-company counters: BS-000142, LSPD-000031 (prefix = company refPrefix or shortName)
-    -- 'random'  = INV-7KQ2MZ4P
-    ReferenceFormat = 'company',
-    PersonalPrefix = 'INV',       -- prefix for personal invoices / invoices from other scripts
-    ReferenceDigits = 6,
-    InvoiceCommand = 'invoice',   -- /invoice BS-000142 opens that invoice. false to disable
+    -- References: <PREFIX>-<8 random characters>, e.g. LSPD-7KQ2MZ4P.
+    -- The random part keeps "pay by reference" safe: references can't be guessed.
+    PersonalPrefix = 'INV',
 
-    -- Disputes: recipients can dispute an invoice. The company's bosses get notified and resolve it
     AllowDisputes = true,
+    SenderCancelMinutes = 60,     -- senders can cancel their own unpaid invoice within this window (managers/admins always). 0 = always
+}
 
-    -- Cancelling: senders can cancel their own unpaid invoices, bosses can cancel any company invoice
-    SenderCanCancel = true,
-    CancelWindowMinutes = 60,     -- Senders can only cancel within this window (bosses/admins always can). 0 = always
+-- ██████╗ ███████╗██████╗ ███████╗ ██████╗ ███╗   ██╗ █████╗ ██╗
+-- ██╔══██╗██╔════╝██╔══██╗██╔════╝██╔═══██╗████╗  ██║██╔══██╗██║
+-- ██████╔╝█████╗  ██████╔╝███████╗██║   ██║██╔██╗ ██║███████║██║
+-- ██╔═══╝ ██╔══╝  ██╔══██╗╚════██║██║   ██║██║╚██╗██║██╔══██║██║
+-- ██║     ███████╗██║  ██║███████║╚██████╔╝██║ ╚████║██║  ██║███████╗
+-- ╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝
+
+Config.Personal = {
+    Enabled = true,               -- anyone can send personal invoices
+    AllowCustomItems = true,      -- custom reasons / amounts
+    AllowSocietyRecipients = true,-- citizens can bill configured societies (e.g. a contractor billing the police)
+    VAT = false,                  -- add VAT to personal invoices
+    CashRequiresCollection = false, -- cash payments to a personal sender must be collected at a bank teller
+}
+
+-- ██████╗  █████╗ ██╗   ██╗███╗   ███╗███████╗███╗   ██╗████████╗
+-- ██╔══██╗██╔══██╗╚██╗ ██╔╝████╗ ████║██╔════╝████╗  ██║╚══██╔══╝
+-- ██████╔╝███████║ ╚████╔╝ ██╔████╔██║█████╗  ██╔██╗ ██║   ██║
+-- ██╔═══╝ ██╔══██║  ╚██╔╝  ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║
+-- ██║     ██║  ██║   ██║   ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║
+-- ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝
+
+Config.Payment = {
+    Methods = { bank = true, cash = true },
+    AllowPartial = true,          -- installments
+    MinPartialAmount = 50,
+    PayByReference = true,        -- anyone with the reference can pay it from their own cash/bank
+
+    -- Where society invoice money goes: 'society' (bank account) or 'employee' (issuer)
+    SocietyDestination = 'society',
+
+    -- Bank tellers where personal cash payments are collected (when CashRequiresCollection)
+    BankTellers = {
+        vector3(149.56, -1042.09, 29.37),
+        vector3(-1212.98, -330.77, 37.79),
+        vector3(-2962.58, 482.63, 15.7),
+        vector3(313.82, -278.96, 54.16),
+        vector3(-351.23, -49.58, 49.04),
+        vector3(1175.07, 2706.41, 38.09),
+    },
+}
+
+-- ██╗   ██╗ █████╗ ████████╗
+-- ██║   ██║██╔══██╗╚══██╔══╝
+-- ██║   ██║███████║   ██║
+-- ╚██╗ ██╔╝██╔══██║   ██║
+--  ╚████╔╝ ██║  ██║   ██║
+--   ╚═══╝  ╚═╝  ╚═╝   ╚═╝
+
+Config.VAT = {
+    Enabled = true,
+    Rate = 0.08,                  -- 8%. Societies can override with vat = 0.25 or vat = false
+    Society = false,              -- route collected VAT to this society account, e.g. 'government'. false = stays with the issuer
+}
+
+-- ██████╗ ███████╗██╗   ██╗███████╗███╗   ██╗██╗   ██╗███████╗    ███████╗██╗  ██╗ █████╗ ██████╗ ███████╗
+-- ██╔══██╗██╔════╝██║   ██║██╔════╝████╗  ██║██║   ██║██╔════╝    ██╔════╝██║  ██║██╔══██╗██╔══██╗██╔════╝
+-- ██████╔╝█████╗  ██║   ██║█████╗  ██╔██╗ ██║██║   ██║█████╗      ███████╗███████║███████║██████╔╝█████╗
+-- ██╔══██╗██╔══╝  ╚██╗ ██╔╝██╔══╝  ██║╚██╗██║██║   ██║██╔══╝      ╚════██║██╔══██║██╔══██║██╔══██╗██╔══╝
+-- ██║  ██║███████╗ ╚████╔╝ ███████╗██║ ╚████║╚██████╔╝███████╗    ███████║██║  ██║██║  ██║██║  ██║███████╗
+-- ╚═╝  ╚═╝╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝    ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+
+-- Share of society invoice revenue (excluding VAT) paid to the employee who issued it
+Config.RevenueShare = {
+    Enabled = true,
+    Percent = 0.10,               -- societies can override with revenueShare = 0.15
+}
+
+-- ████████╗██╗██████╗ ███████╗
+-- ╚══██╔══╝██║██╔══██╗██╔════╝
+--    ██║   ██║██████╔╝███████╗
+--    ██║   ██║██╔═══╝ ╚════██║
+--    ██║   ██║██║     ███████║
+--    ╚═╝   ╚═╝╚═╝     ╚══════╝
+
+Config.Tips = {
+    Enabled = true,               -- on society invoices (societies can disable with allowTips = false)
+    Presets = { 0, 10, 15, 20 },
+    MaxPercent = 50,
+    Recipient = 'employee',       -- 'employee' or 'society'
 }
 
 --  ██████╗ ██╗   ██╗███████╗██████╗ ██████╗ ██╗   ██╗███████╗
@@ -103,85 +156,16 @@ Config.Invoices = {
 
 Config.Overdue = {
     Enabled = true,
-    CheckInterval = 5,            -- Minutes between overdue checks
-    LateFee = 0.10,               -- 10% one-time late fee added once an invoice becomes overdue (0 to disable)
-    MaxLateFee = 50000,           -- Cap on the late fee
+    CheckInterval = 5,            -- minutes
+    LateFee = 0.10,               -- one-time fee when an invoice expires (0 = off)
+    MaxLateFee = 25000,
 
-    -- Auto-collect: overdue invoices are automatically charged from the player's bank after X days
-    AutoCollect = true,
-    AutoCollectAfterDays = 2,     -- Days past the due date
-    AutoCollectAllowNegative = false, -- false = only collect if they have the funds
-}
-
--- ██████╗  █████╗ ██╗   ██╗███╗   ███╗███████╗███╗   ██╗████████╗███████╗
--- ██╔══██╗██╔══██╗╚██╗ ██╔╝████╗ ████║██╔════╝████╗  ██║╚══██╔══╝██╔════╝
--- ██████╔╝███████║ ╚████╔╝ ██╔████╔██║█████╗  ██╔██╗ ██║   ██║   ███████╗
--- ██╔═══╝ ██╔══██║  ╚██╔╝  ██║╚██╔╝██║██╔══╝  ██║╚██╗██║   ██║   ╚════██║
--- ██║     ██║  ██║   ██║   ██║ ╚═╝ ██║███████╗██║ ╚████║   ██║   ███████║
--- ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝
-
-Config.Payment = {
-    Methods = { bank = true, cash = true },
-
-    -- Where does business/job invoice money go?
-    -- 'society' = Goes to the company/job bank account (see Config.Banking)
-    -- 'player'  = Goes directly to the employee who created the invoice
-    BusinessPaymentDestination = 'society',
-
-    -- Partial payments (pay invoices in installments)
-    AllowPartial = true,
-    MinPartialAmount = 50,
-
-    -- Personal invoice payment handling (when no job/company)
-    PersonalInvoice = {
-        CashRequiresCollection = true, -- Cash payments must be collected at a bank teller
-        CardGoesToBank = true,
-    },
-
-    -- Bank teller locations for collecting cash payments
-    BankTellers = {
-        { coords = vector3(149.56, -1042.09, 29.37) },
-        { coords = vector3(-1212.98, -330.77, 37.79) },
-        { coords = vector3(-2962.58, 482.63, 15.7) },
-        { coords = vector3(313.82, -278.96, 54.16) },
-        { coords = vector3(-351.23, -49.58, 49.04) },
-        { coords = vector3(1175.07, 2706.41, 38.09) },
-    },
-
-    -- Employee commission on company invoices (companies can override with commission = 0.15)
-    EmployeeCommission = {
-        Enabled = true,
-        Percentage = 0.10,      -- 10% of the paid amount
-        ExcludeTax = true,      -- Commission is calculated on the amount minus tax
-    },
-}
-
--- ████████╗██╗██████╗ ███████╗
--- ╚══██╔══╝██║██╔══██╗██╔════╝
---    ██║   ██║██████╔╝███████╗
---    ██║   ██║██╔═══╝ ╚════██║
---    ██║   ██║██║     ███████║
---    ╚═╝   ╚═╝╚═╝     ╚══════╝
-
-Config.Tips = {
-    Enabled = true,
-    Presets = { 0, 10, 15, 20 }, -- Tip % buttons shown when paying
-    MaxPercent = 50,
-    Recipient = 'employee',      -- 'employee' = employee who sent the invoice, 'society' = company account
-}
-
--- ████████╗ █████╗ ██╗  ██╗
--- ╚══██╔══╝██╔══██╗╚██╗██╔╝
---    ██║   ███████║ ╚███╔╝
---    ██║   ██╔══██║ ██╔██╗
---    ██║   ██║  ██║██╔╝ ██╗
---    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝
-
-Config.Tax = {
-    -- Collected tax can be routed to a government account (via Config.Banking).
-    -- false = tax stays with the company (1.x behaviour)
-    Account = false,             -- e.g. 'government' / 'mayor' / 'doj'
-    AccountLabel = 'City Treasury',
+    -- 'flag'    = mark overdue only
+    -- 'collect' = charge the recipient's bank automatically (society recipients: their society account)
+    Mode = 'collect',
+    CollectAfterDays = 2,         -- days past due before collecting
+    IncludeOffline = true,        -- also collect from offline characters (framework bridge / banking)
+    AllowNegative = false,        -- false = only collect when they can cover it
 }
 
 -- ██████╗  █████╗ ███╗   ██╗██╗  ██╗██╗███╗   ██╗ ██████╗
@@ -191,124 +175,48 @@ Config.Tax = {
 -- ██████╔╝██║  ██║██║ ╚████║██║  ██╗██║██║ ╚████║╚██████╔╝
 -- ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝
 
+Config.BankingIntegration = 'auto'
+--[[
+    'auto' picks the first started:
+      1. nayzeee-banking       5. qb-management (qb-banking adapter)
+      2. qb-banking            6. ESX shared accounts ('framework', when es_extended runs)
+      3. okokBanking           7. wasabi_banking
+      4. Renewed-Banking       8. none
+    Or set one: 'nayzeee-banking' / 'qb-banking' / 'okokBanking' / 'Renewed-Banking' / 'qb-management'
+                'framework' / 'wasabi_banking' / 'fd_banking' / 'custom' / 'none'
+
+    Personal invoices never need a banking resource. Society invoices need a society backend.
+]]
+
 Config.Banking = {
-    -- Banking system used for society / company accounts.
-    -- 'auto' detects in this order:
-    -- nayzeee-banking, Renewed-Banking, okokBanking, fd_banking, qb-banking, qb-management, esx_addonaccount
-    -- You can also set: 'custom' (see Custom below) or 'none' (society payments fall back to the employee)
-    System = 'auto',
-
-    -- Write statements / transaction history into the banking script when supported
-    LogTransactions = true,
-
-    -- nayzeee-banking (ESX / QBCore / Qbox). Company jobs must be listed in nayzeee-banking's
-    -- Config.Accounts.societyAccess so their society account exists. If qb-banking / Renewed-Banking
-    -- are still running next to it, 'auto' still picks nayzeee-banking (it keeps their balances in step).
-    Nayzeee = {
-        Resource = 'nayzeee-banking',
-        -- Charge / pay personal bank money through nayzeee-banking so statements show
-        -- "Invoice BS-000142 · Burgershot" under the Bill category, and payouts reach offline players instantly
-        UsePersonalAccounts = true,
-        BillCategory = 'bill',
-    },
-
-    -- ESX society accounts are usually prefixed: society_police
     EsxSocietyPrefix = 'society_',
+    LogTransactions = true,       -- write statements where the banking script supports it
 
-    -- Custom banking (Config.Banking.System = 'custom')
+    -- nayzeee-banking: charge personal bank money through its ledger (labelled "Invoice LSPD-7KQ2MZ4P")
+    NayzeeePersonalAccounts = true,
+
+    -- Config.BankingIntegration = 'custom'
     Custom = {
-        AddMoney = function(account, amount, reason) return false end,
-        RemoveMoney = function(account, amount, reason) return false end,
-        GetBalance = function(account) return nil end,
+        AddMoney = function(society, amount, reason) return false end,
+        RemoveMoney = function(society, amount, reason) return false end,
+        GetBalance = function(society) return nil end,
     },
 }
 
--- ██████╗  ██████╗ ███████╗███████╗
--- ██╔══██╗██╔═══██╗██╔════╝██╔════╝
--- ██████╔╝██║   ██║███████╗███████╗
--- ██╔══██╗██║   ██║╚════██║╚════██║
--- ██████╔╝╚██████╔╝███████║███████║
--- ╚═════╝  ╚═════╝ ╚══════╝╚══════╝
+-- ██╗████████╗███████╗███╗   ███╗███████╗
+-- ██║╚══██╔══╝██╔════╝████╗ ████║██╔════╝
+-- ██║   ██║   █████╗  ██╔████╔██║███████╗
+-- ██║   ██║   ██╔══╝  ██║╚██╔╝██║╚════██║
+-- ██║   ██║   ███████╗██║ ╚═╝ ██║███████║
+-- ╚═╝   ╚═╝   ╚══════╝╚═╝     ╚═╝╚══════╝
 
-Config.Boss = {
-    -- Grade checks: QBCore/Qbox use job.isboss, ESX uses grade_name == 'boss'.
-    -- Companies can override with bossGrade = 3 (minimum grade level).
-    CanManageCatalog = true,     -- Bosses can edit products / quick bills / categories for their company
-    CanRefund = true,            -- Bosses can refund paid invoices (money comes out of the company account)
-    CanResolveDisputes = true,
-    ShowSocietyBalance = true,
-}
-
---  █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗
--- ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║
--- ███████║██║  ██║██╔████╔██║██║██╔██╗ ██║
--- ██╔══██║██║  ██║██║╚██╔╝██║██║██║╚██╗██║
--- ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║
--- ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝
-
--- Admin access: ACE permission OR one of the framework groups below
-Config.AdminAce = 'nayzeee.billing.admin'   -- add_ace group.admin nayzeee.billing.admin allow
-Config.AdminGroups = {
-    'god',
-    'admin',
-    'superadmin',
-    'dev',
-    'developer',
-    'owner',
-}
-
--- ██████╗ ███████╗ ██████╗███████╗██╗██████╗ ████████╗███████╗
--- ██╔══██╗██╔════╝██╔════╝██╔════╝██║██╔══██╗╚══██╔══╝██╔════╝
--- ██████╔╝█████╗  ██║     █████╗  ██║██████╔╝   ██║   ███████╗
--- ██╔══██╗██╔══╝  ██║     ██╔══╝  ██║██╔═══╝    ██║   ╚════██║
--- ██║  ██║███████╗╚██████╗███████╗██║██║        ██║   ███████║
--- ╚═╝  ╚═╝╚══════╝ ╚═════╝╚══════╝╚═╝╚═╝        ╚═╝   ╚══════╝
-
-Config.Receipts = {
-    ShowOnPayment = true,
-    FooterText = 'Thank you for your business!',
-    GiveReceiptItem = true,
-    ReceiptItemName = 'receipt', -- See README for the ox_inventory / qb item definition
-}
-
---  ██████╗ █████╗ ███████╗██╗  ██╗    ██████╗ ███████╗ ██████╗ ██╗███████╗████████╗███████╗██████╗
--- ██╔════╝██╔══██╗██╔════╝██║  ██║    ██╔══██╗██╔════╝██╔════╝ ██║██╔════╝╚══██╔══╝██╔════╝██╔══██╗
--- ██║     ███████║███████╗███████║    ██████╔╝█████╗  ██║  ███╗██║███████╗   ██║   █████╗  ██████╔╝
--- ██║     ██╔══██║╚════██║██╔══██║    ██╔══██╗██╔══╝  ██║   ██║██║╚════██║   ██║   ██╔══╝  ██╔══██╗
--- ╚██████╗██║  ██║███████║██║  ██║    ██║  ██║███████╗╚██████╔╝██║███████║   ██║   ███████╗██║  ██║
---  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-
-Config.CashRegister = {
-    Enabled = true,
-
-    -- Interaction Method: 'target' (ox_target / qb-target) or 'textui' (ox_lib)
-    InteractionMethod = 'target',
-
-    TextUI = {
-        EmployeeText = '[E] Use Register',
-        CustomerText = '[E] View Order',
-        Key = 38, -- E
-    },
-
-    Target = {
-        EmployeeIcon = 'fa-solid fa-cash-register',
-        EmployeeLabel = 'Use Register',
-        CustomerIcon = 'fa-solid fa-receipt',
-        CustomerLabel = 'View Order',
-    },
-
-    MaxCustomerDistance = 5.0,   -- Customer must be this close to the register to be rung up
-    DeclineCancelsInvoice = true, -- If the customer declines at the register, the invoice is cancelled
-    DismissKey = 'BACK',         -- Key mapping to leave the counter / hide the customer display (players can rebind)
-
-    Blip = {
-        Enabled = false,
-        Sprite = 52,
-        Color = 2,
-        Scale = 0.6,
-    },
-
-    Debug = false,
+Config.Items = {
+    -- Physical invoice handed to online citizen recipients. Using it opens the paper invoice (pay from there)
+    Invoice = { Enabled = true, Name = 'billing_invoice', RemoveWhenPaid = true },
+    -- Receipt handed to whoever pays
+    Receipt = { Enabled = true, Name = 'billing_receipt' },
+    -- "Print invoice" from the row menu gives the viewer a copy of the invoice item
+    AllowPrint = true,
 }
 
 -- ██████╗ ███████╗ ██████╗ ██╗███████╗████████╗███████╗██████╗ ███████╗
@@ -318,15 +226,38 @@ Config.CashRegister = {
 -- ██║  ██║███████╗╚██████╔╝██║███████║   ██║   ███████╗██║  ██║███████║
 -- ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝
 
--- Cash registers defined by coords. Admins can also add registers in-game (/billingadmin > Registers)
-Config.CashRegisters = {
-    {
-        id = 'burgershot_counter1',
-        label = 'Burgershot Counter',
-        company = 'burgershot',      -- Must match a company ID in companies.lua
-        coords = vector3(197.4236, -850.7531, 30.9602),
-        radius = 2.0,
+Config.Registers = {
+    Enabled = true,
+    InteractionMethod = 'target', -- 'target' (ox_target / qb-target) or 'textui'
+    MaxCustomerDistance = 5.0,
+    DeclineCancelsInvoice = true,
+    LeaveKey = 'BACK',            -- customer key to leave the counter (rebindable)
+    TextUI = { EmployeeText = '[E] Use register', CustomerText = '[E] View order', Key = 38 },
+    Target = {
+        EmployeeIcon = 'fa-solid fa-cash-register', EmployeeLabel = 'Use register',
+        CustomerIcon = 'fa-solid fa-receipt', CustomerLabel = 'View order',
     },
+    Blip = { Enabled = false, Sprite = 52, Color = 2, Scale = 0.6 },
+    Debug = false,
+
+    -- Registers from config (admins can also add them in-game: Inspect > Registers)
+    List = {
+        { id = 'burgershot_counter1', label = 'Burgershot Counter', society = 'burgershot', coords = vector3(197.42, -850.75, 30.96), radius = 2.0 },
+    },
+}
+
+--  █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗
+-- ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║
+-- ███████║██║  ██║██╔████╔██║██║██╔██╗ ██║
+-- ██╔══██║██║  ██║██║╚██╔╝██║██║██║╚██╗██║
+-- ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║
+-- ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝
+
+Config.Admin = {
+    Ace = 'nayzeee.billing.admin',      -- add_ace group.admin nayzeee.billing.admin allow
+    Groups = { 'god', 'admin', 'superadmin', 'owner', 'dev', 'developer' },
+    AllowDelete = true,                 -- delete single invoice records
+    AllowClearIdentifier = true,        -- delete every record involving an identifier
 }
 
 -- ███╗   ██╗ ██████╗ ████████╗██╗███████╗██╗   ██╗
@@ -336,47 +267,81 @@ Config.CashRegisters = {
 -- ██║ ╚████║╚██████╔╝   ██║   ██║██║        ██║
 -- ╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝╚═╝        ╚═╝
 
-Config.Notifications = {
-    -- 'ox_lib' / 'esx' / 'qb' / 'okokNotify' / 'mythic' / 'custom'
-    System = 'ox_lib',
-    EnableSounds = true,
-    CustomFunction = function(title, message, notifType) end,
+Config.Notify = {
+    System = 'ox_lib',            -- 'ox_lib' / 'esx' / 'qb' / 'okokNotify' / 'mythic' / 'custom'
+    Sounds = true,
+    Custom = function(title, message, kind) end,
 }
 
--- ██╗    ██╗███████╗██████╗ ██╗  ██╗ ██████╗  ██████╗ ██╗  ██╗███████╗
--- ██║    ██║██╔════╝██╔══██╗██║  ██║██╔═══██╗██╔═══██╗██║ ██╔╝██╔════╝
--- ██║ █╗ ██║█████╗  ██████╔╝███████║██║   ██║██║   ██║█████╔╝ ███████╗
--- ██║███╗██║██╔══╝  ██╔══██╗██╔══██║██║   ██║██║   ██║██╔═██╗ ╚════██║
--- ╚███╔███╔╝███████╗██████╔╝██║  ██║╚██████╔╝╚██████╔╝██║  ██╗███████║
---  ╚══╝╚══╝ ╚══════╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝
+-- ██╗      ██████╗  ██████╗ ███████╗
+-- ██║     ██╔═══██╗██╔════╝ ██╔════╝
+-- ██║     ██║   ██║██║  ███╗███████╗
+-- ██║     ██║   ██║██║   ██║╚════██║
+-- ███████╗╚██████╔╝╚██████╔╝███████║
+-- ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝
 
-Config.Logging = {
+Config.Logs = {
     Enabled = true,
-    DiscordWebhook = '',         -- Global webhook. Companies can also have their own `webhook`
-    DiscordTitle = 'NAYZEEE Billing',
-    DiscordColor = 571298,       -- #08afa2
+    System = 'discord',           -- 'discord' / 'ox_lib' (lib.logger) / 'custom' / 'none'
+    Webhook = '',                 -- default webhook
+    Webhooks = {                  -- per event, falls back to Webhook
+        invoice_created = '', invoice_paid = '', invoice_cancelled = '', invoice_refunded = '',
+        invoice_disputed = '', invoice_collected = '', admin = '',
+    },
+    Name = 'NAYZEEE Billing',
+    Color = 571298,
+    Custom = function(event, source, data) end,
 }
 
---  ██████╗ █████╗ ████████╗███████╗ ██████╗  ██████╗ ██████╗ ██╗███████╗███████╗
--- ██╔════╝██╔══██╗╚══██╔══╝██╔════╝██╔════╝ ██╔═══██╗██╔══██╗██║██╔════╝██╔════╝
--- ██║     ███████║   ██║   █████╗  ██║  ███╗██║   ██║██████╔╝██║█████╗  ███████╗
--- ██║     ██╔══██║   ██║   ██╔══╝  ██║   ██║██║   ██║██╔══██╗██║██╔══╝  ╚════██║
--- ╚██████╗██║  ██║   ██║   ███████╗╚██████╔╝╚██████╔╝██║  ██║██║███████╗███████║
---  ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝╚══════╝╚══════╝
+-- ██╗   ██╗██╗
+-- ██║   ██║██║
+-- ██║   ██║██║
+-- ██║   ██║██║
+-- ╚██████╔╝██║
+--  ╚═════╝ ╚═╝
 
-Config.DefaultCategories = {
-    { id = 'food', label = 'Food', icon = 'fa-utensils' },
-    { id = 'drinks', label = 'Drinks', icon = 'fa-glass-water' },
-    { id = 'services', label = 'Services', icon = 'fa-wrench' },
-    { id = 'other', label = 'Other', icon = 'fa-box' },
+Config.UI = {
+    -- Every colour in the interface comes from here (hex)
+    Colors = {
+        accent = '#08afa2',       -- teal
+        accentHi = '#0fd4c4',
+        accentLo = '#067d74',
+        chartReceived = '#079a8e',-- weekly summary: money in (validated pair for colour-blind readers)
+        chartPaid = '#5b8def',    -- weekly summary: money out
+        danger = '#e5484d',
+        warning = '#e5a50a',
+        success = '#2fbf71',
+        background = '#08090a',
+        panel = '#0e1011',
+    },
+    Title = 'Billing',
+    Brand = 'NAYZEEE',
+    PageSize = 8,                 -- rows per table page
+    ShowClock = true,
 }
 
--- ██╗███╗   ███╗ █████╗  ██████╗ ███████╗███████╗
--- ██║████╗ ████║██╔══██╗██╔════╝ ██╔════╝██╔════╝
--- ██║██╔████╔██║███████║██║  ███╗█████╗  ███████╗
--- ██║██║╚██╔╝██║██╔══██║██║   ██║██╔══╝  ╚════██║
--- ██║██║ ╚═╝ ██║██║  ██║╚██████╔╝███████╗███████║
--- ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝
+--  ██████╗ ██████╗ ███╗   ███╗██████╗  █████╗ ████████╗
+-- ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██╔══██╗╚══██╔══╝
+-- ██║     ██║   ██║██╔████╔██║██████╔╝███████║   ██║
+-- ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██╔══██║   ██║
+-- ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ██║  ██║   ██║
+--  ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝   ╚═╝
 
--- Item image path. 'auto' picks ox_inventory / qb-inventory / qs-inventory / ps-inventory
-Config.ImagePath = 'auto' -- or e.g. 'nui://ox_inventory/web/images/%s.png'
+Config.Compat = {
+    -- Accept esx_billing:sendBill and the esx_billing:getBills / payBill callbacks (when esx_billing isn't running).
+    -- If nayzeee-banking is installed, remove 'esx_billing:sendBill' from its Config.Bridge.events.
+    EsxBilling = true,
+}
+
+-- ██╗███╗   ███╗██████╗  ██████╗ ██████╗ ████████╗
+-- ██║████╗ ████║██╔══██╗██╔═══██╗██╔══██╗╚══██╔══╝
+-- ██║██╔████╔██║██████╔╝██║   ██║██████╔╝   ██║
+-- ██║██║╚██╔╝██║██╔═══╝ ██║   ██║██╔══██╗   ██║
+-- ██║██║ ╚═╝ ██║██║     ╚██████╔╝██║  ██║   ██║
+-- ╚═╝╚═╝     ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+
+-- One-off imports: run `billingimport <system>` in the server console.
+-- Systems: esx_billing, okokBilling, qb-phone. Already imported rows are skipped.
+Config.Import = {
+    Enabled = true,
+}

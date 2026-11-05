@@ -1,1642 +1,1570 @@
 // ═══════════════════════════════════════════════════════════════
-// NAYZEEE BILLING v2 · UI
-// Discord: discord.gg/nayzeeedev
-// All user text is escaped; actions use data-act delegation (no inline JS with data).
+// NAYZEEE BILLING v3 · UI
+// Every player-facing string goes through t(); every dynamic value through esc().
+// Actions use data-act delegation, never inline handlers with data.
 // ═══════════════════════════════════════════════════════════════
 'use strict';
 
 const IN_GAME = typeof GetParentResourceName === 'function';
 const RES = IN_GAME ? GetParentResourceName() : 'nayzeee-billing';
-const $ = (sel, root = document) => root.querySelector(sel);
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 // ═══════════════ STATE ═══════════════
 const S = {
-    mode: null,          // billing | admin | pos | receipt
+    mode: null,               // billing | pos | paper
     ctx: null,
-    tab: 'home',
-    currency: '$',
-    imagePath: 'nui://ox_inventory/web/images/%s.png',
-    billsFilter: 'all',
-    order: null,
-    history: { filter: 'all', search: '', rows: [], page: 0, hasMore: false, loading: false },
-    boss: { dash: null, inv: { status: 'open', search: '', rows: [], page: 0, hasMore: false }, catTab: 'products' },
-    admin: { data: null, tab: 'overview', catalogCompany: null, inv: { status: 'all', companyId: '', search: '', rows: [], page: 0, hasMore: false }, logs: { search: '', rows: [], page: 0, hasMore: false } },
+    account: 'personal',      // personal | society
+    page: 'overview',
+    locale: {},
+    currency: '$', currencyPos: 'before',
+    title: 'Billing', brand: 'NAYZEEE', clock: true,
+    dash: null,
+    tables: {},               // [account:box] = table state
+    tpl: null,
+    act: { page: 1, search: '', category: '', rows: [], total: 0 },
+    perms: null,
+    insp: { type: 'citizen', query: '', results: [], jobView: false, subject: null, tab: 'search', table: null, registers: null },
+    rail: null,
     pos: null,
     display: null,
-    receiptClose: null,
-    items: null,
+    paperClose: 'close',
 };
-
-function newOrder() {
-    return { items: [], recipient: null, discount: 0, notes: '', dueDays: '', personal: false, category: 'all', search: '', nearby: [], results: [], query: '' };
-}
-S.order = newOrder();
 
 // ═══════════════ NUI ═══════════════
 async function nui(event, data = {}) {
     if (!IN_GAME) return Mock.nui(event, data);
     try {
-        const res = await fetch(`https://${RES}/${event}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(data),
-        });
-        return await res.json();
+        const r = await fetch(`https://${RES}/${event}`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(data) });
+        return await r.json();
     } catch (e) { return null; }
 }
-
 async function api(name, payload = {}) {
-    const res = await nui('rpc', { name, payload });
-    return res && typeof res === 'object' ? res : { ok: false, error: 'No response from server' };
+    const r = await nui('rpc', { name, payload });
+    return r && typeof r === 'object' ? r : { ok: false, error: t('error.no_response', 'No response from server') };
 }
-
-// RPC that toasts its own errors. Returns data (or true) on success, null on failure
 async function call(name, payload) {
-    const res = await api(name, payload);
-    if (!res.ok) { toast('Error', res.error || 'Something went wrong', 'error'); return null; }
-    return res.data === undefined || res.data === null ? true : res.data;
+    const r = await api(name, payload);
+    if (!r.ok) { toast(t('label.error', 'Error'), r.error || t('error.generic', 'Something went wrong'), 'error'); return null; }
+    return r.data === undefined || r.data === null ? true : r.data;
 }
 
 // ═══════════════ UTILS ═══════════════
 const esc = (v) => String(v ?? '').replace(/[&<>"'`]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[m]));
 const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
-const round2 = (n) => Math.round((num(n) + Number.EPSILON) * 100) / 100;
-const money = (n) => { const v = round2(n); const s = Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (v < 0 ? '-' : '') + S.currency + s; };
-const moneyShort = (n) => { const v = num(n); if (Math.abs(v) >= 1e6) return S.currency + (v / 1e6).toFixed(1) + 'M'; if (Math.abs(v) >= 1e4) return S.currency + (v / 1e3).toFixed(1) + 'k'; return money(v); };
-const initials = (name) => esc(String(name || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase());
-const pct = (n) => `${round2(num(n) * 100)}%`;
-
+const r2 = (n) => Math.round((num(n) + Number.EPSILON) * 100) / 100;
+function t(key, fallback, vars) {
+    let s = S.locale[key] ?? fallback ?? key;
+    if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+    return s;
+}
+function money(n) {
+    const v = r2(n);
+    let s = Math.abs(v).toFixed(2).replace(/\.00$/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    s = S.currencyPos === 'after' ? s + S.currency : S.currency + s;
+    return (v < 0 ? '-' : '') + s;
+}
+const initials = (n) => esc(String(n || '?').trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase());
+const pct = (n) => `${r2(num(n) * 100)}%`;
 function toDate(v) {
     if (v === null || v === undefined || v === '') return null;
     if (typeof v === 'number') return new Date(v);
     const d = new Date(String(v).replace(' ', 'T'));
     return isNaN(d) ? null : d;
 }
-function fmtDate(v, withTime = true) {
-    const d = toDate(v); if (!d) return '—';
-    const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return withTime ? `${date}, ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}` : date;
-}
+const fmtDate = (v) => { const d = toDate(v); return d ? d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '—'; };
+const fmtLong = (v) => { const d = toDate(v); return d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'; };
+const fmtTime = (v) => { const d = toDate(v); return d ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''; };
 function ago(v) {
     const d = toDate(v); if (!d) return '';
     const s = Math.round((Date.now() - d.getTime()) / 1000);
-    if (s < 60) return 'just now';
-    if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-    if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-    return `${Math.floor(s / 86400)}d ago`;
+    if (s < 60) return t('time.now', 'just now');
+    if (s < 3600) return t('time.m', '{n}m ago', { n: Math.floor(s / 60) });
+    if (s < 86400) return t('time.h', '{n}h ago', { n: Math.floor(s / 3600) });
+    return t('time.d', '{n}d ago', { n: Math.floor(s / 86400) });
 }
-function dueLabel(inv) {
-    if (['paid', 'cancelled', 'refunded'].includes(inv.status)) return null;
-    if (inv.status === 'overdue') return { text: 'Overdue', cls: 'red' };
-    const d = toDate(inv.dueDate); if (!d) return null;
+function dueIn(v, status) {
+    if (status === 'overdue') return { text: t('status.overdue', 'Overdue'), hot: true };
+    const d = toDate(v); if (!d) return { text: '' };
     const h = (d.getTime() - Date.now()) / 3600000;
-    if (h < 0) return { text: 'Overdue', cls: 'red' };
-    if (h < 24) return { text: `Due in ${Math.max(1, Math.round(h))}h`, cls: 'amber' };
-    return { text: `Due in ${Math.round(h / 24)}d`, cls: '' };
+    if (h < 0) return { text: t('status.overdue', 'Overdue'), hot: true };
+    if (h < 24) return { text: t('due.hours', 'Due in {n}h', { n: Math.max(1, Math.round(h)) }) };
+    const days = Math.round(h / 24);
+    return { text: days === 1 ? t('due.tomorrow', 'Due tomorrow') : t('due.days', 'Due in {n} days', { n: days }) };
 }
-const STATUS = {
-    pending: ['live', 'Pending'], partial: ['warn', 'Partial'], overdue: ['hot', 'Overdue'], disputed: ['warn', 'Disputed'],
-    paid: ['solid', 'Paid'], cancelled: ['off', 'Cancelled'], refunded: ['off', 'Refunded'],
-};
-const statusTag = (s) => { const [cls, label] = STATUS[s] || ['off', s]; return `<span class="tag ${cls}">${esc(label)}</span>`; };
-const isOpen = (inv) => ['pending', 'partial', 'overdue'].includes(inv.status);
-const itemSummary = (items) => (items || []).map((i) => `${i.quantity}× ${i.name}`).join(', ');
-const imgUrl = (name) => S.imagePath.replace('%s', encodeURIComponent(name));
-
-// Clipboard: CEF in FiveM blocks navigator.clipboard, execCommand still works
-function copyText(text, label = 'Reference copied') {
+const OPEN = ['pending', 'partial', 'overdue'];
+const isOpen = (inv) => OPEN.includes(inv.status);
+const STATUS_LABEL = () => ({ pending: t('status.pending', 'Pending'), partial: t('status.partial', 'Partial'), overdue: t('status.overdue', 'Overdue'),
+    disputed: t('status.disputed', 'Disputed'), paid: t('status.paid', 'Paid'), cancelled: t('status.cancelled', 'Cancelled'), refunded: t('status.refunded', 'Refunded') });
+const st = (s) => `<span class="st ${esc(s)}">${esc(STATUS_LABEL()[s] || s)}</span>`;
+function debounce(fn, ms) { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; }
+function hexRgba(hex, a) {
+    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || '');
+    if (!m) return null;
+    return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${a})`;
+}
+function applyColors(c = {}) {
+    const root = document.documentElement.style;
+    const set = (v, val) => { if (val) root.setProperty(v, val); };
+    set('--accent', c.accent); set('--accent-hi', c.accentHi); set('--accent-lo', c.accentLo);
+    set('--accent-wash', hexRgba(c.accent, 0.12)); set('--accent-edge', hexRgba(c.accent, 0.36));
+    set('--danger', c.danger); set('--danger-wash', hexRgba(c.danger, 0.12)); set('--danger-edge', hexRgba(c.danger, 0.36));
+    set('--warning', c.warning); set('--warning-wash', hexRgba(c.warning, 0.12)); set('--warning-edge', hexRgba(c.warning, 0.36));
+    set('--success', c.success); set('--success-wash', hexRgba(c.success, 0.12)); set('--success-edge', hexRgba(c.success, 0.36));
+    set('--c-received', c.chartReceived); set('--c-paid', c.chartPaid);
+    set('--base', c.background); set('--panel', c.panel);
+}
+function copyText(text) {
     const ta = document.createElement('textarea');
-    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
     let ok = false;
     try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     ta.remove();
     if (!ok && navigator.clipboard) { navigator.clipboard.writeText(text).catch(() => {}); ok = true; }
-    toast(ok ? label : 'Copy failed', ok ? text : 'Select the reference and copy it manually', ok ? 'success' : 'error');
-}
-const copyBtn = (ref) => `<button class="icon-btn" title="Copy reference" data-act="copyRef" data-ref="${esc(ref)}">${ic('copy')}</button>`;
-const findBox = () => `<label class="search ref-find" title="Find an invoice by its reference">${ic('hash')}<input data-ref-find maxlength="20" placeholder="Find reference · BS-000142" spellcheck="false"></label>`;
-
-async function findByReference(value) {
-    const reference = String(value || '').trim();
-    if (!reference) return;
-    const data = await call('findInvoice', { reference });
-    if (data && data.invoiceId) openInvoice(data.invoiceId);
-}
-
-function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
-function greeting() { const h = new Date().getHours(); return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
-function firstName(n) { return String(n || '').split(' ')[0]; }
-
-function calcTotals(items, discountPct, taxRate) {
-    const subtotal = round2(items.reduce((s, i) => s + num(i.price) * num(i.quantity), 0));
-    const discount = round2(subtotal * num(discountPct) / 100);
-    const tax = round2((subtotal - discount) * num(taxRate));
-    return { subtotal, discount, tax, total: round2(subtotal - discount + tax) };
+    toast(ok ? t('toast.copied', 'Reference copied') : t('toast.copy_failed', 'Copy failed'), text, ok ? 'success' : 'error');
 }
 
 // ═══════════════ ICONS ═══════════════
 const P = {
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5l2.5-8z"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>',
-    minus: '<path d="M5 12h14"/>',
-    bolt: '<path d="M13 3 5 14h6l-1 7 8-11h-6l1-7z"/>',
-    send: '<path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4 18-7z"/>',
-    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
-    list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
-    box: '<path d="M21 8 12 3 3 8v8l9 5 9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
-    building: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/>',
-    register: '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M6 11V5h8v6M14 7h4l1 4M7 15h2M11 15h2M15 15h2"/>',
-    log: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+    users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 4.5a3.2 3.2 0 0 1 0 6.4M17.5 14a6 6 0 0 1 3.5 6"/>',
+    userkey: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 9.5-4.9"/><circle cx="17.5" cy="15.5" r="2"/><path d="M19 17l2.5 2.5M20.5 18.5l-1 1"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
-    x: '<path d="M6 6l12 12M18 6 6 18"/>',
-    check: '<path d="M4 12.5 9 17.5 20 6.5"/>',
-    alert: '<path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
-    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>',
-    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>', minus: '<path d="M5 12h14"/>',
+    chevron: '<path d="m6 9 6 6 6-6"/>', chevup: '<path d="m6 15 6-6 6 6"/>', chevl: '<path d="m15 6-6 6 6 6"/>', chevr: '<path d="m9 6 6 6-6 6"/>',
+    chevrons: '<path d="m7 13 5-5 5 5M7 18l5-5 5 5"/>',
+    x: '<path d="M6 6l12 12M18 6 6 18"/>', check: '<path d="M4 12.5 9 17.5 20 6.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5"/>',
+    trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>', trenddown: '<path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/>',
+    wallet: '<path d="M4 7a2 2 0 0 1 2-2h12v4"/><path d="M4 7v11a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2z"/><path d="M16 14.5h.01"/>',
+    receive: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M15 15l2 2 3-3"/>',
+    card: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
+    cash: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+    building: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3"/>',
+    user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    printer: '<path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="7" rx="1"/>',
+    ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+    filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
     trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
     edit: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13 7 4 4"/>',
-    card: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
-    cash: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9.5v.01M18 14.5v.01"/>',
-    receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
-    user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
-    users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 4.5a3.2 3.2 0 0 1 0 6.4M17.5 14a6 6 0 0 1 3.5 6"/>',
-    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
-    up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
-    down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
-    pin: '<path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
-    wallet: '<path d="M4 7a2 2 0 0 1 2-2h12v4"/><path d="M4 7v11a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2z"/><path d="M16 14.5h.01"/>',
-    tag: '<path d="M3 12V3h9l9 9-9 9-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
-    shield: '<path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z"/>',
-    teleport: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/>',
-    store: '<path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M10 20v-5h4v5"/>',
-    percent: '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
-    note: '<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M9 9h6M9 13h4"/>',
-    copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    grip: '<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',
+    alert: '<path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>',
+    checkc: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    arrowup: '<path d="M12 19V5M6 11l6-6 6 6"/>', arrowdown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    send: '<path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4 18-7z"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>', undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    save: '<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/>',
     hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>',
+    register: '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M6 11V5h8v6M14 7h4l1 4M7 15h2M11 15h2M15 15h2"/>',
+    pin: '<path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    teleport: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="4"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
+    // template picker
+    car: '<path d="M3 13l2-5.5A2 2 0 0 1 6.9 6h10.2a2 2 0 0 1 1.9 1.5L21 13v5h-3M3 18v-5h18M6.5 18h11"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/>',
+    sparkle: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+    wrench: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5z"/>',
+    medkit: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3M12 11v5M9.5 13.5h5"/>',
+    badge: '<path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z"/><path d="m9 12 2 2 4-4"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z"/>',
+    burger: '<path d="M4 11a8 6 0 0 1 16 0z"/><path d="M3 14h18M5 17h14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/>',
+    briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+    activity: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
+    award: '<circle cx="12" cy="9" r="5"/><path d="M8.5 13 7 21l5-3 5 3-1.5-8"/>',
+    ticket: '<path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12"/>',
+    chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+    book: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
+    bookopen: '<path d="M2 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H2zM22 5h-7a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h8z"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+    camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
+    truck: '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="17" r="1.8"/><circle cx="17" cy="17" r="1.8"/>',
+    home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10M10 20v-6h4v6"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>',
+    tag: '<path d="M3 12V3h9l9 9-9 9-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+    gift: '<rect x="3" y="8" width="18" height="4"/><path d="M5 12v8h14v-8M12 8v12M12 8S10 3 7.5 4 9 8 12 8zM12 8s2-5 4.5-4S15 8 12 8z"/>',
+    coffee: '<path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5zM16 10h2a2 2 0 0 1 0 4h-2M8 3v3M12 3v3"/>',
+    scissors: '<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5 20 18M8 15.5 20 6"/>',
+    fuel: '<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M15 9h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V8l-3-3M7 8h5"/>',
+    gavel: '<path d="m14 4 6 6M12 6l6 6M10 12l-7 7 2 2 7-7M9 9l6-6 6 6-6 6z"/>',
+    heart: '<path d="M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z"/>',
+    star: '<path d="m12 3 2.7 5.6 6.3.9-4.5 4.4 1 6.1L12 17.1 6.5 20l1-6.1L3 9.5l6.3-.9z"/>',
+    box: '<path d="M21 8 12 3 3 8v8l9 5 9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+    cart: '<path d="M3 4h2l2.5 11h11L21 7H6.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>',
+    music: '<path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+    pill: '<rect x="3" y="9" width="18" height="6" rx="3" transform="rotate(-45 12 12)"/><path d="m9 9 6 6"/>',
 };
-const ic = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${P[name] || P.box}</svg>`;
-const faIcon = (cls) => /^fa-[\w-]+$/.test(cls || '') ? `<i class="fa-solid ${cls}"></i>` : '';
+const TEMPLATE_ICONS = ['file', 'car', 'sparkle', 'wrench', 'medkit', 'badge', 'shield', 'burger', 'briefcase', 'activity', 'alert', 'award', 'ticket', 'chart', 'bell', 'book',
+    'bookopen', 'building', 'calendar', 'camera', 'truck', 'home', 'key', 'tag', 'gift', 'coffee', 'scissors', 'fuel', 'gavel', 'heart', 'star', 'box', 'cart', 'music', 'pill', 'users'];
+const TEMPLATE_COLORS = ['blue', 'red', 'amber', 'teal', 'cyan', 'violet', 'gray', 'rainbow'];
+const ic = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${P[n] || P.file}</svg>`;
+const ticon = (icon, color, lg) => `<span class="ticon ${lg ? 'lg' : ''} c-${esc(TEMPLATE_COLORS.includes(color) ? color : 'gray')}">${ic(icon)}</span>`;
 
 // ═══════════════ TOASTS ═══════════════
 function toast(title, message, type = 'info') {
     const box = $('#toasts');
     const el = document.createElement('div');
-    el.className = `toast ${type === 'success' ? '' : type}`;
-    const icon = type === 'error' ? 'info' : type === 'warning' ? 'alert' : type === 'success' ? 'check' : 'info';
-    el.innerHTML = `<div class="ti">${ic(icon)}</div><div><b>${esc(title)}</b><p>${esc(message)}</p></div>`;
+    el.className = `toast ${type}`;
+    el.innerHTML = `<div class="ti">${ic(type === 'error' ? 'info' : type === 'warning' ? 'alert' : type === 'success' ? 'check' : 'bell')}</div><div><b>${esc(title)}</b><p>${esc(message)}</p></div>`;
     box.appendChild(el);
     while (box.children.length > 4) box.firstChild.remove();
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, 4500);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, 4600);
 }
 
 // ═══════════════ MODALS ═══════════════
-const modalStack = [];
-function openModal(html, { onClose, cls = '' } = {}) {
-    const overlay = document.createElement('div');
-    overlay.className = 'overlay';
-    overlay.innerHTML = html;
-    if (cls) overlay.firstElementChild.classList.add(...cls.split(' '));
-    $('#modals').appendChild(overlay);
-    const entry = { el: overlay, onClose };
-    entry.close = (value) => {
-        const i = modalStack.indexOf(entry);
-        if (i >= 0) modalStack.splice(i, 1);
-        overlay.remove();
-        if (onClose) onClose(value);
-    };
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) entry.close(null); });
-    modalStack.push(entry);
-    const first = overlay.querySelector('[autofocus]');
-    if (first) setTimeout(() => first.focus(), 30);
-    return entry;
+const stack = [];
+function openModal(html, opts = {}) {
+    const o = document.createElement('div');
+    o.className = 'overlay';
+    o.innerHTML = html;
+    $('#modals').appendChild(o);
+    const m = { el: o, onClose: opts.onClose };
+    m.close = (v) => { const i = stack.indexOf(m); if (i >= 0) stack.splice(i, 1); o.remove(); if (m.onClose) m.onClose(v); };
+    o.addEventListener('mousedown', (e) => { if (e.target === o) m.close(null); });
+    stack.push(m);
+    const f = o.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 30);
+    return m;
 }
-const topModal = () => modalStack[modalStack.length - 1];
-function closeAllModals() { while (modalStack.length) modalStack[modalStack.length - 1].close(null); }
+const topModal = () => stack[stack.length - 1];
+const closeModals = () => { while (stack.length) stack[stack.length - 1].close(null); };
+const mh = (title, sub, icon) => `<div class="mh">${icon ? `<div class="tile sm teal">${ic(icon)}</div>` : ''}<div><h4>${title}</h4>${sub ? `<p>${sub}</p>` : ''}</div><button class="ibtn x" data-act="mClose">${ic('x')}</button></div>`;
 
-function modalHead(icon, title, sub, tone = 'teal') {
-    return `<div class="modal-h"><div class="warn ${tone}">${ic(icon)}</div><div><h4>${title}</h4>${sub ? `<p>${sub}</p>` : ''}</div>
-        <button class="icon-btn x" data-act="modalClose">${ic('x')}</button></div>`;
-}
-
-function confirmBox({ title, text, confirm = 'Confirm', danger = false, icon = 'alert' }) {
-    return new Promise((resolve) => {
-        const m = openModal(`<div class="modal">
-            ${modalHead(icon, esc(title), '', danger ? '' : 'teal')}
-            <div class="modal-b"><p class="copy">${esc(text)}</p></div>
-            <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button>
-            <button class="${danger ? 'btn-red' : 'btn-teal'}" data-act="modalOk">${esc(confirm)}</button></div></div>`,
-            { onClose: (v) => resolve(v === true) });
+function confirmBox({ title, text, ok = t('btn.confirm', 'Confirm'), danger = false, icon = 'alert' }) {
+    return new Promise((res) => {
+        const m = openModal(`<div class="modal w380">${mh(esc(title), '', icon)}<div class="mb"><p class="copy">${esc(text)}</p></div>
+            <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn ${danger ? 'red' : 'pri'}" data-act="mOk">${esc(ok)}</button></div></div>`,
+            { onClose: (v) => res(v === true) });
         m.ok = () => m.close(true);
     });
 }
-
-function promptBox({ title, text, placeholder = '', confirm = 'Submit', danger = false, required = false, icon = 'note', max = 200 }) {
-    return new Promise((resolve) => {
-        const m = openModal(`<div class="modal">
-            ${modalHead(icon, esc(title), '', danger ? '' : 'teal')}
-            <div class="modal-b">${text ? `<p class="copy">${esc(text)}</p>` : ''}
-                <div class="field"><textarea id="promptInput" maxlength="${max}" placeholder="${esc(placeholder)}" autofocus></textarea></div></div>
-            <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button>
-            <button class="${danger ? 'btn-red' : 'btn-teal'}" data-act="modalOk">${esc(confirm)}</button></div></div>`,
-            { onClose: (v) => resolve(typeof v === 'string' ? v : null) });
+function promptBox({ title, text, placeholder = '', ok = t('btn.submit', 'Submit'), danger = false, required = false, icon = 'edit', max = 200 }) {
+    return new Promise((res) => {
+        const m = openModal(`<div class="modal">${mh(esc(title), '', icon)}<div class="mb">${text ? `<p class="copy">${esc(text)}</p>` : ''}
+            <div class="field"><textarea id="pIn" maxlength="${max}" placeholder="${esc(placeholder)}" autofocus></textarea></div></div>
+            <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn ${danger ? 'red' : 'pri'}" data-act="mOk">${esc(ok)}</button></div></div>`,
+            { onClose: (v) => res(typeof v === 'string' ? v : null) });
         m.ok = () => {
-            const v = $('#promptInput', m.el).value.trim();
-            if (required && v.length < 3) { toast('Required', 'Please add a short reason', 'warning'); return; }
+            const v = $('#pIn', m.el).value.trim();
+            if (required && v.length < 5) { toast(t('label.required', 'Required'), t('toast.reason_needed', 'Please add a short reason'), 'warning'); return; }
             m.close(v);
         };
     });
 }
 
-// ═══════════════ SHELL ═══════════════
-function showShell(mode) {
-    S.mode = mode;
-    $('#frame').classList.remove('hidden');
-    $('#shell').classList.toggle('pos', mode === 'pos');
-    $('#body').classList.toggle('full', mode === 'pos');
-    $('#side').classList.toggle('hidden', mode === 'pos');
-}
-function hideShell() {
-    $('#frame').classList.add('hidden');
-    S.mode = null; // before closing modals so a receipt's onClose doesn't send another close
-    closeAllModals();
-}
-function setBar(title, sub, midHtml) {
-    $('#barTitle').textContent = title;
-    $('#barSub').textContent = sub;
-    $('#barMid').innerHTML = midHtml;
-}
-function setStatus(keys, right = '') {
-    $('#statusbar').innerHTML = keys.map(([k, t]) => `<span><span class="key">${esc(k)}</span>${esc(t)}</span>`).join('')
-        + `<span class="right">${right}</span>`;
-}
-function navBtn(id, icon, label, active, tally, tallyCls = '') {
-    return `<button class="nav ${active ? 'on' : ''}" data-act="tab" data-tab="${id}">${ic(icon)}${esc(label)}${tally ? `<span class="tally ${tallyCls}">${esc(tally)}</span>` : ''}</button>`;
-}
-function setMain(html) {
-    const main = $('#main');
-    main.innerHTML = `<div class="wm-wrap"><div class="wm"></div></div>${html}`;
-}
-function emptyState(icon, title, text) {
-    return `<div class="empty">${ic(icon)}<b>${esc(title)}</b><span>${esc(text)}</span></div>`;
-}
-function skeleton(n = 3) {
-    return Array.from({ length: n }, () => `<div class="skel"><div class="sk circ"></div><div style="flex:1"><div class="sk" style="height:9px;width:52%"></div><div class="sk" style="height:7px;width:32%;margin-top:7px"></div></div></div>`).join('');
-}
-function clockHtml() {
-    const d = new Date();
-    return `<div class="clock" id="clock"><b>${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}</b><span>${d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</span></div>`;
-}
-setInterval(() => { const c = $('#clock'); if (c) c.outerHTML = clockHtml(); }, 30000);
-
-function stat(icon, label, value, tone = '', extra = '') {
-    return `<div class="stat"><div class="tile ${tone}">${ic(icon)}</div><div class="stat-txt"><span>${esc(label)}</span><b>${value}</b></div>${extra}</div>`;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// BILLING
-// ═══════════════════════════════════════════════════════════════
-function openBilling(ctx) {
-    S.ctx = ctx;
-    S.currency = ctx.settings?.currency || '$';
-    S.imagePath = ctx.settings?.imagePath || S.imagePath;
-    S.order = newOrder();
-    S.history = { filter: 'all', search: '', rows: [], page: 0, hasMore: false };
-    S.boss.dash = null;
-    S.tab = ctx.tab || 'home';
-    showShell('billing');
-    renderBilling();
-    if (ctx.openInvoice) openInvoice(ctx.openInvoice);
-}
-
-function canCreate() { const p = S.ctx?.perms || {}; return p.canBill || p.canPersonal; }
-
-function renderBilling() {
-    const { ctx } = S;
-    const p = ctx.perms;
-    const company = ctx.company;
-    const overdue = ctx.invoices.filter((i) => i.status === 'overdue').length;
-
-    setBar(company ? company.label : 'Billing', company ? `${ctx.player.job} · ${ctx.player.grade || 'Employee'}` : 'Personal account',
-        `<span class="dot ${overdue ? 'red' : ''}"></span><p>Signed in as <b>${esc(ctx.player.name)}</b> · ${ctx.stats.open} unpaid ${ctx.stats.open === 1 ? 'bill' : 'bills'}</p><span class="ver">v${esc(ctx.settings.version)}</span>${findBox()}`);
-
-    let side = `<div class="who"><div class="av">${initials(ctx.player.name)}</div><div class="who-txt"><b>${esc(ctx.player.name)}</b><span>${esc(ctx.player.job || 'Citizen')}${ctx.player.grade ? ' · ' + esc(ctx.player.grade) : ''}</span></div></div>
-        <div class="shift"><span>Bank</span><b>${money(ctx.player.bank)}</b></div>
-        <div class="shift" style="margin-bottom:6px"><span>Owed</span><b class="${ctx.stats.owed > 0 ? 'red' : 'teal'}">${money(ctx.stats.owed)}</b></div>`;
-    side += navBtn('home', 'grid', 'Overview', S.tab === 'home');
-    side += `<div class="grp">Personal</div>`;
-    side += navBtn('bills', 'inbox', 'My bills', S.tab === 'bills', ctx.stats.open || '', overdue ? 'red' : '');
-    side += navBtn('history', 'clock', 'History', S.tab === 'history');
-    if (canCreate()) {
-        side += `<div class="grp">${p.canBill ? 'Business' : 'Invoicing'}</div>`;
-        side += navBtn('new', 'plus', 'New invoice', S.tab === 'new', S.order.items.length || '');
-        if (p.canBill && company && company.quickBills?.length) side += navBtn('quick', 'bolt', 'Quick bills', S.tab === 'quick');
-    }
-    if (p.isBoss && company) {
-        side += `<div class="grp">Management</div>`;
-        side += navBtn('dash', 'chart', 'Dashboard', S.tab === 'dash');
-        side += navBtn('cinvoices', 'list', 'Company invoices', S.tab === 'cinvoices');
-        if (p.canManageCatalog) side += navBtn('catalog', 'box', 'Catalog', S.tab === 'catalog');
-    }
-    if (ctx.stats.toCollect > 0) {
-        side += `<div class="side-foot"><div class="note amber"><b>Cash to collect</b>${money(ctx.stats.toCollect)} is waiting at any bank teller.</div></div>`;
-    }
-    $('#side').innerHTML = side;
-
-    const keys = [['ESC', 'Close'], ['/', 'Search']];
-    if (S.tab === 'new') keys.push(['↵', 'Send invoice']);
-    setStatus(keys, `nayzeee-billing · <b>${esc(company ? company.shortName : 'personal')}</b>`);
-
-    const views = { home: viewHome, bills: viewBills, history: viewHistory, new: viewNew, quick: viewQuick, dash: viewDash, cinvoices: viewCompanyInvoices, catalog: viewCatalog };
-    (views[S.tab] || viewHome)();
-}
-
-function setTab(tab) {
-    S.tab = tab;
-    if (S.mode === 'billing') renderBilling();
-    else if (S.mode === 'admin') renderAdmin();
-}
-
-async function refreshContext() {
-    if (S.mode !== 'billing') return;
-    const res = await api('getContext');
-    if (!res.ok) return;
-    const tab = S.tab;
-    S.ctx = res.data;
-    S.tab = tab;
-    if (tab === 'history') S.history.rows = [];
-    if (tab === 'cinvoices') S.boss.inv.rows = [];
-    if (tab === 'dash') S.boss.dash = null;
-    renderBilling();
-}
-
-// ═══════════════ HOME ═══════════════
-function invoiceCard(inv, compact = false) {
-    const due = dueLabel(inv);
-    const urgent = inv.status === 'overdue' ? 'urgent' : inv.status === 'disputed' ? 'warn' : '';
-    const progress = inv.amountPaid > 0 && inv.status !== 'paid'
-        ? `<div class="progress"><i style="width:${Math.min(100, (inv.amountPaid / (inv.total + inv.lateFee)) * 100)}%"></i></div>` : '';
-    const actions = [];
-    actions.push(`<button class="btn-ghost" data-act="invoice" data-id="${esc(inv.id)}">Details</button>`);
-    if (!compact && inv.direction === 'received' && isOpen(inv) && S.ctx?.perms?.canDispute) {
-        actions.push(`<button class="btn-ghost danger" data-act="dispute" data-id="${esc(inv.id)}">${ic('flag')}Dispute</button>`);
-    }
-    if (inv.direction === 'received' && isOpen(inv)) {
-        actions.push(`<button class="btn-teal" style="height:27px;padding:0 12px" data-act="pay" data-id="${esc(inv.id)}">${ic('card')}Pay</button>`);
-    }
-    return `<article class="inc ${urgent}">
-        <div class="inc-top"><span>${statusTag(inv.status)}${due && inv.status !== 'overdue' ? ` <span class="chip ${due.cls}">${esc(due.text)}</span>` : ''}</span><span class="ref">${esc(inv.id)}</span></div>
-        <div class="inc-main"><div style="min-width:0"><h3>${esc(inv.company)}</h3><p>${esc(itemSummary(inv.items))}</p></div>
-            <div class="big">${money(inv.remaining)}${inv.remaining !== inv.total ? `<small>of ${money(inv.total + inv.lateFee)}</small>` : ''}</div></div>
-        ${progress}
-        <div class="meta"><span>From <b>${esc(inv.senderName)}</b></span><span>${esc(ago(inv.createdAt))}</span>
-            ${inv.lateFee > 0 ? `<span>Late fee <b>${money(inv.lateFee)}</b></span>` : ''}
-            <span class="actions">${actions.join('')}</span></div>
-    </article>`;
-}
-
-function activityRow(inv) {
-    const sent = inv.direction === 'sent';
-    return `<div class="row click" data-act="invoice" data-id="${esc(inv.id)}">
-        <div class="av" style="color:${sent ? 'var(--teal)' : 'var(--ink-2)'}">${ic(sent ? 'up' : 'down')}</div>
-        <div class="row-txt"><b>${esc(sent ? inv.targetName : inv.company)}</b><span>${esc(inv.id)} · ${esc(ago(inv.createdAt))}</span></div>
-        ${statusTag(inv.status)}<span class="amt ${sent ? 'teal' : ''}" style="min-width:76px;text-align:right">${sent ? '+' : '−'}${money(inv.total)}</span></div>`;
-}
-
-function viewHome() {
-    const { ctx } = S;
-    const unpaid = ctx.invoices.filter((i) => i.status !== 'disputed').slice(0, 3);
-    const third = ctx.stats.toCollect > 0
-        ? stat('cash', 'Cash to collect', money(ctx.stats.toCollect), 'amber')
-        : stat('send', 'Invoices sent · 30 days', esc(ctx.stats.sent30), 'off');
-    setMain(`
-        <div class="head"><div><h1>${greeting()}, ${esc(firstName(ctx.player.name))}</h1>
-            <p>Your bills, payments and recent invoice activity in one place.</p></div>${clockHtml()}</div>
-        <div class="stats">
-            ${stat('receipt', 'Outstanding', money(ctx.stats.owed), ctx.stats.owed > 0 ? 'red' : '')}
-            ${stat('wallet', 'Paid · 30 days', money(ctx.stats.paid30))}
-            ${third}
-        </div>
-        <div class="cols">
-            <section class="panel"><div class="p-head"><div><h2>Unpaid bills</h2><p>${ctx.stats.open} open · ${money(ctx.stats.owed)} total</p></div>
-                <button class="btn-ghost" data-act="tab" data-tab="bills">View all</button></div>
-                <div class="p-body">${unpaid.length ? unpaid.map((i) => invoiceCard(i, true)).join('') : emptyState('check', "You're all caught up", 'New invoices sent to you will show up here.')}</div></section>
-            <section class="panel"><div class="p-head"><div><h2>Recent activity</h2><p>Invoices you sent or received</p></div>
-                <button class="btn-ghost" data-act="tab" data-tab="history">${ic('clock')}History</button></div>
-                <div class="p-body">${ctx.recent.length ? ctx.recent.map(activityRow).join('') : emptyState('clock', 'No activity yet', 'Invoices you send or receive will appear here.')}</div></section>
-        </div>`);
-}
-
-// ═══════════════ MY BILLS ═══════════════
-function viewBills() {
-    const all = S.ctx.invoices;
-    const counts = { all: all.length, overdue: 0, partial: 0, disputed: 0 };
-    all.forEach((i) => { if (counts[i.status] !== undefined) counts[i.status]++; });
-    const list = S.billsFilter === 'all' ? all : all.filter((i) => i.status === S.billsFilter);
-    const chip = (id, label) => `<button class="fchip ${S.billsFilter === id ? 'on' : ''}" data-act="billsFilter" data-f="${id}">${label}<span class="n">${counts[id]}</span></button>`;
-    setMain(`
-        <div class="head"><div><h1>My bills</h1><p>Pay in full or in installments, dispute anything that looks wrong.</p></div>
-            <div class="head-actions"><button class="btn-ghost" data-act="refresh">${ic('refresh')}Refresh</button></div></div>
-        <div class="toolbar"><div class="filters">${chip('all', 'All')}${chip('overdue', 'Overdue')}${chip('partial', 'Partial')}${chip('disputed', 'Disputed')}</div></div>
-        <div class="lines" style="gap:9px">${list.length ? list.map((i) => invoiceCard(i)).join('') : emptyState('inbox', 'Nothing here', 'You have no bills in this category.')}</div>`);
-}
-
-// ═══════════════ HISTORY ═══════════════
-const HIST_FILTERS = [['all', 'All'], ['received', 'Received'], ['sent', 'Sent'], ['open', 'Open'], ['paid', 'Paid'], ['cancelled', 'Cancelled']];
-
-function invoiceTable(rows, { party = 'direction', company = true } = {}) {
-    return `<table class="table"><thead><tr><th>Invoice</th><th>${party === 'direction' ? 'Party' : 'Customer'}</th>${company ? '<th>Company</th>' : '<th>Employee</th>'}<th>Date</th><th>Status</th><th class="r">Amount</th></tr></thead><tbody>
-        ${rows.map((i) => {
-            const partyCell = party === 'direction'
-                ? `${i.direction === 'sent' ? '<span style="color:var(--teal)">To</span>' : 'From'} <b>${esc(i.direction === 'sent' ? i.targetName : i.senderName)}</b>`
-                : `<b>${esc(i.targetName)}</b>`;
-            return `<tr class="click" data-act="invoice" data-id="${esc(i.id)}"><td><b>${esc(i.id)}</b></td><td class="ell">${partyCell}</td>
-                <td class="ell">${esc(company ? i.company : i.senderName)}</td><td>${esc(fmtDate(i.createdAt))}</td><td>${statusTag(i.status)}</td><td class="r"><b>${money(i.total + i.lateFee)}</b></td></tr>`;
-        }).join('')}</tbody></table>`;
-}
-
-async function loadHistory(append = false) {
-    const h = S.history;
-    if (!append) { h.page = 0; h.rows = []; }
-    h.loading = true;
-    const data = await call('getHistory', { filter: h.filter, search: h.search, page: h.page });
-    h.loading = false;
-    if (!data) return;
-    h.rows = append ? h.rows.concat(data.rows) : data.rows;
-    h.hasMore = data.hasMore;
-    if (S.tab === 'history') renderHistoryList();
-}
-
-function renderHistoryList() {
-    const el = $('#historyList'); if (!el) return;
-    const h = S.history;
-    el.innerHTML = h.rows.length
-        ? invoiceTable(h.rows) + (h.hasMore ? `<button class="btn-ghost more" data-act="historyMore">Load more</button>` : '')
-        : (h.loading ? skeleton(4) : emptyState('clock', 'No invoices found', 'Try another filter or search term.'));
-}
-
-function viewHistory() {
-    const h = S.history;
-    setMain(`
-        <div class="head"><div><h1>History</h1><p>Every invoice you have sent or received.</p></div></div>
-        <div class="toolbar"><div class="filters">${HIST_FILTERS.map(([id, l]) => `<button class="fchip ${h.filter === id ? 'on' : ''}" data-act="historyFilter" data-f="${id}">${l}</button>`).join('')}</div>
-            <label class="search">${ic('search')}<input data-input="historySearch" placeholder="Search invoice, name or company" value="${esc(h.search)}"></label></div>
-        <section class="panel grow"><div class="p-body pad" id="historyList">${skeleton(4)}</div></section>`);
-    if (!h.rows.length) loadHistory(); else renderHistoryList();
-}
-
-// ═══════════════ NEW INVOICE ═══════════════
-function orderCompany() { return (S.ctx.perms.canBill && !S.order.personal) ? S.ctx.company : null; }
-function orderTaxRate() { const c = orderCompany(); return c ? num(c.taxRate) : num(S.ctx.settings.defaultTaxRate); }
-function allowCustom() { const c = orderCompany(); return !c || c.allowCustomItems; }
-
-function productCard(p, qtyMap, act = 'addProduct') {
-    const q = qtyMap[p.id] || 0;
-    const fallback = ic('box');
-    return `<button class="product" data-act="${act}" data-id="${esc(p.id)}">
-        ${q ? `<span class="qty-badge">${q}</span>` : ''}
-        <div class="img">${p.image ? `<img src="${esc(imgUrl(p.image))}" alt="" onerror="this.replaceWith(document.createRange().createContextualFragment(window.__boxIcon))">` : fallback}</div>
-        <b>${esc(p.name)}</b><span>${money(p.price)}</span></button>`;
-}
-window.__boxIcon = ic('box');
-
-function catalogFilters(categories, active, act) {
-    return `<div class="filters"><button class="fchip ${active === 'all' ? 'on' : ''}" data-act="${act}" data-f="all">All</button>
-        ${(categories || []).map((c) => `<button class="fchip ${active === c.id ? 'on' : ''}" data-act="${act}" data-f="${esc(c.id)}">${faIcon(c.icon)}${esc(c.label)}</button>`).join('')}</div>`;
-}
-
-function filteredProducts(company, category, search) {
-    const q = (search || '').toLowerCase();
-    return (company?.products || []).filter((p) => (category === 'all' || p.category === category) && (!q || p.name.toLowerCase().includes(q)));
-}
-
-function viewNew() {
-    const { ctx, order } = S;
-    const company = orderCompany();
-    const both = ctx.perms.canBill && ctx.perms.canPersonal;
-
-    const left = company ? `
-        <section class="panel"><div class="p-head"><div><h2>Catalog</h2><p>${(company.products || []).length} products · prices set by ${esc(company.shortName)}</p></div>
-            <label class="search" style="max-width:220px">${ic('search')}<input data-input="productSearch" placeholder="Search products" value="${esc(order.search)}"></label></div>
-            <div class="p-body pad catalog">
-                ${catalogFilters(company.categories, order.category, 'productCategory')}
-                <div class="products" id="productGrid"></div>
-                ${company.allowCustomItems ? customLineHtml() : ''}
-            </div></section>`
-        : `<section class="panel"><div class="p-head"><div><h2>Line items</h2><p>Personal invoices use custom items · ${pct(orderTaxRate())} tax</p></div></div>
-            <div class="p-body pad">${customLineHtml()}
-            <div class="note" style="margin-top:6px"><b>Personal invoice</b>Money goes straight to you once paid.${ctx.stats ? '' : ''} Cash payments may need to be collected at a bank teller.</div></div></section>`;
-
-    setMain(`
-        <div class="head"><div><h1>New invoice</h1><p>${company ? `Billing as <b style="color:var(--white);font-weight:500">${esc(company.label)}</b>.` : 'Send a personal invoice to another citizen.'} Prices are verified by the server.</p></div>
-            ${both ? `<div class="seg" style="width:240px"><button class="${!order.personal ? 'on' : ''}" data-act="orderMode" data-m="company">${ic('building')}Company</button><button class="${order.personal ? 'on' : ''}" data-act="orderMode" data-m="personal">${ic('user')}Personal</button></div>` : ''}</div>
-        <div class="cols order">
-            ${left}
-            <section class="panel"><div class="p-head"><div><h2>Order</h2><p>Recipient, items and terms</p></div>
-                <button class="btn-ghost danger" data-act="clearOrder">${ic('trash')}Clear</button></div>
-                <div class="p-body pad" style="gap:14px" id="orderBody"></div>
-                <div class="p-foot" id="orderFoot"></div></section>
-        </div>`);
-    renderProducts();
-    renderOrderBody();
-    renderOrderFoot();
-    if (!order.nearby.length) loadNearby();
-}
-
-function customLineHtml() {
-    return `<div class="custom-line"><input class="input" id="customName" maxlength="60" placeholder="Custom item name">
-        <input class="input" id="customPrice" type="number" min="0" step="0.01" placeholder="Price">
-        <button class="btn-teal" data-act="addCustom">${ic('plus')}Add</button></div>`;
-}
-
-function qtyMap(items) { const m = {}; items.forEach((i) => { if (i.productId) m[i.productId] = (m[i.productId] || 0) + i.quantity; }); return m; }
-
-function renderProducts() {
-    const grid = $('#productGrid'); if (!grid) return;
-    const company = orderCompany();
-    const list = filteredProducts(company, S.order.category, S.order.search);
-    const qm = qtyMap(S.order.items);
-    grid.innerHTML = list.length ? list.map((p) => productCard(p, qm)).join('') : `<div style="grid-column:1/-1">${emptyState('box', 'No products', 'Nothing matches this filter.')}</div>`;
-}
-
-async function loadNearby() {
-    const data = await call('getNearby');
-    if (!data) return;
-    S.order.nearby = data;
-    if (S.tab === 'new') renderOrderBody();
-}
-
-function personRow(p, act) {
-    const sub = p.type === 'offline' ? 'Offline · will be notified on login' : `ID ${p.id}${p.distance !== undefined ? ` · ${p.distance}m` : ''}`;
-    const key = p.type === 'offline' ? `data-ident="${esc(p.identifier)}"` : `data-pid="${esc(p.id)}"`;
-    return `<button class="mini" data-act="${act}" ${key} data-name="${esc(p.name)}"><div class="av">${initials(p.name)}</div><b>${esc(p.name)}</b><span>${esc(sub)}</span></button>`;
-}
-
-function renderOrderBody() {
-    const el = $('#orderBody'); if (!el) return;
-    const { order, ctx } = S;
-    const company = orderCompany();
-    let html = '<div class="field"><div class="label-row"><span>Bill to</span>';
-    if (order.recipient) {
-        html += `</div><div class="recipient"><div class="av">${initials(order.recipient.name)}</div><div class="row-txt"><b>${esc(order.recipient.name)}</b>
-            <span>${order.recipient.type === 'offline' ? 'Offline citizen' : 'ID ' + esc(order.recipient.id)}</span></div>
-            <button class="icon-btn" data-act="clearRecipient">${ic('x')}</button></div></div>`;
-    } else {
-        html += `<button class="btn-ghost" style="height:22px" data-act="nearby">${ic('refresh')}Nearby</button></div>
-            <label class="search">${ic('search')}<input data-input="playerSearch" placeholder="${ctx.perms.canRemote ? 'Name, ID or citizen ID' : 'Name or server ID'}" value="${esc(order.query)}"></label>
-            <div class="results" id="playerResults">${playerResultsHtml()}</div></div>`;
-    }
-
-    html += `<div class="field"><div class="label-row"><span>Items</span><span>${order.items.length} line${order.items.length === 1 ? '' : 's'}</span></div><div class="lines">`;
-    html += order.items.length ? order.items.map((it, idx) => `<div class="line"><div class="row-txt"><b>${esc(it.name)}</b><span>${money(it.price)} each${it.custom ? ' · custom' : ''}</span></div>
-        <div class="stepper"><button data-act="qty" data-i="${idx}" data-d="-1">${ic('minus')}</button><span>${it.quantity}</span><button data-act="qty" data-i="${idx}" data-d="1">${ic('plus')}</button></div>
-        <span class="amt" style="min-width:64px;text-align:right">${money(it.price * it.quantity)}</span></div>`).join('')
-        : `<div class="empty" style="padding:18px">${ic('receipt')}<span>Pick products from the catalog${allowCustom() ? ' or add a custom item' : ''}.</span></div>`;
-    html += '</div></div>';
-
-    const extras = [];
-    if (company && company.allowDiscounts) {
-        extras.push(`<div class="field"><label>Discount % (max ${esc(company.maxDiscount)})</label><input type="number" min="0" max="${esc(company.maxDiscount)}" data-input="discount" value="${esc(order.discount || '')}" placeholder="0"></div>`);
-    }
-    if (ctx.settings.customDue) {
-        const def = ctx.settings.dueDays;
-        let opts = `<option value="">Default (${esc(def)} days)</option>`;
-        for (let d = 1; d <= ctx.settings.maxDueDays; d++) opts += `<option value="${d}" ${String(order.dueDays) === String(d) ? 'selected' : ''}>${d} day${d > 1 ? 's' : ''}</option>`;
-        extras.push(`<div class="field"><label>Due in</label><select data-change="dueDays">${opts}</select></div>`);
-    }
-    if (extras.length) html += `<div class="${extras.length > 1 ? 'grid2' : ''}">${extras.join('')}</div>`;
-    html += `<div class="field"><label>Notes (shown on the invoice)</label><textarea data-input="notes" maxlength="${esc(ctx.settings.maxNote)}" placeholder="Optional reason, plate, case number...">${esc(order.notes)}</textarea></div>`;
+// ═══════════════ POPOVERS / DROPDOWNS / CONTEXT MENU ═══════════════
+let openPop = null; // { el, onClose }
+function closePop() { if (openPop) { const p = openPop; openPop = null; p.el.remove(); if (p.owner) p.owner.classList.remove('open', 'on'); if (p.onClose) p.onClose(); } }
+function showPop(owner, html, cls, onClose) {
+    closePop();
+    const el = document.createElement('div');
+    el.className = `pop ${cls}`;
     el.innerHTML = html;
+    owner.appendChild(el);
+    owner.classList.add('open');
+    openPop = { el, owner, onClose };
+    return el;
 }
 
-function playerResultsHtml() {
-    const { order } = S;
-    const list = order.query ? order.results : order.nearby;
-    if (!list.length) {
-        return `<div class="label-row" style="padding:6px 2px">${order.query ? 'No citizens found' : 'Nobody nearby · search by name or ID'}</div>`;
+const DD = {}; // key -> { options, value, onChange, search }
+function dd(key, cfg) {
+    DD[key] = cfg;
+    const o = (cfg.options || []).find((x) => String(x.value) === String(cfg.value));
+    const icon = o && o.icon ? ticon(o.icon, o.color) : (cfg.icon ? `<span class="ico" style="color:var(--ink-3)">${ic(cfg.icon)}</span>` : '');
+    return `<div class="dd" data-dd-wrap="${esc(key)}"><button class="dd-btn" data-act="ddOpen" data-key="${esc(key)}" ${cfg.disabled ? 'disabled' : ''}>${icon}
+        <span class="v ${o ? '' : 'ph'}">${esc(o ? o.label : cfg.placeholder || t('label.select', 'Select'))}</span>${ic('chevron')}</button></div>`;
+}
+function ddOptions(key, query = '') {
+    const cfg = DD[key];
+    const q = query.toLowerCase();
+    const list = (cfg.options || []).filter((o) => !q || String(o.label).toLowerCase().includes(q) || String(o.sub || '').toLowerCase().includes(q));
+    if (!list.length) return `<div class="dd-empty">${esc(cfg.empty || t('label.no_results', 'No results'))}</div>`;
+    return list.map((o) => `<button class="dd-opt ${String(o.value) === String(cfg.value) ? 'on' : ''}" data-act="ddPick" data-key="${esc(key)}" data-v="${esc(o.value)}">
+        ${o.icon ? ticon(o.icon, o.color) : ''}${o.dot !== undefined ? `<span class="dot ${o.dot ? 'on' : ''}"></span>` : ''}
+        <span style="flex:1;min-width:0">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</span>${String(o.value) === String(cfg.value) ? `<svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${P.check}</svg>` : ''}</button>`).join('');
+}
+
+function ctxMenu(x, y, head, items) {
+    closePop();
+    const el = document.createElement('div');
+    el.className = 'ctx';
+    el.innerHTML = (head ? `<div class="hd"><b>${esc(head[0])}</b><span>${esc(head[1])}</span></div>` : '')
+        + items.filter(Boolean).map((i) => `<button class="${i.danger ? 'danger' : ''}" data-act="${esc(i.act)}" data-id="${esc(i.id)}">${ic(i.icon)}${esc(i.label)}</button>`).join('');
+    document.body.appendChild(el);
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = Math.min(x, window.innerWidth - w - 8) + 'px';
+    el.style.top = Math.min(y, window.innerHeight - h - 8) + 'px';
+    openPop = { el };
+}
+
+// ═══════════════ SHELL ═══════════════
+function perm(p) { return S.ctx?.society?.perms?.[p] === true; }
+function pages() {
+    const soc = S.account === 'society';
+    const canInspect = S.ctx?.isAdmin || perm('inspect');
+    return {
+        overview: !soc || perm('overview'),
+        received: !soc || perm('view_received'),
+        sent: !soc || perm('view_sent') || perm('create'),
+        templates: !soc || perm('templates_view') || perm('create'),
+        activity: !soc || perm('activity'),
+        permissions: soc && perm('permissions'),
+        inspect: canInspect,
+    };
+}
+function canCreate() { return S.account === 'society' ? perm('create') : S.ctx?.settings?.personalEnabled; }
+
+function renderSide() {
+    const av = pages();
+    const tally = S.dash && S.dash.account === S.account ? S.dash.due : 0;
+    const nav = (id, icon, label, extra = '') => av[id] ? `<button class="nav ${S.page === id ? 'on' : ''}" data-act="go" data-page="${id}">${ic(icon)}${esc(label)}${extra}</button>` : '';
+    const soc = S.account === 'society';
+    const mgmt = nav('activity', 'history', t('nav.activity', 'Activity')) + nav('permissions', 'userkey', t('nav.permissions', 'Permissions'));
+    const tools = nav('inspect', 'search', t('nav.inspect', 'Inspect'));
+    const bal = soc ? S.ctx.society?.balance : S.ctx.player.bank;
+    $('#side').innerHTML = `
+        <div class="brand"><div class="mark"></div><span>${esc(S.brand)}<b>${esc(S.title)}</b></span></div>
+        <div class="nav-scroll">
+            <div class="grp">${t('nav.general', 'General')}</div>${nav('overview', 'grid', t('nav.overview', 'Overview'))}
+            <div class="grp">${t('nav.invoices', 'Invoices')}</div>
+            ${nav('received', 'inbox', t('nav.received', 'Received'), tally ? `<span class="tally hot">${tally}</span>` : '')}
+            ${nav('sent', 'file', t('nav.sent', 'Sent'))}${nav('templates', 'copy', t('nav.templates', 'Templates'))}
+            ${mgmt ? `<div class="grp">${t('nav.management', 'Management')}</div>${mgmt}` : ''}
+            ${tools ? `<div class="grp">${t('nav.tools', 'Tools')}</div>${tools}` : ''}
+        </div>
+        <div class="side-foot">
+            <div class="qa" id="qa"><button class="qa-btn" data-act="qaToggle">${ic('plus')}${t('nav.quick_actions', 'Quick Actions')}${'<span class="chev">' + ic('chevron') + '</span>'}</button></div>
+            <div class="qa" id="acctWrap"><button class="acct" data-act="acctToggle">
+                <span class="acct-top">${ic(soc ? 'building' : 'user')}${soc ? t('acct.society', 'Society Billing') : t('acct.personal', 'Personal Billing')}${S.ctx.society ? '<span class="chev">' + ic('chevron') + '</span>' : ''}</span>
+                <span class="acct-bal"><span>${t('acct.balance', 'Balance')}</span><b>${bal === null || bal === undefined ? '—' : money(bal)}</b></span></button></div>
+        </div>`;
+}
+
+const PAGE_TITLES = () => ({ overview: t('nav.overview', 'Overview'), received: t('nav.received', 'Received'), sent: t('nav.sent', 'Sent'), templates: t('nav.templates', 'Templates'),
+    activity: t('nav.activity', 'Activity'), permissions: t('nav.permissions', 'Permissions'), inspect: t('nav.inspect', 'Inspect') });
+
+function renderTop() {
+    const soc = S.account === 'society' && S.ctx.society;
+    const name = soc ? S.ctx.society.label : S.ctx.player.name;
+    const d = new Date();
+    $('#top').innerHTML = `<h1>${esc(PAGE_TITLES()[S.page] || '')}</h1>
+        <div class="top-right">
+            ${S.clock ? `<span class="clock-mini"><b>${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</b> · ${d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}</span>` : ''}
+            <span class="chip-acct"><span class="av">${initials(soc ? S.ctx.society.short : name)}</span>${esc(name)}</span>
+            <button class="pill-close" data-act="close">${t('btn.close', 'Close')}</button></div>`;
+}
+setInterval(() => { if (S.mode === 'billing') renderTop(); }, 30000);
+
+function setPage(html) { $('#page').innerHTML = `<div class="wm-wrap"><div class="wm"></div></div>${html}`; }
+
+function go(page) {
+    const av = pages();
+    if (!av[page]) page = Object.keys(av).find((k) => av[k]) || 'received';
+    S.page = page;
+    closeRail(); closePop();
+    renderSide(); renderTop();
+    ({ overview: pageOverview, received: () => pageTable('received'), sent: () => pageTable('sent'), templates: pageTemplates, activity: pageActivity, permissions: pagePermissions, inspect: pageInspect }[page] || pageOverview)();
+}
+
+function emptyState(icon, title, text) {
+    return `<div class="empty"><div class="eico">${ic(icon)}</div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ''}</div>`;
+}
+const skel = (n = 5, h = 40) => Array.from({ length: n }, () => `<div class="sk" style="height:${h}px;margin:6px 0"></div>`).join('');
+
+// ═══════════════ OPEN / CONTEXT ═══════════════
+function open(data) {
+    S.ctx = data.ctx;
+    S.mode = 'billing';
+    if (S.account === 'society' && !S.ctx.society) S.account = 'personal';
+    S.tables = {}; S.dash = null; S.tpl = null; S.perms = null;
+    $('#frame').classList.remove('hidden');
+    go(data.page || 'overview');
+    handleExtra(data.extra);
+}
+function handleExtra(extra) {
+    if (!extra) return;
+    if (extra.invoiceId) openRail(extra.invoiceId);
+    if (extra.payRef !== undefined) payByReference(extra.payRef);
+    if (extra.create) createInvoice(extra.create.recipientId);
+}
+async function refreshCtx() {
+    if (S.mode !== 'billing') return;
+    const r = await api('getContext');
+    if (!r.ok) return;
+    S.ctx = r.data;
+    if (S.account === 'society' && !S.ctx.society) S.account = 'personal';
+    Object.values(S.tables).forEach((tb) => { tb.stale = true; });
+    S.dash = null;
+    go(S.page);
+    if (S.rail) openRail(S.rail.id, true);
+}
+function hide() {
+    $('#frame').classList.add('hidden');
+    S.mode = null;
+    closeModals(); closePop(); closeRail();
+}
+function closeUI() {
+    if (S.mode === 'pos') { S.pos = null; hide(); nui('posClose'); return; }
+    hide(); nui('close');
+}
+
+// ═══════════════ OVERVIEW ═══════════════
+async function pageOverview() {
+    setPage(`<div class="grid-4">${Array.from({ length: 4 }, () => '<div class="card stat"><div class="sk" style="height:14px;width:50%"></div><div class="sk" style="height:24px;width:70%"></div></div>').join('')}</div>
+        <div class="grid-main"><div class="card pad">${skel(4, 34)}</div><div class="card pad">${skel(3, 34)}</div></div>`);
+    if (!S.dash || S.dash.account !== S.account) {
+        const d = await call('dashboard:get', { account: S.account });
+        if (!d || S.page !== 'overview') return;
+        S.dash = d;
+        renderSide();
     }
-    return list.map((p) => personRow({ ...p, type: p.type || 'online' }, 'pickRecipient')).join('');
+    const d = S.dash;
+    const soc = S.account === 'society';
+    const deltaBadge = `<span class="badge ${d.delta >= 0 ? 'ok' : 'bad'}">${ic(d.delta >= 0 ? 'trend' : 'trenddown')}${d.delta >= 0 ? '+' : ''}${d.delta}%</span>`;
+    const alertsBadge = d.alerts.some((a) => a.status === 'overdue')
+        ? `<span class="badge warn">${ic('alert')}${t('dash.alerts_n', '{n} alert(s)', { n: d.alerts.filter((a) => a.status === 'overdue').length })}</span>`
+        : `<span class="badge ok">${ic('checkc')}${t('dash.all_clear', 'All clear')}</span>`;
+    setPage(`
+        <div class="grid-4">
+            <div class="card stat">${ic('clock')}<span>${t('dash.due', 'Invoices Due')}</span><b>${d.due}</b></div>
+            <div class="card stat ${d.unpaid > 0 ? '' : ''}">${ic('doc')}<span>${t('dash.unpaid', 'Unpaid Amount')}</span><b>${money(d.unpaid)}</b></div>
+            <div class="card stat">${ic('trend')}<span>${t('dash.paid_week', 'Paid This Week')}</span><b>${money(d.paidWeek)}</b></div>
+            <div class="card stat">${ic('receive')}<span>${t('dash.received_week', 'Received This Week')}</span><b>${money(d.receivedWeek)}</b></div>
+        </div>
+        <div class="grid-main">
+            <div class="card"><div class="card-h"><h3>${t('dash.weekly', 'Weekly Summary')}</h3><div class="r">
+                <div class="legend"><span><i style="background:var(--c-received)"></i>${t('dash.legend_received', 'Received')}</span><span><i class="dash"></i>${t('dash.legend_paid', 'Paid')}</span></div>${deltaBadge}</div></div>
+                <div class="card-b" style="padding-top:4px"><div class="chart-wrap" id="chart"></div></div></div>
+            <div class="card"><div class="card-h"><h3>${t('dash.pending', 'Pending Payments')}</h3></div>
+                <div class="card-b">
+                    <div class="pp-row"><div><b>${d.due}</b><span>${t('dash.unpaid_invoices', 'Unpaid Invoices')}</span></div><div class="tile blue">${ic('doc')}</div></div>
+                    <div class="pp-row"><div><b>${money(d.unpaid)}</b><span>${t('dash.outstanding', 'Outstanding')}</span></div><div class="tile teal">${ic('wallet')}</div></div>
+                    ${soc && d.receivable !== undefined ? `<div class="pp-row"><div><b>${money(d.receivable)}</b><span>${t('dash.receivable', 'Owed to the society')}</span></div><div class="tile amber">${ic('receive')}</div></div>` : ''}
+                    <div class="row2" style="margin-top:4px"><button class="btn line" data-act="go" data-page="received">${t('btn.view', 'View')}</button>
+                        <button class="btn soft" data-act="payAll" ${d.due === 0 || (soc && !perm('pay')) ? 'disabled' : ''}>${t('btn.pay_all', 'Pay All')}</button></div>
+                </div></div>
+        </div>
+        <div class="grid-2">
+            <div class="card"><div class="card-h"><h3>${t('dash.alerts', 'Payment Alerts')}</h3><div class="r">${alertsBadge}</div></div>
+                <div class="card-b">${d.alerts.length ? d.alerts.map((a) => {
+                    const due = dueIn(a.dueDate, a.status);
+                    const who = a.direction === 'sent' ? a.recipient : a.sender;
+                    return `<div class="lrow click" data-act="view" data-id="${a.id}"><div class="tile sm ${due.hot ? 'amber' : 'gray'}">${ic(due.hot ? 'alert' : 'clock')}</div>
+                        <div class="tx"><b>${esc(who)}</b><span class="${due.hot ? 'hot' : ''}">${esc(due.text)}${a.direction === 'sent' ? ' · ' + t('dash.owed_to_you', 'owed to you') : ''}</span></div><span class="amt">${money(a.remaining)}</span></div>`;
+                }).join('') : emptyState('checkc', t('dash.no_alerts', 'Nothing due'), t('dash.no_alerts_sub', 'Upcoming and overdue invoices show up here.'))}</div></div>
+            <div class="card"><div class="card-h"><h3>${t('dash.recent', 'Recent Activity')}</h3><div class="r"><span class="badge mute">${t('dash.updated', 'Updated {t}', { t: t('time.now', 'just now') })}</span></div></div>
+                <div class="card-b">${d.recent.length ? d.recent.map((r) => {
+                    const map = { payment_in: ['arrowdown', 'teal', t('act.received_from', 'Received payment from {name}')], payment_out: ['arrowup', 'blue', t('act.paid_for', 'Paid invoice for {name}')],
+                        created: ['send', 'blue', t('act.created_for', 'Created invoice for {name}')], invoice_in: ['inbox', 'amber', t('act.invoice_from', 'Invoice from {name}')], cancelled: ['ban', 'red', t('act.cancelled', 'Cancelled invoice {name}')] }[r.kind] || ['file', 'gray', '{name}'];
+                    return `<div class="lrow click" data-act="view" data-id="${r.id}"><div class="tile sm ${map[1]}">${ic(map[0])}</div><div class="tx"><b>${esc(map[2].replace('{name}', r.name))}</b><span>${esc(r.ref)} · ${money(r.amount)}</span></div><span class="ago">${esc(ago(r.at))}</span></div>`;
+                }).join('') : emptyState('history', t('dash.no_recent', 'No activity yet'), '')}</div></div>
+        </div>`);
+    drawChart($('#chart'), d.series);
 }
 
-function renderOrderFoot() {
-    const el = $('#orderFoot'); if (!el) return;
-    const t = calcTotals(S.order.items, S.order.discount, orderTaxRate());
-    el.innerHTML = `<div class="totals"><div><span>Subtotal</span><b>${money(t.subtotal)}</b></div>
-        ${t.discount > 0 ? `<div class="neg"><span>Discount (${esc(S.order.discount)}%)</span><b>−${money(t.discount)}</b></div>` : ''}
-        <div><span>Tax (${pct(orderTaxRate())})</span><b>${money(t.tax)}</b></div>
-        <div class="grand"><span>Total</span><b>${money(t.total)}</b></div></div>
-        <button class="btn-teal btn-lg btn-block" data-act="sendInvoice" ${!S.order.recipient || !S.order.items.length ? 'disabled' : ''}>${ic('send')}Send invoice</button>`;
-}
-
-function updateOrder() {
-    renderOrderBody(); renderOrderFoot(); renderProducts();
-    const tally = document.querySelector('.nav[data-tab="new"] .tally');
-    const n = S.order.items.length;
-    if (tally) tally.textContent = n || ''; else if (n) { const nav = document.querySelector('.nav[data-tab="new"]'); if (nav) nav.insertAdjacentHTML('beforeend', `<span class="tally">${n}</span>`); }
-}
-
-function addLine(line) {
-    const max = S.ctx?.settings?.maxQuantity || 100;
-    const key = line.productId ? 'productId' : line.quickBillId ? 'quickBillId' : null;
-    const existing = key ? S.order.items.find((i) => i[key] === line[key]) : null;
-    if (existing) existing.quantity = Math.min(max, existing.quantity + 1);
-    else {
-        if (S.order.items.length >= (S.ctx?.settings?.maxItems || 30)) { toast('Limit reached', 'Too many items on one invoice', 'warning'); return; }
-        S.order.items.push({ ...line, quantity: 1 });
-    }
-}
-
-async function sendInvoice() {
-    const { order } = S;
-    if (!order.recipient || !order.items.length) return;
-    const btn = $('[data-act="sendInvoice"]'); if (btn) btn.disabled = true;
-    const target = order.recipient.type === 'offline' ? { type: 'offline', identifier: order.recipient.identifier } : { type: 'online', id: order.recipient.id };
-    const data = await call('createInvoice', {
-        target, personal: order.personal, discount: num(order.discount), notes: order.notes, dueDays: order.dueDays ? num(order.dueDays) : null,
-        items: order.items.map((i) => i.productId ? { productId: i.productId, quantity: i.quantity }
-            : i.quickBillId ? { quickBillId: i.quickBillId, quantity: i.quantity }
-                : { name: i.name, price: i.price, quantity: i.quantity }),
+// Two-series smooth area chart. Received = solid teal, Paid = dashed blue (identity never colour-only).
+function drawChart(el, series) {
+    if (!el || !series) return;
+    const W = el.clientWidth || 600, H = el.clientHeight || 190, pl = 6, pr = 6, pt = 12, pb = 26;
+    const max = Math.max(1, ...series.map((d) => Math.max(d.paid, d.received))) * 1.15;
+    const x = (i) => pl + (i * (W - pl - pr)) / (series.length - 1);
+    const y = (v) => pt + (H - pt - pb) * (1 - v / max);
+    const path = (key) => {
+        const pts = series.map((d, i) => [x(i), y(d[key])]);
+        let s = `M${pts[0][0]},${pts[0][1]}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const [x0, y0] = pts[Math.max(0, i - 1)], [x1, y1] = pts[i], [x2, y2] = pts[i + 1], [x3, y3] = pts[Math.min(pts.length - 1, i + 2)];
+            s += ` C${x1 + (x2 - x0) / 6},${y1 + (y2 - y0) / 6} ${x2 - (x3 - x1) / 6},${y2 - (y3 - y1) / 6} ${x2},${y2}`;
+        }
+        return s;
+    };
+    const area = (key) => `${path(key)} L${x(series.length - 1)},${H - pb} L${x(0)},${H - pb} Z`;
+    const days = [t('day.0', 'Sun'), t('day.1', 'Mon'), t('day.2', 'Tue'), t('day.3', 'Wed'), t('day.4', 'Thu'), t('day.5', 'Fri'), t('day.6', 'Sat')];
+    const grid = [0.25, 0.5, 0.75, 1].map((f) => `<line x1="${pl}" x2="${W - pr}" y1="${y(max * f / 1.15)}" y2="${y(max * f / 1.15)}" stroke="rgba(255,255,255,.05)"/>`).join('');
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(series.map((d) => `${days[d.dow]}: ${t('dash.legend_received', 'Received')} ${money(d.received)}, ${t('dash.legend_paid', 'Paid')} ${money(d.paid)}`).join('; '))}">
+        <defs><linearGradient id="gR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c-received)" stop-opacity=".38"/><stop offset="1" stop-color="var(--c-received)" stop-opacity="0"/></linearGradient>
+        <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c-paid)" stop-opacity=".26"/><stop offset="1" stop-color="var(--c-paid)" stop-opacity="0"/></linearGradient></defs>
+        ${grid}<path d="${area('paid')}" fill="url(#gP)"/><path d="${area('received')}" fill="url(#gR)"/>
+        <path d="${path('paid')}" fill="none" stroke="var(--c-paid)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>
+        <path d="${path('received')}" fill="none" stroke="var(--c-received)" stroke-width="2" stroke-linecap="round"/>
+        ${series.map((d, i) => `<text class="xl" x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${esc(days[d.dow])}</text>`).join('')}
+        <line id="cx" x1="0" x2="0" y1="${pt}" y2="${H - pb}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 3" style="display:none"/>
+        <circle id="cR" r="4" fill="var(--c-received)" stroke="var(--panel)" stroke-width="2" style="display:none"/><circle id="cP" r="4" fill="var(--c-paid)" stroke="var(--panel)" stroke-width="2" style="display:none"/>
+        <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" id="chit"/></svg><div class="chart-tip hidden" id="ctip"></div>`;
+    const hit = $('#chit', el), tip = $('#ctip', el);
+    hit.addEventListener('mousemove', (e) => {
+        const rect = el.getBoundingClientRect();
+        const px = ((e.clientX - rect.left) / rect.width) * W;
+        const i = Math.max(0, Math.min(series.length - 1, Math.round(((px - pl) / (W - pl - pr)) * (series.length - 1))));
+        const d = series[i];
+        const set = (id, cx, cy) => { const c = $(id, el); c.style.display = ''; c.setAttribute('cx', cx); c.setAttribute('cy', cy); };
+        const cx = $('#cx', el); cx.style.display = ''; cx.setAttribute('x1', x(i)); cx.setAttribute('x2', x(i));
+        set('#cR', x(i), y(d.received)); set('#cP', x(i), y(d.paid));
+        tip.classList.remove('hidden');
+        tip.style.left = Math.min(Math.max((x(i) / W) * rect.width, 70), rect.width - 70) + 'px';
+        tip.innerHTML = `<b>${esc(days[d.dow])} · ${esc(fmtDate(d.key))}</b><div><i style="background:var(--c-received)"></i>${t('dash.legend_received', 'Received')}<span>${money(d.received)}</span></div>
+            <div><i style="background:var(--c-paid)"></i>${t('dash.legend_paid', 'Paid')}<span>${money(d.paid)}</span></div>`;
     });
-    if (btn) btn.disabled = false;
+    hit.addEventListener('mouseleave', () => { tip.classList.add('hidden'); ['#cx', '#cR', '#cP'].forEach((s) => { $(s, el).style.display = 'none'; }); });
+}
+
+// ═══════════════ RECEIVED / SENT ═══════════════
+function tableState(box) {
+    const key = `${S.account}:${box}`;
+    if (!S.tables[key]) S.tables[key] = { box, page: 1, search: '', statuses: [], due: 'all', rows: [], total: 0, counts: {}, selected: new Map(), loaded: false };
+    return S.tables[key];
+}
+const payableRow = (inv) => inv.direction === 'received' && isOpen(inv) && (S.account === 'personal' || perm('pay'));
+
+async function loadTable(tb) {
+    const data = await call('invoices:list', { account: S.account, box: tb.box, page: tb.page, search: tb.search, statuses: tb.statuses, due: tb.due });
     if (!data) return;
-    toast('Invoice sent', `Reference ${data.invoiceId} · ${money(data.total)} to ${data.targetName}`, 'success');
-    const keep = { personal: order.personal, nearby: order.nearby };
-    S.order = Object.assign(newOrder(), keep);
-    refreshContext();
+    Object.assign(tb, { rows: data.rows, total: data.total, counts: data.counts, pageSize: data.pageSize, loaded: true, stale: false });
+    if (S.page === tb.box) renderTableBody(tb);
 }
 
-// ═══════════════ QUICK BILLS ═══════════════
-function viewQuick() {
-    const company = S.ctx.company;
-    setMain(`
-        <div class="head"><div><h1>Quick bills</h1><p>One-click presets for ${esc(company.label)}. Picking one adds it to your current order.</p></div></div>
-        <div class="quickbills">${(company.quickBills || []).map((q) => `<button class="quick" data-act="addQuick" data-id="${esc(q.id)}">
-            <div class="tile">${ic('bolt')}</div><div class="row-txt"><b>${esc(q.label)}</b><span>${esc(q.description || 'Quick bill')}</span></div><span class="amt teal">${money(q.amount)}</span></button>`).join('')}</div>`);
-}
-
-// ═══════════════ BOSS DASHBOARD ═══════════════
-function chartHtml(days) {
-    const max = Math.max(1, ...days.map((d) => d.value));
-    const today = days.length - 1;
-    return `<div class="chart" role="img" aria-label="Revenue per day: ${esc(days.map((d) => `${d.label} ${money(d.value)}`).join(', '))}">
-        <div class="gridline" style="bottom:calc(24px + (100% - 24px) * .5)"></div><div class="gridline" style="top:8px"></div>
-        ${days.map((d, i) => `<div class="col ${i === today ? 'today' : ''}"><div class="tip"><b>${money(d.value)}</b>${esc(d.key)} · ${d.count || 0} payment${d.count === 1 ? '' : 's'}</div>
-            <div class="bar-v ${d.value <= 0 ? 'zero' : ''}" style="height:calc((100% - 24px) * ${Math.max(0.012, d.value / max)})"></div><span>${esc(i === today ? 'Today' : d.label)}</span></div>`).join('')}
-    </div>`;
-}
-
-function leaderboardHtml(rows) {
-    if (!rows.length) return emptyState('users', 'No sales yet', 'Employee performance shows up after the first invoices.');
-    return rows.map((r, i) => `<div class="row"><span class="rank">${i + 1}</span><div class="av">${initials(r.name)}</div>
-        <div class="row-txt"><b>${esc(r.name)}</b><span>${r.invoices} invoice${r.invoices === 1 ? '' : 's'}${r.tips > 0 ? ` · ${money(r.tips)} tips` : ''}</span></div><span class="amt">${money(r.collected)}</span></div>`).join('');
-}
-
-async function viewDash() {
-    const company = S.ctx.company;
-    if (!S.boss.dash) {
-        setMain(`<div class="head"><div><h1>${esc(company.label)}</h1><p>Loading company performance...</p></div></div><div class="lines">${skeleton(5)}</div>`);
-        const data = await call('boss:getDashboard');
-        if (!data || S.tab !== 'dash') return;
-        S.boss.dash = data;
-    }
-    const d = S.boss.dash;
-    const balance = d.balance !== undefined && d.balance !== null
-        ? `<div class="shift" style="gap:16px;margin:0;padding:9px 14px"><span>Company account</span><b class="teal" style="font-size:15px">${money(d.balance)}</b></div>` : '';
-    setMain(`
-        <div class="head"><div><h1>${esc(company.label)}</h1><p>Revenue, outstanding balances and employee performance.</p></div>
-            <div class="head-actions">${balance}<button class="icon-btn" data-act="dashRefresh" title="Refresh">${ic('refresh')}</button></div></div>
-        <div class="stats four">
-            ${stat('chart', 'Today', money(d.today))}
-            ${stat('clock', 'Last 7 days', money(d.week))}
-            ${stat('wallet', 'Last 30 days', money(d.month))}
-            ${stat('receipt', `Outstanding · ${d.openCount} open`, money(d.outstanding), d.overdueCount ? 'red' : 'off')}
+function pageTable(box) {
+    const tb = tableState(box);
+    const received = box === 'received';
+    const active = tb.statuses.length + (tb.due !== 'all' ? 1 : 0);
+    setPage(`<div class="card tcard">
+        <div class="tbar">
+            <label class="search">${ic('search')}<input data-input="tSearch" placeholder="${t('label.search', 'Search...')}" value="${esc(tb.search)}"></label>
+            ${received ? `<div class="selbox" id="selbox"></div>` : ''}
+            <div class="r">${active ? `<button class="link" data-act="fReset">${t('filter.reset_filters', 'Reset filters')}</button>` : ''}
+                <div style="position:relative"><button class="fbtn ${active ? 'on' : ''}" data-act="fOpen">${ic('filter')}${t('filter.filters', 'Filters')}${ic('chevron')}${active ? `<span class="n">${active}</span>` : ''}</button></div>
+                ${canCreate() && !received ? `<button class="btn pri" data-act="create">${ic('plus')}${t('btn.new_invoice', 'New Invoice')}</button>` : ''}</div>
         </div>
-        ${(d.disputedCount || d.overdueCount) ? `<div class="toolbar">
-            ${d.disputedCount ? `<button class="fchip" data-act="bossFilter" data-f="disputed"><span class="dot amber"></span>${d.disputedCount} disputed invoice${d.disputedCount > 1 ? 's' : ''} need review</button>` : ''}
-            ${d.overdueCount ? `<button class="fchip" data-act="bossFilter" data-f="overdue"><span class="dot red"></span>${d.overdueCount} overdue</button>` : ''}</div>` : ''}
-        <div class="cols">
-            <section class="panel"><div class="p-head"><div><h2>Revenue · last 7 days</h2><p>Net payments received per day</p></div><span class="ref">avg ticket ${money(d.avgTicket)}</span></div>
-                <div class="p-body pad">${chartHtml(d.daily)}</div></section>
-            <section class="panel"><div class="p-head"><div><h2>Top employees</h2><p>Collected in the last 30 days</p></div></div>
-                <div class="p-body">${leaderboardHtml(d.leaderboard)}</div></section>
-        </div>
-        <section class="panel"><div class="p-head"><div><h2>Recent invoices</h2><p>${d.invoices30} invoices in the last 30 days · ${money(d.tips)} in tips</p></div>
-            <button class="btn-ghost" data-act="tab" data-tab="cinvoices">View all</button></div>
-            <div class="p-body pad">${d.recent.length ? invoiceTable(d.recent, { party: 'customer', company: false }) : emptyState('receipt', 'No invoices yet', 'Invoices from your employees will show up here.')}</div></section>`);
+        <div class="tscroll" id="tbody">${skel(7, 44)}</div>
+        <div class="tfoot" id="tfoot"></div></div>`);
+    renderSelBox(tb);
+    if (!tb.loaded || tb.stale) loadTable(tb); else renderTableBody(tb);
 }
 
-// ═══════════════ COMPANY INVOICES ═══════════════
-const BOSS_FILTERS = [['open', 'Open'], ['overdue', 'Overdue'], ['disputed', 'Disputed'], ['paid', 'Paid'], ['closed', 'Closed'], ['all', 'All']];
-
-async function loadBossInvoices(append = false) {
-    const b = S.boss.inv;
-    if (!append) { b.page = 0; b.rows = []; }
-    const data = await call('boss:getInvoices', { status: b.status, search: b.search, page: b.page });
-    if (!data) return;
-    b.rows = append ? b.rows.concat(data.rows) : data.rows;
-    b.hasMore = data.hasMore; b.loaded = true;
-    renderBossList();
-}
-function renderBossList() {
-    const el = $('#bossList'); if (!el) return;
-    const b = S.boss.inv;
-    el.innerHTML = b.rows.length ? invoiceTable(b.rows, { party: 'customer', company: false }) + (b.hasMore ? `<button class="btn-ghost more" data-act="bossMore">Load more</button>` : '')
-        : (b.loaded ? emptyState('list', 'No invoices', 'Nothing matches this filter.') : skeleton(4));
-}
-function viewCompanyInvoices() {
-    const b = S.boss.inv;
-    setMain(`
-        <div class="head"><div><h1>Company invoices</h1><p>Review, cancel, refund and resolve disputes for ${esc(S.ctx.company.label)}.</p></div></div>
-        <div class="toolbar"><div class="filters">${BOSS_FILTERS.map(([id, l]) => `<button class="fchip ${b.status === id ? 'on' : ''}" data-act="bossFilter" data-f="${id}">${l}</button>`).join('')}</div>
-            <label class="search">${ic('search')}<input data-input="bossSearch" placeholder="Search invoice, employee or customer" value="${esc(b.search)}"></label></div>
-        <section class="panel grow"><div class="p-body pad" id="bossList">${skeleton(4)}</div></section>`);
-    b.loaded = false;
-    loadBossInvoices();
+function renderSelBox(tb) {
+    const el = $('#selbox'); if (!el) return;
+    const total = [...tb.selected.values()].reduce((s, i) => s + i.remaining, 0);
+    el.innerHTML = `<span><b>${tb.selected.size}</b> ${t('table.selected', 'selected')}</span><span><b>${money(total)}</b></span>
+        <button data-act="paySelected" ${tb.selected.size ? '' : 'disabled'}>${ic('card')}${t('btn.pay_selected', 'Pay Selected')}</button>`;
 }
 
-// ═══════════════ CATALOG (boss + admin) ═══════════════
-function catalogCompany() {
-    if (S.mode === 'admin') return (S.admin.data.companies || []).find((c) => c.id === S.admin.catalogCompany) || null;
-    return S.ctx.company;
-}
-function catalogEditorHtml(company) {
-    const t = S.boss.catTab;
-    const seg = `<div class="seg" style="width:360px">
-        <button class="${t === 'products' ? 'on' : ''}" data-act="catTab" data-t="products">${ic('box')}Products</button>
-        <button class="${t === 'categories' ? 'on' : ''}" data-act="catTab" data-t="categories">${ic('tag')}Categories</button>
-        <button class="${t === 'quick' ? 'on' : ''}" data-act="catTab" data-t="quick">${ic('bolt')}Quick bills</button></div>`;
-    const addLabel = t === 'products' ? 'Add product' : t === 'categories' ? 'Add category' : 'Add quick bill';
-    let body = '';
-    const catName = (id) => (company.categories || []).find((c) => c.id === id)?.label || '—';
-    if (t === 'products') {
-        body = company.products.length ? `<table class="table"><thead><tr><th></th><th>Product</th><th>Category</th><th>ID</th><th class="r">Price</th><th></th></tr></thead><tbody>
-            ${company.products.map((p) => `<tr><td style="width:44px"><div class="product" style="padding:0;border:0;background:none"><div class="img" style="width:32px;height:32px">${p.image ? `<img src="${esc(imgUrl(p.image))}" alt="" style="max-width:26px;max-height:26px">` : ic('box')}</div></div></td>
-                <td><b>${esc(p.name)}</b></td><td>${esc(catName(p.category))}</td><td class="ref">${esc(p.id)}</td><td class="r"><b>${money(p.price)}</b></td>
-                <td class="r"><span style="display:inline-flex;gap:6px"><button class="icon-btn" data-act="editProduct" data-id="${esc(p.id)}">${ic('edit')}</button><button class="icon-btn danger" data-act="deleteProduct" data-id="${esc(p.id)}">${ic('trash')}</button></span></td></tr>`).join('')}
-            </tbody></table>` : emptyState('box', 'No products yet', 'Add products so employees can bill with fixed prices.');
-    } else if (t === 'categories') {
-        body = company.categories.length ? `<div class="lines">${company.categories.map((c) => `<div class="row"><div class="av">${faIcon(c.icon) || ic('tag')}</div>
-            <div class="row-txt"><b>${esc(c.label)}</b><span>${esc(c.id)} · ${company.products.filter((p) => p.category === c.id).length} products</span></div>
-            <button class="icon-btn" data-act="editCategory" data-id="${esc(c.id)}">${ic('edit')}</button><button class="icon-btn danger" data-act="deleteCategory" data-id="${esc(c.id)}">${ic('trash')}</button></div>`).join('')}</div>`
-            : emptyState('tag', 'No categories', 'Categories group products in the catalog.');
+function renderTableBody(tb) {
+    const body = $('#tbody'), foot = $('#tfoot'); if (!body) return;
+    const received = tb.box === 'received';
+    if (!tb.rows.length) {
+        body.innerHTML = emptyState(received ? 'inbox' : 'file', received ? t('table.empty_received', 'No invoices received') : t('table.empty_sent', 'No invoices sent'),
+            tb.search || tb.statuses.length ? t('table.empty_filtered', 'Nothing matches these filters.') : t('table.empty_sub', 'Invoices will show up here as soon as they arrive.'));
     } else {
-        body = company.quickBills.length ? `<div class="lines">${company.quickBills.map((q) => `<div class="row"><div class="tile">${ic('bolt')}</div>
-            <div class="row-txt"><b>${esc(q.label)}</b><span>${esc(q.description || 'No description')}</span></div><span class="amt teal">${money(q.amount)}</span>
-            <button class="icon-btn" data-act="editQuick" data-id="${esc(q.id)}">${ic('edit')}</button><button class="icon-btn danger" data-act="deleteQuick" data-id="${esc(q.id)}">${ic('trash')}</button></div>`).join('')}</div>`
-            : emptyState('bolt', 'No quick bills', 'Quick bills are one-click presets for common charges.');
+        const payable = tb.rows.filter(payableRow);
+        const allOn = payable.length && payable.every((r) => tb.selected.has(r.id));
+        body.innerHTML = `<table class="t"><thead><tr>
+            ${received ? `<th class="cbx-col"><span class="cbx ${allOn ? 'on' : ''} ${payable.length ? '' : 'dis'}" data-act="selAll">${ic('check')}</span></th>` : ''}
+            <th>${received ? t('table.sender', 'Sender') : t('table.recipient', 'Recipient')}</th><th>${t('table.reason', 'Reason')}</th><th class="r">${t('table.amount', 'Amount')}</th>
+            <th>${t('table.due', 'Due Date')}</th><th>${t('table.status', 'Status')}</th><th>${received ? t('table.received', 'Received') : t('table.created', 'Created')}</th></tr></thead><tbody>
+            ${tb.rows.map((r) => {
+                const can = payableRow(r);
+                const who = received ? r.sender : r.recipient;
+                return `<tr data-act="row" data-id="${r.id}" class="${tb.selected.has(r.id) ? 'sel' : ''} ${['cancelled', 'refunded'].includes(r.status) ? 'dim' : ''}">
+                    ${received ? `<td class="cbx-col"><span class="cbx ${tb.selected.has(r.id) ? 'on' : ''} ${can ? '' : 'dis'}" data-act="sel" data-id="${r.id}">${ic('check')}</span></td>` : ''}
+                    <td class="b ell">${esc(who)}${r.senderType === 'society' && received && r.senderName ? `<span class="sub">${esc(r.senderName)}</span>` : ''}</td>
+                    <td class="ell">${esc(r.reason || '')}<span class="sub mono">${esc(r.ref)}</span></td>
+                    <td class="amt">${money(isOpen(r) || r.status === 'disputed' ? r.remaining : r.total + r.lateFee)}${r.lateFee > 0 ? `<span class="sub" style="color:var(--danger)">+${money(r.lateFee)} ${t('label.late_fee_short', 'late')}</span>` : ''}</td>
+                    <td><b>${esc(fmtDate(r.dueDate))}</b><span class="sub">${esc(fmtTime(r.dueDate))}</span></td>
+                    <td>${st(r.status)}</td><td>${esc(ago(r.createdAt))}</td></tr>`;
+            }).join('')}</tbody></table>`;
     }
-    return `<div class="toolbar">${seg}<button class="btn-teal" style="margin-left:auto" data-act="catAdd">${ic('plus')}${addLabel}</button></div>
-        <section class="panel grow"><div class="p-body pad">${body}</div></section>`;
-}
-function viewCatalog() {
-    const company = S.ctx.company;
-    setMain(`<div class="head"><div><h1>Catalog</h1><p>Products, categories and quick bills for ${esc(company.label)}. Changes apply instantly.</p></div></div>
-        <div id="catalogEditor" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:0">${catalogEditorHtml(company)}</div>`);
-}
-function rerenderCatalog() {
-    const el = $('#catalogEditor'); const company = catalogCompany();
-    if (el && company) el.innerHTML = catalogEditorHtml(company);
-}
-function applyCatalogResult(company) {
-    if (!company || typeof company !== 'object') return;
-    if (S.mode === 'admin') {
-        const list = S.admin.data.companies; const i = list.findIndex((c) => c.id === company.id);
-        if (i >= 0) list[i] = company; else list.push(company);
-    } else {
-        S.ctx.company = Object.assign({}, S.ctx.company, company);
-    }
-    rerenderCatalog();
+    const size = tb.pageSize || 8;
+    const pagesN = Math.max(1, Math.ceil(tb.total / size));
+    const from = tb.total ? (tb.page - 1) * size + 1 : 0, to = Math.min(tb.total, tb.page * size);
+    foot.innerHTML = `<span>${t('table.showing', 'Showing {from}–{to} of {total}', { from, to, total: tb.total })}</span><div class="pager">${pager(tb.page, pagesN, 'tPage')}</div>`;
+    renderSelBox(tb);
 }
 
-async function ensureItems() {
-    if (S.items) return S.items;
-    const data = await call('getItems');
-    S.items = Array.isArray(data) ? data : [];
-    return S.items;
+function pager(page, pagesN, act) {
+    const btn = (p, label = p) => `<button class="${p === page ? 'on' : ''}" data-act="${act}" data-p="${p}">${label}</button>`;
+    let out = `<button data-act="${act}" data-p="${page - 1}" ${page <= 1 ? 'disabled' : ''}>${t('table.prev', 'Prev')}</button>`;
+    const set = new Set([1, pagesN, page - 1, page, page + 1].filter((p) => p >= 1 && p <= pagesN));
+    let last = 0;
+    [...set].sort((a, b) => a - b).forEach((p) => { if (p - last > 1) out += '<span class="gap">…</span>'; out += btn(p); last = p; });
+    return out + `<button data-act="${act}" data-p="${page + 1}" ${page >= pagesN ? 'disabled' : ''}>${t('table.next', 'Next')}</button>`;
 }
 
-function productModal(company, product) {
-    const p = product || {};
-    const cats = `<option value="">No category</option>` + (company.categories || []).map((c) => `<option value="${esc(c.id)}" ${p.category === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('');
-    const m = openModal(`<div class="modal wide">
-        ${modalHead('box', product ? 'Edit product' : 'Add product', esc(company.label))}
-        <div class="modal-b"><div class="grid2"><div class="field"><label>Name</label><input id="pName" maxlength="60" value="${esc(p.name)}" autofocus></div>
-            <div class="field"><label>Price</label><input id="pPrice" type="number" min="0" step="0.01" value="${esc(p.price)}"></div></div>
-            <div class="grid2"><div class="field"><label>Category</label><select id="pCat">${cats}</select></div>
-            <div class="field"><label>Image (item name)</label><input id="pImage" maxlength="60" value="${esc(p.image)}" placeholder="e.g. burger" data-input="itemSearch"></div></div>
-            <div class="field"><label>Inventory items</label><div class="results" id="itemResults" style="max-height:150px"><div class="label-row">Type in the image field to search items</div></div></div></div>
-        <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button><button class="btn-teal" data-act="modalOk">${ic('check')}Save product</button></div></div>`);
-    ensureItems();
-    m.ok = async () => {
-        const data = await call('catalog:saveProduct', { companyId: company.id, product: {
-            id: p.id, name: $('#pName', m.el).value, price: num($('#pPrice', m.el).value), category: $('#pCat', m.el).value, image: $('#pImage', m.el).value.trim(),
-        } });
-        if (!data) return;
-        m.close(); applyCatalogResult(data); toast('Saved', 'Product saved', 'success');
-    };
-}
-function categoryModal(company, cat) {
-    const c = cat || {};
-    const m = openModal(`<div class="modal">
-        ${modalHead('tag', cat ? 'Edit category' : 'Add category', esc(company.label))}
-        <div class="modal-b"><div class="field"><label>Name</label><input id="cLabel" maxlength="40" value="${esc(c.label)}" autofocus></div>
-            <div class="field"><label>Font Awesome icon</label><input id="cIcon" maxlength="40" value="${esc(c.icon)}" placeholder="fa-burger"><span class="hint">Any free solid icon name from fontawesome.com</span></div></div>
-        <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button><button class="btn-teal" data-act="modalOk">${ic('check')}Save</button></div></div>`);
-    m.ok = async () => {
-        const data = await call('catalog:saveCategory', { companyId: company.id, category: { id: c.id, label: $('#cLabel', m.el).value, icon: $('#cIcon', m.el).value } });
-        if (!data) return; m.close(); applyCatalogResult(data);
-    };
-}
-function quickModal(company, quick) {
-    const q = quick || {};
-    const m = openModal(`<div class="modal">
-        ${modalHead('bolt', quick ? 'Edit quick bill' : 'Add quick bill', esc(company.label))}
-        <div class="modal-b"><div class="field"><label>Name</label><input id="qLabel" maxlength="60" value="${esc(q.label)}" autofocus></div>
-            <div class="field"><label>Amount</label><input id="qAmount" type="number" min="0" step="0.01" value="${esc(q.amount)}"></div>
-            <div class="field"><label>Description</label><input id="qDesc" maxlength="120" value="${esc(q.description)}"></div></div>
-        <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button><button class="btn-teal" data-act="modalOk">${ic('check')}Save</button></div></div>`);
-    m.ok = async () => {
-        const data = await call('catalog:saveQuickBill', { companyId: company.id, quickBill: { id: q.id, label: $('#qLabel', m.el).value, amount: num($('#qAmount', m.el).value), description: $('#qDesc', m.el).value } });
-        if (!data) return; m.close(); applyCatalogResult(data);
-    };
+function filterPop(owner, tb, onApply) {
+    const draft = { statuses: [...tb.statuses], due: tb.due };
+    const statuses = [['overdue'], ['pending'], ['partial'], ['disputed'], ['paid'], ['cancelled']];
+    const render = () => `<h5>${t('table.status', 'Status')}</h5>
+        ${statuses.map(([s]) => `<button class="fopt" data-act="fStatus" data-s="${s}"><span class="cbx ${draft.statuses.includes(s) ? 'on' : ''}">${ic('check')}</span><span class="dot ${s}"></span>${esc(STATUS_LABEL()[s])}<span class="n">${tb.counts?.[s] ?? ''}</span></button>`).join('')}
+        <div class="fsep"></div><h5>${t('table.due', 'Due Date')}</h5>
+        <div class="seg">${[['all', t('filter.all', 'All')], ['today', t('filter.today', 'Today')], ['3d', t('filter.3d', '3 Days')], ['7d', t('filter.7d', '7 Days')]].map(([v, l]) => `<button class="${draft.due === v ? 'on' : ''}" data-act="fDue" data-v="${v}">${l}</button>`).join('')}</div>
+        <div class="fact"><button class="btn line" data-act="fClear">${t('filter.reset', 'Reset')}</button><button class="btn soft" data-act="fApply">${t('filter.apply', 'Apply')}</button></div>`;
+    const el = showPop(owner, render(), 'filters');
+    el.draft = draft; el.rerender = () => { el.innerHTML = render(); }; el.apply = () => { closePop(); onApply(draft); };
 }
 
-// ═══════════════ INVOICE DETAIL ═══════════════
-async function openInvoice(id) {
-    const inv = await call('getInvoice', { invoiceId: id });
+// ═══════════════ DETAIL RAIL ═══════════════
+function paperHtml(inv, opts = {}) {
+    const items = (inv.items || []).map((i) => `<div class="ln"><span>${esc(i.label)}${num(i.quantity, 1) > 1 ? ` <span class="qty">×${esc(i.quantity)}</span>` : ''}</span><b>${money(num(i.amount) * num(i.quantity, 1))}</b></div>`).join('');
+    const remainingRow = isOpen(inv) || inv.status === 'disputed';
+    const foot = inv.status === 'paid' ? t('paper.paid_on', 'Paid on {date}', { date: fmtLong(inv.paidAt) })
+        : inv.status === 'cancelled' ? t('paper.cancelled', 'This invoice was cancelled')
+            : inv.status === 'refunded' ? t('paper.refunded', 'This invoice was refunded')
+                : inv.status === 'overdue' ? t('paper.overdue', 'Payment was due on {date}', { date: fmtLong(inv.dueDate) })
+                    : t('paper.pending_until', 'Payment pending until {date}', { date: fmtLong(inv.dueDate) });
+    return `<div class="paper"><span class="stamp ${esc(inv.status)}">${esc(STATUS_LABEL()[inv.status] || inv.status)}</span>
+        <h2>${t('paper.invoice', 'Invoice')} #${esc(inv.id)}</h2>
+        <div class="ref">${t('paper.ref', 'REF. ID')}: <span class="mono">${esc(inv.ref)}</span><button data-act="copyRef" data-ref="${esc(inv.ref)}" title="${t('btn.copy', 'Copy')}">${ic('copy')}</button></div>
+        <div class="meta"><span>${t('paper.received', 'Received')}:</span><b>${esc(fmtLong(inv.createdAt))}</b>
+            <span>${t('paper.due', 'Due')}:</span><b>${esc(fmtLong(inv.dueDate))}</b>
+            <span>${t('paper.to', 'To')}:</span><b>${esc(inv.recipient)}</b>
+            <span>${t('paper.from', 'From')}:</span><b>${esc(inv.sender)}${inv.senderType === 'society' && inv.senderName && !opts.short ? ` · ${esc(inv.senderName)}` : ''}</b></div>
+        <div class="ln h"><span>${t('paper.description', 'Description')}</span><span>${t('paper.amount', 'Amount')}</span></div>${items}
+        <div class="sep"></div>
+        <div class="ln"><span>${t('paper.subtotal', 'Subtotal')}</span><b>${money(inv.subtotal)}</b></div>
+        <div class="ln"><span>${t('paper.vat', 'VAT ({rate})', { rate: pct(inv.vatRate) })}</span><b>${money(inv.vat)}</b></div>
+        ${inv.lateFee > 0 ? `<div class="ln"><span>${t('paper.late_fee', 'Late fee')}</span><b>${money(inv.lateFee)}</b></div>` : ''}
+        ${inv.amountPaid > 0 && remainingRow ? `<div class="ln"><span>${t('paper.paid', 'Paid')}</span><b>−${money(inv.amountPaid)}</b></div>` : ''}
+        ${inv.tip > 0 ? `<div class="ln"><span>${t('paper.tip', 'Tip')}</span><b>${money(inv.tip)}</b></div>` : ''}
+        <div class="sep"></div>
+        <div class="ln total"><span>${remainingRow ? t('paper.remaining', 'REMAINING') : t('paper.total', 'TOTAL')}</span><span>${money(remainingRow ? inv.remaining : inv.total + inv.lateFee)}</span></div>
+        <div class="foot">${esc(foot)}</div></div>`;
+}
+
+async function openRail(id, silent) {
+    const inv = await call('invoices:get', { id, account: S.account });
     if (!inv) return;
-    const due = dueLabel(inv);
-    const owe = S.mode === 'billing' && inv.direction === 'received' && isOpen(inv);
-    const kv = [
-        ['From', `${inv.senderName}${inv.company !== 'Personal' ? ' · ' + inv.company : ''}`],
-        ['To', inv.targetName],
-        ['Created', fmtDate(inv.createdAt)],
-        inv.paidAt ? ['Paid', fmtDate(inv.paidAt)] : ['Due', inv.dueDate ? `${fmtDate(inv.dueDate)}${due ? ' · ' + due.text : ''}` : '—'],
-    ];
-    const items = `<table class="table"><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Total</th></tr></thead><tbody>
-        ${inv.items.map((i) => `<tr><td><b>${esc(i.name)}</b>${i.custom ? ' <span class="chip off">custom</span>' : ''}</td><td class="r">${esc(i.quantity)}</td><td class="r">${money(i.price)}</td><td class="r"><b>${money(i.price * i.quantity)}</b></td></tr>`).join('')}</tbody></table>`;
-    const totals = `<div class="totals"><div><span>Subtotal</span><b>${money(inv.subtotal)}</b></div>
-        ${inv.discount > 0 ? `<div class="neg"><span>Discount</span><b>−${money(inv.discount)}</b></div>` : ''}
-        <div><span>Tax</span><b>${money(inv.tax)}</b></div>
-        ${inv.lateFee > 0 ? `<div class="fee"><span>Late fee</span><b>${money(inv.lateFee)}</b></div>` : ''}
-        ${inv.amountPaid > 0 ? `<div class="neg"><span>Paid</span><b>−${money(inv.amountPaid)}</b></div>` : ''}
-        ${inv.tip > 0 ? `<div><span>Tips</span><b>${money(inv.tip)}</b></div>` : ''}
-        <div class="grand"><span>${isOpen(inv) || inv.status === 'disputed' ? 'Remaining' : 'Total'}</span><b>${money(isOpen(inv) || inv.status === 'disputed' ? inv.remaining : inv.total + inv.lateFee)}</b></div></div>`;
+    S.rail = inv;
     const notes = [
-        inv.notes ? `<div class="note"><b>Notes</b>${esc(inv.notes)}</div>` : '',
-        inv.disputeReason ? `<div class="note amber"><b>Dispute reason</b>${esc(inv.disputeReason)}</div>` : '',
-        inv.cancelReason ? `<div class="note red"><b>${inv.status === 'refunded' ? 'Refund' : 'Cancellation'} reason</b>${esc(inv.cancelReason)}</div>` : '',
+        inv.notes ? `<div class="note"><b>${t('detail.notes', 'Notes')}</b>${esc(inv.notes)}</div>` : '',
+        inv.disputeReason ? `<div class="note violet"><b>${t('detail.dispute', 'Dispute')}</b>${esc(inv.disputeReason)}</div>` : '',
+        inv.cancelReason ? `<div class="note red"><b>${inv.status === 'refunded' ? t('detail.refund_reason', 'Refund reason') : t('detail.cancel_reason', 'Cancellation reason')}</b>${esc(inv.cancelReason)}</div>` : '',
     ].join('');
-    const payments = (inv.payments || []).length ? `<div class="field"><label>Payments</label><div class="timeline">${inv.payments.map((p) => `<div class="tl ${p.kind === 'refund' ? 'refund' : ''}">
-        <div><b>${money(Math.abs(p.amount))}</b> ${p.kind === 'refund' ? 'refunded' : p.kind === 'autocollect' ? 'auto-collected' : 'paid'} ${p.kind === 'refund' ? 'to' : 'by'} ${esc(p.payer || '—')} · ${esc(p.method)}${num(p.tip) > 0 ? ` · ${money(p.tip)} tip` : ''}</div><span>${esc(fmtDate(p.createdAt))}</span></div>`).join('')}</div></div>` : '';
-
-    const left = [];
-    if (inv.amountPaid > 0 || inv.status === 'paid') left.push(`<button class="btn-line" data-act="receiptFromDetail">${ic('receipt')}Receipt</button>`);
-    if (inv.canCancel) left.push(`<button class="btn-red" data-act="cancelInvoice" data-id="${esc(inv.id)}">Cancel invoice</button>`);
-    if (inv.canRefund) left.push(`<button class="btn-red" data-act="refund" data-id="${esc(inv.id)}">${ic('undo')}Refund</button>`);
-    const right = [];
+    const pays = (inv.payments || []).length ? `<div class="field"><span class="lbl">${t('detail.payments', 'Payments')}</span>${inv.payments.map((p) => `<div class="tl ${p.kind === 'refund' ? 'refund' : ''}">
+        <div><b>${money(Math.abs(p.amount))}</b> ${p.kind === 'refund' ? t('detail.refunded', 'refunded') : p.kind === 'autocollect' ? t('detail.collected', 'auto-collected') : t('detail.paid_by', 'paid by')} ${esc(p.payer || '')} · ${esc(p.method)}${num(p.tip) > 0 ? ` · ${money(p.tip)} ${t('label.tip', 'tip')}` : ''}</div><span>${esc(fmtDate(p.createdAt))}</span></div>`).join('')}</div>` : '';
+    const acts = [];
+    if (inv.payOptions) acts.push(`<button class="btn pri" data-act="pay" data-id="${inv.id}">${ic('card')}${t('btn.pay_amount', 'Pay {amount}', { amount: money(inv.remaining) })}</button>`);
     if (inv.canResolve) {
-        right.push(`<button class="btn-line" data-act="resolve" data-id="${esc(inv.id)}" data-a="reinstate">Reject dispute</button>`);
-        right.push(`<button class="btn-teal" data-act="resolve" data-id="${esc(inv.id)}" data-a="cancel">Accept · cancel invoice</button>`);
+        acts.push(`<button class="btn line" data-act="resolve" data-id="${inv.id}" data-a="reject">${t('btn.reject_dispute', 'Reject dispute')}</button>`);
+        acts.push(`<button class="btn soft" data-act="resolve" data-id="${inv.id}" data-a="accept">${t('btn.accept_dispute', 'Accept dispute')}</button>`);
     }
-    if (owe && S.ctx?.perms?.canDispute) right.push(`<button class="btn-line" data-act="dispute" data-id="${esc(inv.id)}">${ic('flag')}Dispute</button>`);
-    if (owe) right.push(`<button class="btn-teal" data-act="pay" data-id="${esc(inv.id)}">${ic('card')}Pay ${money(inv.remaining)}</button>`);
-    if (!right.length) right.push(`<button class="btn-line" data-act="modalClose">Close</button>`);
-
-    const m = openModal(`<div class="modal xwide">
-        ${modalHead('receipt', `<span style="display:inline-flex;align-items:center;gap:8px">${esc(inv.id)} ${copyBtn(inv.id)} ${statusTag(inv.status)}</span>`, `${esc(inv.company)} · ${esc(fmtDate(inv.createdAt))} · quote this reference when contacting ${esc(inv.company === 'Personal' ? inv.senderName : inv.company)}`)}
-        <div class="modal-b"><div class="kv">${kv.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
-            ${items}${totals}${notes}${payments}</div>
-        <div class="modal-f"><div class="left">${left.join('')}</div>${right.join('')}</div></div>`);
-    m.invoice = inv;
+    if (inv.canDispute) acts.push(`<button class="btn line" data-act="dispute" data-id="${inv.id}">${ic('flag')}${t('btn.dispute', 'Dispute')}</button>`);
+    if (inv.canPrint) acts.push(`<button class="btn line" data-act="print" data-id="${inv.id}">${ic('printer')}${t('btn.print', 'Print')}</button>`);
+    if (inv.canRefund) acts.push(`<button class="btn red" data-act="refund" data-id="${inv.id}">${ic('undo')}${t('btn.refund', 'Refund')}</button>`);
+    if (inv.canCancel) acts.push(`<button class="btn red" data-act="cancel" data-id="${inv.id}">${ic('ban')}${t('btn.cancel_invoice', 'Cancel invoice')}</button>`);
+    if (inv.canDelete) acts.push(`<button class="btn red" data-act="adminDelete" data-id="${inv.id}">${ic('trash')}${t('btn.delete', 'Delete')}</button>`);
+    $('#rail').innerHTML = `${silent ? '' : '<div class="rail-shade" data-act="railClose"></div>'}<div class="rail" ${silent ? 'style="animation:none"' : ''}>
+        <div class="rail-h"><div class="tile sm teal">${ic('doc')}</div><div><h4>${esc(inv.reason || t('paper.invoice', 'Invoice'))}</h4></div><button class="ibtn" style="margin-left:auto" data-act="railClose">${ic('x')}</button></div>
+        <div class="rail-b">${paperHtml(inv)}
+            <div class="kv" style="margin-top:6px"><div><span>${t('detail.issued_by', 'Issued by')}</span><b>${esc(inv.senderName)}</b></div><div><span>${t('detail.method', 'Paid with')}</span><b>${esc(inv.method ? (inv.method === 'society' ? t('label.society_account', 'Society account') : inv.method) : '—')}</b></div>
+            ${inv.paidBy ? `<div><span>${t('detail.paid_by_label', 'Paid by')}</span><b>${esc(inv.paidBy)}</b></div>` : ''}<div><span>${t('detail.due_status', 'Due')}</span><b>${esc(dueIn(inv.dueDate, inv.status).text || '—')}</b></div></div>
+            ${notes}${pays}</div>
+        ${acts.length ? `<div class="rail-f">${acts.join('')}</div>` : ''}</div>`;
+    if (silent) $('.rail-shade') || $('#rail').insertAdjacentHTML('afterbegin', '<div class="rail-shade" data-act="railClose" style="animation:none"></div>');
 }
+function closeRail() { S.rail = null; const r = $('#rail'); if (r) r.innerHTML = ''; }
 
 // ═══════════════ PAY ═══════════════
-function findInvoice(id) {
-    const fromCtx = S.ctx?.invoices?.find((i) => i.id === id);
-    if (fromCtx) return fromCtx;
-    for (const m of modalStack) if (m.invoice && m.invoice.id === id) return m.invoice;
-    return null;
-}
-
-async function openPay(id) {
-    let inv = findInvoice(id);
-    if (!inv) inv = await call('getInvoice', { invoiceId: id });
-    if (!inv) return;
-    const st = S.ctx.settings;
-    const methods = Object.entries(st.methods || { bank: true }).filter(([, v]) => v).map(([k]) => k);
-    const tipsOk = st.tips && inv.tipsAllowed;
-    const partialOk = st.allowPartial && inv.remaining > st.minPartial;
-    const state = { method: methods[0] || 'bank', full: true, amount: inv.remaining, tipPct: 0, tipCustom: null };
-
-    const m = openModal(`<div class="modal wide">
-        ${modalHead('card', `Pay ${esc(inv.id)}`, `${esc(inv.company)} · ${esc(inv.senderName)}`)}
-        <div class="modal-b" id="payBody"></div>
-        <div class="modal-f"><span class="ref" style="margin-right:auto" id="payNote"></span><button class="btn-line" data-act="modalClose">Cancel</button>
-            <button class="btn-teal" data-act="modalOk" id="payBtn">${ic('check')}Confirm payment</button></div></div>`);
-
+async function payInvoice(id, preset) {
+    const inv = preset || (S.rail && S.rail.id === id ? S.rail : await call('invoices:get', { id, account: S.account }));
+    if (!inv || !inv.payOptions) { if (inv) toast(t('label.error', 'Error'), t('error.cannot_pay', 'You cannot pay this invoice'), 'error'); return; }
+    const st_ = S.ctx.settings;
+    const methods = ['society', 'bank', 'cash'].filter((m) => inv.payOptions[m]);
+    const state = { method: S.account === 'society' && methods.includes('society') ? 'society' : (methods.find((m) => m !== 'society') || methods[0]), full: true, amount: inv.remaining, tip: 0 };
+    const tipsOk = st_.tips && inv.tipsAllowed;
+    const partialOk = st_.allowPartial && inv.remaining > st_.minPartial;
+    const balanceOf = (m) => m === 'cash' ? S.ctx.player.cash : m === 'bank' ? S.ctx.player.bank : S.ctx.society?.balance;
+    const m = openModal(`<div class="modal w600">${mh(t('pay.title', 'Pay invoice'), `${esc(inv.ref)} · ${esc(inv.sender)}`, 'card')}<div class="mb" id="payB"></div>
+        <div class="mf"><span class="l" id="payWarn" style="color:var(--danger)"></span><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk" id="payGo">${ic('check')}${t('btn.confirm_payment', 'Confirm payment')}</button></div></div>`);
     const render = () => {
-        const amount = state.full ? inv.remaining : round2(Math.min(inv.remaining, Math.max(0, num(state.amount))));
-        const tip = tipsOk ? round2(state.tipCustom !== null ? num(state.tipCustom) : inv.total * state.tipPct / 100) : 0;
-        const charge = round2(amount + tip);
-        const bal = state.method === 'cash' ? S.ctx.player.cash : S.ctx.player.bank;
-        $('#payBody', m.el).innerHTML = `
-            <div class="kv"><div><span>Invoice total</span><b>${money(inv.total + inv.lateFee)}</b></div><div><span>Remaining</span><b>${money(inv.remaining)}</b></div></div>
-            <div class="field"><label>Pay with</label><div class="seg big">${methods.map((k) => `<button class="${state.method === k ? 'on' : ''}" data-act="payMethod" data-m="${k}">${ic(k === 'cash' ? 'cash' : 'card')}${k === 'cash' ? 'Cash' : 'Bank'}<small>${money(k === 'cash' ? S.ctx.player.cash : S.ctx.player.bank)}</small></button>`).join('')}</div></div>
-            ${partialOk ? `<div class="field"><label>Amount</label><div class="seg"><button class="${state.full ? 'on' : ''}" data-act="payFull" data-v="1">Full amount</button><button class="${!state.full ? 'on' : ''}" data-act="payFull" data-v="0">Installment</button></div>
-                ${!state.full ? `<input type="number" min="${esc(st.minPartial)}" max="${esc(inv.remaining)}" step="0.01" data-input="payAmount" value="${esc(state.amount)}" style="margin-top:8px"><span class="hint">Minimum ${money(Math.min(st.minPartial, inv.remaining))}</span>` : ''}</div>` : ''}
-            ${tipsOk ? `<div class="field"><label>Add a tip</label><div class="tips">${st.tips.map((t) => `<button class="${state.tipCustom === null && state.tipPct === t ? 'on' : ''}" data-act="payTip" data-v="${t}">${t ? t + '%' : 'No tip'}</button>`).join('')}</div></div>` : ''}
-            <div class="paybox"><div><span>You pay</span>${tip > 0 ? `<span style="display:block">incl. ${money(tip)} tip</span>` : ''}</div><b>${money(charge)}</b></div>`;
-        $('#payNote', m.el).textContent = bal < charge ? 'Insufficient balance' : '';
-        $('#payNote', m.el).style.color = 'var(--red)';
-        $('#payBtn', m.el).disabled = bal < charge || amount <= 0;
+        const amount = state.full ? inv.remaining : r2(Math.min(inv.remaining, Math.max(0, num(state.amount))));
+        const tip = tipsOk ? r2(inv.total * state.tip / 100) : 0;
+        const charge = r2(amount + tip);
+        const bal = balanceOf(state.method);
+        $('#payB', m.el).innerHTML = `
+            <div class="kv"><div><span>${t('pay.total', 'Invoice total')}</span><b>${money(inv.total + inv.lateFee)}</b></div><div><span>${t('pay.remaining', 'Remaining')}</span><b>${money(inv.remaining)}</b></div></div>
+            <div class="field"><span class="lbl">${t('pay.method', 'Pay with')}</span><div class="seg big">${methods.map((k) => `<button class="${state.method === k ? 'on' : ''}" data-act="pMethod" data-m="${k}">
+                ${ic(k === 'cash' ? 'cash' : k === 'bank' ? 'card' : 'building')}${k === 'cash' ? t('label.cash_cap', 'Cash') : k === 'bank' ? t('label.bank_cap', 'Bank') : t('label.society_account', 'Society account')}
+                <small>${balanceOf(k) === null || balanceOf(k) === undefined ? '' : money(balanceOf(k))}</small></button>`).join('')}</div></div>
+            ${partialOk ? `<div class="field"><span class="lbl">${t('pay.amount', 'Amount')}</span><div class="seg"><button class="${state.full ? 'on' : ''}" data-act="pFull" data-v="1">${t('pay.full', 'Full amount')}</button><button class="${!state.full ? 'on' : ''}" data-act="pFull" data-v="0">${t('pay.installment', 'Installment')}</button></div>
+                ${!state.full ? `<input class="input" type="number" min="${st_.minPartial}" max="${inv.remaining}" step="0.01" data-input="pAmount" value="${esc(state.amount)}" style="margin-top:8px"><span class="hint">${t('pay.min', 'Minimum {amount}', { amount: money(Math.min(st_.minPartial, inv.remaining)) })}</span>` : ''}</div>` : ''}
+            ${tipsOk ? `<div class="field"><span class="lbl">${t('pay.tip', 'Add a tip')}</span><div class="tips">${st_.tips.map((x) => `<button class="${state.tip === x ? 'on' : ''}" data-act="pTip" data-v="${x}">${x ? x + '%' : t('pay.no_tip', 'No tip')}</button>`).join('')}</div></div>` : ''}
+            <div class="payline"><div><span>${t('pay.you_pay', 'You pay')}</span>${tip > 0 ? `<span style="display:block">${t('pay.incl_tip', 'incl. {amount} tip', { amount: money(tip) })}</span>` : ''}</div><b>${money(charge)}</b></div>`;
+        const short = bal !== null && bal !== undefined && bal < charge;
+        $('#payWarn', m.el).textContent = short ? t('pay.insufficient', 'Insufficient balance') : '';
+        $('#payGo', m.el).disabled = short || amount <= 0;
         state.computed = { amount, tip };
     };
-    m.payState = state; m.render = render;
-    render();
+    m.pay = state; m.render = render; render();
     m.ok = async () => {
-        const btn = $('#payBtn', m.el); btn.disabled = true;
-        const res = await call('payInvoice', { invoiceId: inv.id, method: state.method, amount: state.full ? null : state.computed.amount, tip: state.computed.tip });
-        btn.disabled = false;
+        $('#payGo', m.el).disabled = true;
+        const res = await call('invoices:pay', { id: inv.id, method: state.method, amount: state.full ? null : state.computed.amount, tip: state.computed.tip });
+        if (!res) { $('#payGo', m.el).disabled = false; return; }
+        m.close();
+        toast(res.status === 'paid' ? t('toast.paid', 'Invoice paid') : t('toast.installment', 'Installment paid'),
+            t('toast.paid_body', '{amount} paid · {ref}', { amount: money(res.charged), ref: inv.ref }), 'success');
+        closeModals();
+        if (S.mode === 'paper') { hidePaper(); return; }
+        refreshCtx();
+    };
+}
+
+async function payMany(ids, total) {
+    const methods = S.account === 'society' ? ['society'] : Object.entries(S.ctx.settings.methods || {}).filter(([, v]) => v).map(([k]) => k);
+    const state = { method: methods[0] };
+    const m = openModal(`<div class="modal">${mh(t('pay.many_title', 'Pay {n} invoices', { n: ids.length }), '', 'card')}<div class="mb" id="pmB"></div>
+        <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk">${ic('check')}${t('btn.pay_amount', 'Pay {amount}', { amount: money(total) })}</button></div></div>`);
+    const render = () => {
+        $('#pmB', m.el).innerHTML = `<p class="copy">${t('pay.many_text', 'Each selected invoice is paid in full. Payment stops if your balance runs out.')}</p>
+            ${methods.length > 1 ? `<div class="seg big">${methods.map((k) => `<button class="${state.method === k ? 'on' : ''}" data-act="pmMethod" data-m="${k}">${ic(k === 'cash' ? 'cash' : 'card')}${k === 'cash' ? t('label.cash_cap', 'Cash') : t('label.bank_cap', 'Bank')}<small>${money(k === 'cash' ? S.ctx.player.cash : S.ctx.player.bank)}</small></button>`).join('')}</div>` : ''}
+            <div class="payline"><span>${t('pay.total_selected', 'Total')}</span><b>${money(total)}</b></div>`;
+    };
+    m.pm = state; m.render = render; render();
+    m.ok = async () => {
+        const res = await call('invoices:payMany', { ids, method: state.method });
         if (!res) return;
         m.close();
-        modalStack.filter((x) => x.invoice && x.invoice.id === inv.id).forEach((x) => x.close());
-        toast(res.status === 'paid' ? 'Invoice paid' : 'Installment paid', `${money(res.charged)} paid with ${res.method}${res.status !== 'paid' ? ` · ${money(res.remaining)} left` : ''}`, 'success');
-        if (res.receipt) showReceipt(res.receipt);
-        refreshContext();
+        toast(t('toast.bulk', 'Bulk payment'), t('toast.bulk_body', '{n} paid · {amount}{failed}', { n: res.paid, amount: money(res.total), failed: res.failed.length ? ' · ' + t('toast.bulk_failed', '{n} failed', { n: res.failed.length }) : '' }), res.failed.length ? 'warning' : 'success');
+        Object.values(S.tables).forEach((tb) => tb.selected.clear());
+        refreshCtx();
     };
 }
 
-// ═══════════════ RECEIPT ═══════════════
-function barcode(id) {
-    let x = 4; let bars = '';
-    const s = String(id || 'INV');
-    for (let i = 0; i < s.length * 3 && x < 196; i++) {
-        const c = s.charCodeAt(i % s.length) + i * 7;
-        const w = 1 + (c % 3); const gap = 1 + ((c >> 2) % 3);
-        bars += `<rect x="${x}" y="2" width="${w}" height="34" fill="currentColor"/>`;
-        x += w + gap;
-    }
-    return `<svg class="barcode" viewBox="0 0 200 38" preserveAspectRatio="none" style="color:var(--ink-2)">${bars}</svg>`;
+// ═══════════════ PAY BY REFERENCE ═══════════════
+function payByReference(prefill = '') {
+    const m = openModal(`<div class="modal w600">${mh(t('ref.title', 'Pay Reference'), t('ref.sub', 'Look up an invoice by its reference before paying'), 'hash')}
+        <div class="mb"><div style="display:flex;gap:8px"><input class="input mono" id="refIn" maxlength="24" placeholder="LSPD-7KQ2MZ4P" value="${esc(prefill)}" autofocus style="text-transform:uppercase">
+            <button class="ibtn" style="width:36px;height:36px" data-act="refLookup">${ic('search')}</button></div><div id="refOut"></div></div>
+        <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk" id="refPay" disabled>${t('btn.pay_invoice', 'Pay Invoice')}</button></div></div>`);
+    m.lookup = async () => {
+        const ref = $('#refIn', m.el).value.trim();
+        if (!ref) return;
+        const inv = await call('invoices:lookup', { ref });
+        const out = $('#refOut', m.el);
+        if (!inv) { out.innerHTML = ''; m.inv = null; $('#refPay', m.el).disabled = true; return; }
+        m.inv = inv;
+        out.innerHTML = `<div class="card pad" style="background:var(--inset);display:flex;flex-direction:column;gap:12px">
+            <div class="row3"><div><span class="hint">${t('ref.issued_by', 'Issued by')}</span><div style="font-weight:600;color:var(--white);margin-top:3px">${esc(inv.sender)}</div></div>
+                <div><span class="hint">${t('ref.expires', 'Expires')}</span><div style="font-weight:600;color:var(--white);margin-top:3px">${esc(fmtDate(inv.dueDate))}</div></div>
+                <div style="text-align:right"><span class="hint">${t('table.status', 'Status')}</span><div style="margin-top:3px">${st(inv.status)}</div></div></div>
+            <div><span class="hint">${t('ref.billed_to', 'Billed to')} · <b style="color:var(--ink)">${esc(inv.recipient)}</b></span></div>
+            <div class="totals">${inv.items.map((i) => `<div><span>${esc(i.label)}${num(i.quantity, 1) > 1 ? ' ×' + esc(i.quantity) : ''}</span><b>${money(num(i.amount) * num(i.quantity, 1))}</b></div>`).join('')}
+                <div style="border-top:1px solid var(--line-soft);padding-top:6px"><span>${t('paper.subtotal', 'Subtotal')}</span><b>${money(inv.subtotal)}</b></div>
+                <div><span>${t('paper.vat', 'VAT ({rate})', { rate: pct(inv.vatRate) })}</span><b>${money(inv.vat)}</b></div>
+                ${inv.lateFee > 0 ? `<div><span>${t('paper.late_fee', 'Late fee')}</span><b>${money(inv.lateFee)}</b></div>` : ''}
+                <div class="grand"><span>${isOpen(inv) ? t('paper.remaining_cap', 'Remaining') : t('paper.total_cap', 'Total')}</span><b>${money(isOpen(inv) ? inv.remaining : inv.total + inv.lateFee)}</b></div></div></div>`;
+        $('#refPay', m.el).disabled = !inv.payOptions;
+    };
+    m.ok = () => { if (m.inv && m.inv.payOptions) payInvoice(m.inv.id, m.inv); };
+    if (prefill) m.lookup();
 }
 
-function showReceipt(inv, onClose) {
-    const stamp = { paid: ['PAID', ''], partial: ['PARTIAL', 'amber'], refunded: ['REFUNDED', 'red'], cancelled: ['VOID', 'red'], overdue: ['OVERDUE', 'red'], pending: ['UNPAID', 'amber'], disputed: ['DISPUTED', 'amber'] }[inv.status] || ['', ''];
-    openModal(`<div class="receipt"><div class="receipt-paper">
-        ${stamp[0] ? `<div class="stamp ${stamp[1]}">${stamp[0]}</div>` : ''}
-        <div class="r-head"><div class="mark"></div><h3>${esc(inv.company)}</h3><p style="display:flex;align-items:center;gap:6px">REF ${esc(inv.id)} ${copyBtn(inv.id)}</p><p>${esc(fmtDate(inv.paidAt || inv.createdAt))}</p></div>
-        <div class="r-items">${(inv.items || []).map((i) => `<div class="r-item"><span>${esc(i.quantity)}× ${esc(i.name)}</span><b>${money(i.price * i.quantity)}</b></div>`).join('')}</div>
-        <div class="r-tot"><div><span>Subtotal</span><b>${money(inv.subtotal)}</b></div>
-            ${inv.discount > 0 ? `<div><span>Discount</span><b>−${money(inv.discount)}</b></div>` : ''}
-            <div><span>Tax</span><b>${money(inv.tax)}</b></div>
-            ${inv.lateFee > 0 ? `<div><span>Late fee</span><b>${money(inv.lateFee)}</b></div>` : ''}
-            ${inv.tip > 0 ? `<div><span>Tip</span><b>${money(inv.tip)}</b></div>` : ''}
-            <div class="grand"><span>Total paid</span><b>${money(num(inv.amountPaid) + num(inv.tip))}</b></div></div>
-        <div class="r-foot"><p>Served by ${esc(inv.senderName)} · billed to ${esc(inv.targetName)}</p>${barcode(inv.id)}<p>${esc(inv.footer || 'Thank you for your business!')}</p></div>
-        </div><div class="modal-f"><button class="btn-teal btn-block" data-act="modalClose">${ic('check')}Done</button></div></div>`,
-        { onClose: () => { if (onClose) onClose(); else if (S.mode === 'receipt') { S.mode = null; nui(S.receiptClose || 'close'); S.receiptClose = null; } } });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ADMIN
-// ═══════════════════════════════════════════════════════════════
-function openAdmin(data) {
-    S.admin.data = data;
-    S.currency = S.currency || '$';
-    S.imagePath = data.system?.imagePath || S.imagePath;
-    S.tab = 'overview';
-    S.admin.catalogCompany = S.admin.catalogCompany || data.companies[0]?.id || null;
-    showShell('admin');
-    renderAdmin();
-}
-
-function renderAdmin() {
-    const d = S.admin.data;
-    setBar('Billing Admin', 'Server management', `<span class="dot"></span><p><b>${d.companies.length}</b> companies · <b>${d.registers.length}</b> registers · banking <b>${esc(d.system.banking)}</b></p><span class="ver">v${esc(d.system.version)}</span>${findBox()}`);
-    $('#side').innerHTML = `<div class="who"><div class="av" style="color:var(--teal)">${ic('shield')}</div><div class="who-txt"><b>Administrator</b><span>Full billing access</span></div></div>
-        ${navBtn('overview', 'grid', 'Overview', S.tab === 'overview')}
-        <div class="grp">Setup</div>
-        ${navBtn('companies', 'building', 'Companies', S.tab === 'companies', d.companies.length)}
-        ${navBtn('acatalog', 'box', 'Catalog', S.tab === 'acatalog')}
-        ${navBtn('registers', 'register', 'Registers', S.tab === 'registers', d.registers.length)}
-        <div class="grp">Records</div>
-        ${navBtn('ainvoices', 'list', 'Invoices', S.tab === 'ainvoices', d.stats.disputedCount ? d.stats.disputedCount + ' disputed' : '', 'red')}
-        ${navBtn('logs', 'log', 'Activity log', S.tab === 'logs')}
-        <div class="side-foot"><div class="shift"><span>Framework</span><b>${esc(d.system.framework)}</b></div><div class="shift"><span>Inventory</span><b>${esc(d.system.inventory)}</b></div></div>`;
-    setStatus([['ESC', 'Close'], ['/', 'Search']], `nayzeee-billing · <b>admin</b>`);
-    const views = { overview: viewAdminOverview, companies: viewAdminCompanies, acatalog: viewAdminCatalog, registers: viewAdminRegisters, ainvoices: viewAdminInvoices, logs: viewAdminLogs };
-    (views[S.tab] || viewAdminOverview)();
-}
-
-async function reloadAdmin() {
-    const data = await call('admin:getData');
-    if (!data) return;
-    S.admin.data = data;
-    renderAdmin();
-}
-
-function viewAdminOverview() {
-    const { stats, system } = S.admin.data;
-    const max = Math.max(1, ...stats.byCompany.map((c) => c.revenue));
-    setMain(`
-        <div class="head"><div><h1>Overview</h1><p>Server-wide billing activity.</p></div>${clockHtml()}</div>
-        <div class="stats four">
-            ${stat('receipt', 'Invoices today', esc(stats.invoicesToday))}
-            ${stat('chart', 'Revenue · 7 days', money(stats.revenueWeek))}
-            ${stat('wallet', `Outstanding · ${stats.openCount} open`, money(stats.outstanding), 'off')}
-            ${stat('flag', 'Disputes', esc(stats.disputedCount), stats.disputedCount ? 'amber' : 'off')}
-        </div>
-        <div class="cols">
-            <section class="panel"><div class="p-head"><div><h2>Revenue by company</h2><p>Net payments · last 30 days</p></div></div>
-                <div class="p-body pad" style="gap:14px">${stats.byCompany.length ? stats.byCompany.map((c) => `<div class="hbar"><div class="label-row"><span style="color:var(--ink)">${esc(c.label)}</span><span>${money(c.revenue)}</span></div>
-                    <div class="hbar-track"><i style="width:${Math.max(1.5, c.revenue / max * 100)}%"></i></div></div>`).join('') : emptyState('chart', 'No revenue yet', 'Company payments will show up here.')}</div></section>
-            <section class="panel"><div class="p-head"><div><h2>System</h2><p>Detected integrations</p></div><button class="btn-ghost" data-act="adminReload">${ic('refresh')}Reload</button></div>
-                <div class="p-body pad"><div class="kv">
-                    <div><span>Framework</span><b>${esc(system.framework)}</b></div><div><span>Banking</span><b>${esc(system.banking)}</b></div>
-                    <div><span>Inventory</span><b>${esc(system.inventory)}</b></div><div><span>Version</span><b>v${esc(system.version)}</b></div>
-                    <div><span>Pending payouts</span><b>${money(stats.pendingPayouts)}</b></div><div><span>Open invoices</span><b>${esc(stats.openCount)}</b></div>
-                </div>${system.banking === 'none' ? `<div class="note red" style="margin-top:12px"><b>No banking system</b>Company payments go to the employee who sent the invoice. Set Config.Banking.System to enable company accounts.</div>` : ''}</div></section>
-        </div>`);
-}
-
-function viewAdminCompanies() {
-    const list = S.admin.data.companies;
-    setMain(`
-        <div class="head"><div><h1>Companies</h1><p>Companies from companies.lua and ones created here. Edits are stored in the database.</p></div>
-            <div class="head-actions"><button class="btn-teal" data-act="companyNew">${ic('plus')}New company</button></div></div>
-        <div class="quickbills" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${list.map((c) => `
-            <div class="panel" style="padding:14px;gap:12px">
-                <div style="display:flex;align-items:center;gap:11px"><div class="tile">${ic('building')}</div><div class="row-txt"><b>${esc(c.label)}</b><span>job ${esc(c.job || '—')}${c.jobs?.length ? ' +' + c.jobs.length : ''} · ${esc(c.id)}</span></div><span class="chip">${esc(c.shortName)}</span></div>
-                <div class="kv" style="grid-template-columns:repeat(3,1fr)"><div><span>Tax</span><b>${pct(c.taxRate)}</b></div><div><span>Products</span><b>${c.products.length}</b></div><div><span>Quick</span><b>${c.quickBills.length}</b></div></div>
-                <div style="display:flex;gap:5px;flex-wrap:wrap">${c.allowDiscounts ? '<span class="tag live">Discounts</span>' : ''}${c.allowCustomItems ? '<span class="tag live">Custom items</span>' : ''}${c.allowTips ? '<span class="tag live">Tips</span>' : ''}${c.isConfig ? '<span class="tag off">config</span>' : '<span class="tag warn">custom</span>'}${c.hasOverride && c.isConfig ? '<span class="tag off">edited</span>' : ''}</div>
-                <div style="display:flex;gap:6px"><button class="btn-line" style="flex:1" data-act="companyEdit" data-id="${esc(c.id)}">${ic('edit')}Edit</button>
-                    <button class="btn-line" data-act="companyCatalog" data-id="${esc(c.id)}">${ic('box')}Catalog</button>
-                    ${(!c.isConfig || c.hasOverride) ? `<button class="icon-btn danger" style="height:32px;width:32px" data-act="companyDelete" data-id="${esc(c.id)}" title="${c.isConfig ? 'Reset to companies.lua' : 'Delete'}">${ic(c.isConfig ? 'undo' : 'trash')}</button>` : ''}</div>
-            </div>`).join('')}</div>`);
-}
-
-function companyModal(c) {
-    const isNew = !c; c = c || { taxRate: 0.08, allowDiscounts: true, maxDiscount: 100, allowTips: true, products: [], quickBills: [] };
-    const sw = (id, on, label) => `<div class="sw-line"><span>${label}</span><span class="sw ${on ? 'on' : ''}" data-act="toggle" id="${id}"><i></i></span></div>`;
-    const m = openModal(`<div class="modal xwide">
-        ${modalHead('building', isNew ? 'New company' : 'Edit company', isNew ? 'Create a billing company for a job' : esc(c.label))}
-        <div class="modal-b">
-            <div class="grid3"><div class="field"><label>Company ID</label><input id="fId" value="${esc(c.id)}" ${isNew ? 'autofocus' : 'disabled'} placeholder="burgershot"></div>
-                <div class="field"><label>Name</label><input id="fLabel" value="${esc(c.label)}" maxlength="100" placeholder="Burgershot"></div>
-                <div class="field"><label>Short name</label><input id="fShort" value="${esc(c.shortName)}" maxlength="10" placeholder="BS"></div></div>
-            <div class="grid3"><div class="field"><label>Job</label><input id="fJob" value="${esc(c.job)}" placeholder="burgershot"></div>
-                <div class="field"><label>Extra jobs (comma separated)</label><input id="fJobs" value="${esc((c.jobs || []).join(', '))}" placeholder="burgershot2"></div>
-                <div class="field"><label>Bank account</label><input id="fAccount" value="${esc(c.account)}" placeholder="defaults to job"></div></div>
-            <div class="grid3"><div class="field"><label>Tax %</label><input id="fTax" type="number" min="0" max="100" step="0.1" value="${esc(round2(num(c.taxRate) * 100))}"></div>
-                <div class="field"><label>Commission % (blank = default)</label><input id="fComm" type="number" min="0" max="100" step="0.1" value="${c.commission !== undefined && c.commission !== null ? esc(round2(c.commission * 100)) : ''}"></div>
-                <div class="field"><label>Due days (blank = default)</label><input id="fDue" type="number" min="0" max="365" value="${c.dueDays !== undefined && c.dueDays !== null ? esc(c.dueDays) : ''}"></div></div>
-            <div class="grid3"><div class="field"><label>Min grade to bill</label><input id="fMin" type="number" min="0" value="${esc(c.minGrade || 0)}"></div>
-                <div class="field"><label>Boss grade (blank = framework boss)</label><input id="fBoss" type="number" min="0" value="${c.bossGrade !== undefined && c.bossGrade !== null ? esc(c.bossGrade) : ''}"></div>
-                <div class="field"><label>Max discount %</label><input id="fMaxDisc" type="number" min="0" max="100" value="${esc(c.maxDiscount ?? 100)}"></div></div>
-            <div style="display:grid;grid-template-columns:200px 1fr;gap:12px"><div class="field"><label>Reference prefix</label><input id="fRef" maxlength="6" value="${esc(c.refPrefix)}" placeholder="${esc(c.shortName || 'BS')}"><span class="hint">Invoices become ${esc((c.refPrefix || c.shortName || 'BS').toUpperCase())}-000001</span></div>
-            <div class="field"><label>Discord webhook (this company only)</label><input id="fHook" value="${esc(c.webhook)}" placeholder="https://discord.com/api/webhooks/..."></div></div>
-            <div class="grid3">${sw('fDisc', c.allowDiscounts, 'Allow discounts')}${sw('fCustom', c.allowCustomItems, 'Custom items')}${sw('fTips', c.allowTips, 'Allow tips')}</div>
-        </div>
-        <div class="modal-f"><button class="btn-line" data-act="modalClose">Cancel</button><button class="btn-teal" data-act="modalOk">${ic('check')}${isNew ? 'Create company' : 'Save changes'}</button></div></div>`);
+// ═══════════════ CREATE INVOICE ═══════════════
+async function createInvoice(recipientId) {
+    if (!canCreate()) return;
+    const soc = S.account === 'society';
+    const [tpl, nearby] = await Promise.all([call('templates:list', { account: S.account }), call('getNearby')]);
+    if (!tpl) return;
+    const templates = (tpl.templates || []).filter((x) => x.items.length);
+    const vat = soc ? S.ctx.society.vatRate : S.ctx.settings.personalVat;
+    const allowCustom = soc ? S.ctx.society.allowCustom : S.ctx.settings.personalCustom;
+    const societies = (S.ctx.societies || []).filter((s) => s.billable && (!soc || s.id !== S.ctx.society.id));
+    const state = { type: 'citizen', recipient: recipientId ? String(recipientId) : '', template: templates[0] ? String(templates[0].id) : '', item: '', items: [], custom: false, due: '', notes: '', nearby: nearby || [] };
+    const m = openModal(`<div class="modal w680">${mh(t('create.title', 'Create Invoice'), soc ? t('create.as_society', 'Billing as {name}', { name: S.ctx.society.label }) : t('create.as_personal', 'Personal invoice'), 'send')}
+        <div class="mb" id="ciB"></div><div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk" id="ciGo">${t('btn.create_invoice', 'Create Invoice')}</button></div></div>`);
+    const tplById = (id) => templates.find((x) => String(x.id) === String(id));
+    const render = () => {
+        const tp = tplById(state.template);
+        const recOpts = state.type === 'citizen'
+            ? state.nearby.map((p) => ({ value: p.id, label: p.name, sub: t('create.nearby_sub', 'ID {id} · {d}m', { id: p.id, d: p.distance }) }))
+            : societies.map((s) => ({ value: s.id, label: s.label, sub: s.short }));
+        const totals = state.items.reduce((s, i) => s + i.amount * i.quantity, 0);
+        const vatAmt = r2(totals * vat);
+        const canSociety = soc || S.ctx.settings.personalSocietyRecipients;
+        $('#ciB', m.el).innerHTML = `
+            <div class="row2">
+                <div class="field"><span class="lbl">${t('create.recipient_type', 'Recipient Type')}</span><div class="seg">
+                    <button class="${state.type === 'citizen' ? 'on' : ''}" data-act="ciType" data-v="citizen">${ic('user')}${t('create.citizen', 'Citizen')}</button>
+                    <button class="${state.type === 'society' ? 'on' : ''}" data-act="ciType" data-v="society" ${canSociety ? '' : 'disabled'}>${ic('building')}${t('create.society', 'Society')}</button></div></div>
+                <div class="field"><span class="lbl" style="display:flex;justify-content:space-between">${t('create.recipient', 'Recipient')}${state.type === 'citizen' ? `<button class="link" data-act="ciNearby" style="text-transform:none;letter-spacing:0">${t('btn.refresh', 'Refresh')}</button>` : ''}</span>
+                    ${dd('ciRecipient', { value: state.recipient, options: recOpts, placeholder: state.type === 'citizen' ? t('create.pick_citizen', 'Select a citizen') : t('create.pick_society', 'Select a society'), search: true,
+                        empty: state.type === 'citizen' ? t('create.nobody', 'Nobody nearby') : t('label.no_results', 'No results'), onChange: (v) => { state.recipient = v; render(); } })}</div>
+            </div>
+            <div class="field"><span class="lbl">${t('create.items', 'Invoice Items')}</span>
+                <div style="display:grid;grid-template-columns:1.2fr 1.2fr auto;gap:8px">
+                    ${dd('ciTpl', { value: state.template, options: templates.map((x) => ({ value: x.id, label: x.name, icon: x.icon, color: x.color })), placeholder: t('create.pick_template', 'Template'), onChange: (v) => { state.template = v; state.item = ''; render(); } })}
+                    ${dd('ciItem', { value: state.item, options: (tp ? tp.items : []).map((i) => ({ value: i.id, label: i.label, sub: money(i.amount) })), placeholder: t('create.pick_item', 'Select an item'), search: true, onChange: (v) => { state.item = v; render(); } })}
+                    <button class="btn soft" data-act="ciAdd" ${state.item ? '' : 'disabled'}>${ic('plus')}${t('btn.add_item', 'Add Item')}</button></div></div>
+            <div class="card" style="background:var(--inset)">
+                <table class="t"><thead><tr><th>${t('create.name', 'Name')}</th><th style="width:90px">${t('create.qty', 'Qty')}</th><th class="r">${t('create.value', 'Value')}</th><th class="r" style="width:60px">${t('create.actions', 'Actions')}</th></tr></thead>
+                <tbody>${state.items.length ? state.items.map((i, idx) => `<tr style="cursor:default"><td class="b">${esc(i.label)}${i.custom ? ` <span class="badge mute" style="height:18px">${t('create.custom', 'custom')}</span>` : ''}</td>
+                    <td><div class="stepper" style="width:max-content"><button data-act="ciQty" data-i="${idx}" data-d="-1">${ic('minus')}</button><span>${i.quantity}</span><button data-act="ciQty" data-i="${idx}" data-d="1">${ic('plus')}</button></div></td>
+                    <td class="amt">${money(i.amount * i.quantity)}</td><td class="r"><button class="ibtn sm danger" data-act="ciDel" data-i="${idx}">${ic('trash')}</button></td></tr>`).join('')
+                    : `<tr style="cursor:default"><td colspan="4" style="height:auto">${emptyState('doc', t('create.no_items', 'No items in this invoice'), t('create.no_items_sub', 'Select an item above or add a custom item to get started'))}</td></tr>`}</tbody></table>
+                ${state.custom ? `<div style="display:grid;grid-template-columns:1fr 130px auto auto;gap:8px;padding:10px 12px;border-top:1px solid var(--line-hair)">
+                    <input class="input" id="ciCName" maxlength="60" placeholder="${t('create.custom_name', 'Reason')}" autofocus><input class="input" id="ciCAmt" type="number" min="0" step="0.01" placeholder="${t('create.custom_amount', 'Amount')}">
+                    <button class="btn pri" data-act="ciCustomAdd">${t('btn.add', 'Add')}</button><button class="ibtn" style="height:36px;width:36px" data-act="ciCustomToggle">${ic('x')}</button></div>` : ''}
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--line-hair)">
+                    ${allowCustom && !state.custom ? `<button class="btn soft" data-act="ciCustomToggle">${ic('plus')}${t('btn.add_custom', 'Add Custom Item')}</button>` : ''}
+                    <span style="margin-left:auto;color:var(--ink-2)">${t('create.subtotal_vat', 'Subtotal + VAT ({rate})', { rate: pct(vat) })}</span><b style="color:var(--white);font-size:15px">${money(totals + vatAmt)}</b></div>
+            </div>
+            <div class="row2">
+                ${S.ctx.settings.customDue ? `<div class="field"><span class="lbl">${t('create.due', 'Due in')}</span>${dd('ciDue', { value: state.due, options: [{ value: '', label: t('create.due_default', 'Default ({n} days)', { n: soc ? S.ctx.society.dueDays : S.ctx.settings.dueDays }) }]
+                    .concat(Array.from({ length: S.ctx.settings.maxDueDays }, (_, k) => ({ value: k + 1, label: t('create.days', '{n} day(s)', { n: k + 1 }) }))), onChange: (v) => { state.due = v; render(); } })}</div>` : '<div></div>'}
+                <div class="field"><span class="lbl">${t('create.notes', 'Notes')}</span><input class="input" data-input="ciNotes" maxlength="${S.ctx.settings.maxNote}" placeholder="${t('create.notes_ph', 'Add an optional note to this invoice...')}" value="${esc(state.notes)}"></div>
+            </div>`;
+        $('#ciGo', m.el).disabled = !state.recipient || !state.items.length;
+    };
+    m.ci = state; m.render = render;
+    m.addTemplateItem = () => {
+        const tp = tplById(state.template); const it = tp && tp.items.find((i) => i.id === state.item);
+        if (!it) return;
+        const ex = state.items.find((i) => i.template === tp.id && i.item === it.id);
+        if (ex) ex.quantity = Math.min(S.ctx.settings.maxQuantity, ex.quantity + 1);
+        else state.items.push({ template: tp.id, item: it.id, label: it.label, amount: num(it.amount), quantity: 1 });
+        state.item = ''; render();
+    };
+    m.addCustom = () => {
+        const name = $('#ciCName', m.el).value.trim(); const amount = r2($('#ciCAmt', m.el).value);
+        if (!name || amount <= 0) { toast(t('label.error', 'Error'), t('error.custom_item', 'Enter a reason and an amount'), 'warning'); return; }
+        state.items.push({ label: name, amount, quantity: 1, custom: true }); state.custom = false; render();
+    };
     m.ok = async () => {
-        const v = (id) => $('#' + id, m.el).value;
-        const on = (id) => $('#' + id, m.el).classList.contains('on');
-        const list = await call('admin:saveCompany', { isNew, company: {
-            id: v('fId'), label: v('fLabel'), shortName: v('fShort'), job: v('fJob'), jobs: v('fJobs'), account: v('fAccount'),
-            taxRate: num(v('fTax')), commission: v('fComm'), dueDays: v('fDue'), minGrade: num(v('fMin')), bossGrade: v('fBoss'),
-            maxDiscount: num(v('fMaxDisc'), 100), webhook: v('fHook'), refPrefix: v('fRef'), allowDiscounts: on('fDisc'), allowCustomItems: on('fCustom'), allowTips: on('fTips'),
-        } });
-        if (!list) return;
-        S.admin.data.companies = list; m.close(); toast('Saved', 'Company saved', 'success'); renderAdmin();
+        $('#ciGo', m.el).disabled = true;
+        const res = await call('invoices:create', {
+            account: S.account, recipient: { type: state.type, id: state.recipient }, notes: state.notes, dueDays: state.due ? num(state.due) : null,
+            items: state.items.map((i) => (i.custom ? { label: i.label, amount: i.amount, quantity: i.quantity } : { template: i.template, item: i.item, quantity: i.quantity })),
+        });
+        if (!res) { $('#ciGo', m.el).disabled = false; return; }
+        m.close();
+        toast(t('toast.created', 'Invoice sent'), t('toast.created_body', '{ref} · {amount} to {name}', { ref: res.ref, amount: money(res.total), name: res.recipient }), 'success');
+        refreshCtx();
+    };
+    render();
+}
+
+// ═══════════════ TEMPLATES ═══════════════
+async function pageTemplates(reload) {
+    if (!S.tpl || S.tpl.account !== S.account || reload) {
+        setPage(`<div class="card pad">${skel(6, 44)}</div>`);
+        const d = await call('templates:list', { account: S.account });
+        if (!d || S.page !== 'templates') return;
+        const prev = S.tpl && S.tpl.account === S.account ? S.tpl.active : null;
+        S.tpl = Object.assign(d, { account: S.account, active: prev, search: '', editing: null });
+    }
+    const T = S.tpl;
+    if (!T.templates.find((x) => String(x.id) === String(T.active))) T.active = T.templates[0] ? T.templates[0].id : null;
+    const cur = T.templates.find((x) => String(x.id) === String(T.active));
+    const editable = cur && !cur.global && T.canEdit;
+    const q = T.search.toLowerCase();
+    const items = cur ? cur.items.filter((i) => !q || i.label.toLowerCase().includes(q)) : [];
+    setPage(`<div class="card tcard">
+        <div class="tabs"><div class="tabs-scroll">${T.templates.map((x) => `<button class="tab ${String(x.id) === String(T.active) ? 'on' : ''}" data-act="tplTab" data-id="${esc(x.id)}">${ticon(x.icon, x.color)}${esc(x.name)}</button>`).join('')}</div>
+            ${T.canCreate ? `<button class="newtab" data-act="tplNew">${ic('plus')}${t('tpl.new', 'New Template')}</button>` : ''}</div>
+        ${cur ? `<div class="thead"><h3>${esc(cur.name)}</h3><span class="badge mute">${t('tpl.total_items', '{n} Total Items', { n: cur.items.length })}</span>
+            ${cur.global ? `<span class="badge acc">${t('tpl.global', 'Global')}</span>` : ''}${editable ? `<button class="ibtn sm" data-act="tplEdit" title="${t('tpl.settings', 'Template settings')}">${ic('gear')}</button>` : ''}
+            <div class="r"><label class="search">${ic('search')}<input data-input="tplSearch" placeholder="${t('label.search', 'Search...')}" value="${esc(T.search)}"></label></div></div>
+            <div class="tsub">${cur.global ? t('tpl.global_sub', 'Read-only template available to everyone') : editable ? t('tpl.manage_sub', 'Manage items in this template · drag to reorder') : t('tpl.view_sub', 'Items in this template')}</div>
+            <div class="items" id="tplItems">${items.length ? items.map((i) => itemRow(i, editable)).join('') : ''}${T.editing === 'new' ? itemEditRow({ id: '', label: '', amount: '' }) : ''}
+                ${!items.length && T.editing !== 'new' ? emptyState('box', t('tpl.no_items', 'No items yet'), editable ? t('tpl.no_items_sub', 'Add the first item to this template.') : '') : ''}</div>
+            ${editable ? `<button class="addbar" data-act="tplAddItem">${ic('plus')}${t('btn.add_item', 'Add Item')}</button>` : ''}`
+        : emptyState('copy', t('tpl.none', 'No templates yet'), T.canCreate ? t('tpl.none_sub', 'Create a template to bill with pre-configured items.') : '')}</div>`);
+}
+function itemRow(i, editable) {
+    if (S.tpl.editing === i.id) return itemEditRow(i);
+    return `<div class="irow" ${editable ? `draggable="true" data-drag="${esc(i.id)}"` : ''}>${editable ? `<span class="grip">${ic('grip')}</span>` : ''}<b>${esc(i.label)}</b><span class="amt">${money(i.amount)}</span>
+        ${editable ? `<button class="ibtn sm" data-act="tplItemEdit" data-id="${esc(i.id)}">${ic('edit')}</button><button class="ibtn sm danger" data-act="tplItemDel" data-id="${esc(i.id)}">${ic('trash')}</button>` : ''}</div>`;
+}
+function itemEditRow(i) {
+    return `<div class="irow edit"><input class="input" id="tiLabel" maxlength="60" value="${esc(i.label)}" placeholder="${t('tpl.item_name', 'Item name')}" autofocus>
+        <input class="input" id="tiAmount" type="number" min="0" step="0.01" value="${esc(i.amount)}" placeholder="${t('tpl.item_amount', 'Amount')}" style="width:140px">
+        <button class="btn pri" data-act="tplItemSave" data-id="${esc(i.id)}">${ic('check')}${t('btn.save', 'Save')}</button><button class="ibtn" data-act="tplItemCancel">${ic('x')}</button></div>`;
+}
+function templateModal(tpl) {
+    const state = { name: tpl ? tpl.name : '', icon: tpl ? tpl.icon : 'activity', color: tpl ? tpl.color : 'blue', q: '' };
+    const m = openModal(`<div class="modal w600">${mh(tpl ? t('tpl.edit_title', 'Edit Template') : t('tpl.create_title', 'Create New Template'), '', '')}<div class="mb" id="tmB"></div>
+        <div class="mf">${tpl && S.tpl.canDelete ? `<div class="l"><button class="btn red" data-act="tplDelete">${ic('trash')}${t('btn.delete', 'Delete')}</button></div>` : ''}
+            <button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk">${tpl ? t('btn.save', 'Save') : t('tpl.create', 'Create Template')}</button></div></div>`);
+    const render = (keepFocus) => {
+        const icons = TEMPLATE_ICONS.filter((n) => !state.q || n.includes(state.q.toLowerCase()));
+        $('#tmB', m.el).innerHTML = `<div class="field"><span class="lbl">${t('tpl.name', 'Template Name')}</span><input class="input" data-input="tmName" maxlength="60" value="${esc(state.name)}" placeholder="${t('tpl.name_ph', 'Ex: Business Licenses')}" ${keepFocus ? '' : 'autofocus'}></div>
+            <div class="row2"><div class="field"><span class="lbl">${t('tpl.icon', 'Icon')}</span><label class="search" style="width:100%">${ic('search')}<input data-input="tmIconQ" value="${esc(state.q)}" placeholder="${t('tpl.search_icons', 'Search icons...')}"></label>
+                <div class="icon-grid">${icons.map((n) => `<button class="${state.icon === n ? 'on' : ''}" data-act="tmIcon" data-v="${n}" title="${n}">${ic(n)}</button>`).join('')}</div></div>
+            <div class="field"><span class="lbl">${t('tpl.color', 'Color')}</span><div class="swatches">${TEMPLATE_COLORS.map((c) => `<button class="c-${c} ${state.color === c ? 'on' : ''}" data-act="tmColor" data-v="${c}"></button>`).join('')}</div>
+                <span class="lbl" style="margin-top:8px">${t('tpl.preview', 'Live Preview')}</span><div><span class="preview-chip">${ticon(state.icon, state.color)}${esc(state.name || t('tpl.name_ph', 'Ex: Business Licenses'))}</span></div></div></div>`;
+    };
+    m.tm = state; m.render = render; render();
+    m.ok = async () => {
+        if (!state.name.trim()) { toast(t('label.error', 'Error'), t('error.template_name', 'Give the template a name'), 'warning'); return; }
+        const res = await call('templates:save', { account: S.account, template: { id: tpl ? tpl.id : null, name: state.name, icon: state.icon, color: state.color } });
+        if (!res) return;
+        m.close();
+        S.tpl.active = res.id;
+        pageTemplates(true);
     };
 }
 
-function viewAdminCatalog() {
-    const list = S.admin.data.companies;
-    if (!list.find((c) => c.id === S.admin.catalogCompany)) S.admin.catalogCompany = list[0]?.id || null;
-    const company = catalogCompany();
-    setMain(`<div class="head"><div><h1>Catalog</h1><p>Manage products, categories and quick bills for any company.</p></div>
-        <div class="head-actions"><div class="field" style="width:240px"><select data-change="adminCatalogCompany">${list.map((c) => `<option value="${esc(c.id)}" ${c.id === S.admin.catalogCompany ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select></div></div></div>
-        <div id="catalogEditor" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:0">${company ? catalogEditorHtml(company) : emptyState('building', 'No companies', 'Create a company first.')}</div>`);
+// ═══════════════ ACTIVITY ═══════════════
+const ACTIONS = () => ({
+    invoice_created: ['invoice', t('act.badge.created', 'Created'), 'send'], invoice_received: ['invoice', t('act.badge.received', 'Received'), 'inbox'],
+    invoice_paid: ['payment', t('act.badge.paid', 'Paid Invoice'), 'card'], payment_received: ['payment', t('act.badge.payment', 'Payment'), 'receive'],
+    invoice_collected: ['payment', t('act.badge.collected', 'Collected'), 'wallet'], invoice_refunded: ['payment', t('act.badge.refund', 'Refund'), 'undo'],
+    invoice_cancelled: ['danger', t('act.badge.cancelled', 'Cancelled'), 'ban'], invoice_disputed: ['dispute', t('act.badge.dispute', 'Dispute'), 'flag'],
+    dispute_rejected: ['dispute', t('act.badge.dispute', 'Dispute'), 'flag'], invoice_printed: ['invoice', t('act.badge.print', 'Print'), 'printer'],
+    template_created: ['template', t('act.badge.template', 'Template'), 'copy'], template_updated: ['template', t('act.badge.template', 'Template'), 'copy'],
+    template_deleted: ['template', t('act.badge.template', 'Template'), 'copy'], item_added: ['item', t('act.badge.item', 'Item'), 'box'],
+    item_updated: ['item', t('act.badge.item', 'Item'), 'box'], item_deleted: ['item', t('act.badge.item', 'Item'), 'box'],
+    member_assigned: ['perm', t('act.badge.permission', 'Permission'), 'userkey'], group_updated: ['perm', t('act.badge.permission', 'Permission'), 'userkey'],
+    group_created: ['perm', t('act.badge.permission', 'Permission'), 'userkey'], group_deleted: ['perm', t('act.badge.permission', 'Permission'), 'userkey'],
+    cash_collected: ['payment', t('act.badge.cash', 'Cash'), 'cash'],
+});
+const BADGE_CLS = { invoice: 'acc', payment: 'ok', danger: 'bad', dispute: 'warn', template: 'mute', item: 'warn', perm: 'mute' };
+function activityText(r) {
+    const d = r.data || {};
+    const amt = d.amount !== undefined ? money(d.amount) : '';
+    const map = {
+        invoice_created: [t('act.t.created', 'Created invoice for {target}', { target: d.target || '' }), `${d.ref || ''} · ${amt}`],
+        invoice_received: [t('act.t.received', 'Invoice received from {from}', { from: d.from || '' }), `${d.ref || ''} · ${amt}`],
+        invoice_paid: [t('act.t.paid', 'Paid invoice for {target}', { target: d.target || '' }), `${t('label.amount', 'Amount')}: ${amt}${d.tip ? ' + ' + money(d.tip) : ''}`],
+        payment_received: [t('act.t.payment', 'Payment from {from}', { from: d.from || '' }), `${d.ref || ''} · ${amt}`],
+        invoice_collected: [t('act.t.collected', 'Overdue invoice collected'), `${d.ref || ''} · ${amt}`],
+        invoice_refunded: [t('act.t.refunded', 'Refunded {target}', { target: d.target || '' }), `${d.ref || ''} · ${amt}`],
+        invoice_cancelled: [t('act.t.cancelled', 'Cancelled invoice for {target}', { target: d.target || '' }), `${d.ref || ''}${d.reason ? ' · ' + d.reason : ''}`],
+        invoice_disputed: [t('act.t.disputed', 'Disputed an invoice'), `${d.ref || ''} · ${d.reason || ''}`],
+        dispute_rejected: [t('act.t.rejected', 'Rejected a dispute'), d.ref || ''],
+        invoice_printed: [t('act.t.printed', 'Printed an invoice'), d.ref || ''],
+        template_created: [t('act.t.tpl_created', 'Created a template'), d.name || ''], template_updated: [t('act.t.tpl_updated', 'Updated a template'), d.name || ''],
+        template_deleted: [t('act.t.tpl_deleted', 'Deleted a template'), d.name || ''],
+        item_added: [t('act.t.item_added', 'Added an item'), `${d.name || ''}${d.template ? ' · ' + d.template : ''}`],
+        item_updated: [t('act.t.item_updated', 'Updated an item'), `${d.name || ''}${amt ? ' · ' + amt : ''}`],
+        item_deleted: [t('act.t.item_deleted', 'Deleted an item'), d.name || ''],
+        member_assigned: [t('act.t.member', 'Moved {name} to {group}', { name: d.name || '', group: d.group || '' }), ''],
+        group_updated: [t('act.t.group_updated', 'Updated group permissions'), d.group || ''], group_created: [t('act.t.group_created', 'Created a group'), d.group || ''],
+        group_deleted: [t('act.t.group_deleted', 'Deleted a group'), d.group || ''], cash_collected: [t('act.t.cash', 'Collected cash at the bank'), amt],
+    };
+    return map[r.action] || [r.action.replace(/_/g, ' '), ''];
+}
+async function loadActivity() {
+    const A = S.act;
+    const d = await call('activity:list', { account: S.account, page: A.page, search: A.search, category: A.category });
+    if (!d) return;
+    Object.assign(A, d, { loaded: true });
+    renderActivity();
+}
+function pageActivity() {
+    const A = S.act;
+    if (A.account !== S.account) Object.assign(A, { account: S.account, page: 1, search: '', category: '', loaded: false });
+    setPage(`<div class="card tcard"><div class="tbar"><label class="search">${ic('search')}<input data-input="actSearch" placeholder="${t('label.search', 'Search...')}" value="${esc(A.search)}"></label>
+        <div class="r"><div style="position:relative"><button class="fbtn ${A.category ? 'on' : ''}" data-act="actFilter">${ic('filter')}${t('filter.filters', 'Filters')}${ic('chevron')}${A.category ? '<span class="n">1</span>' : ''}</button></div></div></div>
+        <div class="tscroll" id="actBody">${skel(7, 44)}</div><div class="tfoot" id="actFoot"></div></div>`);
+    loadActivity();
+}
+function renderActivity() {
+    const A = S.act; const body = $('#actBody'); if (!body) return;
+    const acts = ACTIONS();
+    body.innerHTML = A.rows.length ? `<table class="t"><thead><tr><th>${t('act.date', 'Date')}</th><th>${t('act.user', 'User')}</th><th>${t('act.action', 'Action')}</th><th>${t('act.details', 'Details')}</th></tr></thead><tbody>
+        ${A.rows.map((r) => { const a = acts[r.action] || ['mute', r.action, 'file']; const [title, sub] = activityText(r);
+            return `<tr style="cursor:default"><td><b>${esc(fmtDate(r.timestamp))}</b><span class="sub">${esc(fmtTime(r.timestamp))}</span></td><td class="b">${esc(r.player)}</td>
+                <td><span class="badge ${BADGE_CLS[a[0]] || 'mute'}">${esc(a[1])}</span></td><td class="ell" style="max-width:360px"><b>${esc(title)}</b><span class="sub">${esc(sub)}</span></td></tr>`; }).join('')}</tbody></table>`
+        : emptyState('history', t('act.empty', 'No activity yet'), t('act.empty_sub', 'Invoices, payments and changes are recorded here.'));
+    const size = A.pageSize || 8; const n = Math.max(1, Math.ceil(A.total / size));
+    $('#actFoot').innerHTML = `<span>${t('table.showing', 'Showing {from}–{to} of {total}', { from: A.total ? (A.page - 1) * size + 1 : 0, to: Math.min(A.total, A.page * size), total: A.total })}</span><div class="pager">${pager(A.page, n, 'actPage')}</div>`;
 }
 
-function viewAdminRegisters() {
-    const { registers, companies } = S.admin.data;
-    setMain(`
-        <div class="head"><div><h1>Cash registers</h1><p>Registers let employees ring customers up with a live customer display.</p></div></div>
-        <section class="panel"><div class="p-head"><div><h2>Add register at my position</h2><p>Stand where the register should be, then add it</p></div></div>
-            <div class="p-body pad"><div style="display:grid;grid-template-columns:1.4fr 1.2fr 110px auto;gap:10px;align-items:end">
-                <div class="field"><label>Label</label><input id="rLabel" maxlength="100" placeholder="Front counter"></div>
-                <div class="field"><label>Company</label><select id="rCompany">${companies.map((c) => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}</select></div>
-                <div class="field"><label>Radius (m)</label><input id="rRadius" type="number" min="0.5" max="10" step="0.5" value="2"></div>
-                <button class="btn-teal" data-act="registerAdd">${ic('pin')}Add here</button></div></div></section>
-        <section class="panel grow"><div class="p-head"><div><h2>Registers</h2><p>${registers.length} total</p></div></div>
-            <div class="p-body pad">${registers.length ? `<table class="table"><thead><tr><th>Label</th><th>Company</th><th>Coords</th><th>Radius</th><th>Source</th><th></th></tr></thead><tbody>
-            ${registers.map((r) => `<tr><td><b>${esc(r.label)}</b></td><td>${esc(r.companyLabel)}</td><td class="ref">${esc(num(r.coords.x).toFixed(1))}, ${esc(num(r.coords.y).toFixed(1))}, ${esc(num(r.coords.z).toFixed(1))}</td>
-                <td>${esc(r.radius)}m</td><td>${r.source === 'config' ? '<span class="tag off">config</span>' : '<span class="tag live">in-game</span>'}</td>
-                <td class="r"><span style="display:inline-flex;gap:6px"><button class="icon-btn" title="Waypoint" data-act="registerWaypoint" data-id="${esc(r.id)}">${ic('pin')}</button>
-                <button class="icon-btn" title="Teleport" data-act="registerTeleport" data-id="${esc(r.id)}">${ic('teleport')}</button>
-                ${r.source !== 'config' ? `<button class="icon-btn danger" title="Delete" data-act="registerDelete" data-id="${esc(r.id)}">${ic('trash')}</button>` : ''}</span></td></tr>`).join('')}</tbody></table>`
-            : emptyState('register', 'No registers', 'Add one above or define them in config.lua.')}</div></section>`);
+// ═══════════════ PERMISSIONS ═══════════════
+async function pagePermissions(fresh) {
+    if (!S.perms || fresh) {
+        setPage(`<div class="card pad">${skel(3, 50)}</div><div class="card pad">${skel(4, 40)}</div>`);
+        const d = await call('perms:get');
+        if (!d || S.page !== 'permissions') return;
+        const keep = S.perms || {};
+        S.perms = Object.assign(d, { member: keep.member || '', memberGroup: '', editing: keep.editing || null, draft: null });
+    }
+    renderPermissions();
+}
+function renderPermissions() {
+    const Pm = S.perms;
+    const member = Pm.members.find((x) => x.identifier === Pm.member);
+    const groupOpts = Pm.groups.map((g) => ({ value: g.id, label: g.label }));
+    const editing = Pm.groups.find((g) => g.id === Pm.editing);
+    if (editing && !Pm.draft) Pm.draft = Object.assign({}, editing.perms);
+    const accLabel = { full: t('perm.full', 'Full Access'), high: t('perm.high', 'High Access'), normal: t('perm.normal', 'Normal Access'), limited: t('perm.limited', 'Limited Access') };
+    setPage(`<div class="card"><div class="pbar">
+            <div><span class="lbl">${t('perm.select_employee', 'Select Employee')}</span>${dd('pmMember', { value: Pm.member, search: true, placeholder: t('perm.pick_employee', 'Select an employee'),
+                options: Pm.members.map((x) => ({ value: x.identifier, label: x.name + (x.isMe ? ` (${t('label.you', 'you')})` : ''), sub: `${x.gradeLabel || ''} · ${(Pm.groups.find((g) => g.id === x.group) || {}).label || x.group}`, dot: x.online })),
+                onChange: (v) => { Pm.member = v; const mm = Pm.members.find((x) => x.identifier === v); Pm.memberGroup = mm ? mm.group : ''; renderPermissions(); } })}</div>
+            <div><span class="lbl">${t('perm.current_group', 'Current Group')}</span>${dd('pmGroup', { value: Pm.memberGroup || (member ? member.group : ''), options: groupOpts, disabled: !member, placeholder: t('perm.pick_group', 'Select a group'), onChange: (v) => { Pm.memberGroup = v; renderPermissions(); } })}</div>
+            <div><span class="lbl">${t('perm.action', 'Action')}</span><button class="btn soft" data-act="pmApply" ${member && Pm.memberGroup && Pm.memberGroup !== member.group ? '' : 'disabled'}>${ic('save')}${t('perm.apply', 'Apply Group')}</button></div></div></div>
+        <div class="card"><div class="card-h"><span class="lbl" style="letter-spacing:.08em;text-transform:uppercase;font-size:10px;color:var(--ink-3)">${t('perm.groups', 'Groups')}</span>
+            <div class="r"><button class="ibtn sm" data-act="gScroll" data-d="-1">${ic('chevl')}</button><button class="ibtn sm" data-act="gScroll" data-d="1">${ic('chevr')}</button></div></div>
+            <div class="card-b"><div class="gscroll" id="gscroll">${Pm.groups.map((g) => `<button class="gcard ${Pm.editing === g.id ? 'on' : ''}" data-act="pmEdit" data-id="${esc(g.id)}">${ticon(g.icon, g.color, true)}
+                <div><b>${esc(g.label)}</b><span class="acc-badge acc-${esc(g.access)}">${esc(accLabel[g.access] || g.access)}</span></div></button>`).join('')}
+                <button class="gcard add" data-act="pmNewGroup">${ic('plus')}${t('perm.new_group', 'New group')}</button></div></div></div>
+        <div class="card tcard" style="min-height:280px"><div class="card-h"><span class="lbl" style="letter-spacing:.08em;text-transform:uppercase;font-size:10px;color:var(--ink-3)">${t('perm.permissions', 'Permissions')}</span>
+            ${editing ? `<div class="r"><button class="ibtn sm" data-act="pmGroupSettings">${ic('gear')}</button></div>` : ''}</div>
+            <div class="card-b" style="flex:1">${editing ? `<div class="grid-3">${Pm.sections.map((s) => {
+                const on = s.perms.filter((p) => Pm.draft[p.key]).length;
+                return `<div class="psec"><div class="psec-h"><b>${esc(t('perm.section.' + s.id, s.label))}</b><span>${on}/${s.perms.length}</span></div>
+                    ${s.perms.map((p) => `<button class="pcheck" data-act="pmToggle" data-k="${esc(p.key)}"><span class="cbx ${Pm.draft[p.key] ? 'on' : ''}">${ic('check')}</span>${esc(t('perm.key.' + p.key, p.label))}</button>`).join('')}</div>`;
+            }).join('')}</div>` : emptyState('lock', t('perm.select_group', 'Select a group to view permissions'), t('perm.select_group_sub', 'Choose a group from the list above to manage permissions'))}</div>
+            <div class="pfoot">${t('perm.editing', 'Editing Group')}: <b>${esc(editing ? editing.label : t('label.none', 'None'))}</b>
+                <div class="r">${editing && !editing.builtin ? `<button class="btn red" data-act="pmDeleteGroup">${ic('trash')}${t('btn.delete', 'Delete')}</button>` : ''}
+                <button class="btn soft" data-act="pmSave" ${editing ? '' : 'disabled'}>${ic('save')}${t('perm.save', 'Save Changes')}</button></div></div></div>`);
+}
+function groupModal(g) {
+    const state = { label: g ? g.label : '', icon: g ? g.icon : 'users', color: g ? g.color : 'gray', access: g ? g.access : 'normal' };
+    const m = openModal(`<div class="modal w600">${mh(g ? t('perm.group_settings', 'Group settings') : t('perm.new_group', 'New group'), '', 'userkey')}<div class="mb" id="gmB"></div>
+        <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk">${t('btn.save', 'Save')}</button></div></div>`);
+    const render = () => {
+        $('#gmB', m.el).innerHTML = `<div class="row2"><div class="field"><span class="lbl">${t('perm.group_name', 'Group name')}</span><input class="input" data-input="gmLabel" maxlength="40" value="${esc(state.label)}" autofocus></div>
+            <div class="field"><span class="lbl">${t('perm.access', 'Access level')}</span><div class="seg">${['full', 'high', 'normal', 'limited'].map((a) => `<button class="${state.access === a ? 'on' : ''}" data-act="gmAccess" data-v="${a}">${esc(t('perm.acc.' + a, a))}</button>`).join('')}</div></div></div>
+            <div class="row2"><div class="field"><span class="lbl">${t('tpl.icon', 'Icon')}</span><div class="icon-grid">${TEMPLATE_ICONS.map((n) => `<button class="${state.icon === n ? 'on' : ''}" data-act="gmIcon" data-v="${n}">${ic(n)}</button>`).join('')}</div></div>
+            <div class="field"><span class="lbl">${t('tpl.color', 'Color')}</span><div class="swatches">${TEMPLATE_COLORS.map((c) => `<button class="c-${c} ${state.color === c ? 'on' : ''}" data-act="gmColor" data-v="${c}"></button>`).join('')}</div></div></div>`;
+    };
+    m.gm = state; m.render = render; render();
+    m.ok = async () => {
+        const perms = g ? (S.perms.editing === g.id && S.perms.draft ? S.perms.draft : g.perms) : {};
+        const res = await call('perms:saveGroup', { group: { id: g ? g.id : null, label: state.label, icon: state.icon, color: state.color, access: state.access, perms } });
+        if (!res) return;
+        m.close();
+        const editing = S.perms.editing;
+        Object.assign(S.perms, res, { draft: null, editing: g ? editing : (res.groups[res.groups.length - 1] || {}).id });
+        renderPermissions();
+    };
 }
 
-async function loadAdminInvoices(append = false) {
-    const a = S.admin.inv;
-    if (!append) { a.page = 0; a.rows = []; }
-    const data = await call('admin:getInvoices', { status: a.status, companyId: a.companyId || null, search: a.search, page: a.page });
-    if (!data) return;
-    a.rows = append ? a.rows.concat(data.rows) : data.rows;
-    a.hasMore = data.hasMore; a.loaded = true;
-    const el = $('#adminInvList'); if (!el) return;
-    el.innerHTML = a.rows.length ? `<table class="table"><thead><tr><th>Invoice</th><th>Company</th><th>From</th><th>To</th><th>Date</th><th>Status</th><th class="r">Amount</th></tr></thead><tbody>
-        ${a.rows.map((i) => `<tr class="click" data-act="invoice" data-id="${esc(i.id)}"><td><b>${esc(i.id)}</b></td><td class="ell">${esc(i.company)}</td><td class="ell">${esc(i.senderName)}</td><td class="ell">${esc(i.targetName)}</td><td>${esc(fmtDate(i.createdAt))}</td><td>${statusTag(i.status)}</td><td class="r"><b>${money(i.total + i.lateFee)}</b></td></tr>`).join('')}
-        </tbody></table>${a.hasMore ? `<button class="btn-ghost more" data-act="adminInvMore">Load more</button>` : ''}` : emptyState('list', 'No invoices', 'Nothing matches these filters.');
+// ═══════════════ INSPECT ═══════════════
+function pageInspect() {
+    const I = S.insp;
+    const admin = S.ctx.isAdmin;
+    const tabs = `<div class="seg" style="width:${admin ? 330 : 230}px"><button class="${I.tab !== 'registers' && I.type === 'citizen' ? 'on' : ''}" data-act="iType" data-v="citizen">${ic('user')}${t('insp.citizen', 'Citizen')}</button>
+        <button class="${I.tab !== 'registers' && I.type === 'society' ? 'on' : ''}" data-act="iType" data-v="society">${ic('building')}${t('insp.society', 'Society')}</button>
+        ${admin ? `<button class="${I.tab === 'registers' ? 'on' : ''}" data-act="iRegisters">${ic('register')}${t('insp.registers', 'Registers')}</button>` : ''}</div>`;
+    if (I.tab === 'registers') return pageRegisters(tabs);
+    if (I.subject) return renderProfile();
+    setPage(`<div class="card tcard"><div class="tbar">${tabs}
+        <div style="position:relative" id="iSearchWrap"><label class="search">${ic('search')}<input data-input="iSearch" placeholder="${t('label.search', 'Search...')}" value="${esc(I.query)}" autofocus></label></div>
+        <div class="r">${admin && S.ctx.society ? `<button class="btn ${I.jobView ? 'soft' : 'line'}" data-act="iJobView">${ic('userkey')}${t('insp.job_view', 'Job View')}</button>` : ''}</div></div>
+        ${emptyState('search', I.type === 'citizen' ? t('insp.select_citizen', 'Select a Citizen') : t('insp.select_society', 'Select a Society'),
+            I.type === 'citizen' ? t('insp.select_citizen_sub', 'Enter a name or identifier above to find a citizen profile') : t('insp.select_society_sub', 'Search for a society to see its billing history'))}</div>`);
+    if (I.type === 'society' && !I.query) inspectSearch('');
 }
-function viewAdminInvoices() {
-    const a = S.admin.inv;
-    setMain(`<div class="head"><div><h1>Invoices</h1><p>Every invoice on the server. Open one to cancel, refund or resolve it.</p></div>
-        <div class="head-actions"><div class="field" style="width:220px"><select data-change="adminInvCompany"><option value="">All companies</option>${S.admin.data.companies.map((c) => `<option value="${esc(c.id)}" ${a.companyId === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select></div></div></div>
-        <div class="toolbar"><div class="filters">${BOSS_FILTERS.map(([id, l]) => `<button class="fchip ${a.status === id ? 'on' : ''}" data-act="adminInvFilter" data-f="${id}">${l}</button>`).join('')}</div>
-            <label class="search">${ic('search')}<input data-input="adminInvSearch" placeholder="Search invoice, name or company" value="${esc(a.search)}"></label></div>
-        <section class="panel grow"><div class="p-body pad" id="adminInvList">${skeleton(5)}</div></section>`);
-    loadAdminInvoices();
+const inspectSearch = debounce(async (q) => {
+    const I = S.insp;
+    const res = await call('inspect:search', { type: I.type, query: q });
+    I.results = Array.isArray(res) ? res : [];
+    const wrap = $('#iSearchWrap'); if (!wrap || S.page !== 'inspect') return;
+    if (!I.results.length && !q) { closePop(); return; }
+    showPop(wrap, I.results.length ? I.results.map((r) => `<button class="dd-opt" data-act="iPick" data-id="${esc(r.id)}" data-name="${esc(r.name)}">
+        ${I.type === 'society' ? `<span class="av">${initials(r.short)}</span>` : `<span class="dot ${r.online ? 'on' : ''}"></span>`}<span style="flex:1;min-width:0">${esc(r.name)}<small class="mono">${esc(r.id)}${r.serverId ? ' · ID ' + esc(r.serverId) : ''}</small></span></button>`).join('')
+        : `<div class="dd-empty">${t('label.no_results', 'No results')}</div>`, 'results');
+}, 250);
+async function loadProfile() {
+    const I = S.insp; const tb = I.table;
+    const d = await call('inspect:profile', { type: I.subject.type, id: I.subject.id, jobView: I.jobView, page: tb.page, search: tb.search, statuses: tb.statuses, due: tb.due });
+    if (!d) return;
+    Object.assign(tb, { rows: d.rows, total: d.total, counts: d.counts, pageSize: d.pageSize, loaded: true });
+    I.profile = d;
+    renderProfile();
+}
+function renderProfile() {
+    const I = S.insp; const d = I.profile; const tb = I.table;
+    if (!d) { setPage(`<div class="card pad">${skel(6, 44)}</div>`); loadProfile(); return; }
+    const active = tb.statuses.length + (tb.due !== 'all' ? 1 : 0);
+    const size = tb.pageSize || 8; const n = Math.max(1, Math.ceil(tb.total / size));
+    setPage(`<div style="display:flex;align-items:center;gap:10px"><button class="back" data-act="iBack">${ic('chevl')}${t('insp.back', 'Back to search')}</button>
+            <span style="margin-left:auto" class="inspecting">${ic('eye')}${t('insp.inspecting', 'Inspecting {name}', { name: d.subject.name })}${d.subject.identifier ? ` <span class="mono" style="opacity:.75">(${esc(d.subject.identifier)})</span>` : ''}</span>
+            ${d.canClear ? `<button class="btn red" data-act="iClear">${ic('trash')}${t('insp.clear', 'Clear records')}</button>` : ''}</div>
+        <div class="grid-${d.subject.balance !== undefined && d.subject.balance !== null ? 4 : 3}">
+            <div class="card stat">${ic('doc')}<span>${t('insp.total', 'Total Invoices')}</span><b>${d.stats.total}</b></div>
+            <div class="card stat ${d.stats.outstanding > 0 ? 'hot' : ''}">${ic('alert')}<span>${t('insp.outstanding', 'Outstanding')}</span><b>${money(d.stats.outstanding)}</b></div>
+            <div class="card stat">${ic('checkc')}<span>${t('insp.paid', 'Total Paid')}</span><b>${money(d.stats.paid)}</b></div>
+            ${d.subject.balance !== undefined && d.subject.balance !== null ? `<div class="card stat">${ic('wallet')}<span>${t('acct.balance', 'Balance')}</span><b>${money(d.subject.balance)}</b></div>` : ''}</div>
+        <div class="card tcard"><div class="tbar"><h3 style="font-size:14px;font-weight:600;color:var(--white)">${t('insp.history', 'Invoice History')}</h3>${d.subject.scoped ? `<span class="badge acc">${t('insp.job_view', 'Job View')}</span>` : ''}
+            <div class="r"><label class="search">${ic('search')}<input data-input="iTSearch" placeholder="${t('label.search', 'Search...')}" value="${esc(tb.search)}"></label>
+                <div style="position:relative"><button class="fbtn ${active ? 'on' : ''}" data-act="iFilter">${ic('filter')}${t('filter.filters', 'Filters')}${ic('chevron')}${active ? `<span class="n">${active}</span>` : ''}</button></div></div></div>
+            <div class="tscroll">${tb.rows.length ? `<table class="t"><thead><tr><th>${t('insp.type', 'Type')}</th><th>${t('insp.party', 'Sender / Recipient')}</th><th>${t('table.reason', 'Reason')}</th><th class="r">${t('table.amount', 'Amount')}</th><th>${t('table.due', 'Due Date')}</th><th class="r">${t('table.status', 'Status')}</th></tr></thead><tbody>
+                ${tb.rows.map((r) => `<tr data-act="iRow" data-id="${r.id}"><td><span class="type ${r.direction === 'sent' ? 'sent' : ''}">${r.direction === 'sent' ? t('insp.sent', 'Sent') : t('insp.received', 'Received')}</span></td>
+                    <td class="b ell">${esc(r.direction === 'sent' ? r.recipient : r.sender)}</td><td class="ell">${esc(r.reason || '')}<span class="sub mono">${esc(r.ref)}</span></td><td class="amt">${money(r.total + r.lateFee)}</td>
+                    <td>${esc(fmtDate(r.dueDate))}</td><td class="r">${st(r.status)}</td></tr>`).join('')}</tbody></table>` : emptyState('doc', t('insp.no_history', 'No invoices'), '')}</div>
+            <div class="tfoot"><span>${t('table.showing', 'Showing {from}–{to} of {total}', { from: tb.total ? (tb.page - 1) * size + 1 : 0, to: Math.min(tb.total, tb.page * size), total: tb.total })}</span><div class="pager">${pager(tb.page, n, 'iPage')}</div></div></div>`);
+}
+async function pageRegisters(tabs) {
+    const I = S.insp;
+    if (!I.registers) { setPage(`<div class="card pad">${skel(4, 44)}</div>`); I.registers = await call('admin:registers') || []; if (S.page !== 'inspect') return; }
+    const socOpts = (S.ctx.societies || []).map((s) => ({ value: s.id, label: s.label }));
+    I.regSociety = I.regSociety || (socOpts[0] || {}).value;
+    setPage(`<div class="card"><div class="tbar">${tabs}</div><div class="card-b">
+            <div style="display:grid;grid-template-columns:1.3fr 1.3fr 110px auto;gap:10px;align-items:end">
+                <div class="field"><label>${t('reg.label', 'Label')}</label><input id="rLabel" maxlength="100" placeholder="${t('reg.label_ph', 'Front counter')}"></div>
+                <div class="field"><label>${t('reg.society', 'Society')}</label>${dd('regSociety', { value: I.regSociety, options: socOpts, onChange: (v) => { I.regSociety = v; pageInspect(); } })}</div>
+                <div class="field"><label>${t('reg.radius', 'Radius (m)')}</label><input id="rRadius" type="number" min="0.5" max="10" step="0.5" value="2"></div>
+                <button class="btn pri" data-act="regAdd">${ic('pin')}${t('reg.add_here', 'Add at my position')}</button></div></div></div>
+        <div class="card tcard"><div class="tscroll">${I.registers.length ? `<table class="t"><thead><tr><th>${t('reg.label', 'Label')}</th><th>${t('reg.society', 'Society')}</th><th>${t('reg.coords', 'Coords')}</th><th>${t('reg.radius', 'Radius (m)')}</th><th>${t('reg.source', 'Source')}</th><th></th></tr></thead><tbody>
+            ${I.registers.map((r) => `<tr style="cursor:default"><td class="b">${esc(r.label)}</td><td>${esc(r.societyLabel)}</td><td class="mono">${num(r.coords.x).toFixed(1)}, ${num(r.coords.y).toFixed(1)}, ${num(r.coords.z).toFixed(1)}</td><td>${esc(r.radius)}</td>
+                <td>${r.source === 'config' ? `<span class="badge mute">config</span>` : `<span class="badge acc">${t('reg.ingame', 'in-game')}</span>`}</td>
+                <td class="r"><span style="display:inline-flex;gap:6px"><button class="ibtn sm" data-act="regWaypoint" data-id="${esc(r.id)}">${ic('pin')}</button><button class="ibtn sm" data-act="regTeleport" data-id="${esc(r.id)}">${ic('teleport')}</button>
+                ${r.source !== 'config' ? `<button class="ibtn sm danger" data-act="regDelete" data-id="${esc(r.id)}">${ic('trash')}</button>` : ''}</span></td></tr>`).join('')}</tbody></table>`
+        : emptyState('register', t('reg.none', 'No registers'), t('reg.none_sub', 'Add one above or define them in config.lua'))}</div></div>`);
 }
 
-async function loadLogs(append = false) {
-    const l = S.admin.logs;
-    if (!append) { l.page = 0; l.rows = []; }
-    const data = await call('admin:getLogs', { search: l.search, page: l.page });
-    if (!data) return;
-    l.rows = append ? l.rows.concat(data.rows) : data.rows;
-    l.hasMore = data.hasMore;
-    const el = $('#logList'); if (!el) return;
-    const details = (d) => Object.entries(d || {}).filter(([, v]) => typeof v !== 'object').map(([k, v]) => `${k}: ${v}`).join(' · ');
-    el.innerHTML = l.rows.length ? `<table class="table"><thead><tr><th>Time</th><th>Player</th><th>Action</th><th>Details</th></tr></thead><tbody>
-        ${l.rows.map((r) => `<tr><td>${esc(fmtDate(r.timestamp))}</td><td><b>${esc(r.player)}</b></td><td><span class="chip ${/denied|cancel|refund|disput/.test(r.action) ? 'red' : ''}">${esc(r.action.replace(/_/g, ' '))}</span></td><td class="wrap" style="font-size:11px">${esc(details(r.data))}</td></tr>`).join('')}
-        </tbody></table>${l.hasMore ? `<button class="btn-ghost more" data-act="logsMore">Load more</button>` : ''}` : emptyState('log', 'No log entries', 'Billing activity will be recorded here.');
+// ═══════════════ PAPER (item use) ═══════════════
+function showPaper(inv) {
+    if (S.mode !== 'billing') S.mode = 'paper';
+    S.paperInv = inv;
+    openModal(`<div class="modal w380" style="background:transparent;border:0;box-shadow:none;overflow:visible"><div style="padding:4px">${paperHtml(inv, { short: true })}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px"><button class="btn line lg" data-act="mClose">${t('paper.close', 'Close Preview')}</button>
+        <button class="btn pri lg" data-act="paperPay" ${inv.payOptions ? '' : 'disabled'}>${t('btn.pay_invoice', 'Pay Invoice')}</button></div></div>`,
+        { onClose: () => { if (S.mode === 'paper' && !stack.length) hidePaper(); } });
 }
-function viewAdminLogs() {
-    setMain(`<div class="head"><div><h1>Activity log</h1><p>Every invoice, payment, refund and admin action.</p></div></div>
-        <div class="toolbar"><label class="search">${ic('search')}<input data-input="logSearch" placeholder="Search player, action or details" value="${esc(S.admin.logs.search)}"></label></div>
-        <section class="panel grow"><div class="p-body pad" id="logList">${skeleton(6)}</div></section>`);
-    loadLogs();
-}
+function hidePaper() { if (S.mode === 'paper') { S.mode = null; closeModals(); nui('close'); } }
 
-// ═══════════════════════════════════════════════════════════════
-// POS (employee register)
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════ POS ═══════════════
 function openPos(data) {
-    S.pos = { register: data.register, company: data.company, nearby: data.nearby || [], customer: null, items: [], discount: 0, notes: '', status: 'idle', category: 'all', search: '', invoiceId: null, totals: null };
-    S.currency = S.currency || '$';
-    if (data.imagePath) S.imagePath = data.imagePath;
-    showShell('pos');
-    setBar(data.register.label, data.company.label, `<span class="dot pulse"></span><p>Register open · <b>${esc(data.company.shortName)}</b> · ${pct(data.company.taxRate)} tax</p>`);
-    setStatus([['ESC', 'Close register'], ['/', 'Search']], `nayzeee-billing · <b>POS</b>`);
-    const c = data.company;
-    setMain(`<div class="pos-grid">
-        <section class="panel"><div class="p-head"><div><h2>Menu</h2><p>${(c.products || []).length} items</p></div>
-            <label class="search" style="max-width:240px">${ic('search')}<input data-input="posSearch" placeholder="Search menu"></label></div>
-            <div class="p-body pad catalog">${catalogFilters(c.categories, 'all', 'posCategory')}<div class="products" id="posGrid"></div></div></section>
-        <section class="panel"><div class="p-head"><div><h2>Order</h2><p id="posSub">Select a customer to begin</p></div>
-            <button class="btn-ghost danger" data-act="posClear">${ic('trash')}Clear</button></div>
-            <div class="p-body pad" style="gap:14px" id="posBody"></div><div class="p-foot" id="posFoot"></div></section></div>`);
-    renderPosGrid(); renderPos();
+    S.pos = { register: data.register, menu: data.menu || [], vat: num(data.vatRate), nearby: data.nearby || [], customer: null, items: [], status: 'idle', cat: data.menu && data.menu[0] ? data.menu[0].id : null, search: '' };
+    S.mode = 'pos';
+    $('#frame').classList.remove('hidden');
+    $('#side').innerHTML = `<div class="brand"><div class="mark"></div><span>${esc(S.brand)}<b>POS</b></span></div><div class="nav-scroll"><div class="grp">${t('pos.menu', 'Menu')}</div>
+        ${S.pos.menu.map((c) => `<button class="nav ${S.pos.cat === c.id ? 'on' : ''}" data-act="posCat" data-id="${esc(c.id)}">${ticon(c.icon, c.color)}${esc(c.name)}</button>`).join('')}</div>`;
+    $('#top').innerHTML = `<h1>${esc(data.register.label)}</h1><span class="crumb">${esc(data.register.societyLabel)} · ${t('pos.vat', 'VAT {rate}', { rate: pct(S.pos.vat) })}</span>
+        <div class="top-right"><button class="pill-close" data-act="close">${t('pos.close', 'Close register')}</button></div>`;
+    setPage(`<div class="pos-grid"><div class="card tcard"><div class="tbar"><label class="search">${ic('search')}<input data-input="posSearch" placeholder="${t('label.search', 'Search...')}"></label></div>
+        <div class="card-b" style="flex:1;overflow:hidden"><div class="menu-grid" id="posMenu"></div></div></div>
+        <div class="card tcard"><div class="card-h"><h3>${t('pos.order', 'Order')}</h3><div class="r"><button class="ibtn sm danger" data-act="posClear">${ic('trash')}</button></div></div>
+            <div class="card-b" style="flex:1;overflow-y:auto" id="posBody"></div><div class="card-b" id="posFoot" style="border-top:1px solid var(--line-hair)"></div></div></div>`);
+    renderPosMenu(); renderPos();
 }
-
-function posLocked() { return ['checkout'].includes(S.pos.status); }
-
-function renderPosGrid() {
-    const el = $('#posGrid'); if (!el) return;
-    const p = S.pos;
-    const list = filteredProducts(p.company, p.category, p.search);
-    const qm = qtyMap(p.items);
-    el.innerHTML = list.length ? list.map((x) => productCard(x, qm, 'posAdd')).join('') : `<div style="grid-column:1/-1">${emptyState('box', 'No items', 'Nothing matches.')}</div>`;
+function posCatSync() { $$('#side .nav').forEach((b) => b.classList.toggle('on', b.dataset.id === String(S.pos.cat))); }
+function renderPosMenu() {
+    const p = S.pos; const el = $('#posMenu'); if (!el) return;
+    const q = p.search.toLowerCase();
+    const cats = q ? p.menu : p.menu.filter((c) => String(c.id) === String(p.cat));
+    const items = cats.flatMap((c) => c.items.map((i) => ({ ...i, template: c.id }))).filter((i) => !q || i.label.toLowerCase().includes(q));
+    el.innerHTML = items.length ? items.map((i) => { const ex = p.items.find((x) => x.template === i.template && x.item === i.id);
+        return `<button class="mitem" data-act="posAdd" data-t="${esc(i.template)}" data-i="${esc(i.id)}">${ex ? `<span class="q">${ex.quantity}</span>` : ''}<b>${esc(i.label)}</b><span>${money(i.amount)}</span></button>`; }).join('')
+        : `<div style="grid-column:1/-1">${emptyState('box', t('pos.empty_menu', 'No items'), t('pos.empty_menu_sub', 'Add templates for this society to fill the menu.'))}</div>`;
 }
-
+const posLocked = () => S.pos.status === 'checkout';
 function renderPos() {
-    const p = S.pos; const body = $('#posBody'); const foot = $('#posFoot'); if (!body) return;
-    const locked = posLocked();
-    let html = '<div class="field"><div class="label-row"><span>Customer</span>';
-    if (p.customer) {
-        html += `</div><div class="recipient"><div class="av">${initials(p.customer.name)}</div><div class="row-txt"><b>${esc(p.customer.name)}</b><span>Watching the customer display</span></div></div></div>`;
-    } else {
-        html += `<button class="btn-ghost" style="height:22px" data-act="posNearby">${ic('refresh')}Refresh</button></div><div class="results">
-            ${p.nearby.length ? p.nearby.map((n) => `<button class="mini" data-act="posAssign" data-pid="${esc(n.id)}"><div class="av">${initials(n.name)}</div><b>${esc(n.name)}</b><span>${esc(n.distance)}m</span></button>`).join('')
-            : '<div class="label-row" style="padding:6px 2px">No customers at the counter</div>'}</div></div>`;
-    }
-    html += `<div class="field"><div class="label-row"><span>Items</span><span>${p.items.reduce((s, i) => s + i.quantity, 0)} total</span></div><div class="lines">`;
-    html += p.items.length ? p.items.map((it, idx) => `<div class="line"><div class="row-txt"><b>${esc(it.name)}</b><span>${money(it.price)} each</span></div>
-        <div class="stepper"><button data-act="posQty" data-i="${idx}" data-d="-1" ${locked ? 'disabled' : ''}>${ic('minus')}</button><span>${it.quantity}</span><button data-act="posQty" data-i="${idx}" data-d="1" ${locked ? 'disabled' : ''}>${ic('plus')}</button></div>
-        <span class="amt" style="min-width:64px;text-align:right">${money(it.price * it.quantity)}</span></div>`).join('')
-        : `<div class="empty" style="padding:18px">${ic('register')}<span>Tap menu items to add them to the order.</span></div>`;
-    html += '</div></div>';
-    if (p.company.allowDiscounts) html += `<div class="field"><label>Discount % (max ${esc(p.company.maxDiscount)})</label><input type="number" min="0" max="${esc(p.company.maxDiscount)}" data-input="posDiscount" value="${esc(p.discount || '')}" placeholder="0" ${locked ? 'disabled' : ''}></div>`;
-    body.innerHTML = html;
-
-    const t = calcTotals(p.items, p.discount, p.company.taxRate);
-    const statusBox = {
-        idle: ['', 'Select a customer at the counter'],
-        viewing: ['', `<b>${esc(p.customer?.name || '')}</b> can see the order on their display`],
-        checkout: ['wait', `Waiting for <b>${esc(p.customer?.name || '')}</b> to pay ${money(t.total)}`],
-        paid: ['paid', p.lastPaid ? `<b>${esc(p.lastPaid.customer || 'Customer')}</b> paid ${money(p.lastPaid.amount)}${p.lastPaid.tip > 0 ? ` + ${money(p.lastPaid.tip)} tip` : ''}` : 'Paid'],
-        declined: ['bad', 'The customer declined the payment'],
-        left: ['bad', 'The customer left the counter'],
-    }[p.status] || ['', ''];
-    let buttons = '';
-    if (p.status === 'checkout') buttons = `<button class="btn-red btn-lg btn-block" data-act="posVoid">Void checkout</button>`;
-    else if (p.status === 'paid') buttons = `<button class="btn-teal btn-lg btn-block" data-act="posNext">${ic('users')}Next customer</button>`;
-    else buttons = `<button class="btn-teal btn-lg btn-block" data-act="posCharge" ${!p.customer || !p.items.length ? 'disabled' : ''}>${ic('card')}Charge ${money(t.total)}</button>`;
-    foot.innerHTML = `<div class="totals"><div><span>Subtotal</span><b>${money(t.subtotal)}</b></div>
-        ${t.discount > 0 ? `<div class="neg"><span>Discount</span><b>−${money(t.discount)}</b></div>` : ''}
-        <div><span>Tax (${pct(p.company.taxRate)})</span><b>${money(t.tax)}</b></div><div class="grand"><span>Total</span><b>${money(t.total)}</b></div></div>
-        <div class="pos-status ${statusBox[0]}"><span class="dot ${statusBox[0] === 'wait' ? 'amber pulse' : statusBox[0] === 'bad' ? 'red' : ''}"></span><span>${statusBox[1]}</span></div>${buttons}`;
-    const sub = $('#posSub'); if (sub) sub.textContent = p.customer ? `Serving ${p.customer.name}` : 'Select a customer to begin';
+    const p = S.pos; const body = $('#posBody'), foot = $('#posFoot'); if (!body) return;
+    let html = `<div class="field"><span class="lbl" style="display:flex;justify-content:space-between">${t('pos.customer', 'Customer')}${!p.customer ? `<button class="link" data-act="posNearby" style="text-transform:none;letter-spacing:0">${t('btn.refresh', 'Refresh')}</button>` : ''}</span>`;
+    html += p.customer ? `<div class="lrow"><span class="av">${initials(p.customer.name)}</span><div class="tx"><b>${esc(p.customer.name)}</b><span>${t('pos.watching', 'Watching the customer display')}</span></div></div>`
+        : (p.nearby.length ? p.nearby.map((n) => `<button class="lrow click" style="width:100%;text-align:left" data-act="posAssign" data-id="${n.id}"><span class="av gray">${initials(n.name)}</span><div class="tx"><b>${esc(n.name)}</b><span>${esc(n.distance)}m</span></div></button>`).join('')
+            : `<div class="hint" style="padding:6px 2px">${t('pos.nobody', 'No customers at the counter')}</div>`);
+    html += `</div><div class="field"><span class="lbl">${t('pos.items', 'Items')}</span>`;
+    html += p.items.length ? p.items.map((it, idx) => `<div class="line"><div class="tx"><b>${esc(it.label)}</b><span>${money(it.amount)}</span></div>
+        <div class="stepper"><button data-act="posQty" data-i="${idx}" data-d="-1" ${posLocked() ? 'disabled' : ''}>${ic('minus')}</button><span>${it.quantity}</span><button data-act="posQty" data-i="${idx}" data-d="1" ${posLocked() ? 'disabled' : ''}>${ic('plus')}</button></div>
+        <span class="amt" style="font-weight:600;color:var(--white);min-width:60px;text-align:right">${money(it.amount * it.quantity)}</span></div>`).join('')
+        : `<div class="hint" style="padding:6px 2px">${t('pos.tap_items', 'Tap menu items to add them')}</div>`;
+    body.innerHTML = html + '</div>';
+    const sub = p.items.reduce((s, i) => s + i.amount * i.quantity, 0); const vat = r2(sub * p.vat);
+    const line = { idle: ['', t('pos.st_idle', 'Select a customer at the counter')], viewing: ['', t('pos.st_viewing', '{name} can see the order', { name: p.customer ? p.customer.name : '' })],
+        checkout: ['wait', t('pos.st_checkout', 'Waiting for payment of {amount}', { amount: money(sub + vat) })],
+        paid: ['ok', p.lastPaid ? t('pos.st_paid', '{name} paid {amount}', { name: p.lastPaid.customer || '', amount: money(p.lastPaid.amount + (p.lastPaid.tip || 0)) }) : ''],
+        declined: ['bad', t('pos.st_declined', 'The customer declined')], left: ['bad', t('pos.st_left', 'The customer left')] }[p.status];
+    let btn;
+    if (p.status === 'checkout') btn = `<button class="btn red lg block" data-act="posVoid">${t('pos.void', 'Void checkout')}</button>`;
+    else if (p.status === 'paid') btn = `<button class="btn pri lg block" data-act="posNext">${t('pos.next', 'Next customer')}</button>`;
+    else btn = `<button class="btn pri lg block" data-act="posCharge" ${p.customer && p.items.length ? '' : 'disabled'}>${ic('card')}${t('pos.charge', 'Charge {amount}', { amount: money(sub + vat) })}</button>`;
+    foot.innerHTML = `<div class="totals"><div><span>${t('paper.subtotal', 'Subtotal')}</span><b>${money(sub)}</b></div><div><span>${t('paper.vat', 'VAT ({rate})', { rate: pct(p.vat) })}</span><b>${money(vat)}</b></div>
+        <div class="grand"><span>${t('paper.total_cap', 'Total')}</span><b>${money(sub + vat)}</b></div></div><div class="status-line ${line[0]}"><span class="dot ${line[0] === 'ok' ? 'paid' : line[0] === 'wait' ? 'pending' : line[0] === 'bad' ? 'overdue' : ''}"></span>${esc(line[1])}</div>${btn}`;
 }
-
-const syncPos = debounce(async () => {
-    if (!S.pos) return;
-    const res = await api('register:update', { registerId: S.pos.register.id, items: S.pos.items.map((i) => ({ productId: i.productId, quantity: i.quantity })), discount: num(S.pos.discount) });
-    if (!res.ok) toast('Register', res.error, 'error');
-}, 160);
-
-function posChanged() { renderPos(); renderPosGrid(); syncPos(); }
-
-function onPosState(state) {
-    if (!S.pos) return;
-    const p = S.pos;
-    if (state.status === 'paid') {
-        p.status = 'paid'; p.lastPaid = state; p.invoiceId = null; p.customer = null;
-        toast('Payment received', `${state.customer || 'Customer'} paid ${money(state.amount)}${state.tip > 0 ? ` + ${money(state.tip)} tip` : ''}`, 'success');
-    } else if (state.status === 'declined' || state.status === 'left') {
-        p.status = state.status; p.customer = null; p.invoiceId = null;
-        toast('Register', state.status === 'declined' ? 'Customer declined the payment' : 'Customer left the counter', 'warning');
-        call('register:nearby', { registerId: p.register.id }).then((list) => { if (Array.isArray(list) && S.pos) { S.pos.nearby = list; renderPos(); } });
-    }
+const posItems = () => S.pos.items.map((i) => ({ template: i.template, item: i.item, quantity: i.quantity }));
+const syncPos = debounce(async () => { if (!S.pos) return; const r = await api('register:update', { registerId: S.pos.register.id, items: posItems() }); if (!r.ok) toast(t('label.error', 'Error'), r.error, 'error'); }, 150);
+function posChanged() { renderPos(); renderPosMenu(); syncPos(); }
+function onPosState(s) {
+    const p = S.pos; if (!p) return;
+    if (s.status === 'paid') { Object.assign(p, { status: 'paid', lastPaid: s, customer: null }); toast(t('toast.paid', 'Invoice paid'), t('pos.st_paid', '{name} paid {amount}', { name: s.customer || '', amount: money(s.amount + (s.tip || 0)) }), 'success'); }
+    else { Object.assign(p, { status: s.status, customer: null }); call('register:nearby', { registerId: p.register.id }).then((l) => { if (Array.isArray(l) && S.pos) { S.pos.nearby = l; renderPos(); } }); }
     renderPos();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// CUSTOMER DISPLAY
-// ═══════════════════════════════════════════════════════════════
-function displayOpen(data) {
-    S.display = { company: data.company, register: data.register, employee: data.employee, items: [], totals: { subtotal: 0, discount: 0, tax: 0, total: 0 }, stage: 'order', method: 'bank', tipPct: 0 };
+// ═══════════════ CUSTOMER DISPLAY ═══════════════
+function displayOpen(d) { S.display = { society: d.society, register: d.register, employee: d.employee, items: [], totals: {}, stage: 'order', method: 'bank', tip: 0 }; renderDisplay(); }
+function displayUpdate(d) { if (!S.display) return; S.display.items = d.items || []; S.display.totals = d; renderDisplay(); }
+function displayCheckout(d) {
+    if (!S.display) S.display = { society: d.invoice.sender, register: '', employee: d.invoice.senderName, method: 'bank', tip: 0 };
+    Object.assign(S.display, { stage: 'checkout', invoice: d.invoice, items: d.invoice.items });
     renderDisplay();
 }
-function displayUpdate(data) {
-    if (!S.display) return;
-    S.display.items = data.items || [];
-    S.display.totals = data;
-    renderDisplay();
-}
-function displayCheckout(data) {
-    if (!S.display) S.display = { company: data.invoice.company, register: '', employee: data.invoice.senderName, items: [], totals: {}, method: 'bank', tipPct: 0 };
-    Object.assign(S.display, { stage: 'checkout', invoice: data.invoice, allowTips: data.allowTips, items: data.invoice.items, totals: data.invoice });
-    renderDisplay();
-}
-function displayClose() {
-    const d = S.display;
-    if (d && d.stage === 'done') return;
-    S.display = null;
-    $('#display').classList.add('hidden');
-}
-
+function displayClose() { if (S.display && S.display.stage === 'done') return; S.display = null; $('#display').classList.add('hidden'); }
 function renderDisplay() {
-    const d = S.display; const el = $('#display'); if (!d) return;
+    const d = S.display, el = $('#display'); if (!d) return;
     el.classList.remove('hidden');
-    const t = d.totals || {};
-    const lines = (d.items || []).map((i) => `<div class="line"><div class="row-txt"><b>${esc(i.name)}</b><span>${money(i.price)} × ${esc(i.quantity)}</span></div><span class="amt">${money(i.price * i.quantity)}</span></div>`).join('')
-        || `<div class="label-row" style="justify-content:center;padding:22px 0">Waiting for items...</div>`;
-    let state = `<div class="dstate"><span class="dot pulse"></span><span>Served by <b>${esc(d.employee)}</b></span></div>`;
-    let foot = '';
-    if (d.stage === 'order') {
-        foot = `<div class="totals"><div><span>Subtotal</span><b>${money(t.subtotal)}</b></div>${num(t.discount) > 0 ? `<div class="neg"><span>Discount</span><b>−${money(t.discount)}</b></div>` : ''}<div><span>Tax</span><b>${money(t.tax)}</b></div><div class="grand"><span>Total</span><b>${money(t.total)}</b></div></div>
-            <div class="dhint"><span class="key">BACKSPACE</span>&nbsp;Leave the counter (rebindable)</div>`;
-    } else if (d.stage === 'checkout') {
-        const inv = d.invoice;
-        const st = S.ctx?.settings;
-        const tips = d.allowTips ? (st?.tips || [0, 10, 15, 20]) : null;
-        const tip = tips ? round2(inv.total * d.tipPct / 100) : 0;
-        state = `<div class="dstate" style="background:var(--teal-wash)"><span class="dot"></span><span><b>Ready to pay</b> · ${esc(inv.id)}</span></div>`;
-        foot = `<div class="totals"><div><span>Subtotal</span><b>${money(inv.subtotal)}</b></div>${inv.discount > 0 ? `<div class="neg"><span>Discount</span><b>−${money(inv.discount)}</b></div>` : ''}<div><span>Tax</span><b>${money(inv.tax)}</b></div>${tip > 0 ? `<div><span>Tip</span><b>${money(tip)}</b></div>` : ''}<div class="grand"><span>Total</span><b>${money(inv.total + tip)}</b></div></div>
-            <div class="seg"><button class="${d.method === 'bank' ? 'on' : ''}" data-act="dispMethod" data-m="bank">${ic('card')}Card</button><button class="${d.method === 'cash' ? 'on' : ''}" data-act="dispMethod" data-m="cash">${ic('cash')}Cash</button></div>
-            ${tips ? `<div class="tips">${tips.map((x) => `<button class="${d.tipPct === x ? 'on' : ''}" data-act="dispTip" data-v="${x}">${x ? x + '%' : 'No tip'}</button>`).join('')}</div>` : ''}
-            <div style="display:flex;gap:8px"><button class="btn-line btn-lg" data-act="dispDecline">Not now</button><button class="btn-teal btn-lg" style="flex:1" data-act="dispPay" id="dispPayBtn">${ic('check')}Pay ${money(inv.total + tip)}</button></div>`;
-    } else if (d.stage === 'done') {
+    const head = `<div class="dhead"><div class="mark"></div><div><b>${esc(d.society)}</b><span>${esc(d.register || t('disp.title', 'Customer display'))}</span></div></div>`;
+    if (d.stage === 'done') {
         const r = d.result;
-        el.innerHTML = `<div class="dframe"><div class="dshell"><div class="dhead"><div class="mark sm"></div><div class="bar-name"><div class="title-txt">${esc(d.company)}</div><div class="sub">${esc(d.register || 'Checkout')}</div></div></div>
-            <div class="success"><div class="ring">${ic('check')}</div><b>Payment complete</b><span>${money(r.charged)} paid by ${r.method === 'cash' ? 'cash' : 'card'}${r.tip > 0 ? ` · thanks for the ${money(r.tip)} tip!` : ''}</span></div>
-            <div class="dfoot"><div style="display:flex;gap:8px">${r.receipt ? `<button class="btn-line btn-lg" style="flex:1" data-act="dispReceipt">${ic('receipt')}Receipt</button>` : ''}<button class="btn-teal btn-lg" style="flex:1" data-act="dispDone">Done</button></div></div></div></div>`;
+        el.innerHTML = `<div class="dpanel">${head}<div class="success"><div class="ring">${ic('check')}</div><b>${t('disp.complete', 'Payment complete')}</b><span>${money(r.charged)} · ${r.method === 'cash' ? t('label.cash_cap', 'Cash') : t('label.card', 'Card')}</span></div>
+            <div class="dfoot"><button class="btn pri lg block" data-act="dispDone">${t('btn.done', 'Done')}</button></div></div>`;
         return;
     }
-    el.innerHTML = `<div class="dframe"><div class="dshell">
-        <div class="dhead"><div class="mark sm"></div><div class="bar-name" style="min-width:0"><div class="title-txt">${esc(d.company)}</div><div class="sub">${esc(d.register || 'Customer display')}</div></div></div>
-        ${state}<div class="dbody">${lines}</div><div class="dfoot">${foot}</div></div></div>`;
+    const lines = (d.items || []).map((i) => `<div class="line"><div class="tx"><b>${esc(i.label)}</b><span>${money(i.amount)} × ${esc(i.quantity)}</span></div><span style="font-weight:600;color:var(--white)">${money(i.amount * i.quantity)}</span></div>`).join('')
+        || `<div class="hint" style="text-align:center;padding:20px 0">${t('disp.waiting', 'Waiting for items...')}</div>`;
+    let foot;
+    if (d.stage === 'checkout') {
+        const inv = d.invoice; const tipsOn = inv.tipsAllowed; const tip = tipsOn ? r2(inv.total * d.tip / 100) : 0;
+        foot = `<div class="totals"><div><span>${t('paper.subtotal', 'Subtotal')}</span><b>${money(inv.subtotal)}</b></div><div><span>${t('paper.vat', 'VAT ({rate})', { rate: pct(inv.vatRate) })}</span><b>${money(inv.vat)}</b></div>
+            ${tip ? `<div><span>${t('paper.tip', 'Tip')}</span><b>${money(tip)}</b></div>` : ''}<div class="grand"><span>${t('paper.total_cap', 'Total')}</span><b>${money(inv.total + tip)}</b></div></div>
+            <div class="seg"><button class="${d.method === 'bank' ? 'on' : ''}" data-act="dMethod" data-v="bank">${ic('card')}${t('label.card', 'Card')}</button><button class="${d.method === 'cash' ? 'on' : ''}" data-act="dMethod" data-v="cash">${ic('cash')}${t('label.cash_cap', 'Cash')}</button></div>
+            ${tipsOn ? `<div class="tips">${[0, 10, 15, 20].map((x) => `<button class="${d.tip === x ? 'on' : ''}" data-act="dTip" data-v="${x}">${x ? x + '%' : t('pay.no_tip', 'No tip')}</button>`).join('')}</div>` : ''}
+            <div style="display:flex;gap:8px"><button class="btn line lg" data-act="dDecline">${t('disp.not_now', 'Not now')}</button><button class="btn pri lg" style="flex:1" data-act="dPay" id="dPay">${t('btn.pay_amount', 'Pay {amount}', { amount: money(inv.total + tip) })}</button></div>`;
+    } else {
+        const tt = d.totals || {};
+        foot = `<div class="totals"><div><span>${t('paper.subtotal', 'Subtotal')}</span><b>${money(tt.subtotal)}</b></div><div><span>${t('paper.vat', 'VAT ({rate})', { rate: pct(tt.vatRate) })}</span><b>${money(tt.vat)}</b></div>
+            <div class="grand"><span>${t('paper.total_cap', 'Total')}</span><b>${money(tt.total)}</b></div></div><div class="dhint"><span class="key">BACKSPACE</span>${t('disp.leave', 'Leave the counter')}</div>`;
+    }
+    el.innerHTML = `<div class="dpanel">${head}<div class="dstate"><span class="dot ${d.stage === 'checkout' ? 'pending' : 'on'}"></span>${d.stage === 'checkout' ? t('disp.ready', 'Ready to pay') : t('disp.served_by', 'Served by {name}', { name: d.employee })}</div>
+        <div class="dbody">${lines}</div><div class="dfoot">${foot}</div></div>`;
 }
+let dispTimer = null;
+function finishDisplay() { clearTimeout(dispTimer); S.display = null; $('#display').classList.add('hidden'); nui('displayDone'); }
 
-let displayDoneTimer = null;
-function finishDisplay() {
-    clearTimeout(displayDoneTimer);
-    S.display = null;
-    $('#display').classList.add('hidden');
-    nui('displayDone');
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ACTIONS (delegated)
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════ ACTIONS ═══════════════
 const A = {
-    modalClose: () => { const m = topModal(); if (m) m.close(null); },
-    modalOk: () => { const m = topModal(); if (m && m.ok) m.ok(); },
-    tab: (d) => setTab(d.tab),
-    refresh: () => refreshContext(),
-    toggle: (d, el) => el.classList.toggle('on'),
-
-    // bills / invoices
-    billsFilter: (d) => { S.billsFilter = d.f; viewBills(); },
-    invoice: (d) => openInvoice(d.id),
-    pay: (d) => openPay(d.id),
+    mClose: () => { const m = topModal(); if (m) m.close(null); },
+    mOk: () => { const m = topModal(); if (m && m.ok) m.ok(); },
+    close: () => closeUI(),
+    go: (d) => go(d.page),
+    qaToggle: (d, el) => {
+        const wrap = $('#qa');
+        if (openPop && openPop.owner === wrap) { closePop(); return; }
+        const items = [];
+        if (canCreate()) items.push(`<button class="qa-item" data-act="create">${ic('plus')}<span><b>${t('qa.create', 'Create Invoice')}</b><span>${t('qa.create_sub', 'Create a new invoice')}</span></span></button>`);
+        if (S.ctx.settings.payByReference) items.push(`<button class="qa-item" data-act="payRef">${ic('card')}<span><b>${t('qa.pay_ref', 'Pay by Reference')}</b><span>${t('qa.pay_ref_sub', 'Pay an invoice by reference')}</span></span></button>`);
+        showPop(wrap, `<div class="ttl">${t('nav.quick_actions', 'Quick Actions')}</div>${items.join('') || `<div class="dd-empty">${t('qa.none', 'Nothing available')}</div>`}`, 'qa-menu');
+    },
+    acctToggle: () => {
+        if (!S.ctx.society) return;
+        const wrap = $('#acctWrap');
+        if (openPop && openPop.owner === wrap) { closePop(); return; }
+        showPop(wrap, `<div class="ttl">${t('acct.switch', 'Switch account')}</div>
+            <button class="qa-item" data-act="acct" data-v="personal">${ic('user')}<span><b>${t('acct.personal', 'Personal Billing')}</b><span>${money(S.ctx.player.bank)}</span></span></button>
+            <button class="qa-item" data-act="acct" data-v="society">${ic('building')}<span><b>${esc(S.ctx.society.label)}</b><span>${S.ctx.society.balance !== null && S.ctx.society.balance !== undefined ? money(S.ctx.society.balance) : esc(S.ctx.society.group ? S.ctx.society.group.label : '')}</span></span></button>`, 'qa-menu acct-menu');
+    },
+    acct: (d) => { closePop(); if (S.account === d.v) return; S.account = d.v; S.dash = null; S.tpl = null; go(S.page); },
+    create: () => { closePop(); createInvoice(); },
+    payRef: () => { closePop(); payByReference(''); },
+    payAll: async () => {
+        const tb = tableState('received');
+        const res = await call('invoices:list', { account: S.account, box: 'received', page: 1, pageSize: 50, statuses: ['pending', 'partial', 'overdue'] });
+        if (!res || !res.rows.length) return;
+        const rows = res.rows.filter(payableRow);
+        payMany(rows.map((r) => r.id), rows.reduce((s, r) => s + r.remaining, 0));
+        tb.stale = true;
+    },
+    // dropdowns
+    ddOpen: (d, el) => {
+        const wrap = el.closest('.dd');
+        if (openPop && openPop.owner === wrap) { closePop(); return; }
+        const cfg = DD[d.key];
+        const pop = showPop(wrap, `${cfg.search ? `<div class="s"><input data-input="ddSearch" data-key="${esc(d.key)}" placeholder="${t('label.search', 'Search...')}"></div>` : ''}<div class="dd-items">${ddOptions(d.key)}</div>`, 'dd-list');
+        const s = pop.querySelector('input'); if (s) setTimeout(() => s.focus(), 20);
+    },
+    ddPick: (d) => { const cfg = DD[d.key]; closePop(); if (cfg) { cfg.value = d.v; if (cfg.onChange) cfg.onChange(d.v); } },
+    // tables
+    fOpen: (d, el) => {
+        const tb = tableState(S.page);
+        const wrap = el.parentElement;
+        if (openPop && openPop.owner === wrap) { closePop(); return; }
+        filterPop(wrap, tb, (draft) => { Object.assign(tb, draft, { page: 1 }); tb.selected.clear(); pageTable(tb.box); loadTable(tb); });
+    },
+    fStatus: (d) => { const p = openPop && openPop.el; if (!p || !p.draft) return; const i = p.draft.statuses.indexOf(d.s); if (i >= 0) p.draft.statuses.splice(i, 1); else p.draft.statuses.push(d.s); p.rerender(); },
+    fDue: (d) => { const p = openPop && openPop.el; if (!p || !p.draft) return; p.draft.due = d.v; p.rerender(); },
+    fClear: () => { const p = openPop && openPop.el; if (!p || !p.draft) return; p.draft.statuses = []; p.draft.due = 'all'; p.rerender(); },
+    fApply: () => { const p = openPop && openPop.el; if (p && p.apply) p.apply(); },
+    fReset: () => { const tb = tableState(S.page); Object.assign(tb, { statuses: [], due: 'all', page: 1 }); pageTable(tb.box); loadTable(tb); },
+    tPage: (d) => { const tb = tableState(S.page); tb.page = +d.p; loadTable(tb); },
+    sel: (d, el, e) => {
+        e.stopPropagation();
+        const tb = tableState(S.page); const row = tb.rows.find((r) => r.id === +d.id);
+        if (!row || !payableRow(row)) return;
+        if (tb.selected.has(row.id)) tb.selected.delete(row.id); else tb.selected.set(row.id, row);
+        renderTableBody(tb);
+    },
+    selAll: (d, el, e) => {
+        e.stopPropagation();
+        const tb = tableState(S.page); const payable = tb.rows.filter(payableRow);
+        const all = payable.every((r) => tb.selected.has(r.id));
+        payable.forEach((r) => { if (all) tb.selected.delete(r.id); else tb.selected.set(r.id, r); });
+        renderTableBody(tb);
+    },
+    paySelected: () => { const tb = tableState(S.page); const rows = [...tb.selected.values()]; if (rows.length) payMany(rows.map((r) => r.id), rows.reduce((s, r) => s + r.remaining, 0)); },
+    row: (d, el, e) => {
+        const tb = tableState(S.page); const r = tb.rows.find((x) => x.id === +d.id); if (!r) return;
+        const sent = tb.box === 'sent';
+        ctxMenu(e.clientX, e.clientY, [r.reason || r.ref, money(r.remaining || r.total)], [
+            { act: 'view', id: r.id, icon: 'eye', label: t('menu.view', 'View Invoice') },
+            !sent && payableRow(r) && { act: 'pay', id: r.id, icon: 'card', label: t('menu.pay', 'Pay Invoice') },
+            S.ctx.settings.print && { act: 'print', id: r.id, icon: 'printer', label: t('menu.print', 'Print Invoice') },
+            sent && isOpen(r) && r.amountPaid === 0 && { act: 'cancel', id: r.id, icon: 'ban', label: t('menu.cancel', 'Cancel Invoice'), danger: true },
+        ]);
+    },
+    view: (d) => { closePop(); openRail(+d.id); },
+    railClose: () => closeRail(),
+    copyRef: (d) => copyText(d.ref),
+    pay: (d) => { closePop(); payInvoice(+d.id); },
+    paperPay: () => { if (S.paperInv) payInvoice(S.paperInv.id, S.paperInv); },
+    print: async (d) => { closePop(); if (await call('invoices:print', { id: +d.id })) toast(t('toast.printed', 'Invoice printed'), t('toast.printed_body', 'A copy was added to your pockets'), 'success'); },
+    cancel: async (d) => {
+        closePop();
+        const reason = await promptBox({ title: t('menu.cancel', 'Cancel Invoice'), text: t('confirm.cancel', 'The recipient is notified. This cannot be undone.'), placeholder: t('confirm.reason_opt', 'Reason (optional)'), ok: t('btn.cancel_invoice', 'Cancel invoice'), danger: true, icon: 'ban' });
+        if (reason === null) return;
+        if (await call('invoices:cancel', { id: +d.id, reason })) { toast(t('toast.cancelled', 'Invoice cancelled'), '', 'success'); closeRail(); refreshCtx(); }
+    },
     dispute: async (d) => {
-        const reason = await promptBox({ title: 'Dispute invoice', text: 'The company will review your dispute. You will not be able to pay until it is resolved.', placeholder: 'What is wrong with this invoice?', confirm: 'Submit dispute', required: true, icon: 'flag', max: 250 });
+        const reason = await promptBox({ title: t('btn.dispute', 'Dispute'), text: t('confirm.dispute', 'The sender reviews your dispute. You cannot pay until it is resolved.'), placeholder: t('confirm.dispute_ph', 'What is wrong with this invoice?'), required: true, icon: 'flag', max: 250 });
         if (reason === null) return;
-        if (await call('disputeInvoice', { invoiceId: d.id, reason })) { toast('Dispute submitted', 'The company has been notified', 'success'); closeAllModals(); refreshContext(); }
-    },
-    cancelInvoice: async (d) => {
-        const reason = await promptBox({ title: 'Cancel invoice', text: 'The recipient will be notified. This cannot be undone.', placeholder: 'Reason (optional)', confirm: 'Cancel invoice', danger: true, icon: 'alert' });
-        if (reason === null) return;
-        if (await call('cancelInvoice', { invoiceId: d.id, reason })) { toast('Cancelled', `${d.id} was cancelled`, 'success'); afterInvoiceAction(); }
-    },
-    refund: async (d) => {
-        const reason = await promptBox({ title: 'Refund invoice', text: 'The paid amount is taken from the company account and returned to the customer.', placeholder: 'Reason (optional)', confirm: 'Refund', danger: true, icon: 'undo' });
-        if (reason === null) return;
-        const res = await call('boss:refund', { invoiceId: d.id, reason });
-        if (res) { toast('Refunded', `${money(res.amount)} returned to the customer`, 'success'); afterInvoiceAction(); }
+        if (await call('invoices:dispute', { id: +d.id, reason })) { toast(t('toast.disputed', 'Dispute submitted'), '', 'success'); refreshCtx(); }
     },
     resolve: async (d) => {
-        const accept = d.a === 'cancel';
-        const ok = await confirmBox({ title: accept ? 'Accept dispute' : 'Reject dispute', text: accept ? 'The invoice will be cancelled.' : 'The invoice goes back to the customer as payable.', confirm: accept ? 'Accept & cancel' : 'Reject dispute', danger: accept });
-        if (!ok) return;
-        if (await call('boss:resolveDispute', { invoiceId: d.id, action: d.a })) { toast('Dispute resolved', accept ? 'Invoice cancelled' : 'Invoice reinstated', 'success'); afterInvoiceAction(); }
+        const accept = d.a === 'accept';
+        if (!await confirmBox({ title: accept ? t('btn.accept_dispute', 'Accept dispute') : t('btn.reject_dispute', 'Reject dispute'), text: accept ? t('confirm.accept', 'The invoice is cancelled (or refunded if money was paid).') : t('confirm.reject', 'The invoice becomes payable again.'), danger: accept })) return;
+        if (await call('invoices:resolve', { id: +d.id, action: d.a })) { toast(t('toast.resolved', 'Dispute resolved'), '', 'success'); refreshCtx(); }
     },
-    copyRef: (d) => copyText(d.ref),
-    receiptFromDetail: () => { const m = modalStack.find((x) => x.invoice); if (m) showReceipt(m.invoice, () => {}); },
-
-    // history
-    historyFilter: (d) => { S.history.filter = d.f; S.history.rows = []; viewHistory(); },
-    historyMore: () => { S.history.page++; loadHistory(true); },
-
-    // new invoice
-    orderMode: (d) => { S.order.personal = d.m === 'personal'; S.order.items = []; S.order.discount = 0; viewNew(); },
-    productCategory: (d) => { S.order.category = d.f; document.querySelectorAll('[data-act="productCategory"]').forEach((b) => b.classList.toggle('on', b.dataset.f === d.f)); renderProducts(); },
-    addProduct: (d) => { const p = orderCompany()?.products.find((x) => x.id === d.id); if (!p) return; addLine({ productId: p.id, name: p.name, price: num(p.price), image: p.image }); updateOrder(); },
-    addQuick: (d) => { const q = S.ctx.company.quickBills.find((x) => x.id === d.id); if (!q) return; S.order.personal = false; addLine({ quickBillId: q.id, name: q.label, price: num(q.amount) }); toast('Added to order', q.label, 'success'); setTab('new'); },
-    addCustom: () => {
-        const name = $('#customName').value.trim(); const price = round2($('#customPrice').value);
-        if (!name || price <= 0) { toast('Custom item', 'Enter a name and a price', 'warning'); return; }
-        addLine({ name, price, custom: true }); $('#customName').value = ''; $('#customPrice').value = ''; updateOrder();
+    refund: async (d) => {
+        const reason = await promptBox({ title: t('btn.refund', 'Refund'), text: t('confirm.refund', 'Everything paid is returned to whoever paid it, out of the society account.'), placeholder: t('confirm.reason_opt', 'Reason (optional)'), ok: t('btn.refund', 'Refund'), danger: true, icon: 'undo' });
+        if (reason === null) return;
+        const r = await call('invoices:refund', { id: +d.id, reason });
+        if (r) { toast(t('toast.refunded', 'Refunded'), money(r.amount), 'success'); refreshCtx(); }
     },
-    qty: (d) => { const it = S.order.items[+d.i]; if (!it) return; it.quantity += +d.d; if (it.quantity <= 0) S.order.items.splice(+d.i, 1); else it.quantity = Math.min(it.quantity, S.ctx.settings.maxQuantity); updateOrder(); },
-    clearOrder: () => { S.order.items = []; S.order.discount = 0; S.order.notes = ''; updateOrder(); },
-    nearby: () => { S.order.query = ''; loadNearby(); },
-    pickRecipient: (d) => {
-        S.order.recipient = d.ident ? { type: 'offline', identifier: d.ident, name: d.name } : { type: 'online', id: +d.pid, name: d.name };
-        S.order.query = ''; S.order.results = []; renderOrderBody(); renderOrderFoot();
+    adminDelete: async (d) => {
+        closePop();
+        if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.delete', 'Delete this invoice record permanently?'), danger: true, ok: t('btn.delete', 'Delete') })) return;
+        if (await call('admin:delete', { id: +d.id })) { toast(t('toast.deleted', 'Deleted'), '', 'success'); closeRail(); if (S.insp.subject) { S.insp.profile = null; renderProfile(); } else refreshCtx(); }
     },
-    clearRecipient: () => { S.order.recipient = null; renderOrderBody(); renderOrderFoot(); },
-    sendInvoice: () => sendInvoice(),
-
-    // boss
-    dashRefresh: () => { S.boss.dash = null; viewDash(); },
-    bossFilter: (d) => { S.boss.inv.status = d.f; if (S.tab !== 'cinvoices') setTab('cinvoices'); else viewCompanyInvoices(); },
-    bossMore: () => { S.boss.inv.page++; loadBossInvoices(true); },
-
-    // catalog
-    catTab: (d) => { S.boss.catTab = d.t; rerenderCatalog(); },
-    catAdd: () => { const c = catalogCompany(); if (!c) return; const t = S.boss.catTab; if (t === 'products') productModal(c); else if (t === 'categories') categoryModal(c); else quickModal(c); },
-    editProduct: (d) => { const c = catalogCompany(); productModal(c, c.products.find((p) => p.id === d.id)); },
-    editCategory: (d) => { const c = catalogCompany(); categoryModal(c, c.categories.find((x) => x.id === d.id)); },
-    editQuick: (d) => { const c = catalogCompany(); quickModal(c, c.quickBills.find((x) => x.id === d.id)); },
-    deleteProduct: (d) => catalogDelete('catalog:deleteProduct', d.id, 'product'),
-    deleteCategory: (d) => catalogDelete('catalog:deleteCategory', d.id, 'category'),
-    deleteQuick: (d) => catalogDelete('catalog:deleteQuickBill', d.id, 'quick bill'),
-    pickItem: (d) => { const m = topModal(); const input = m && $('#pImage', m.el); if (input) input.value = d.name; const nameInput = m && $('#pName', m.el); if (nameInput && !nameInput.value) nameInput.value = d.label; },
-
-    // admin
-    adminReload: () => reloadAdmin(),
-    companyNew: () => companyModal(null),
-    companyEdit: (d) => companyModal(S.admin.data.companies.find((c) => c.id === d.id)),
-    companyCatalog: (d) => { S.admin.catalogCompany = d.id; setTab('acatalog'); },
-    companyDelete: async (d) => {
-        const c = S.admin.data.companies.find((x) => x.id === d.id);
-        const ok = await confirmBox({ title: c.isConfig ? 'Reset company' : 'Delete company', text: c.isConfig ? `Remove in-game edits to ${c.label} and go back to companies.lua?` : `Delete ${c.label}? Existing invoices are kept.`, confirm: c.isConfig ? 'Reset' : 'Delete', danger: true });
-        if (!ok) return;
-        const list = await call('admin:deleteCompany', { id: d.id });
-        if (list) { S.admin.data.companies = list; renderAdmin(); }
+    // pay modal
+    pMethod: (d) => { const m = topModal(); if (m && m.pay) { m.pay.method = d.m; m.render(); } },
+    pFull: (d) => { const m = topModal(); if (m && m.pay) { m.pay.full = d.v === '1'; m.render(); } },
+    pTip: (d) => { const m = topModal(); if (m && m.pay) { m.pay.tip = +d.v; m.render(); } },
+    pmMethod: (d) => { const m = topModal(); if (m && m.pm) { m.pm.method = d.m; m.render(); } },
+    refLookup: () => { const m = topModal(); if (m && m.lookup) m.lookup(); },
+    // create modal
+    ciType: (d) => { const m = topModal(); if (!m || !m.ci) return; m.ci.type = d.v; m.ci.recipient = ''; m.render(); },
+    ciNearby: async () => { const m = topModal(); if (!m || !m.ci) return; const l = await call('getNearby'); m.ci.nearby = Array.isArray(l) ? l : []; m.render(); },
+    ciAdd: () => { const m = topModal(); if (m && m.addTemplateItem) m.addTemplateItem(); },
+    ciQty: (d) => { const m = topModal(); if (!m || !m.ci) return; const it = m.ci.items[+d.i]; if (!it) return; it.quantity += +d.d; if (it.quantity <= 0) m.ci.items.splice(+d.i, 1); else it.quantity = Math.min(it.quantity, S.ctx.settings.maxQuantity); m.render(); },
+    ciDel: (d) => { const m = topModal(); if (!m || !m.ci) return; m.ci.items.splice(+d.i, 1); m.render(); },
+    ciCustomToggle: () => { const m = topModal(); if (!m || !m.ci) return; m.ci.custom = !m.ci.custom; m.render(); if (m.ci.custom) setTimeout(() => { const i = $('#ciCName', m.el); if (i) i.focus(); }, 20); },
+    ciCustomAdd: () => { const m = topModal(); if (m && m.addCustom) m.addCustom(); },
+    // templates
+    tplTab: (d) => { S.tpl.active = d.id; S.tpl.editing = null; S.tpl.search = ''; pageTemplates(); },
+    tplNew: () => templateModal(null),
+    tplEdit: () => templateModal(S.tpl.templates.find((x) => String(x.id) === String(S.tpl.active))),
+    tplDelete: async () => {
+        if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.tpl_delete', 'Delete this template and its items?'), danger: true, ok: t('btn.delete', 'Delete') })) return;
+        if (await call('templates:delete', { account: S.account, id: S.tpl.active })) { closeModals(); S.tpl.active = null; pageTemplates(true); }
     },
-    registerAdd: async () => {
-        const list = await call('admin:saveRegister', { label: $('#rLabel').value, company: $('#rCompany').value, radius: num($('#rRadius').value, 2) });
-        if (list) { S.admin.data.registers = list; toast('Register added', 'Created at your position', 'success'); renderAdmin(); }
+    tplAddItem: () => { S.tpl.editing = 'new'; pageTemplates(); const el = $('#tplItems'); if (el) el.scrollTop = el.scrollHeight; },
+    tplItemEdit: (d) => { S.tpl.editing = d.id; pageTemplates(); },
+    tplItemCancel: () => { S.tpl.editing = null; pageTemplates(); },
+    tplItemSave: async (d) => {
+        const res = await call('templates:saveItem', { account: S.account, templateId: S.tpl.active, item: { id: d.id || null, label: $('#tiLabel').value, amount: num($('#tiAmount').value) } });
+        if (!res) return;
+        const cur = S.tpl.templates.find((x) => String(x.id) === String(S.tpl.active)); cur.items = res; S.tpl.editing = null; pageTemplates();
     },
-    registerDelete: async (d) => {
-        if (!await confirmBox({ title: 'Delete register', text: 'Remove this register for everyone?', confirm: 'Delete', danger: true })) return;
-        const list = await call('admin:deleteRegister', { id: d.id });
-        if (list) { S.admin.data.registers = list; renderAdmin(); }
+    tplItemDel: async (d) => {
+        if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.item_delete', 'Delete this item?'), danger: true, ok: t('btn.delete', 'Delete') })) return;
+        const res = await call('templates:deleteItem', { account: S.account, templateId: S.tpl.active, itemId: d.id });
+        if (res) { S.tpl.templates.find((x) => String(x.id) === String(S.tpl.active)).items = res; pageTemplates(); }
     },
-    registerTeleport: async (d) => { if (await call('admin:teleport', { id: d.id })) toast('Teleported', 'You are at the register', 'success'); },
-    registerWaypoint: (d) => { const r = S.admin.data.registers.find((x) => x.id === d.id); if (r) { nui('setWaypoint', r.coords); toast('Waypoint set', r.label, 'success'); } },
-    adminInvFilter: (d) => { S.admin.inv.status = d.f; viewAdminInvoices(); },
-    adminInvMore: () => { S.admin.inv.page++; loadAdminInvoices(true); },
-    logsMore: () => { S.admin.logs.page++; loadLogs(true); },
-
+    tmIcon: (d) => { const m = topModal(); if (m && m.tm) { m.tm.icon = d.v; m.render(true); } },
+    tmColor: (d) => { const m = topModal(); if (m && m.tm) { m.tm.color = d.v; m.render(true); } },
+    // activity
+    actPage: (d) => { S.act.page = +d.p; loadActivity(); },
+    actFilter: (d, el) => {
+        const wrap = el.parentElement;
+        if (openPop && openPop.owner === wrap) { closePop(); return; }
+        const cats = [['', t('filter.all', 'All')], ['invoice', t('act.cat.invoice', 'Invoices')], ['payment', t('act.cat.payment', 'Payments')], ['template', t('act.cat.template', 'Templates')], ['item', t('act.cat.item', 'Items')], ['permission', t('act.cat.permission', 'Permissions')]];
+        showPop(wrap, `<h5>${t('act.category', 'Category')}</h5>${cats.map(([v, l]) => `<button class="fopt" data-act="actCat" data-v="${v}"><span class="cbx ${S.act.category === v ? 'on' : ''}">${ic('check')}</span>${esc(l)}</button>`).join('')}`, 'filters');
+    },
+    actCat: (d) => { closePop(); S.act.category = d.v; S.act.page = 1; pageActivity(); },
+    // permissions
+    pmApply: async () => {
+        const Pm = S.perms;
+        const res = await call('perms:assign', { identifier: Pm.member, group: Pm.memberGroup });
+        if (!res) return;
+        Object.assign(Pm, res); Pm.memberGroup = ''; toast(t('toast.group_applied', 'Group applied'), '', 'success'); renderPermissions();
+    },
+    pmEdit: (d) => { S.perms.editing = d.id; S.perms.draft = null; renderPermissions(); },
+    pmToggle: (d) => { const dr = S.perms.draft; if (!dr) return; dr[d.k] = !dr[d.k]; renderPermissions(); },
+    pmSave: async () => {
+        const Pm = S.perms; const g = Pm.groups.find((x) => x.id === Pm.editing); if (!g) return;
+        const res = await call('perms:saveGroup', { group: { id: g.id, label: g.label, icon: g.icon, color: g.color, access: g.access, perms: Pm.draft } });
+        if (!res) return;
+        Object.assign(Pm, res, { draft: null }); toast(t('toast.saved', 'Saved'), g.label, 'success'); renderPermissions();
+    },
+    pmNewGroup: () => groupModal(null),
+    pmGroupSettings: () => groupModal(S.perms.groups.find((x) => x.id === S.perms.editing)),
+    pmDeleteGroup: async () => {
+        if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.group_delete', 'Delete this group? Its members go back to their default group.'), danger: true, ok: t('btn.delete', 'Delete') })) return;
+        const res = await call('perms:deleteGroup', { id: S.perms.editing });
+        if (res) { Object.assign(S.perms, res, { editing: null, draft: null }); renderPermissions(); }
+    },
+    gScroll: (d) => { const el = $('#gscroll'); if (el) el.scrollLeft += (+d.d) * 220; },
+    gmAccess: (d) => { const m = topModal(); if (m && m.gm) { m.gm.access = d.v; m.render(); } },
+    gmIcon: (d) => { const m = topModal(); if (m && m.gm) { m.gm.icon = d.v; m.render(); } },
+    gmColor: (d) => { const m = topModal(); if (m && m.gm) { m.gm.color = d.v; m.render(); } },
+    // inspect
+    iType: (d) => { Object.assign(S.insp, { type: d.v, tab: 'search', subject: null, query: '', results: [] }); closePop(); pageInspect(); },
+    iJobView: () => { S.insp.jobView = !S.insp.jobView; pageInspect(); },
+    iPick: (d) => {
+        closePop();
+        Object.assign(S.insp, { subject: { type: S.insp.type, id: d.id, name: d.name }, profile: null, table: { page: 1, search: '', statuses: [], due: 'all', rows: [], total: 0, counts: {} } });
+        renderProfile();
+    },
+    iBack: () => { S.insp.subject = null; S.insp.profile = null; pageInspect(); },
+    iPage: (d) => { S.insp.table.page = +d.p; loadProfile(); },
+    iFilter: (d, el) => {
+        const wrap = el.parentElement;
+        if (openPop && openPop.owner === wrap) { closePop(); return; }
+        filterPop(wrap, S.insp.table, (draft) => { Object.assign(S.insp.table, draft, { page: 1 }); loadProfile(); });
+    },
+    iRow: (d, el, e) => {
+        const r = S.insp.table.rows.find((x) => x.id === +d.id); if (!r) return;
+        ctxMenu(e.clientX, e.clientY, [r.reason || r.ref, money(r.total)], [
+            { act: 'view', id: r.id, icon: 'eye', label: t('menu.view', 'View Invoice') },
+            S.ctx.isAdmin && isOpen(r) && r.amountPaid === 0 && { act: 'cancel', id: r.id, icon: 'ban', label: t('menu.cancel', 'Cancel Invoice'), danger: true },
+            S.ctx.isAdmin && S.ctx.settings.adminDelete && { act: 'adminDelete', id: r.id, icon: 'trash', label: t('btn.delete', 'Delete'), danger: true },
+        ]);
+    },
+    iClear: async () => {
+        const s = S.insp.profile.subject;
+        if (!await confirmBox({ title: t('insp.clear', 'Clear records'), text: t('confirm.clear', 'Delete every invoice sent or received by {name}? This cannot be undone.', { name: s.name }), danger: true, ok: t('insp.clear', 'Clear records') })) return;
+        const r = await call('admin:clear', { identifier: s.identifier });
+        if (r) { toast(t('toast.cleared', 'Records cleared'), t('toast.cleared_body', '{n} invoice(s) deleted', { n: r.deleted }), 'success'); S.insp.profile = null; renderProfile(); }
+    },
+    iRegisters: () => { S.insp.tab = 'registers'; S.insp.registers = null; pageInspect(); },
+    regAdd: async () => {
+        const list = await call('admin:addRegister', { label: $('#rLabel').value, society: S.insp.regSociety, radius: num($('#rRadius').value, 2) });
+        if (list) { S.insp.registers = list; toast(t('toast.register_added', 'Register added'), '', 'success'); pageInspect(); }
+    },
+    regDelete: async (d) => {
+        if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.register_delete', 'Remove this register for everyone?'), danger: true, ok: t('btn.delete', 'Delete') })) return;
+        const list = await call('admin:deleteRegister', { id: d.id }); if (list) { S.insp.registers = list; pageInspect(); }
+    },
+    regTeleport: async (d) => { if (await call('admin:teleport', { id: d.id })) toast(t('toast.teleported', 'Teleported'), '', 'success'); },
+    regWaypoint: (d) => { const r = (S.insp.registers || []).find((x) => x.id === d.id); if (r) { nui('setWaypoint', r.coords); toast(t('toast.waypoint', 'Waypoint set'), r.label, 'success'); } },
     // POS
-    posCategory: (d) => { S.pos.category = d.f; document.querySelectorAll('[data-act="posCategory"]').forEach((b) => b.classList.toggle('on', b.dataset.f === d.f)); renderPosGrid(); },
+    posCat: (d) => { S.pos.cat = isNaN(+d.id) ? d.id : +d.id; posCatSync(); renderPosMenu(); },
     posAdd: (d) => {
-        if (posLocked()) { toast('Register', 'Void the checkout to change the order', 'warning'); return; }
-        if (S.pos.status === 'paid') { S.pos.items = []; S.pos.discount = 0; }
-        if (['paid', 'declined', 'left'].includes(S.pos.status)) S.pos.status = S.pos.customer ? 'viewing' : 'idle';
-        const p = S.pos.company.products.find((x) => x.id === d.id); if (!p) return;
-        const ex = S.pos.items.find((i) => i.productId === p.id);
-        if (ex) ex.quantity++; else S.pos.items.push({ productId: p.id, name: p.name, price: num(p.price), quantity: 1 });
+        const p = S.pos;
+        if (posLocked()) { toast(t('label.error', 'Error'), t('pos.locked', 'Void the checkout to change the order'), 'warning'); return; }
+        if (p.status === 'paid') p.items = [];
+        if (['paid', 'declined', 'left'].includes(p.status)) p.status = p.customer ? 'viewing' : 'idle';
+        const cat = p.menu.find((c) => String(c.id) === String(d.t)); const it = cat && cat.items.find((i) => i.id === d.i); if (!it) return;
+        const ex = p.items.find((x) => String(x.template) === String(cat.id) && x.item === it.id);
+        if (ex) ex.quantity++; else p.items.push({ template: cat.id, item: it.id, label: it.label, amount: num(it.amount), quantity: 1 });
         posChanged();
     },
     posQty: (d) => { const it = S.pos.items[+d.i]; if (!it) return; it.quantity += +d.d; if (it.quantity <= 0) S.pos.items.splice(+d.i, 1); posChanged(); },
-    posClear: () => { if (posLocked()) return; S.pos.items = []; S.pos.discount = 0; posChanged(); },
-    posNearby: async () => { const list = await call('register:nearby', { registerId: S.pos.register.id }); if (Array.isArray(list)) { S.pos.nearby = list; renderPos(); } },
-    posAssign: async (d) => {
-        const res = await call('register:assign', { registerId: S.pos.register.id, customerId: +d.pid });
-        if (!res) return;
-        S.pos.customer = res.customer; S.pos.status = 'viewing'; renderPos(); syncPos();
-    },
+    posClear: () => { if (posLocked()) return; S.pos.items = []; posChanged(); },
+    posNearby: async () => { const l = await call('register:nearby', { registerId: S.pos.register.id }); if (Array.isArray(l)) { S.pos.nearby = l; renderPos(); } },
+    posAssign: async (d) => { const r = await call('register:assign', { registerId: S.pos.register.id, customerId: +d.id }); if (!r) return; S.pos.customer = r.customer; S.pos.status = 'viewing'; renderPos(); syncPos(); },
     posCharge: async () => {
-        const btn = $('[data-act="posCharge"]'); if (btn) btn.disabled = true;
-        const res = await call('register:charge', { registerId: S.pos.register.id, items: S.pos.items.map((i) => ({ productId: i.productId, quantity: i.quantity })), discount: num(S.pos.discount) });
-        if (!res) { if (btn) btn.disabled = false; return; }
-        S.pos.invoiceId = res.invoiceId; S.pos.status = 'checkout'; renderPos();
+        const r = await call('register:charge', { registerId: S.pos.register.id, items: posItems() });
+        if (!r) return; S.pos.status = 'checkout'; renderPos();
     },
-    posVoid: async () => {
-        const res = await call('register:next', { registerId: S.pos.register.id });
-        if (!res) return;
-        Object.assign(S.pos, { status: 'idle', customer: null, invoiceId: null, nearby: res.nearby || [] });
-        renderPos(); renderPosGrid();
+    posVoid: async () => { const r = await call('register:next', { registerId: S.pos.register.id }); if (!r) return; Object.assign(S.pos, { status: 'idle', customer: null, nearby: r.nearby || [] }); renderPos(); },
+    posNext: async () => { const r = await call('register:next', { registerId: S.pos.register.id }); if (!r) return; Object.assign(S.pos, { status: 'idle', customer: null, items: [], nearby: r.nearby || [] }); renderPos(); renderPosMenu(); },
+    // display
+    dMethod: (d) => { S.display.method = d.v; renderDisplay(); },
+    dTip: (d) => { S.display.tip = +d.v; renderDisplay(); },
+    dPay: async () => {
+        const ds = S.display; const b = $('#dPay'); if (b) b.disabled = true;
+        const r = await call('display:pay', { method: ds.method, tip: ds.invoice.tipsAllowed ? r2(ds.invoice.total * ds.tip / 100) : 0 });
+        if (!r) { if (b) b.disabled = false; return; }
+        ds.stage = 'done'; ds.result = r; renderDisplay(); dispTimer = setTimeout(finishDisplay, 6000);
     },
-    posNext: async () => {
-        const res = await call('register:next', { registerId: S.pos.register.id });
-        if (!res) return;
-        Object.assign(S.pos, { status: 'idle', customer: null, invoiceId: null, items: [], discount: 0, nearby: res.nearby || [] });
-        renderPos(); renderPosGrid();
-    },
-
-    // customer display
-    dispMethod: (d) => { S.display.method = d.m; renderDisplay(); },
-    dispTip: (d) => { S.display.tipPct = +d.v; renderDisplay(); },
-    dispPay: async () => {
-        const dsp = S.display; const btn = $('#dispPayBtn'); if (btn) btn.disabled = true;
-        const res = await call('display:pay', { method: dsp.method, tip: dsp.allowTips ? round2(dsp.invoice.total * dsp.tipPct / 100) : 0 });
-        if (!res) { if (btn) btn.disabled = false; return; }
-        dsp.stage = 'done'; dsp.result = res; renderDisplay();
-        displayDoneTimer = setTimeout(finishDisplay, 8000);
-    },
-    dispDecline: () => { S.display = null; $('#display').classList.add('hidden'); nui('displayDecline'); },
+    dDecline: () => { S.display = null; $('#display').classList.add('hidden'); nui('displayDecline'); },
     dispDone: () => finishDisplay(),
-    dispReceipt: () => {
-        clearTimeout(displayDoneTimer);
-        const receipt = S.display.result.receipt;
-        S.display = null; $('#display').classList.add('hidden');
-        S.mode = 'receipt'; S.receiptClose = 'displayDone';
-        showReceipt(receipt);
-    },
 };
 
-async function catalogDelete(rpc, id, label) {
-    const c = catalogCompany(); if (!c) return;
-    if (!await confirmBox({ title: `Delete ${label}`, text: `Delete this ${label} from ${c.label}?`, confirm: 'Delete', danger: true })) return;
-    const res = await call(rpc, { companyId: c.id, id });
-    if (res) applyCatalogResult(res);
-}
-
-function afterInvoiceAction() {
-    closeAllModals();
-    if (S.mode === 'billing') refreshContext();
-    else if (S.mode === 'admin' && S.tab === 'ainvoices') loadAdminInvoices();
-}
-
-// ═══════════════ INPUT HANDLERS ═══════════════
-const searchPlayers = debounce(async (q) => {
-    if (!q) { S.order.results = []; const r = $('#playerResults'); if (r) r.innerHTML = playerResultsHtml(); return; }
-    const data = await call('searchPlayers', { query: q });
-    if (S.order.query !== q) return;
-    S.order.results = Array.isArray(data) ? data : [];
-    const r = $('#playerResults'); if (r) r.innerHTML = playerResultsHtml();
-}, 300);
-const reloadHistory = debounce(() => loadHistory(), 300);
-const reloadBoss = debounce(() => loadBossInvoices(), 300);
-const reloadAdminInv = debounce(() => loadAdminInvoices(), 300);
-const reloadLogs = debounce(() => loadLogs(), 300);
-const showItems = debounce(async (q, m) => {
-    const items = await ensureItems();
-    const box = m && $('#itemResults', m.el); if (!box) return;
-    const ql = q.toLowerCase();
-    const list = items.filter((i) => !ql || i.name.toLowerCase().includes(ql) || String(i.label).toLowerCase().includes(ql)).slice(0, 24);
-    box.innerHTML = list.length ? list.map((i) => `<button class="mini" data-act="pickItem" data-name="${esc(i.name)}" data-label="${esc(i.label)}"><div class="av" style="overflow:hidden"><img src="${esc(imgUrl(i.name))}" alt="" style="max-width:20px;max-height:20px" onerror="this.remove()"></div><b>${esc(i.label)}</b><span>${esc(i.name)}</span></button>`).join('')
-        : '<div class="label-row">No matching items</div>';
-}, 200);
-
+// ═══════════════ INPUTS ═══════════════
+const reloadTable = debounce(() => { const tb = tableState(S.page); tb.page = 1; loadTable(tb); }, 300);
+const reloadAct = debounce(() => { S.act.page = 1; loadActivity(); }, 300);
+const reloadProfile = debounce(() => { S.insp.table.page = 1; loadProfile(); }, 300);
 const INPUTS = {
-    historySearch: (v) => { S.history.search = v; reloadHistory(); },
-    productSearch: (v) => { S.order.search = v; renderProducts(); },
-    playerSearch: (v) => { S.order.query = v.trim(); searchPlayers(S.order.query); },
-    discount: (v) => { const c = orderCompany(); S.order.discount = Math.max(0, Math.min(num(v), c ? num(c.maxDiscount, 100) : 0)); renderOrderFoot(); },
-    notes: (v) => { S.order.notes = v; },
-    bossSearch: (v) => { S.boss.inv.search = v; reloadBoss(); },
-    adminInvSearch: (v) => { S.admin.inv.search = v; reloadAdminInv(); },
-    logSearch: (v) => { S.admin.logs.search = v; reloadLogs(); },
-    itemSearch: (v) => showItems(v, topModal()),
-    payAmount: (v) => { const m = topModal(); if (m && m.payState) { m.payState.amount = v; const pos = document.activeElement; m.render(); const inp = $('[data-input="payAmount"]', m.el); if (inp && pos) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } } },
-    posSearch: (v) => { S.pos.search = v; renderPosGrid(); },
-    posDiscount: (v) => { S.pos.discount = Math.max(0, Math.min(num(v), num(S.pos.company.maxDiscount, 100))); renderPos(); const inp = $('[data-input="posDiscount"]'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } syncPos(); },
+    tSearch: (v) => { tableState(S.page).search = v; reloadTable(); },
+    actSearch: (v) => { S.act.search = v; reloadAct(); },
+    iSearch: (v) => { S.insp.query = v; inspectSearch(v); },
+    iTSearch: (v) => { S.insp.table.search = v; reloadProfile(); },
+    tplSearch: (v) => { S.tpl.search = v; const el = $('#tplItems'); const cur = S.tpl.templates.find((x) => String(x.id) === String(S.tpl.active)); if (el && cur) el.innerHTML = cur.items.filter((i) => !v || i.label.toLowerCase().includes(v.toLowerCase())).map((i) => itemRow(i, !cur.global && S.tpl.canEdit)).join(''); },
+    ddSearch: (v, el) => { const box = el.closest('.pop').querySelector('.dd-items'); if (box) box.innerHTML = ddOptions(el.dataset.key, v); },
+    pAmount: (v) => { const m = topModal(); if (m && m.pay) { m.pay.amount = v; m.render(); const i = $('[data-input="pAmount"]', m.el); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } } },
+    ciNotes: (v) => { const m = topModal(); if (m && m.ci) m.ci.notes = v; },
+    tmName: (v) => { const m = topModal(); if (m && m.tm) { m.tm.name = v; const c = $('.preview-chip', m.el); if (c) c.lastChild.textContent = v || t('tpl.name_ph', 'Ex: Business Licenses'); } },
+    tmIconQ: (v) => { const m = topModal(); if (m && m.tm) { m.tm.q = v; m.render(true); const i = $('[data-input="tmIconQ"]', m.el); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } } },
+    gmLabel: (v) => { const m = topModal(); if (m && m.gm) m.gm.label = v; },
+    posSearch: (v) => { S.pos.search = v; renderPosMenu(); },
 };
-const CHANGES = {
-    dueDays: (v) => { S.order.dueDays = v; },
-    adminCatalogCompany: (v) => { S.admin.catalogCompany = v; viewAdminCatalog(); },
-    adminInvCompany: (v) => { S.admin.inv.companyId = v; loadAdminInvoices(); },
-};
-
-// pay modal / misc actions that need the current modal
-Object.assign(A, {
-    payMethod: (d) => { const m = topModal(); if (m?.payState) { m.payState.method = d.m; m.render(); } },
-    payFull: (d) => { const m = topModal(); if (m?.payState) { m.payState.full = d.v === '1'; m.render(); } },
-    payTip: (d) => { const m = topModal(); if (m?.payState) { m.payState.tipPct = +d.v; m.payState.tipCustom = null; m.render(); } },
-});
 
 document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
+    if (openPop && (!el || !openPop.el.contains(el)) && !(el && openPop.owner && openPop.owner.contains(el))) {
+        if (!e.target.closest('.pop') && !e.target.closest('.ctx')) closePop();
+    }
     if (!el || el.disabled) return;
     const fn = A[el.dataset.act];
     if (fn) { e.preventDefault(); fn(el.dataset, el, e); }
 });
-document.addEventListener('input', (e) => {
-    const key = e.target.dataset?.input;
-    if (key && INPUTS[key]) INPUTS[key](e.target.value, e.target);
-});
-document.addEventListener('change', (e) => {
-    const key = e.target.dataset?.change;
-    if (key && CHANGES[key]) CHANGES[key](e.target.value, e.target);
-});
-$('#closeBtn').addEventListener('click', () => closeCurrent());
-
-function closeCurrent() {
-    if (S.mode === 'pos') {
-        S.pos = null; hideShell(); nui('posClose');
-    } else if (S.mode === 'billing' || S.mode === 'admin') {
-        hideShell(); nui('close');
-    }
-}
-
+document.addEventListener('input', (e) => { const k = e.target.dataset && e.target.dataset.input; if (k && INPUTS[k]) INPUTS[k](e.target.value, e.target); });
 document.addEventListener('keydown', (e) => {
-    const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-    if (e.key === 'Enter' && e.target?.dataset && 'refFind' in e.target.dataset) {
-        e.preventDefault();
-        findByReference(e.target.value);
-        e.target.value = '';
-        e.target.blur();
-        return;
-    }
+    const typing = ['INPUT', 'TEXTAREA'].includes(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Escape') {
         e.preventDefault();
+        if (openPop) { closePop(); return; }
         if (topModal()) { topModal().close(null); return; }
-        if (S.display && S.display.stage === 'checkout' && !S.mode) { A.dispDecline(); return; }
+        if (S.rail) { closeRail(); return; }
+        if (S.display && S.display.stage === 'checkout' && !S.mode) { A.dDecline(); return; }
         if (S.display && S.display.stage === 'done' && !S.mode) { finishDisplay(); return; }
-        closeCurrent();
+        if (S.mode === 'paper') { hidePaper(); return; }
+        if (S.mode) closeUI();
         return;
     }
-    if (e.key === '/' && !typing && S.mode) {
-        const input = document.querySelector('#main .search input');
-        if (input) { e.preventDefault(); input.focus(); }
+    if (e.key === 'Enter') {
+        if (document.activeElement && document.activeElement.id === 'refIn') { e.preventDefault(); A.refLookup(); return; }
+        if (document.activeElement && ['tiLabel', 'tiAmount'].includes(document.activeElement.id)) { e.preventDefault(); const b = $('[data-act="tplItemSave"]'); if (b) A.tplItemSave(b.dataset); return; }
+        if (document.activeElement && ['ciCName', 'ciCAmt'].includes(document.activeElement.id)) { e.preventDefault(); A.ciCustomAdd(); return; }
+        if (!typing && topModal() && topModal().ok) { topModal().ok(); }
     }
-    if (e.key === 'Enter' && !typing && topModal()?.ok) { topModal().ok(); }
-    else if (e.key === 'Enter' && S.mode === 'billing' && S.tab === 'new' && !typing) { sendInvoice(); }
 });
 
-// ═══════════════ MESSAGES FROM LUA ═══════════════
-window.addEventListener('message', (event) => {
-    const { action, data } = event.data || {};
+// drag & drop reorder (templates)
+let dragId = null;
+document.addEventListener('dragstart', (e) => { const r = e.target.closest('[data-drag]'); if (!r) return; dragId = r.dataset.drag; r.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+document.addEventListener('dragend', (e) => { const r = e.target.closest('[data-drag]'); if (r) r.classList.remove('dragging'); $$('.irow.over').forEach((x) => x.classList.remove('over')); });
+document.addEventListener('dragover', (e) => { const r = e.target.closest('[data-drag]'); if (!r || !dragId) return; e.preventDefault(); $$('.irow.over').forEach((x) => x !== r && x.classList.remove('over')); r.classList.add('over'); });
+document.addEventListener('drop', async (e) => {
+    const r = e.target.closest('[data-drag]'); if (!r || !dragId || r.dataset.drag === dragId) return;
+    e.preventDefault();
+    const cur = S.tpl.templates.find((x) => String(x.id) === String(S.tpl.active));
+    const from = cur.items.findIndex((i) => i.id === dragId), to = cur.items.findIndex((i) => i.id === r.dataset.drag);
+    const [moved] = cur.items.splice(from, 1); cur.items.splice(to, 0, moved);
+    dragId = null; pageTemplates();
+    const res = await call('templates:reorder', { account: S.account, templateId: cur.id, order: cur.items.map((i) => i.id) });
+    if (res) cur.items = res;
+});
+
+// ═══════════════ MESSAGES ═══════════════
+window.addEventListener('message', (ev) => {
+    const { action, data } = ev.data || {};
     switch (action) {
-        case 'open': openBilling(data); break;
-        case 'openAdmin': openAdmin(data); break;
-        case 'close': hideShell(); break;
+        case 'init':
+            S.locale = data.locale || {}; S.currency = data.currency || '$'; S.currencyPos = data.currencyPosition || 'before';
+            S.title = data.title || 'Billing'; S.brand = data.brand || 'NAYZEEE'; S.clock = data.clock !== false;
+            applyColors(data.colors); break;
+        case 'open': open(data); break;
+        case 'navigate': if (data.page) go(data.page); handleExtra(data.extra); break;
+        case 'close': hide(); break;
         case 'toast': toast(data.title, data.message, data.type); break;
-        case 'refresh': if (S.mode === 'billing') refreshContext(); else if (S.mode === 'admin') reloadAdmin(); break;
-        case 'invoiceNew':
-            if (S.mode === 'billing' && S.ctx) {
-                S.ctx.invoices.unshift(data); S.ctx.stats.open++; S.ctx.stats.owed = round2(S.ctx.stats.owed + data.remaining);
-                if (['home', 'bills'].includes(S.tab)) renderBilling();
-            }
-            break;
-        case 'receipt':
-            if (!S.mode) { S.mode = 'receipt'; S.receiptClose = 'close'; }
-            showReceipt(data);
-            break;
-        case 'openInvoice': if (S.mode === 'billing' || S.mode === 'admin') openInvoice(data); break;
+        case 'refresh': refreshCtx(); break;
+        case 'paper': showPaper(data); break;
         case 'posOpen': openPos(data); break;
         case 'posState': onPosState(data); break;
         case 'displayOpen': displayOpen(data); break;
@@ -1645,80 +1573,89 @@ window.addEventListener('message', (event) => {
         case 'displayClose': displayClose(); break;
     }
 });
+if (IN_GAME) nui('uiReady');
 
 // ═══════════════════════════════════════════════════════════════
-// BROWSER PREVIEW (only runs outside FiveM: open html/index.html)
+// BROWSER PREVIEW - open html/index.html?page=overview (only outside FiveM)
 // ═══════════════════════════════════════════════════════════════
 const Mock = (() => {
-    const now = Date.now(); const H = 3600000;
-    const company = {
-        id: 'burgershot', label: 'Burgershot', shortName: 'BS', job: 'burgershot', taxRate: 0.08, allowDiscounts: true, maxDiscount: 50, allowCustomItems: false, allowTips: true, dueDays: 3,
-        categories: [{ id: 'burgers', label: 'Burgers', icon: 'fa-burger' }, { id: 'sides', label: 'Sides', icon: 'fa-bowl-food' }, { id: 'drinks', label: 'Drinks', icon: 'fa-mug-hot' }],
-        products: [
-            { id: 'bleeder', name: 'Bleeder Burger', price: 8.99, category: 'burgers' }, { id: 'moneyshot', name: 'Money Shot Burger', price: 12.99, category: 'burgers' },
-            { id: 'torpedo', name: 'Torpedo', price: 10.49, category: 'burgers' }, { id: 'fries', name: 'Fries', price: 3.99, category: 'sides' },
-            { id: 'rings', name: 'Onion Rings', price: 4.49, category: 'sides' }, { id: 'soda', name: 'E-Cola', price: 2.49, category: 'drinks' },
-            { id: 'water', name: 'Water', price: 1.99, category: 'drinks' }, { id: 'shake', name: 'Meat Free Shake', price: 5.99, category: 'drinks' },
-        ],
-        quickBills: [{ id: 'combo1', label: 'Bleeder Combo', amount: 12.99, description: 'Burger + Fries + Drink' }, { id: 'combo2', label: 'Money Shot Combo', amount: 16.99, description: 'Premium Burger + Fries + Drink' }],
-    };
-    const inv = (id, o) => Object.assign({ id, company: 'Los Santos Customs', companyId: 'mechanic', senderName: 'Theo Kane', targetName: 'John Doe', direction: 'received', items: [{ name: 'Full Repair', price: 1500, quantity: 1 }], subtotal: 1500, tax: 120, discount: 0, total: 1620, lateFee: 0, amountPaid: 0, tip: 0, remaining: 1620, status: 'pending', createdAt: now - 5 * H, dueDate: now + 50 * H, tipsAllowed: true }, o);
-    const invoices = [
-        inv('LSC-000142', { status: 'overdue', lateFee: 162, remaining: 1782, dueDate: now - 20 * H, createdAt: now - 80 * H }),
-        inv('LSPD-000031', { company: 'Los Santos Police Department', companyId: 'police', senderName: 'Maya Reyes', items: [{ name: 'Speeding Violation', price: 500, quantity: 1 }, { name: 'Illegal Parking', price: 200, quantity: 1 }], subtotal: 700, tax: 0, total: 700, remaining: 450, amountPaid: 250, status: 'partial', notes: 'Plate 46EEK572 · Vinewood Blvd', tipsAllowed: false }),
-        inv('PMC-000007', { company: 'Pillbox Medical Center', companyId: 'ambulance', senderName: 'Sam Brooks', items: [{ name: 'Medical Examination', price: 200, quantity: 1 }], subtotal: 200, tax: 0, total: 200, remaining: 200, status: 'disputed', disputeReason: 'I was never treated', tipsAllowed: false }),
+    const now = Date.now(), H = 3600000;
+    const inv = (id, o) => Object.assign({ id, ref: 'PDM-' + id + 'K7QZ', senderType: 'personal', sender: 'Joe Doe', senderName: 'Joe Doe', recipientType: 'citizen', recipient: 'Nine Films', direction: 'received',
+        reason: 'Car sale', items: [{ label: 'Car sale', amount: 5800, quantity: 1 }], subtotal: 5800, vatRate: 0.25, vat: 1450, total: 7250, lateFee: 0, amountPaid: 0, tip: 0, remaining: 7250,
+        status: 'pending', createdAt: now - 16 * H, dueDate: now + 30 * H, tipsAllowed: true }, o);
+    const received = [
+        inv(91, {}),
+        inv(90, { sender: 'Pillbox Medical Center', senderType: 'society', senderName: 'Sam Brooks', reason: 'Hospital admission', items: [{ label: 'Hospital admission', amount: 1200, quantity: 1 }], subtotal: 1200, vatRate: 0, vat: 0, total: 1200, remaining: 1200, createdAt: now - 22 * H }),
+        inv(89, { sender: 'Pillbox Medical Center', senderType: 'society', senderName: 'Maya Reyes', reason: 'Hospital admission', subtotal: 1200, vat: 0, vatRate: 0, total: 1200, remaining: 1200, createdAt: now - 23 * H, status: 'overdue', dueDate: now - 4 * H, lateFee: 120 }),
+        inv(88, { sender: 'Los Santos Customs', senderType: 'society', reason: 'Engine repair', subtotal: 740.74, vat: 59.26, vatRate: 0.08, total: 800, remaining: 800, createdAt: now - 26 * H }),
+        inv(87, { sender: 'Los Santos Police Department', senderType: 'society', reason: 'Jumping a red light', total: 380, remaining: 0, amountPaid: 380, status: 'paid', paidAt: now - 20 * H, createdAt: now - 30 * H }),
+        inv(86, { sender: 'Lucas Reed', reason: 'Gardening', total: 240, remaining: 0, amountPaid: 240, status: 'paid', createdAt: now - 31 * H }),
+        inv(85, { sender: 'Los Santos Police Department', senderType: 'society', reason: 'High speed', total: 550, remaining: 550, amountPaid: 0, status: 'disputed', createdAt: now - 33 * H }),
     ];
-    const recent = [
-        inv('BS-000318', { direction: 'sent', company: 'Burgershot', targetName: 'Rafael Salas', total: 25.88, status: 'paid', createdAt: now - 0.4 * H }),
-        invoices[0], invoices[1],
-        inv('BS-000317', { direction: 'sent', company: 'Burgershot', targetName: 'Jenny Pork', total: 41.20, status: 'pending', createdAt: now - 7 * H }),
+    const sent = [
+        inv(84, { direction: 'sent', recipient: 'Joe Doe', reason: 'Used Vehicle', total: 1, status: 'cancelled' }),
+        inv(83, { direction: 'sent', recipient: 'Joe Doe', reason: 'Multiple Reasons', total: 107000, remaining: 107000 }),
+        inv(82, { direction: 'sent', recipient: 'Mia Chen', reason: 'New Vehicle', total: 28000, status: 'paid' }),
+        inv(81, { direction: 'sent', recipient: 'Noah Evans', reason: 'Custom paint', total: 2200, remaining: 2200 }),
+        inv(80, { direction: 'sent', recipient: 'Mia Chen', reason: 'Down payment', total: 5000, remaining: 2500, amountPaid: 2500, status: 'partial' }),
     ];
     const ctx = {
-        player: { name: 'John Doe', job: 'Burgershot', jobName: 'burgershot', grade: 'Manager', cash: 820, bank: 15240.55 },
-        company, perms: { canBill: true, canPersonal: true, canRemote: false, isBoss: true, isAdmin: true, canManageCatalog: true, canRefund: true, canDispute: true },
-        settings: { currency: '$', version: '2.0.0', defaultTaxRate: 0.08, maxItems: 30, maxQuantity: 100, maxNote: 250, dueDays: 3, customDue: true, maxDueDays: 14, allowPartial: true, minPartial: 50, methods: { bank: true, cash: true }, tips: [0, 10, 15, 20], maxTip: 50, imagePath: 'nui://ox_inventory/web/images/%s.png' },
-        invoices, recent, stats: { owed: 2432, open: 3, paid30: 3120.4, sent30: 47, toCollect: 0 },
+        player: { name: 'Jordan Vale', job: 'Premium Deluxe Motorsport', grade: 'Manager', cash: 3975, bank: 48210, toCollect: 0 },
+        society: { id: 'cardealer', label: 'Nine Films', short: 'NF', perms: Object.fromEntries(['view_received', 'view_sent', 'create', 'cancel', 'print', 'refund', 'disputes', 'templates_view', 'templates_create', 'templates_edit', 'templates_delete', 'overview', 'activity', 'permissions', 'pay', 'inspect', 'register'].map((k) => [k, true])),
+            group: { id: 'manager', label: 'Manager' }, balance: 335445, vatRate: 0.25, allowCustom: true, dueDays: 3 },
+        isAdmin: true,
+        societies: [{ id: 'police', label: 'Los Santos Police Department', short: 'LSPD', billable: true }, { id: 'ambulance', label: 'Pillbox Medical Center', short: 'PMC', billable: true }, { id: 'mechanic', label: 'Los Santos Customs', short: 'LSC', billable: true }],
+        settings: { version: '3.0.0', personalEnabled: true, personalCustom: true, personalSocietyRecipients: true, personalVat: 0, dueDays: 7, customDue: true, maxDueDays: 30, maxItems: 25, maxQuantity: 100, maxNote: 250,
+            methods: { bank: true, cash: true }, allowPartial: true, minPartial: 50, payByReference: true, disputes: true, tips: [0, 10, 15, 20], maxTip: 50, print: true, pageSize: 7, banking: 'nayzeee-banking', adminDelete: true, adminClear: true },
     };
-    const dash = {
-        today: 412.6, week: 3988.15, month: 15420.8, tips: 612, outstanding: 284.3, openCount: 6, overdueCount: 1, disputedCount: 1, invoices30: 318, avgTicket: 24.8, balance: 48210.5, banking: 'nayzeee-banking',
-        daily: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((label, i) => ({ key: `2026-10-0${4 + i}`, label, value: [520, 780, 410, 655, 590, 620.55, 412.6][i], count: [21, 33, 17, 26, 24, 25, 16][i] })),
-        leaderboard: [{ name: 'John Doe', invoices: 112, collected: 5480.2, tips: 240 }, { name: 'Maya Reyes', invoices: 96, collected: 4610.75, tips: 198 }, { name: 'Theo Kane', invoices: 71, collected: 3302.1, tips: 120 }, { name: 'Sam Brooks', invoices: 39, collected: 2027.75, tips: 54 }],
-        recent: recent.map((r) => Object.assign({}, r, { company: 'Burgershot', senderName: 'John Doe' })), company,
-    };
-    const admin = {
-        companies: [Object.assign({ isConfig: true }, company), { id: 'police', label: 'Los Santos Police Department', shortName: 'LSPD', job: 'police', taxRate: 0, products: Array.from({ length: 12 }, (_, i) => ({ id: 'fine_' + i, name: 'Citation ' + (i + 1), price: 100 * (i + 1) })), quickBills: [], categories: [], allowCustomItems: true, isConfig: true }, { id: 'mechanic', label: 'Los Santos Customs', shortName: 'LSC', job: 'mechanic', taxRate: 0.08, products: Array.from({ length: 15 }, (_, i) => ({ id: 'svc_' + i, name: 'Service ' + (i + 1), price: 150 * (i + 1) })), quickBills: [], categories: [], allowDiscounts: true, allowCustomItems: true, allowTips: true, isConfig: true, hasOverride: true }],
-        registers: [{ id: 'burgershot_counter1', label: 'Burgershot Counter', company: 'burgershot', companyLabel: 'Burgershot', coords: { x: 197.42, y: -850.75, z: 30.96 }, radius: 2, source: 'config' }],
-        stats: { invoicesToday: 64, revenueWeek: 48210.5, outstanding: 9310.4, openCount: 41, disputedCount: 2, pendingPayouts: 320, byCompany: [{ id: 'mechanic', label: 'Los Santos Customs', revenue: 18210 }, { id: 'burgershot', label: 'Burgershot', revenue: 15420.8 }, { id: 'police', label: 'Los Santos Police Department', revenue: 9800 }] },
-        system: { framework: 'qbox', banking: 'nayzeee-banking', inventory: 'ox_inventory', version: '2.0.0', imagePath: '' },
-    };
+    const days = [5, 6, 0, 1, 2, 3, 4];
+    const dash = { account: 'personal', due: 3, unpaid: 2000, paidWeek: 188050, receivedWeek: 270475, delta: 44,
+        series: days.map((dow, i) => ({ key: `2026-10-${30 + i > 31 ? '0' + (i - 1) : 30 + i}`, dow, received: [42000, 28000, 21000, 46000, 61000, 38000, 34475][i], paid: [30000, 33000, 26000, 18000, 39000, 24000, 18050][i] })),
+        alerts: [inv(79, { sender: 'Joe Doe1G', remaining: 850, dueDate: now + 6 * 24 * H }), inv(78, { sender: 'Nine Films', remaining: 850, dueDate: now + 6 * 24 * H }), inv(77, { sender: 'Mia Chen', remaining: 300, dueDate: now + 7 * 24 * H })],
+        recent: [{ kind: 'payment_out', id: 1, ref: 'PDM-1A', name: 'Lucas Reed', amount: 240, at: now - 0.53 * H }, { kind: 'payment_out', id: 2, ref: 'PDM-2B', name: 'Mia Chen', amount: 300, at: now - 2 * H },
+            { kind: 'payment_in', id: 3, ref: 'PDM-3C', name: 'Noah Evans', amount: 2200, at: now - 3 * H }, { kind: 'created', id: 4, ref: 'PDM-4D', name: 'Sofia Turner', amount: 640, at: now - 4 * H }], balance: 3975 };
+    const templates = [
+        { id: 1, name: 'Vehicle Sales', icon: 'car', color: 'blue', items: [{ id: 'a', label: 'Trade-in Adjustment', amount: 8500 }, { id: 'b', label: 'Performance Package', amount: 12000 }, { id: 'c', label: 'Used Vehicle', amount: 32000 }, { id: 'd', label: 'New Vehicle', amount: 85000 }] },
+        { id: 2, name: 'Paperwork & Fees', icon: 'file', color: 'teal', items: [{ id: 'e', label: 'Registration', amount: 1500 }] },
+        { id: 3, name: 'Extras & After-sales', icon: 'sparkle', color: 'violet', items: [{ id: 'f', label: 'Custom Paint', amount: 2200 }] },
+        { id: 'g1', name: 'Services', icon: 'briefcase', color: 'gray', items: [{ id: 'i1', label: 'Labour (1 hour)', amount: 150 }], global: true },
+    ];
+    const perms = { society: 'Nine Films', sections: [
+        { id: 'invoices', label: 'Invoices', perms: [{ key: 'view_received', label: 'View received invoices' }, { key: 'view_sent', label: 'View sent invoices' }, { key: 'create', label: 'Create invoices' }, { key: 'cancel', label: 'Cancel invoices' }, { key: 'print', label: 'Print invoices' }] },
+        { id: 'templates', label: 'Templates', perms: [{ key: 'templates_view', label: 'View templates' }, { key: 'templates_create', label: 'Create templates' }, { key: 'templates_edit', label: 'Edit templates' }, { key: 'templates_delete', label: 'Delete templates' }] },
+        { id: 'management', label: 'Management', perms: [{ key: 'overview', label: 'View overview & balance' }, { key: 'activity', label: 'View activity logs' }, { key: 'permissions', label: 'Manage permissions' }, { key: 'pay', label: 'Pay invoices' }, { key: 'inspect', label: 'Inspect players & societies' }] }],
+        groups: [{ id: 'manager', label: 'Manager', access: 'full', icon: 'shield', color: 'blue', perms: ctx.society.perms, builtin: true }, { id: 'finance', label: 'Finance', access: 'high', icon: 'chevrons', color: 'cyan', perms: { view_received: true, pay: true }, builtin: true },
+            { id: 'sales', label: 'Business Sales', access: 'normal', icon: 'chevron', color: 'violet', perms: { create: true }, builtin: true }, { id: 'showroom', label: 'Showroom Sales', access: 'limited', icon: 'users', color: 'amber', perms: { register: true } }],
+        members: [{ identifier: 'char1:abc', name: 'Joe Doe1g', grade: 2, gradeLabel: 'Salesman', online: true, group: 'sales' }, { identifier: 'char1:def', name: 'Mia Chen', grade: 3, gradeLabel: 'Manager', online: false, group: 'manager' }] };
     const ok = (data) => ({ ok: true, data });
+    const page = (rows, p) => ({ rows: rows.slice(((p.page || 1) - 1) * 7, (p.page || 1) * 7), total: rows.length, page: p.page || 1, pageSize: 7, counts: { pending: 5, partial: 1, overdue: 1, disputed: 1, paid: 23, cancelled: 2 } });
+    const detail = (id) => { const i = [...received, ...sent, ...dash.alerts].find((x) => x.id === id) || received[0]; return Object.assign({}, i, { payOptions: isOpen(i) && i.direction === 'received' ? { bank: true, cash: true } : null, canCancel: i.direction === 'sent' && isOpen(i), canPrint: true, canDispute: i.direction === 'received' && isOpen(i), payments: i.amountPaid ? [{ payer: 'Mia Chen', amount: i.amountPaid, tip: 0, method: 'bank', kind: 'payment', createdAt: now - 3 * H }] : [] }); };
     const rpc = {
-        getContext: () => ok(ctx), getNearby: () => ok([{ id: 12, name: 'Rafael Salas', distance: 1.8 }, { id: 31, name: 'Jenny Pork', distance: 4.2 }]),
-        searchPlayers: () => ok([{ type: 'online', id: 12, name: 'Rafael Salas' }]),
-        getHistory: () => ok({ rows: recent.concat(invoices), hasMore: false }), getInvoice: (p) => ok(Object.assign({ payments: [], canCancel: false }, [...invoices, ...recent].find((i) => i.id === p.invoiceId))),
-        'boss:getDashboard': () => ok(dash), 'boss:getInvoices': () => ok({ rows: dash.recent, hasMore: false }),
-        'admin:getData': () => ok(admin), 'admin:getInvoices': () => ok({ rows: invoices, hasMore: false }), 'admin:getLogs': () => ok({ rows: [{ timestamp: now, player: 'John Doe', action: 'invoice_paid', data: { invoice: 'LSC-000142', amount: 1620 } }], hasMore: false }),
-        createInvoice: () => ok({ invoiceId: 'BS-000319', total: 10, targetName: 'Rafael Salas' }),
-        payInvoice: (p) => ok({ amount: 100, tip: 0, charged: 100, method: p.method, status: 'paid', remaining: 0 }),
-        getItems: () => ok([{ name: 'burger', label: 'Burger' }]),
-        findInvoice: (p) => { const hit = [...invoices, ...recent].find((i) => i.id.toLowerCase() === String(p.reference).toLowerCase()); return hit ? ok({ invoiceId: hit.id }) : { ok: false, error: 'No invoice found with that reference' }; },
+        getContext: () => ok(ctx), getNearby: () => ok([{ id: 12, name: 'Joe Doe1g', distance: 1.8 }, { id: 31, name: 'Mia Chen', distance: 4.2 }]),
+        'dashboard:get': () => ok(dash), 'invoices:list': (p) => ok(page(p.box === 'sent' ? sent : received, p)), 'invoices:get': (p) => ok(detail(p.id)), 'invoices:lookup': () => ok(detail(91)),
+        'templates:list': () => ok({ templates, canCreate: true, canEdit: true, canDelete: true }),
+        'activity:list': () => ok({ rows: [{ timestamp: now - 26 * H, player: 'Nine Films', action: 'template_created', data: { name: 'Extras & After-sales' } }, { timestamp: now - 26 * H, player: 'Nine Films', action: 'item_added', data: { name: "Car's Plates", template: 'Paperwork & Fees' } },
+            { timestamp: now - 27 * H, player: 'Nine Films', action: 'invoice_paid', data: { target: 'Joe Doe1g', amount: 107000 } }, { timestamp: now - 28 * H, player: 'Jordan Vale', action: 'invoice_created', data: { target: 'Mia Chen', ref: 'PDM-K2', amount: 5000 } }], total: 10, page: 1, pageSize: 7 }),
+        'perms:get': () => ok(perms), 'inspect:search': () => ok([{ id: 'I6NH41BE', name: 'Joe Doe1g', online: true, serverId: 12 }]),
+        'inspect:profile': (p) => ok(Object.assign(page([...received.slice(0, 3).map((r) => Object.assign({}, r, { direction: 'received' })), ...sent.slice(1, 3)], p), { subject: { type: 'citizen', id: 'I6NH41BE', name: 'Joe Doe1g', identifier: 'I6NH41BE' }, stats: { total: 36, outstanding: 13100, paid: 122680 }, canClear: true })),
+        'admin:registers': () => ok([{ id: 'r1', label: 'PDM Front Desk', society: 'cardealer', societyLabel: 'Nine Films', coords: { x: -56.2, y: -1097.4, z: 26.4 }, radius: 2, source: 'config' }]),
+        'invoices:pay': () => ok({ charged: 100, status: 'paid', method: 'bank' }), 'invoices:payMany': () => ok({ paid: 2, failed: [], total: 2400 }), 'invoices:create': () => ok({ ref: 'PDM-NEW1', total: 100, recipient: 'Joe' }),
     };
     return {
-        nui: async (event, data) => {
-            if (event === 'rpc') return (rpc[data.name] || (() => ok(true)))(data.payload || {});
-            return 'ok';
-        },
+        nui: async (ev, data) => (ev === 'rpc' ? (rpc[data.name] || (() => ok(true)))(data.payload || {}) : 'ok'),
         boot: () => {
-            const view = new URLSearchParams(location.search).get('view') || 'billing';
-            document.body.style.background = 'radial-gradient(1100px 640px at 50% -8%,#1b2224 0%,transparent 62%),#2a2f33';
-            if (view === 'admin') openAdmin(admin);
-            else if (view === 'pos') { openPos({ register: admin.registers[0], company, nearby: [{ id: 12, name: 'Rafael Salas', distance: 1.4 }] }); }
-            else if (view === 'display') {
-                displayOpen({ company: 'Burgershot', register: 'Front Counter', employee: 'John Doe' });
-                displayCheckout({ invoice: Object.assign(inv('BS-000318', {}), { company: 'Burgershot', items: [{ name: 'Bleeder Burger', price: 8.99, quantity: 2 }, { name: 'Fries', price: 3.99, quantity: 1 }], subtotal: 21.97, tax: 1.76, total: 23.73 }), allowTips: true });
-            } else openBilling(Object.assign({}, ctx, { tab: new URLSearchParams(location.search).get('tab') || 'home' }));
+            document.body.style.background = 'radial-gradient(1100px 640px at 50% -8%,#1b2224 0%,transparent 62%),#22272b';
+            const q = new URLSearchParams(location.search);
+            if (q.get('view') === 'paper') { showPaper(detail(91)); return; }
+            if (q.get('view') === 'display') { displayOpen({ society: 'Burgershot', register: 'Front Counter', employee: 'Jordan Vale' }); displayCheckout({ invoice: Object.assign(inv(1, {}), { items: [{ label: 'Bleeder Burger', amount: 8.99, quantity: 2 }], subtotal: 17.98, vatRate: 0.08, vat: 1.44, total: 19.42 }) }); return; }
+            if (q.get('view') === 'pos') { openPos({ register: { id: 'r1', label: 'Burgershot Counter', societyLabel: 'Burgershot' }, vatRate: 0.08, menu: templates.slice(0, 3), nearby: [{ id: 3, name: 'Rafael Salas', distance: 1.2 }] }); return; }
+            S.account = q.get('account') || 'personal';
+            open({ ctx, page: q.get('page') || 'overview' });
+            if (q.get('modal') === 'create') createInvoice();
+            if (q.get('modal') === 'ref') payByReference('PDM-91K7QZ');
+            if (q.get('modal') === 'tpl') templateModal(null);
+            if (q.get('rail')) openRail(+q.get('rail'));
         },
     };
 })();
-
 if (!IN_GAME) document.addEventListener('DOMContentLoaded', () => Mock.boot());
