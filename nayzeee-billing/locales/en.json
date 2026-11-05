@@ -186,6 +186,7 @@
   "dash.updated": "Updated {t}",
   "dash.vs_last": "vs last week",
   "dash.weekly": "Weekly Summary",
+  "dash.weekly_sub": "Received vs paid over the last 7 days",
   "day.0": "Sun",
   "day.1": "Mon",
   "day.2": "Tue",

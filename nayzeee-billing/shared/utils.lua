@@ -4,7 +4,7 @@
 ]]
 
 Shared = {}
-Shared.Version = '3.0.0'
+Shared.Version = '1.0.0'
 Shared.Resource = GetCurrentResourceName()
 
 Shared.OpenStatuses = { pending = true, partial = true, overdue = true }

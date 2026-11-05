@@ -1,4 +1,4 @@
-# NAYZEEE Billing 3.0
+# NAYZEEE Billing 1.0.0
 
 Personal and society billing, invoice templates, group permissions, pay by reference, physical invoices and cash registers for FiveM.
 Works on **ESX, QBCore and Qbox**. Built on the NAYZEEE UI v5 design system; every colour and every string is configurable.
@@ -11,7 +11,7 @@ Discord: discord.gg/nayzeeedev
 
 **Dashboard**
 - Greeting header with Pay by reference / Pay All / New Invoice, plus balance, outstanding, money in and money out cards
-- **Cashflow** bar chart: money in or money out, last 7 days or last 12 weeks, with best period, average and net
+- **Weekly Summary**: banking-style bars, received and paid side by side for each of the last 7 days (today highlighted), with the week total and the change against last week
 - **Up next**: open invoices as a ticket you flip through (most urgent first) with paid progress, due time and a copyable reference
 - Latest activity feed, profile and status card in the sidebar, keyboard shortcuts (`N` new invoice, `R` pay by reference, `S` switch account, `1`–`9` pages)
 - **Personal and society accounts**, each with its own balance. Switch from the sidebar.
@@ -78,7 +78,7 @@ Discord: discord.gg/nayzeeedev
    add_ace group.admin nayzeee.billing.admin allow
    ```
 3. Configure `config.lua`, `societies.lua` (jobs that bill as a society) and `presets.lua` (starting templates).
-4. Restart. Tables are created and upgraded automatically; v1 / v2 data is kept.
+4. Restart. Tables are created and upgraded automatically; data from older installs is kept.
 
 ### Items
 
@@ -164,7 +164,7 @@ exports['nayzeee-billing']:PayInvoice(source, ref, 'bank' | 'cash', partialAmoun
 exports['nayzeee-billing']:CancelInvoice(ref, reason)
 exports['nayzeee-billing']:GetSocietyStats(society)
 ```
-The v1/v2 `CreateInvoice(sender, target, items, company)` and `GetPlayerInvoices` still work.
+The legacy `CreateInvoice(sender, target, items, company)` and `GetPlayerInvoices` still work.
 
 ### Server events
 ```lua

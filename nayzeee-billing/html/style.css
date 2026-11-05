@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   NAYZEEE BILLING v3 · NAYZEEE UI v5
+   NAYZEEE BILLING · NAYZEEE UI v5
    Colours come from Config.UI.Colors (set as CSS variables at runtime)
    ═══════════════════════════════════════════════════════════ */
 :root{
@@ -563,41 +563,35 @@ table.t{width:100%;border-collapse:collapse}
 .ch p{font-size:11.5px;color:var(--ink-3);margin-top:3px;font-weight:300}
 .ch>.btn,.ch>.cf-legend,.ch>.nx-pos{margin-left:auto}
 
-/* cashflow */
-.cf-legend{display:flex;gap:14px;font-size:11px;color:var(--ink-2);padding-top:3px}
-.cf-legend span{display:flex;align-items:center;gap:6px}
-.cf-legend i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
-.cf-legend i.out{background:var(--c-paid)} .cf-legend i.q{background:var(--raise-2);box-shadow:0 0 0 1px var(--line) inset}
-.cf-top{display:flex;align-items:flex-end;gap:12px;padding:16px 18px 6px}
-.cf-total{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
-.cf-total b{font-size:30px;font-weight:700;color:var(--white);letter-spacing:-.035em;line-height:1}
-.cf-total small{flex-basis:100%;font-size:10.5px;color:var(--ink-3);margin-top:2px}
-.cf-ctl{margin-left:auto;display:flex;gap:8px}
-.seg.sm{padding:2px;gap:2px}
-.seg.sm button{height:24px;padding:0 10px;font-size:11px}
-.cf-bars{display:flex;align-items:stretch;gap:10px;height:190px;padding:28px 18px 0}
-.cf-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
-.cf-track{flex:1;display:flex;align-items:flex-end}
-.cf-bar{position:relative;width:100%;border-radius:9px 9px 6px 6px;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.035));
-  box-shadow:0 1px 0 var(--lift) inset,0 0 0 1px var(--line-hair) inset;transition:background var(--fast),height .4s cubic-bezier(.2,.8,.2,1)}
-.cf-bars.in .cf-col:not(.quiet) .cf-bar{background:linear-gradient(180deg,rgba(8,175,162,.30),rgba(8,175,162,.10))}
-.cf-bars.out .cf-col:not(.quiet) .cf-bar{background:linear-gradient(180deg,rgba(91,141,239,.30),rgba(91,141,239,.10))}
-.cf-col.quiet .cf-bar{background:var(--raise);opacity:.8}
-.cf-bars.in .cf-col.cur .cf-bar{background:linear-gradient(180deg,var(--accent-hi),var(--accent-lo));box-shadow:0 0 22px var(--accent-wash),0 1px 0 rgba(255,255,255,.35) inset}
-.cf-bars.out .cf-col.cur .cf-bar{background:linear-gradient(180deg,#86a9f4,#3e6fd6);box-shadow:0 0 22px rgba(91,141,239,.2),0 1px 0 rgba(255,255,255,.35) inset}
-.cf-col:hover .cf-bar{filter:brightness(1.35)}
-.cf-pill{position:absolute;left:50%;bottom:calc(100% + 7px);transform:translateX(-50%);height:20px;padding:0 7px;border-radius:5px;display:none;align-items:center;
-  font-size:10.5px;font-weight:700;white-space:nowrap;color:#00201d;background:var(--accent-hi);box-shadow:var(--sh-1)}
-.cf-bars.out .cf-pill{background:#86a9f4;color:#07142e}
-.cf-col.cur .cf-pill,.cf-col:hover .cf-pill{display:flex}
-.cf-col.quiet:hover .cf-pill{background:var(--raise-2);color:var(--ink-2)}
-.cf-x{font-size:10.5px;color:var(--ink-3);text-align:center;white-space:nowrap;overflow:hidden}
-.cf-col.cur .cf-x{color:var(--white);font-weight:500}
-.cf-foot{display:grid;grid-template-columns:repeat(4,1fr);margin:16px 18px 18px;border:1px solid var(--line-hair);border-radius:var(--r-sm);background:var(--inset)}
-.cf-foot div{padding:10px 12px;min-width:0}
-.cf-foot div+div{border-left:1px solid var(--line-hair)}
-.cf-foot span{display:block;font-size:10.5px;color:var(--ink-3)}
-.cf-foot b{display:block;font-size:12.5px;font-weight:600;color:var(--white);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* weekly summary (banking-style bars) */
+.ch-r{margin-left:auto;display:flex;align-items:center;gap:12px;padding-top:2px}
+.wk-legend{display:flex;gap:14px;font-size:11px;color:var(--ink-2)}
+.wk-legend span{display:flex;align-items:center;gap:6px}
+.wk-legend i{width:7px;height:7px;border-radius:50%}
+.wk-legend i.r{background:var(--accent)} .wk-legend i.p{background:var(--c-paid)}
+.wk-top{display:flex;align-items:center;gap:10px;padding:16px 18px 0}
+.wk-top>b{font-size:30px;font-weight:700;color:var(--white);letter-spacing:-.035em;line-height:1}
+.wk-paid{margin-left:auto;font-size:11.5px;color:var(--ink-3)}
+.wk-paid b{color:var(--white);font-weight:600;margin-left:4px}
+.wk-bars{display:flex;align-items:stretch;gap:14px;height:210px;padding:34px 18px 18px}
+.wk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
+.wk-pair{flex:1;display:flex;align-items:flex-end;gap:5px}
+.wb{position:relative;flex:1;border-radius:8px 8px 5px 5px;box-shadow:0 1px 0 var(--lift) inset,0 0 0 1px var(--line-hair) inset;transition:filter var(--fast),height .4s cubic-bezier(.2,.8,.2,1)}
+.wb.r{background:linear-gradient(180deg,rgba(8,175,162,.32),rgba(8,175,162,.10))}
+.wb.p{background:linear-gradient(180deg,rgba(91,141,239,.30),rgba(91,141,239,.09))}
+.wb.quiet{background:var(--raise)!important;box-shadow:0 0 0 1px var(--line-hair) inset!important}
+.wk-col.cur .wb.r:not(.quiet){background:linear-gradient(180deg,var(--accent-hi),var(--accent-lo));box-shadow:0 0 22px var(--accent-wash),0 1px 0 rgba(255,255,255,.35) inset}
+.wk-col.cur .wb.p:not(.quiet){background:linear-gradient(180deg,#86a9f4,#3e6fd6);box-shadow:0 0 22px rgba(91,141,239,.2),0 1px 0 rgba(255,255,255,.35) inset}
+.wb:hover{filter:brightness(1.35)}
+.wb-pill{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);height:19px;padding:0 6px;border-radius:5px;display:none;align-items:center;z-index:2;
+  font-size:10px;font-weight:700;white-space:nowrap;box-shadow:var(--sh-1)}
+.wb.r .wb-pill{background:var(--accent-hi);color:#00201d}
+.wb.p .wb-pill{background:#86a9f4;color:#07142e}
+.wb.quiet .wb-pill{background:var(--raise-2);color:var(--ink-2)}
+.wb:hover .wb-pill,.wk-col.cur .wb.r .wb-pill{display:flex}
+.wk-col.cur:hover .wb.r:not(:hover) .wb-pill{display:none}
+.wk-x{font-size:10.5px;color:var(--ink-3);text-align:center}
+.wk-col.cur .wk-x{color:var(--white);font-weight:500}
 
 /* latest activity rows */
 .txl{display:flex;flex-direction:column;gap:8px;padding:14px 18px 18px}

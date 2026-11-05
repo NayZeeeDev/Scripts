@@ -6,7 +6,7 @@ use_experimental_fxv2_oal 'yes'
 name 'nayzeee-billing'
 author 'NAYZEEE Development'
 description 'Billing, invoicing, society billing and point-of-sale with banking integrations'
-version '3.0.0'
+version '1.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',

@@ -15,10 +15,11 @@ end
 local DAY = "DATE_FORMAT(created_at, '%Y-%m-%d')"
 local WEEK = 'created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)'
 local PREV = 'created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) AND created_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY)'
-local WEEKS = 12
+local WEEKS = 2
 
 --[[
-    Cashflow for the chart: last 7 days and last 12 weeks (rolling 7-day buckets, bucket 1 = the 7 days ending today).
+    Weekly summary chart (last 7 days) plus this week / last week totals for the overview cards
+    (rolling 7-day buckets, the last one = the 7 days ending today).
     paid = { sum, where } money out, received = { sum, where } money in
 ]]
 local function cashflow(paid, received, params)

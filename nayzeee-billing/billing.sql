@@ -1,8 +1,8 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- NAYZEEE BILLING 3.0 - Database schema reference
+-- NAYZEEE BILLING 1.0.0 - Database schema reference
 --
 -- Tables are created and upgraded automatically on resource start (server/database.lua).
--- You do NOT need to run this file. v1 / v2 installs are upgraded in place.
+-- You do NOT need to run this file. older installs are upgraded in place.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS `nayzeee_billing_invoices` (

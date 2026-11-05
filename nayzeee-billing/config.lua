@@ -6,7 +6,7 @@
     ██║ ╚████║██║  ██║   ██║   ███████╗███████╗███████╗
     ╚═╝  ╚═══╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝╚══════╝
 
-    NAYZEEE BILLING - 3.0.0
+    NAYZEEE BILLING - 1.0.0
     Discord: discord.gg/nayzeeedev
 
     Societies live in societies.lua, invoice presets in presets.lua,

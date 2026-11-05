@@ -249,7 +249,7 @@ local function decodeItems(raw)
     if type(raw) ~= 'string' then return raw or {} end
     local ok, items = pcall(json.decode, raw)
     items = ok and items or {}
-    -- v1/v2 items used price instead of amount
+    -- older items used price instead of amount
     for _, it in ipairs(items) do
         if it.amount == nil and it.price ~= nil then it.amount = it.price end
         if it.label == nil and it.name ~= nil then it.label = it.name end

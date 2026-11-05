@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// NAYZEEE BILLING v3 · UI
+// NAYZEEE BILLING · UI
 // Every player-facing string goes through t(); every dynamic value through esc().
 // Actions use data-act delegation, never inline handlers with data.
 // ═══════════════════════════════════════════════════════════════
@@ -68,6 +68,7 @@ const initials = (n) => esc(String(n || '?').trim().split(/\s+/).map((p) => p[0]
 const pct = (n) => `${r2(num(n) * 100)}%`;
 function toDate(v) {
     if (v === null || v === undefined || v === '') return null;
+    if (v instanceof Date) return isNaN(v) ? null : v;
     if (typeof v === 'number') return new Date(v);
     const d = new Date(String(v).replace(' ', 'T'));
     return isNaN(d) ? null : d;
@@ -546,7 +547,7 @@ async function pageOverview() {
             </div>
             <div class="card nx" id="nx"></div>
         </div>`);
-    renderCashflow();
+    renderWeekly();
     renderNext();
 }
 
@@ -570,54 +571,23 @@ function txRow(r) {
         <span class="txa ${map[3]}">${sign}${money(r.amount)}</span></div>`;
 }
 
-// Cashflow: banking-style bar chart. Money in / out, last 7 days or 12 weeks; the current period is highlighted.
-function renderCashflow() {
+// Weekly summary: banking-style bars, received and paid side by side for each of the last 7 days, today highlighted
+function renderWeekly() {
     const el = $('#cf'); const d = S.dash; if (!el || !d) return;
-    const cf = S.cf || (S.cf = { flow: 'in', range: '7d' });
-    const key = cf.flow === 'in' ? 'received' : 'paid';
-    const other = cf.flow === 'in' ? 'paid' : 'received';
-    const weekly = cf.range === '12w' && (d.weeks || []).length;
-    const list = weekly ? d.weeks : d.series;
-    const vals = list.map((x) => num(x[key]));
-    const total = vals.reduce((s, v) => s + v, 0);
-    const max = Math.max(1, ...vals);
+    const series = d.series || [];
     const days = DAYS();
-    const label = (x) => (weekly ? (toDate(x.key + 'T12:00:00') || new Date()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : days[x.dow]);
-    const full = (x) => (weekly ? t('cf.week_of', 'Week of {d}', { d: fmtDate(x.key + 'T12:00:00') }) : `${days[x.dow]} · ${fmtDate(x.key + 'T12:00:00')}`);
-    let delta = null;
-    const wk = d.weeks || [];
-    if (!weekly && wk.length >= 2) delta = pctChange(wk[wk.length - 1][key], wk[wk.length - 2][key]);
-    if (weekly && wk.length >= 12) delta = pctChange(wk.slice(6).reduce((s, x) => s + num(x[key]), 0), wk.slice(0, 6).reduce((s, x) => s + num(x[key]), 0));
-    const best = list.reduce((b, x) => (num(x[key]) > num(b[key]) ? x : b), list[0] || {});
-    const otherTotal = list.reduce((s, x) => s + num(x[other]), 0);
-    const tone = cf.flow === 'in' ? 'in' : 'out';
-    const sub = cf.flow === 'in'
-        ? (weekly ? t('cf.sub_in_12w', 'Money in over the last twelve weeks') : t('cf.sub_in_7d', 'Money in over the last seven days'))
-        : (weekly ? t('cf.sub_out_12w', 'Money out over the last twelve weeks') : t('cf.sub_out_7d', 'Money out over the last seven days'));
-    el.innerHTML = `
-        <div class="ch"><div><h3>${t('cf.title', 'Cashflow')}</h3><p>${sub}</p></div>
-            <div class="cf-legend"><span><i class="${tone}"></i>${cf.flow === 'in' ? t('cf.money_in', 'Money in') : t('cf.money_out', 'Money out')}</span><span><i class="q"></i>${weekly ? t('cf.quiet_weeks', 'Quiet weeks') : t('cf.quiet_days', 'Quiet days')}</span></div></div>
-        <div class="cf-top">
-            <div class="cf-total"><b>${money(total)}</b>${delta === null ? '' : `<span class="badge ${delta >= 0 ? 'ok' : 'bad'}">${ic(delta >= 0 ? 'trend' : 'trenddown')}${delta >= 0 ? '+' : ''}${delta}%</span>`}
-                <small>${weekly ? t('cf.vs_6w', 'last 6 weeks vs the 6 before') : t('cf.vs_week', 'this week vs last week')}</small></div>
-            <div class="cf-ctl">
-                <div class="seg sm">${[['in', t('cf.in', 'In')], ['out', t('cf.out', 'Out')]].map(([v, l]) => `<button class="${cf.flow === v ? 'on' : ''}" data-act="cfFlow" data-v="${v}">${l}</button>`).join('')}</div>
-                <div class="seg sm">${[['7d', t('cf.7d', '7D')], ['12w', t('cf.12w', '12W')]].map(([v, l]) => `<button class="${cf.range === v ? 'on' : ''}" data-act="cfRange" data-v="${v}">${l}</button>`).join('')}</div>
-            </div>
-        </div>
-        <div class="cf-bars ${tone}" role="img" aria-label="${esc(list.map((x) => `${full(x)}: ${money(x[key])}`).join('; '))}">
-            ${list.map((x, i) => {
-                const v = num(x[key]); const cur = i === list.length - 1;
-                const h = v <= 0 ? 9 : Math.max(16, Math.round((v / max) * 100));
-                return `<div class="cf-col ${cur ? 'cur' : ''} ${v <= 0 ? 'quiet' : ''}" title="${esc(full(x))}: ${esc(money(v))}">
-                    <div class="cf-track"><div class="cf-bar" style="height:${h}%"><span class="cf-pill">${esc(moneyShort(v))}</span></div></div><span class="cf-x">${esc(label(x))}</span></div>`;
-            }).join('')}
-        </div>
-        <div class="cf-foot">
-            <div><span>${weekly ? t('cf.best_week', 'Best week') : t('cf.best_day', 'Best day')}</span><b>${num(best[key]) > 0 ? `${esc(label(best))} · ${money(best[key])}` : '—'}</b></div>
-            <div><span>${weekly ? t('cf.avg_week', 'Weekly average') : t('cf.avg_day', 'Daily average')}</span><b>${money(list.length ? total / list.length : 0)}</b></div>
-            <div><span>${cf.flow === 'in' ? t('cf.money_out', 'Money out') : t('cf.money_in', 'Money in')}</span><b>${money(otherTotal)}</b></div>
-            <div><span>${t('cf.net', 'Net')}</span><b class="${(cf.flow === 'in' ? total - otherTotal : otherTotal - total) >= 0 ? 'up' : 'down'}">${money(cf.flow === 'in' ? total - otherTotal : otherTotal - total)}</b></div>
+    const max = Math.max(1, ...series.map((x) => Math.max(num(x.received), num(x.paid))));
+    const h = (v) => (num(v) <= 0 ? 6 : Math.max(10, Math.round((num(v) / max) * 100)));
+    const recv = series.reduce((s, x) => s + num(x.received), 0), paid = series.reduce((s, x) => s + num(x.paid), 0);
+    const deltaBadge = `<span class="badge ${d.delta >= 0 ? 'ok' : 'bad'}">${ic(d.delta >= 0 ? 'trend' : 'trenddown')}${d.delta >= 0 ? '+' : ''}${d.delta}%</span>`;
+    const bar = (cls, v, label) => `<div class="wb ${cls} ${num(v) <= 0 ? 'quiet' : ''}" style="height:${h(v)}%" title="${esc(label)}: ${esc(money(v))}"><span class="wb-pill">${esc(moneyShort(v))}</span></div>`;
+    el.innerHTML = `<div class="ch"><div><h3>${t('dash.weekly', 'Weekly Summary')}</h3><p>${t('dash.weekly_sub', 'Received vs paid over the last 7 days')}</p></div>
+            <div class="ch-r"><div class="wk-legend"><span><i class="r"></i>${t('dash.legend_received', 'Received')}</span><span><i class="p"></i>${t('dash.legend_paid', 'Paid')}</span></div></div></div>
+        <div class="wk-top"><b>${money(recv)}</b>${deltaBadge}<span class="wk-paid">${t('dash.legend_paid', 'Paid')} <b>${money(paid)}</b></span></div>
+        <div class="wk-bars" role="img" aria-label="${esc(series.map((x) => `${days[x.dow]}: ${t('dash.legend_received', 'Received')} ${money(x.received)}, ${t('dash.legend_paid', 'Paid')} ${money(x.paid)}`).join('; '))}">
+            ${series.map((x, i) => `<div class="wk-col ${i === series.length - 1 ? 'cur' : ''}"><div class="wk-pair">
+                ${bar('r', x.received, t('dash.legend_received', 'Received'))}${bar('p', x.paid, t('dash.legend_paid', 'Paid'))}</div>
+                <span class="wk-x">${esc(days[x.dow])}</span></div>`).join('')}
         </div>`;
 }
 
@@ -1470,8 +1440,6 @@ const A = {
     view: (d) => { closePop(); openRail(+d.id); },
     railClose: () => closeRail(),
     copyRef: (d) => copyText(d.ref),
-    cfFlow: (d) => { S.cf.flow = d.v; renderCashflow(); },
-    cfRange: (d) => { S.cf.range = d.v; renderCashflow(); },
     nxMove: (d) => { S.nx = (S.nx || 0) + Number(d.v); renderNext(); },
     pay: (d) => { closePop(); payInvoice(+d.id); },
     paperPay: () => { if (S.paperInv) payInvoice(S.paperInv.id, S.paperInv); },
@@ -1782,7 +1750,7 @@ const Mock = (() => {
             group: { id: 'manager', label: 'Manager' }, balance: 335445, vatRate: 0.25, allowCustom: true, dueDays: 3 },
         isAdmin: true,
         societies: [{ id: 'police', label: 'Los Santos Police Department', short: 'LSPD', billable: true }, { id: 'ambulance', label: 'Pillbox Medical Center', short: 'PMC', billable: true }, { id: 'mechanic', label: 'Los Santos Customs', short: 'LSC', billable: true }],
-        settings: { version: '3.0.0', personalEnabled: true, personalCustom: true, personalSocietyRecipients: true, personalVat: 0, dueDays: 7, customDue: true, maxDueDays: 30, maxItems: 25, maxQuantity: 100, maxNote: 250,
+        settings: { version: '1.0.0', personalEnabled: true, personalCustom: true, personalSocietyRecipients: true, personalVat: 0, dueDays: 7, customDue: true, maxDueDays: 30, maxItems: 25, maxQuantity: 100, maxNote: 250,
             methods: { bank: true, cash: true }, allowPartial: true, minPartial: 50, payByReference: true, disputes: true, tips: [0, 10, 15, 20], maxTip: 50, print: true, pageSize: 7, banking: 'nayzeee-banking', adminDelete: true, adminClear: true },
     };
     const days = [5, 6, 0, 1, 2, 3, 4];

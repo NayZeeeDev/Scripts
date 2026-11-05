@@ -1,7 +1,7 @@
 --[[
     NAYZEEE BILLING - Database setup & upgrades
     Tables are created and upgraded automatically (MySQL 5.7+, MySQL 8, MariaDB 10.2+).
-    v1 / v2 installs keep every invoice.
+    Older installs keep every invoice.
 ]]
 
 DB = { ready = false }
@@ -85,7 +85,7 @@ CreateThread(function()
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ]])
 
-    -- v1 / v2 upgrades
+    -- upgrades from older installs
     local st = column('nayzeee_billing_invoices', 'status')
     if st and st.t == 'enum' then
         MySQL.query.await("ALTER TABLE `nayzeee_billing_invoices` MODIFY `status` VARCHAR(20) DEFAULT 'pending'")

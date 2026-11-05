@@ -28,7 +28,7 @@ local function identifierOf(target)
 end
 
 exports('CreateInvoice', function(data, legacyTarget, legacyItems, legacyCompany)
-    -- v1 / v2 signature: CreateInvoice(sender, target, items, company)
+    -- legacy signature: CreateInvoice(sender, target, items, company)
     if type(data) ~= 'table' then data = { sender = data, target = legacyTarget, items = legacyItems, society = legacyCompany } end
 
     local society = data.society or data.company
