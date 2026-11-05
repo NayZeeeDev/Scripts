@@ -53,6 +53,8 @@ RegisterNetEvent('nzc:c:tugStart', function(d)
     Snatch.tug = d
     if Hold.active() then Hold.stop(false) end
     if Menu.open then Menu.close() end
+    if Store.open and Store.close then Store.close() end
+    if Studio.open and Studio.close then Studio.close() end
     local me = PlayerPedId()
     local opp = Util.pedOf(d.oppSrc)
     if opp ~= 0 and DoesEntityExist(opp) then Util.face(me, opp) end

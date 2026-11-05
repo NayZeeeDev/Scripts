@@ -54,6 +54,7 @@ lib.callback.register('nzc:state', function()
         handsUp = handsUp(ped),
         dead = IsEntityDead(ped) or IsPedFatallyInjured(ped) or IsPedRagdoll(ped),
         noZone = Config.IsInNoSnatchZone(GetEntityCoords(ped)) == true,
+        busy = (Store and Store.open) or (Studio and Studio.open) or false,
     }
 end)
 

@@ -28,8 +28,8 @@ end)
 
 RegisterNetEvent('nzc:c:notify', function(msg, kind, duration) CB.Notify(msg, kind, duration) end)
 
-RegisterNetEvent('nzc:c:dispatch', function(coords)
-    pcall(Config.Dispatch, coords, GetPlayerServerId(PlayerId()))
+RegisterNetEvent('nzc:c:dispatch', function(coords, snatcherSrc)
+    pcall(Config.Dispatch, coords, snatcherSrc)
 end)
 
 -- one-shot animations the server asks for

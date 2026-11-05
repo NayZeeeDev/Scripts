@@ -56,6 +56,7 @@ local function spawnProp(k, l)
     prop = nil
     local entity, hash = Util.spawnChain(k, l, stage())
     if not entity then return false end
+    if not Studio.isOpen() then Util.delete(entity) return false end
     FreezeEntityPosition(entity, true)
     SetEntityLodDist(entity, 1000)
     prop, key, letter = entity, k, l
@@ -158,6 +159,7 @@ local function shoot(name)
     end
     NUI.send('icon:hide')
     Wait(0); Wait(0); Wait(0)
+    if not active then NUI.send('icon:show') return false end
     local done = false
     exports['screenshot-basic']:requestScreenshot({ encoding = 'png' }, function(data)
         waiting = name
@@ -176,9 +178,10 @@ local function awaitSaved(name)
 end
 
 local function captureOne(k, l)
-    if not spawnProp(k, l) then return false end
+    if not active or not spawnProp(k, l) then return false end
     updateCam()
     Wait(cfg.TextureWait or 700)
+    if not active then return false end
     local name = Chains.model(k, l)
     if not shoot(name) then return false end
     awaitSaved(name)

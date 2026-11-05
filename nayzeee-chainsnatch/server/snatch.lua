@@ -128,7 +128,7 @@ local function take(snatcher, victim, what)
     end
 
     if math.random() < (cfg.Dispatch or 0) then
-        TriggerClientEvent('nzc:c:dispatch', victim, vc)
+        TriggerClientEvent('nzc:c:dispatch', victim, vc, snatcher)
     end
     Logs.send('snatch', 'Chain snatched', ('%s snatched %s (%s) from %s'):format(Logs.who(snatcher), label,
         what.kind == 'worn' and 'worn' or 'clothing', Logs.who(victim)))
@@ -259,6 +259,7 @@ RegisterNetEvent('nzc:s:snatch', function(target)
     report = ok and type(report) == 'table' and report or {}
     if not GetPlayerName(src) or not GetPlayerName(target) then return end
     if report.noZone then return Worn.notify(src, T.protected, 'error') end
+    if report.busy then return Worn.notify(src, T.busy, 'error') end
 
     if not what and cfg.Clothing and type(report.clothing) == 'string' then
         local d = Chains.def(report.clothing)

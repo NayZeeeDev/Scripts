@@ -427,9 +427,11 @@ local function destroyPreview()
     preview, previewHash = nil, nil
 end
 
+local previewPose = nil     -- the Hold tab's pose chips: only previewed here, never changes the real pose
+
 local function poseFor()
     local ped = PlayerPedId()
-    local a = Hold.anim()
+    local a = (previewPose and Config.Hold.Anims[previewPose]) or Hold.anim()
     if mode == 'hold' and a then
         if Util.loadDict(a.dict) then TaskPlayAnim(ped, a.dict, a.clip, 3.0, -3.0, -1, (a.flag or 49) | 1, 0.0, false, false, false) end
     elseif a then
@@ -442,6 +444,8 @@ local function spawnPreview(key, letter, keepTune)
     if not Chains.exists(key) then return false end
     local entity, hash = Util.spawnChain(key, letter, GetEntityCoords(PlayerPedId()))
     if not entity then return false end
+    -- the studio closed while the model streamed in: don't leave it on the player
+    if not open then Util.delete(entity) return false end
     preview, previewHash = entity, hash
     centre, mn, mx = Util.modelCentre(hash)
     currentKey, variantId = key, Chains.variant(key, letter).letter
@@ -538,7 +542,7 @@ local function payload()
     return {
         chains = list, bones = BONES, presets = PRESETS[mode], mode = mode,
         current = currentKey, variant = variantId, tune = tune, calibrated = calib and true or false,
-        female = female, cam = camWant, icon = Icons and Icons.state() or nil, holdAnim = Config.Hold.Anim, anims = anims,
+        female = female, cam = camWant, icon = Icons and Icons.state() or nil, holdAnim = previewPose or Config.Hold.Anim, anims = anims,
     }
 end
 
@@ -574,7 +578,8 @@ local function close()
     Studio.open = false
     queue = {}
     if Icons then Icons.stop() end
-    local a = Hold.anim()
+    local a = (previewPose and Config.Hold.Anims[previewPose]) or Hold.anim()
+    previewPose = nil
     if a then StopAnimTask(PlayerPedId(), a.dict, a.clip, 2.0) end
     stopCam()
     destroyPreview()
@@ -586,8 +591,13 @@ local function close()
     NUI.send('studio:close')
 end
 
+local opening = false
+
 local function openStudio()
+    if opening then return end
     if open then return close() end
+    opening = true
+    local ok, err = pcall(function()
     if IsPedInAnyVehicle(PlayerPedId(), false) then return CB.Notify('Get out of the vehicle first.', 'error') end
     if Hold.active() then Hold.stop(false) end
     if Menu.open then Menu.close() end
@@ -609,6 +619,7 @@ local function openStudio()
             loadTune(Chains.fit(currentKey, mode, Util.isFemale()))
         end
     end
+    if not open then return end
     poseFor()
     startCam()
     CreateThread(studioLoop)
@@ -621,6 +632,9 @@ local function openStudio()
         local st = lib.callback.await('nzc:chainkit:status', false)
         if st and open then NUI.send('studio:kit', { kind = 'status', status = st }) end
     end)
+    end)
+    opening = false
+    if not ok then print('^1[nayzeee-chainsnatch] studio: ' .. tostring(err) .. '^0'); close() end
 end
 
 RegisterCommand(Config.Studio.Command or 'chainstudio', function() openStudio() end, false)
@@ -648,6 +662,7 @@ AddEventHandler('onResourceStop', function(res)
 end)
 
 function Studio.current() return currentKey, variantId end
+function Studio.close() close() end
 function Studio.isOpen() return open end
 
 -----------------------------------------------------------------
@@ -735,7 +750,7 @@ on('studio:cam', function(d)
 end, false)
 
 on('studio:pose', function(d)
-    if d.key and Config.Hold.Anims[d.key] then Config.Hold.Anim = d.key end
+    if d.key and Config.Hold.Anims[d.key] then previewPose = d.key end
     poseFor()
 end, 'full')
 

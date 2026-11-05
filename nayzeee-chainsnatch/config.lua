@@ -251,7 +251,7 @@ Config.Store = {
             -- Stand where they should be and use /chainstorehere (admin) to print your spot.
             coords  = vector3(-622.95, -229.95, 38.06),
             heading = 305.0,
-            ped     = 'u_f_m_jewelsec_01',
+            ped     = 'u_f_y_jewelass_01',   -- the Vangelico assistant. false = no ped (an [E] prompt instead)
             blip    = { sprite = 617, color = 46, scale = 0.75, label = 'Jewelry Store' },
             display = { forward = 0.70, height = 0.30, camDistance = 0.85, camHeight = 0.12 },
         },

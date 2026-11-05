@@ -20,6 +20,7 @@ if not cfg or not cfg.Enabled then return end
 local open = false
 local mode = 'counter'      -- 'counter' | 'tryon'
 local storePeds = {}
+local hasPed = {}            -- [location] = a jeweller really spawned there
 local view = nil
 local counterCam, tryCam = nil, nil
 local live = {}
@@ -93,6 +94,7 @@ local function spawnSlot(key, letter, offset)
     if not entity then return nil end
     FreezeEntityPosition(entity, true)
     SetEntityAlpha(entity, 0, false)
+    if mode == 'tryon' then SetEntityVisible(entity, false, false) end
     local c, mn, mx = Util.modelCentre(hash)
     local it = {
         entity = entity, key = key, letter = letter, c = c,
@@ -373,6 +375,8 @@ local function closeStore()
     mode = 'counter'
 end
 
+Store.close = function() closeStore() end
+
 function Store.show(location)
     if open or Menu.open or (Studio and Studio.open) or Hold.active() or Place.active() or Snatch.tug then return end
     local ped = PlayerPedId()
@@ -500,8 +504,9 @@ CreateThread(function()
             EndTextCommandSetBlipName(blip)
         end
         if loc.ped then
-            local hash = Util.loadModel(loc.ped, true)
+            local hash = Util.loadModel(loc.ped)
             if hash then
+                hasPed[loc] = true
                 local ped = CreatePed(4, hash, loc.coords.x, loc.coords.y, loc.coords.z - 1.0, loc.heading or 0.0, false, false)
                 FreezeEntityPosition(ped, true)
                 SetEntityInvincible(ped, true)
@@ -531,8 +536,9 @@ CreateThread(function()
         local coords = GetEntityCoords(PlayerPedId())
         local near = nil
         for _, loc in ipairs(cfg.Locations or {}) do
-            if (CB.Target == 'none' or not loc.ped) and #(coords - loc.coords) < 2.5 then near = loc break end
+            if (CB.Target == 'none' or not hasPed[loc]) and #(coords - loc.coords) < 2.5 then near = loc break end
         end
+        if near and (open or Hold.active() or Place.active() or Snatch.tug) then near = nil end
         if near and not open then
             if not showing then showing = true; NUI.hint('<kc>E</kc> Browse chains', 'store') end
             if IsControlJustPressed(0, 38) then
