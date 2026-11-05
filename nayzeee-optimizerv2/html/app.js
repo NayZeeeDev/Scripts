@@ -1,65 +1,68 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE OPTIMIZER — app.js
-   Version: 1.1.0
+   Version: 1.1.0 (UI v7)
    ═══════════════════════════════════════════════════════════ */
 
-const app        = document.getElementById('app');
-const closeBtn   = document.getElementById('closeBtn');
-const navs       = document.querySelectorAll('.nav');
-const presetBtns = document.querySelectorAll('.preset');
-const settingRows= document.querySelectorAll('.row[data-setting]');
-const effectRows = document.querySelectorAll('.row[data-effect]');
+const $  = id => document.getElementById(id);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
 
-const $ = id => document.getElementById(id);
+const app        = $('app');
+const navs       = $$('.nav');
+const presetBtns = $$('.preset');
+const settingRows= $$('.row[data-setting]');
+const effectRows = $$('.row[data-effect]');
 
-// Mirrors Config.Presets for instant UI feedback. Replaced by the real
-// presets from config.lua on open, so server edits are reflected.
+/* ═══════════════ STAGE SCALING ═══════════════
+   The menu is a fixed 1200 × 720 canvas. It is zoomed to fit the screen
+   (never larger than the screen, scaled up on 1440p/4K), so nothing ever
+   scrolls vertically or sideways at any resolution. */
+const CANVAS_W = 1200, CANVAS_H = 720;
+function fitStage() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const fit = Math.min(vw * 0.95 / CANVAS_W, vh * 0.93 / CANVAS_H);
+  const pref = Math.max(1, Math.min(vw / 1920, vh / 1080));
+  const z = Math.max(0.5, Math.min(fit, pref));
+  app.style.zoom = z.toFixed(4);
+}
+window.addEventListener('resize', fitStage);
+fitStage();
+
+/* ═══════════════ CONSTANTS ═══════════════ */
 const ALL_TOGGLES = ['optimizePeds','optimizeVehicles','optimizeObjects','removeParticles',
   'optimizeShadows','optimizeLights','lowTextures','disableDecals','disableBloodStains',
   'disableFireEffects','disableRain','disableWind','clearBrokenGlass','cleanPedEffects',
   'clearUnnecessary','entityCleanup','ultraMode'];
+const PERF_KEYS = ['optimizePeds','optimizeVehicles','optimizeObjects','removeParticles'];
+const VIS_KEYS  = ['optimizeShadows','optimizeLights','lowTextures','disableDecals'];
 
-const P = (...keys) => {
-  const o = {};
-  ALL_TOGGLES.forEach(k => o[k] = keys.includes(k));
-  return o;
-};
-
+const P = (...keys) => { const o = {}; ALL_TOGGLES.forEach(k => o[k] = keys.includes(k)); return o; };
 let PRESET_STATE = {
   quality: P(),
-  balanced: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles',
-    'optimizeLights','disableDecals','clearBrokenGlass','cleanPedEffects',
-    'clearUnnecessary','entityCleanup'),
-  performance: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles',
-    'optimizeShadows','optimizeLights','lowTextures','disableDecals','disableBloodStains',
-    'disableRain','disableWind','clearBrokenGlass','cleanPedEffects','clearUnnecessary',
-    'entityCleanup','ultraMode'),
-  potato: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles',
-    'optimizeShadows','optimizeLights','lowTextures','disableDecals','disableBloodStains',
-    'disableFireEffects','disableRain','disableWind','clearBrokenGlass','cleanPedEffects',
-    'clearUnnecessary','entityCleanup','ultraMode'),
-  streaming: P('optimizePeds','optimizeObjects','optimizeLights','disableDecals',
-    'clearBrokenGlass','cleanPedEffects','clearUnnecessary','entityCleanup'),
-  shooter: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles',
-    'optimizeShadows','optimizeLights','disableDecals','disableBloodStains',
-    'disableFireEffects','disableRain','disableWind','clearBrokenGlass','cleanPedEffects',
-    'clearUnnecessary','entityCleanup'),
+  balanced: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles','optimizeLights','disableDecals','clearBrokenGlass','cleanPedEffects','clearUnnecessary','entityCleanup'),
+  performance: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles','optimizeShadows','optimizeLights','lowTextures','disableDecals','disableBloodStains','disableRain','disableWind','clearBrokenGlass','cleanPedEffects','clearUnnecessary','entityCleanup','ultraMode'),
+  potato: P(...ALL_TOGGLES),
+  streaming: P('optimizePeds','optimizeObjects','optimizeLights','disableDecals','clearBrokenGlass','cleanPedEffects','clearUnnecessary','entityCleanup'),
+  shooter: P('optimizePeds','optimizeVehicles','optimizeObjects','removeParticles','optimizeShadows','optimizeLights','disableDecals','disableBloodStains','disableFireEffects','disableRain','disableWind','clearBrokenGlass','cleanPedEffects','clearUnnecessary','entityCleanup'),
 };
-
-const PRESET_LABEL = {
-  quality:'Quality', balanced:'Balanced', performance:'Performance',
-  potato:'Potato', streaming:'Streaming', shooter:'Shooter', custom:'Custom'
-};
-
+const PRESET_LABEL = { quality:'Quality', balanced:'Balanced', performance:'Performance', potato:'Potato', streaming:'Streaming', shooter:'Shooter', custom:'Custom' };
 const GRADE_LABEL = { excellent:'Excellent', good:'Good', ok:'OK', poor:'Poor', bad:'Bad' };
-const VERDICT_LABEL = {
-  healthy:'Healthy', monitor:'Monitor', edit:'Edit recommended',
-  'edit-required':'Edit required', remove:'Remove or replace'
-};
+const GRADE_ORDER = { excellent:1, good:2, ok:3, poor:4, bad:5 };
+const VERDICT_LABEL = { healthy:'Healthy', monitor:'Monitor', edit:'Edit recommended', 'edit-required':'Edit required', remove:'Remove or replace' };
 
+const FX_LABEL = {
+  DeathFailOut:'Death Flash', FocusIn:'Focus In', FocusOut:'Focus Out', RampageOut:'Rampage',
+  SwitchHUDIn:'HUD Flash', MinigameEndNeutral:'End Neutral', MinigameEndTrevor:'End Trevor',
+  CamPushInFranklin:'Franklin Push', DrugsMichaelAliensFightIn:'Alien Fight',
+  SuccessFranklin:'Success Green', SuccessMichael:'Success Blue', SuccessTrevor:'Success Orange',
+};
+const SOUND_LABEL = { noscope:'No Scope', multikill:'Multi Kill', killingspree:'Killing Spree' };
+const titleCase = s => String(s).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const soundLabel = s => SOUND_LABEL[s] || titleCase(s);
+const fxLabel = s => FX_LABEL[s] || String(s).replace(/([a-z])([A-Z])/g, '$1 $2');
+
+/* ═══════════════ STATE ═══════════════ */
 let currentSettings = {};
 let isOpen = false;
-let sessionMinutes = 0;
 let lockedKeys = new Set();
 let impactMap = {};
 let conflictMap = {};
@@ -67,9 +70,14 @@ let uiFlags = {};
 let isAdmin = false;
 let benchResults = {};
 let benchDuration = 30;
+let activePreset = null;
+let bgSystems = {};
+let liveSystems = {};
+let poolLimits = { vehicles: 180, peds: 180 };
+let killSounds = [];
+const fpsHist = [];
 
 /* ═══════════════ NUI ═══════════════ */
-// FiveM injects GetParentResourceName(); never define our own.
 const RESOURCE = (typeof GetParentResourceName === 'function')
   ? GetParentResourceName()
   : (window.location.hostname || 'nayzeee-optimizerv2');
@@ -88,23 +96,46 @@ function post(action, data = {}) {
 }
 
 function esc(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+const setTxt = (id, v) => { const e = $(id); if (e) e.textContent = v; };
+const setHtml = (id, v) => { const e = $(id); if (e) e.innerHTML = v; };
+const fmt = (v, d = 0) => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(d);
+
+/* ═══════════════ SPARKLINES ═══════════════ */
+function drawSpark(svg, data, opts = {}) {
+  if (!svg) return null;
+  const vb = svg.viewBox.baseVal;
+  const W = vb.width, H = vb.height, pad = opts.pad != null ? opts.pad : 3;
+  if (!data || data.length < 2) { svg.innerHTML = ''; return null; }
+  let lo = Math.min(...data), hi = Math.max(...data);
+  if (opts.zero) lo = 0;
+  const span = Math.max(hi - lo, opts.minSpan || 1);
+  lo = opts.zero ? 0 : lo - span * 0.12;
+  hi = lo + span * (opts.zero ? 1.12 : 1.24);
+  const n = data.length, step = W / (opts.slots ? opts.slots - 1 : n - 1);
+  const x0 = opts.slots ? W - (n - 1) * step : 0;
+  const pts = data.map((v, i) => [x0 + i * step, H - pad - (v - lo) / (hi - lo) * (H - pad * 2)]);
+  const line = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `M${pts[0][0].toFixed(1)},${H} L${line.replace(/ /g, ' L')} L${pts[n - 1][0].toFixed(1)},${H} Z`;
+  let ref = '';
+  if (opts.ref && opts.ref > lo && opts.ref < hi) {
+    const y = H - pad - (opts.ref - lo) / (hi - lo) * (H - pad * 2);
+    ref = `<line class="sp-ref" x1="0" x2="${W}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
+  }
+  svg.innerHTML = `${ref}<path class="sp-area" d="${area}"/><polyline class="sp-line" points="${line}"/><line class="sp-ref" id="${svg.id}-cursor" x1="0" x2="0" y1="0" y2="${H}" style="display:none"/>`;
+  return { pts, W, H };
 }
 
 /* ═══════════════════════════════════════════════════════════
    HARDWARE DETECTION
-   NUI runs in Chromium: GPU string via WEBGL_debug_renderer_info, CPU
-   threads, memory (capped at 8 by Chrome), resolution, refresh estimate.
-   The refresh estimate follows the NUI frame pacing, so it is a hint.
    ═══════════════════════════════════════════════════════════ */
-
 const TIER_INFO = {
-  ultra:  { name:'High-end',     preset:'quality',     note:'Your hardware handles GTA comfortably. Visual quality over raw frames.' },
-  high:   { name:'Strong',       preset:'balanced',    note:'Plenty of headroom. Balanced keeps things sharp with a solid frame rate.' },
-  mid:    { name:'Mid-range',    preset:'balanced',    note:'A good all-rounder. Balanced trims the expensive effects and keeps the look.' },
-  low:    { name:'Entry-level',  preset:'performance', note:'Performance strips the heavy effects so busy areas stay playable.' },
-  potato: { name:'Low-end',      preset:'potato',      note:'Integrated or older graphics. Potato cuts everything it can for frames.' },
+  ultra:  { name:'High-end',    preset:'quality',     note:'Your hardware handles GTA comfortably. Visual quality over raw frames.' },
+  high:   { name:'Strong',      preset:'balanced',    note:'Plenty of headroom. Balanced keeps things sharp with a solid frame rate.' },
+  mid:    { name:'Mid-range',   preset:'balanced',    note:'A good all-rounder. Balanced trims the expensive effects and keeps the look.' },
+  low:    { name:'Entry-level', preset:'performance', note:'Performance strips the heavy effects so busy areas stay playable.' },
+  potato: { name:'Low-end',     preset:'potato',      note:'Integrated or older graphics. Potato cuts everything it can for frames.' },
 };
 
 function detectGPU() {
@@ -114,8 +145,7 @@ function detectGPU() {
     if (!gl) return null;
     const dbg = gl.getExtension('WEBGL_debug_renderer_info');
     if (!dbg) return null;
-    const raw = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
-    return raw || null;
+    return gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || null;
   } catch (e) { return null; }
 }
 
@@ -124,22 +154,14 @@ function prettyGPU(raw) {
   let s = String(raw);
   const angle = s.match(/^ANGLE\s*\(([^,]+),\s*(.+?)(?:\s+Direct3D\d+|\s+vs_\d|\s*,\s*D3D\d+)/i);
   if (angle) s = angle[2];
-  return s.replace(/\((?:R|TM|C)\)/gi, '')
-          .replace(/[™®]/g, '')
-          .replace(/\s*Direct3D\d+.*$/i, '')
-          .replace(/\s*vs_\d.*$/i, '')
-          .replace(/\s+/g, ' ')
-          .trim() || null;
+  return s.replace(/\((?:R|TM|C)\)/gi, '').replace(/[™®]/g, '').replace(/\s*Direct3D\d+.*$/i, '')
+          .replace(/\s*vs_\d.*$/i, '').replace(/\s+/g, ' ').trim() || null;
 }
 
 function classifyGPU(raw) {
   if (!raw) return null;
-  const s = String(raw).toLowerCase()
-    .replace(/\((?:r|tm|c)\)/g, ' ')
-    .replace(/[™®]/g, ' ')
-    .replace(/\s+/g, ' ');
+  const s = String(raw).toLowerCase().replace(/\((?:r|tm|c)\)/g, ' ').replace(/[™®]/g, ' ').replace(/\s+/g, ' ');
   let m;
-
   if ((m = s.match(/rtx\s*(\d{4})/))) {
     const n = +m[1], gen = Math.floor(n / 1000), t = n % 1000;
     if (gen >= 4) return t >= 70 ? 'ultra' : 'high';
@@ -147,12 +169,7 @@ function classifyGPU(raw) {
     if (gen === 2) return t >= 70 ? 'high' : 'mid';
     return 'mid';
   }
-  if ((m = s.match(/gtx\s*(\d{3,4})/))) {
-    const n = +m[1];
-    if (n >= 1060) return 'mid';
-    if (n >= 950)  return 'low';
-    return 'potato';
-  }
+  if ((m = s.match(/gtx\s*(\d{3,4})/))) { const n = +m[1]; return n >= 1060 ? 'mid' : n >= 950 ? 'low' : 'potato'; }
   if ((m = s.match(/arc\s*[ab](\d{3})/))) return +m[1] >= 750 ? 'high' : 'mid';
   if ((m = s.match(/rx\s*(\d{4})/))) {
     const n = +m[1], gen = Math.floor(n / 1000), t = n % 1000;
@@ -192,82 +209,49 @@ async function detectSpecs() {
   const hz = await measureRefresh();
   const threads = navigator.hardwareConcurrency || null;
   const memRaw  = navigator.deviceMemory || null;
-
   let tier = classifyGPU(rawGpu);
   let guessed = false;
   if (!tier && threads) {
     guessed = true;
     tier = threads >= 16 ? 'high' : threads >= 8 ? 'mid' : threads >= 4 ? 'low' : 'potato';
   }
-
   return {
-    gpu: prettyGPU(rawGpu),
-    gpuRaw: rawGpu,
-    threads,
+    gpu: prettyGPU(rawGpu), threads,
     ram: memRaw ? (memRaw >= 8 ? '8 GB+' : memRaw + ' GB') : null,
-    ramExact: memRaw,
     width: window.screen ? window.screen.width : null,
     height: window.screen ? window.screen.height : null,
-    hz,
-    tier,
-    guessed,
+    hz, tier, guessed,
   };
 }
-
-/* ═══════════════ GRAPHICS RECOMMENDATIONS ═══════════════ */
 
 function gfxRecommendations(spec) {
   const t = spec.tier || 'mid';
   const hi = (t === 'ultra' || t === 'high');
   const lo = (t === 'potato' || t === 'low');
-
   const R = [];
   const add = (name, value, why, off) => R.push({ name, value, why, off: !!off });
-
-  add('Texture Quality', hi ? 'Very High' : t === 'mid' ? 'High' : 'Normal',
-      'Costs VRAM, not frames. Keep it high unless textures stutter.');
-  add('Shader Quality', hi ? 'Very High' : t === 'mid' ? 'High' : 'Normal',
-      'Affects surface detail across the whole world.');
-  add('Shadow Quality', hi ? 'High' : 'Normal',
-      'One of the most expensive settings in GTA.');
-  add('Reflection Quality', hi ? 'High' : t === 'mid' ? 'Normal' : 'Low',
-      'Heavy in cities with lots of glass and water.');
-  add('Water Quality', hi ? 'High' : 'Normal',
-      'Only matters near water; cheap to leave up.');
-  add('Particles Quality', hi ? 'High' : 'Normal',
-      'Explosions and smoke in firefights.');
-  add('Grass Quality', hi ? 'High' : t === 'mid' ? 'Normal' : 'Low',
-      'Big cost off-road, none downtown.');
-  add('Anti-Aliasing (FXAA)', 'On',
-      'Cheap edge smoothing. Leave it on.');
-  add('MSAA', hi ? 'x2' : 'Off', hi
-      ? 'Sharper edges; drop to Off if you want more frames.'
-      : 'Very expensive. Off is the right call here.', !hi);
-  add('Population Density', t === 'mid' ? '~50%' : hi ? '~66%' : '~33%',
-      'The Optimizer already trims this in-game, so a mid slider is fine.');
-  add('Population Variety', hi ? '~66%' : '~33%',
-      'Fewer unique models means less streaming and less stutter.');
-  add('Distance Scaling', hi ? '~66%' : t === 'mid' ? '~50%' : '~33%',
-      'Directly drives how much world is drawn each frame.');
-  add('Extended Distance Scaling', lo ? 'Off' : '~25%',
-      'Big cost for detail most players never look at.', lo);
-  add('High Detail Streaming While Flying', 'Off',
-      'Only helps in aircraft and costs a lot of memory.', true);
-  add('Long Shadows', 'Off',
-      'Pure cosmetic cost at dawn and dusk.', true);
-  add('DirectX Version', 'DirectX 11',
-      'Most stable for FiveM. DX12 can stutter on some drivers.');
-  add('Pause Game On Focus Loss', 'Off',
-      'Stops the game hitching when you alt-tab.', true);
-  if (spec.hz) {
-    add('VSync', 'On',
-        `Locks frames to your ${spec.hz}Hz display. The single biggest thing you can do for GPU heat.`);
-  }
+  add('Texture Quality', hi ? 'Very High' : t === 'mid' ? 'High' : 'Normal', 'Costs VRAM, not frames. Keep it high unless textures stutter.');
+  add('Shader Quality', hi ? 'Very High' : t === 'mid' ? 'High' : 'Normal', 'Affects surface detail across the whole world.');
+  add('Shadow Quality', hi ? 'High' : 'Normal', 'One of the most expensive settings in GTA.');
+  add('Reflection Quality', hi ? 'High' : t === 'mid' ? 'Normal' : 'Low', 'Heavy in cities with lots of glass and water.');
+  add('Water Quality', hi ? 'High' : 'Normal', 'Only matters near water; cheap to leave up.');
+  add('Particles Quality', hi ? 'High' : 'Normal', 'Explosions and smoke in firefights.');
+  add('Grass Quality', hi ? 'High' : t === 'mid' ? 'Normal' : 'Low', 'Big cost off-road, none downtown.');
+  add('Anti-Aliasing (FXAA)', 'On', 'Cheap edge smoothing. Leave it on.');
+  add('MSAA', hi ? 'x2' : 'Off', hi ? 'Sharper edges; drop to Off for more frames.' : 'Very expensive. Off is the right call here.', !hi);
+  add('Population Density', t === 'mid' ? '~50%' : hi ? '~66%' : '~33%', 'The Optimizer already trims this in-game.');
+  add('Population Variety', hi ? '~66%' : '~33%', 'Fewer unique models means less streaming stutter.');
+  add('Distance Scaling', hi ? '~66%' : t === 'mid' ? '~50%' : '~33%', 'Directly drives how much world is drawn each frame.');
+  add('Extended Distance Scaling', lo ? 'Off' : '~25%', 'Big cost for detail most players never look at.', lo);
+  add('High Detail Streaming While Flying', 'Off', 'Only helps in aircraft and costs a lot of memory.', true);
+  add('Long Shadows', 'Off', 'Pure cosmetic cost at dawn and dusk.', true);
+  add('DirectX Version', 'DirectX 11', 'Most stable for FiveM. DX12 can stutter on some drivers.');
+  add('Pause Game On Focus Loss', 'Off', 'Stops the game hitching when you alt-tab.', true);
+  add('VSync', spec.hz ? 'On' : 'On', spec.hz ? `Locks frames to your ~${spec.hz}Hz display. Biggest single win for GPU heat.` : 'Locks frames to your display. Biggest single win for GPU heat.');
   return R;
 }
 
 /* ═══════════════ THEME ═══════════════ */
-
 function hexToRgb(hex) {
   const h = String(hex || '').replace('#', '');
   const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
@@ -280,49 +264,34 @@ function applyTheme(theme) {
   if (!theme) return;
   const root = document.documentElement;
   const set = (name, val) => { if (val) root.style.setProperty(name, val); };
-
-  set('--teal',    theme.Primary);
-  set('--teal-hi', theme.PrimaryHi);
-  set('--teal-lo', theme.PrimaryLo);
-  set('--red',     theme.Danger);
-  set('--red-lo',  theme.DangerLo);
-  set('--amber',   theme.Amber);
-  set('--base',    theme.Base);
-  set('--panel',   theme.Panel);
-  set('--raise',   theme.Raise);
-  set('--inset',   theme.Inset);
-  set('--ink',     theme.Text);
-  set('--ink-2',   theme.TextMuted);
-  set('--ink-3',   theme.TextDim);
-
+  set('--teal', theme.Primary); set('--teal-hi', theme.PrimaryHi); set('--teal-lo', theme.PrimaryLo);
+  set('--red', theme.Danger); set('--red-lo', theme.DangerLo); set('--amber', theme.Amber);
+  set('--base', theme.Base); set('--panel', theme.Panel); set('--raise', theme.Raise); set('--inset', theme.Inset);
+  set('--ink', theme.Text); set('--ink-2', theme.TextMuted); set('--ink-3', theme.TextDim);
   const p = hexToRgb(theme.Primary);
   if (p) {
-    root.style.setProperty('--primary-rgb', p.join(', '));
     root.style.setProperty('--teal-wash', `rgba(${p[0]}, ${p[1]}, ${p[2]}, .11)`);
     root.style.setProperty('--teal-edge', `rgba(${p[0]}, ${p[1]}, ${p[2]}, .34)`);
   }
   const d = hexToRgb(theme.Danger);
-  if (d) root.style.setProperty('--red-wash', `rgba(${d[0]}, ${d[1]}, ${d[2]}, .11)`);
+  if (d) {
+    root.style.setProperty('--red-wash', `rgba(${d[0]}, ${d[1]}, ${d[2]}, .11)`);
+    root.style.setProperty('--red-edge', `rgba(${d[0]}, ${d[1]}, ${d[2]}, .36)`);
+  }
 }
 
 /* ═══════════════ SOUND ═══════════════ */
 const soundCache = {};
-const KILL_SOUNDS = ['hitmarker','headshot','eliminated','takedown','frag','noscope',
-  'collateral','multikill','unstoppable','godlike','domination','rampage',
-  'killingspree','savage','brutal','lethal','execution','finisher'];
-
 function playSound(soundId, volume) {
   if (!/^[a-z0-9_-]+$/i.test(String(soundId || ''))) return;
-  const vol = Math.min(100, Math.max(0, volume || 50)) / 100;
-  const isKill = KILL_SOUNDS.includes(soundId);
-
+  const vol = Math.min(100, Math.max(0, volume == null ? 50 : volume)) / 100;
+  const isKill = killSounds.includes(soundId);
   Object.keys(soundCache).forEach(key => {
-    if (KILL_SOUNDS.includes(key) === isKill && soundCache[key]) {
+    if (killSounds.includes(key) === isKill && soundCache[key]) {
       soundCache[key].pause();
       soundCache[key].currentTime = 0;
     }
   });
-
   const audio = new Audio(`sounds/${soundId}.mp3`);
   audio.volume = vol;
   audio.play().catch(() => {});
@@ -335,19 +304,38 @@ window.addEventListener('message', (e) => {
   switch (d.action) {
     case 'open':               applyTheme(d.theme); openMenu(d); break;
     case 'close':              hideUI(); break;
-    case 'updateSettings':     applySettings(d.settings); setStatus(d.preset || null); break;
+    case 'updateSettings':     applySettings(d.settings); setPresetUI(d.preset || null); break;
     case 'playSound':          playSound(d.soundId, d.volume); break;
     case 'stats':              updateStats(d); break;
     case 'admin':              setAdmin(d.isAdmin); break;
     case 'benchResult':        benchResults = d.results || benchResults; renderBench(); break;
-    case 'healthServer':       health.server = d; renderHealthServer(); break;
-    case 'healthClient':       health.client = d; if (health.view === 'mine') renderResourceTable(); renderCoverage(); break;
-    case 'healthClientFrames': health.clientFrames = d; if (health.view === 'mine') renderCoverage(); break;
-    case 'healthStatus':       setHealthStatus(d.message, d.kind); break;
+    case 'healthServer':       health.server = d; renderHealth(); break;
+    case 'healthClient':       health.client = d; if (health.view === 'mine') renderResources(); break;
+    case 'healthClientFrames': health.clientFrames = d; break;
+    case 'healthStatus':       toast(d.message, d.kind); break;
   }
 });
 
 /* ═══════════════ OPEN / CLOSE ═══════════════ */
+function fillSelect(id, items) {
+  const el = $(id);
+  if (!el || !Array.isArray(items) || !items.length) return;
+  const cur = el.value;
+  el.innerHTML = items.map(it => `<option value="${esc(it.value)}">${esc(it.label)}</option>`).join('');
+  if (cur) el.value = cur;
+}
+
+function applyOptions(o) {
+  if (!o) return;
+  if (Array.isArray(o.screenFx)) {
+    const fx = o.screenFx.map(v => ({ value: v, label: fxLabel(v) }));
+    fillSelect('killFxSelect', fx); fillSelect('hitFxSelect', fx);
+  }
+  if (Array.isArray(o.killSounds)) { killSounds = o.killSounds.slice(); fillSelect('killSoundSelect', o.killSounds.map(v => ({ value: v, label: soundLabel(v) }))); }
+  if (Array.isArray(o.hitSounds)) fillSelect('hitSoundSelect', o.hitSounds.map(v => ({ value: v, label: soundLabel(v) })));
+  if (Array.isArray(o.particles)) fillSelect('hitParticleSelect', o.particles.map(p => ({ value: p.id, label: p.label || titleCase(p.id) })));
+}
+
 function openMenu(d) {
   const settings = d.settings || {};
   const meta = d.meta || {};
@@ -357,6 +345,8 @@ function openMenu(d) {
   conflictMap = d.conflicts || {};
   benchResults = d.bench || {};
   benchDuration = meta.benchDuration || 30;
+  bgSystems = d.background || {};
+  if (d.limits) poolLimits = d.limits;
 
   if (d.presets && typeof d.presets === 'object') {
     const next = {};
@@ -368,23 +358,23 @@ function openMenu(d) {
     if (Object.keys(next).length) PRESET_STATE = next;
   }
 
+  applyOptions(d.options);
+  if (d.version) { setTxt('verTag', 'v' + d.version); setTxt('aboutVer', 'v' + d.version); }
+  if (d.command) setTxt('cmdOpen', '/' + d.command);
+
   applyUiFlags(meta);
   decorateRows();
-  currentSettings = settings;
-  applySettings(currentSettings);
-  setStatus(meta.preset || null);
+  applySettings(settings);
+  setPresetUI(meta.preset || null);
   renderBench();
+  renderSystems();
+  renderLocks();
 
   if (settings.specTier && !detectedSpec) {
     detectedSpec = {
-      gpu: settings.specGpu || null,
-      threads: settings.specThreads || null,
-      ram: settings.specRam || null,
-      width: settings.specWidth || null,
-      height: settings.specHeight || null,
-      hz: settings.specHz || null,
-      tier: settings.specTier || null,
-      guessed: !!settings.specGuessed,
+      gpu: settings.specGpu || null, threads: settings.specThreads || null, ram: settings.specRam || null,
+      width: settings.specWidth || null, height: settings.specHeight || null, hz: settings.specHz || null,
+      tier: settings.specTier || null, guessed: !!settings.specGuessed,
     };
     renderSpecs(detectedSpec);
   }
@@ -392,6 +382,7 @@ function openMenu(d) {
   if (settings.setupDone === false) openSetup();
   updateStats(meta);
   setAdmin(!!meta.isAdmin);
+  fitStage();
   app.classList.add('open');
   isOpen = true;
 }
@@ -400,225 +391,343 @@ function hideUI() {
   app.classList.remove('open');
   isOpen = false;
   closeModal();
-  if (health.open) { health.open = false; }
+  health.open = false;
 }
 
-// Always releases NUI focus.
 function closeMenu() {
   hideUI();
   post('close');
 }
 
 function applyUiFlags(meta) {
-  const nav = $('navGraphics');
-  if (nav) nav.hidden = uiFlags.graphicsTab === false;
+  $('navGraphics').hidden = uiFlags.graphicsTab === false;
   if (uiFlags.graphicsTab === false && $('page-graphics').classList.contains('on')) goPage('boost');
+  $('fixTexturesBtn').hidden = uiFlags.textureFix === false;
 
-  const fix = $('fixTexturesBtn');
-  if (fix) fix.hidden = uiFlags.textureFix === false;
-
-  const fcBlock = $('frameCapBlock');
   const fc = uiFlags.frameCap || {};
-  if (fcBlock) fcBlock.hidden = fc.enabled === false;
+  $('frameCapBlock').hidden = fc.enabled === false;
   const sel = $('frameCapSelect');
-  if (sel && Array.isArray(fc.targets)) {
+  if (Array.isArray(fc.targets)) {
     const cur = sel.value;
-    sel.innerHTML = '<option value="0">Uncapped</option>' +
-      fc.targets.map(t => `<option value="${+t}">${+t} fps</option>`).join('');
+    sel.innerHTML = '<option value="0">Uncapped</option>' + fc.targets.map(t => `<option value="${+t}">${+t} fps</option>`).join('');
     sel.value = cur;
   }
 
-  const tele = $('telemetryRow');
-  if (tele) tele.hidden = uiFlags.telemetry === false;
-
+  $('telemetryRow').hidden = uiFlags.telemetry === false;
+  $('telemetryInfo').hidden = uiFlags.telemetry === false;
   const setup = uiFlags.setup || {};
-  if ($('optAuto')) $('optAuto').hidden = setup.allowAutoDetect === false;
-  if ($('setupSkip')) $('setupSkip').hidden = setup.allowSkip === false;
+  $('optAuto').hidden = setup.allowAutoDetect === false;
+  $('setupSkip').hidden = setup.allowSkip === false;
 
-  if ($('keyLabel') && meta.key) $('keyLabel').textContent = meta.key;
-  if ($('benchDur')) $('benchDur').textContent = benchDuration;
+  if (meta.key) setTxt('keyLabel', meta.key);
+  setTxt('benchDur', benchDuration);
 }
 
-// Impact badges, locks and conflict warnings on every toggle row.
+// Impact badges inline with the title, padlocks and conflict lines.
 function decorateRows() {
-  const all = [...settingRows, ...effectRows];
-  all.forEach(r => {
+  [...settingRows, ...effectRows].forEach(r => {
     const k = r.dataset.setting || r.dataset.effect;
+    const b = r.querySelector('.row-txt b');
     const txt = r.querySelector('.row-txt');
-    if (!txt) return;
-    txt.querySelectorAll('.tags, .warn-line').forEach(el => el.remove());
+    if (!b || !txt) return;
+    b.querySelectorAll('.tag').forEach(el => el.remove());
+    txt.querySelectorAll('.warn-line').forEach(el => el.remove());
 
-    const tags = [];
     const imp = impactMap[k];
-    if (imp) {
-      if (imp.fps && imp.fps !== 'none') tags.push(`<i class="tag fps-${esc(imp.fps)}">+fps ${esc(imp.fps)}</i>`);
-      if (imp.visual && imp.visual !== 'none') tags.push(`<i class="tag vis-${esc(imp.visual)}">visual ${esc(imp.visual)}</i>`);
+    if (imp && r.dataset.setting) {
+      const short = v => v === 'medium' ? 'med' : v;
+      if (imp.fps && imp.fps !== 'none') b.insertAdjacentHTML('beforeend', `<i class="tag fps-${esc(imp.fps)}" title="Frame rate gain: ${esc(imp.fps)}">+fps ${esc(short(imp.fps))}</i>`);
+      if (imp.visual && imp.visual !== 'none') b.insertAdjacentHTML('beforeend', `<i class="tag vis-${esc(imp.visual)}" title="Visual change: ${esc(imp.visual)}">vis ${esc(short(imp.visual))}</i>`);
     }
     const locked = lockedKeys.has(k);
     r.classList.toggle('locked', locked);
-    if (locked) tags.push('<i class="tag lock">locked by server</i>');
-    if (tags.length) {
-      const wrap = document.createElement('span');
-      wrap.className = 'tags';
-      wrap.innerHTML = tags.join('');
-      txt.appendChild(wrap);
-    }
+    if (locked) b.insertAdjacentHTML('afterbegin', '<i class="tag lock" title="Locked by the server"><svg><use href="#i-lock"/></svg></i>');
 
     const c = conflictMap[k];
     r.classList.toggle('conflict', !!c);
-    if (c) {
-      const w = document.createElement('span');
-      w.className = 'warn-line';
-      w.textContent = `${c.resource}: ${c.message}`;
-      txt.appendChild(w);
-    }
+    if (c) txt.insertAdjacentHTML('beforeend', `<span class="warn-line" title="${esc(c.message)}">${esc(c.resource)}: ${esc(c.message)}</span>`);
   });
 
-  // Fix Textures conflict (action, not a setting)
   const fix = $('fixTexturesBtn');
-  if (fix) {
-    const txt = fix.querySelector('.row-txt');
-    txt.querySelectorAll('.warn-line').forEach(el => el.remove());
-    const c = conflictMap.fixTextures;
-    if (c) {
-      const w = document.createElement('span');
-      w.className = 'warn-line';
-      w.textContent = `${c.resource}: ${c.message}`;
-      txt.appendChild(w);
-    }
-  }
+  const ftxt = fix.querySelector('.row-txt');
+  ftxt.querySelectorAll('.warn-line').forEach(el => el.remove());
+  const c = conflictMap.fixTextures;
+  fix.classList.toggle('conflict', !!c);
+  if (c) ftxt.insertAdjacentHTML('beforeend', `<span class="warn-line" title="${esc(c.message)}">${esc(c.resource)}: ${esc(c.message)}</span>`);
 }
 
-/* ═══════════════ STATE ═══════════════ */
+function renderLocks() {
+  const info = $('lockInfo');
+  if (!lockedKeys.size) { info.hidden = true; return; }
+  info.hidden = false;
+  const names = [...lockedKeys].map(k => {
+    const row = document.querySelector(`.row[data-setting="${k}"] .row-txt b, .row[data-effect="${k}"] .row-txt b`);
+    return row ? [...row.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim() || k : k;
+  });
+  setTxt('lockList', names.join(', '));
+}
+
+/* ═══════════════ SETTINGS STATE ═══════════════ */
 function applySettings(settings) {
   currentSettings = settings || {};
-
   settingRows.forEach(r => {
     const k = r.dataset.setting;
-    if (k && currentSettings[k] !== undefined) r.classList.toggle('on', currentSettings[k] === true);
+    if (currentSettings[k] !== undefined) r.classList.toggle('on', currentSettings[k] === true);
   });
-
   effectRows.forEach(r => {
     const k = r.dataset.effect;
-    if (k && currentSettings[k] !== undefined) r.classList.toggle('on', currentSettings[k] === true);
+    if (currentSettings[k] !== undefined) r.classList.toggle('on', currentSettings[k] === true);
   });
-
-  setVal('killFxSelect',      currentSettings.killFx);
-  setVal('killSoundSelect',   currentSettings.killSoundId);
-  setVal('hitFxSelect',       currentSettings.hitFx);
+  setVal('killFxSelect', currentSettings.killFx);
+  setVal('killSoundSelect', currentSettings.killSoundId);
+  setVal('hitFxSelect', currentSettings.hitFx);
   setVal('hitParticleSelect', currentSettings.hitParticleId);
-  setVal('hitSoundSelect',    currentSettings.hitSoundId);
-
-  setSlider('killVolumeSlider','killVolumeValue', currentSettings.killSoundVolume);
-  setSlider('hitVolumeSlider', 'hitVolumeValue',  currentSettings.hitSoundVolume);
-
+  setVal('hitSoundSelect', currentSettings.hitSoundId);
+  setSlider('killVolumeSlider', 'killVolumeValue', currentSettings.killSoundVolume);
+  setSlider('hitVolumeSlider', 'hitVolumeValue', currentSettings.hitSoundVolume);
+  if (currentSettings.frameCapTarget !== undefined) { capTarget = currentSettings.frameCapTarget || 0; $('frameCapSelect').value = String(capTarget); renderGuide(); renderCapNote(); }
   refreshCounts();
 }
 
-function setVal(id, v) {
-  const el = $(id);
-  if (el && v !== undefined && v !== null) el.value = v;
-}
-
+function setVal(id, v) { const el = $(id); if (el && v !== undefined && v !== null) el.value = v; }
 function setSlider(sliderId, valId, v) {
-  const s = $(sliderId);
-  const l = $(valId);
+  const s = $(sliderId), l = $(valId);
   if (s && v !== undefined) { s.value = v; if (l) l.textContent = v + '%'; }
 }
 
 function refreshCounts() {
   let active = 0;
-  settingRows.forEach(r => { if (r.classList.contains('on')) active++; });
-
+  settingRows.forEach(r => { if (ALL_TOGGLES.includes(r.dataset.setting) && r.classList.contains('on')) active++; });
   const tally = $('activeTally');
-  const stat  = $('statActive');
-  if (tally) { tally.textContent = active; tally.classList.toggle('live', active > 0); }
-  if (stat)  stat.textContent = active;
+  tally.textContent = active;
+  tally.classList.toggle('live', active > 0);
+  setHtml('statActive', `${active}<em>/ ${ALL_TOGGLES.length}</em>`);
+  $('statActiveBar').style.width = `${Math.round(active / ALL_TOGGLES.length * 100)}%`;
+  const on = keys => keys.filter(k => currentSettings[k] === true).length;
+  setTxt('cntPerf', `${on(PERF_KEYS)} of 4 on`);
+  setTxt('cntVis', `${on(VIS_KEYS)} of 4 on`);
+  $('killDot').classList.toggle('on', currentSettings.killEnabled === true);
+  $('hitDot').classList.toggle('on', currentSettings.hitEnabled === true);
 }
 
+function setPresetUI(preset) {
+  activePreset = preset && PRESET_LABEL[preset] ? preset : null;
+  presetBtns.forEach(b => b.classList.toggle('on', b.dataset.preset === activePreset));
+  setHtml('statusText', activePreset ? `Running <b>${PRESET_LABEL[activePreset]}</b> profile` : '<b>Custom</b> configuration');
+  setTxt('statProfile', activePreset ? PRESET_LABEL[activePreset] : 'Custom');
+  setTxt('sideProfile', activePreset ? PRESET_LABEL[activePreset] : 'Custom');
+  setTxt('benchProfile', `Testing: ${activePreset ? PRESET_LABEL[activePreset] : 'Custom'}`);
+  renderProfileSub();
+}
+
+function renderProfileSub() {
+  const key = activePreset || 'custom';
+  const r = benchResults[key], base = benchResults.quality;
+  let sub = 'Run a benchmark to measure it';
+  if (r && base && key !== 'quality' && base.avgFps) {
+    const d = Math.round((r.avgFps - base.avgFps) / base.avgFps * 100);
+    sub = `Measured ${d >= 0 ? '+' : ''}${d}% vs Quality`;
+  } else if (r) {
+    sub = `Measured ${r.avgFps} fps average`;
+  }
+  setTxt('statProfileSub', sub);
+  renderInsights();
+}
+
+/* ═══════════════ LIVE STATS ═══════════════ */
 function updateStats(d) {
   if (d.overshootMargin !== undefined) capOvershoot = d.overshootMargin;
   if (d.frameCapTarget !== undefined && d.frameCapTarget !== capTarget) {
     capTarget = d.frameCapTarget;
-    const sel = $('frameCapSelect');
-    if (sel) sel.value = String(capTarget);
+    $('frameCapSelect').value = String(capTarget);
     renderGuide();
   }
   if (d.fps !== undefined) {
     lastFps = d.fps;
+    if (d.fps > 0) { fpsHist.push(d.fps); if (fpsHist.length > 60) fpsHist.shift(); }
     renderCapNote();
-    const el = $('statFps');
-    if (el) el.innerHTML = `${d.fps}<em>fps</em>`;
+    renderFps();
   }
   if (d.sessionMinutes !== undefined) {
-    sessionMinutes = d.sessionMinutes;
-    const el = $('statSession');
-    if (el) {
-      el.innerHTML = sessionMinutes >= 60
-        ? `${Math.floor(sessionMinutes/60)}<em>h</em> ${sessionMinutes%60}<em>m</em>`
-        : `${sessionMinutes}<em>m</em>`;
-    }
+    const m = d.sessionMinutes;
+    setHtml('statSession', m >= 60 ? `${Math.floor(m / 60)}<em>h</em> ${m % 60}<em>m</em>` : `${m}<em>m</em>`);
   }
-  if (d.preset !== undefined) setStatus(d.preset);
-  if (d.pools) renderLive(d.pools, d.systems || {});
+  if (d.preset !== undefined) setPresetUI(d.preset);
+  if (d.systems) { liveSystems = d.systems; renderLiveSystems(); }
+  if (d.pools) renderWorld(d.pools, d.systems || {});
 }
 
-function renderLive(p, s) {
-  const set = (id, v, cls) => { const e = $(id); if (!e) return; e.textContent = v; e.className = cls || ''; };
-  set('lvVeh', p.vehicles);
-  set('lvPed', p.peds);
-  set('lvObj', p.objects);
-  set('lvScr', p.scripted);
-  set('lvAmb', `${s.ambient != null ? s.ambient : 100}%`, s.ambient != null && s.ambient < 100 ? 'hot' : '');
-  set('lvAdp', s.adaptive ? `Level ${s.adaptive}` : 'Off', s.adaptive ? 'warn' : '');
-  set('lvPrb', s.probes != null ? `${s.probes} active` : '—', s.probes ? 'hot' : '');
+function renderFps() {
+  const n = fpsHist.length;
+  const now = lastFps || 0;
+  setHtml('statFps', `${now || '—'}<em>fps</em>`);
+  setHtml('barFps', `<svg><use href="#i-bolt"/></svg><b>${now || '—'}</b> fps`);
+  setTxt('sideFps', now ? `${now}` : '—');
+  if (n >= 2) {
+    const lo = Math.min(...fpsHist), hi = Math.max(...fpsHist);
+    const avg = Math.round(fpsHist.reduce((a, b) => a + b, 0) / n);
+    setTxt('statFpsSub', `${lo}–${hi} over the last ${n}s`);
+    setTxt('sideRange', `${lo}–${hi} fps`);
+    setTxt('liveNow', now); setTxt('liveAvg', avg); setTxt('liveMin', lo); setTxt('liveMax', hi);
+    setTxt('liveRange', `last ${n} s`);
+  }
+  const cap = capTarget || 0;
+  drawSpark($('statSpark'), fpsHist, { slots: 60 });
+  drawSpark($('sideSpark'), fpsHist, { slots: 60 });
+  liveGeom = drawSpark($('liveSpark'), fpsHist, { slots: 60, ref: cap || null });
 }
 
-function setStatus(preset) {
-  const t = $('statusText');
-  if (!t) return;
-  t.innerHTML = preset && PRESET_LABEL[preset]
-    ? `Running <b>${PRESET_LABEL[preset]}</b> profile`
-    : `<b>Custom</b> configuration`;
+let liveGeom = null;
+(function liveHover() {
+  const wrap = document.querySelector('.live-chart');
+  const tip = $('liveTip');
+  if (!wrap) return;
+  wrap.addEventListener('mousemove', e => {
+    if (!liveGeom || fpsHist.length < 2) return;
+    const r = wrap.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * liveGeom.W;
+    let best = 0;
+    liveGeom.pts.forEach((p, i) => { if (Math.abs(p[0] - x) < Math.abs(liveGeom.pts[best][0] - x)) best = i; });
+    const p = liveGeom.pts[best];
+    const cur = $('liveSpark-cursor');
+    if (cur) { cur.setAttribute('x1', p[0]); cur.setAttribute('x2', p[0]); cur.style.display = ''; }
+    tip.hidden = false;
+    tip.style.left = `${p[0] / liveGeom.W * 100}%`;
+    const ago = fpsHist.length - 1 - best;
+    tip.textContent = `${fpsHist[best]} fps · ${ago === 0 ? 'now' : ago + 's ago'}`;
+  });
+  wrap.addEventListener('mouseleave', () => {
+    tip.hidden = true;
+    const cur = $('liveSpark-cursor');
+    if (cur) cur.style.display = 'none';
+  });
+})();
+
+const vehHist = [], pedHist = [];
+function renderWorld(p, s) {
+  vehHist.push(p.vehicles); pedHist.push(p.peds);
+  if (vehHist.length > 60) { vehHist.shift(); pedHist.shift(); }
+  const rng = a => a.length ? `${Math.min(...a)}–${Math.max(...a)} · now ${a[a.length - 1]}` : '—';
+  setTxt('wVehRange', rng(vehHist));
+  setTxt('wPedRange', rng(pedHist));
+  drawSpark($('wVehSpark'), vehHist, { slots: 60, zero: true, ref: poolLimits.vehicles });
+  drawSpark($('wPedSpark'), pedHist, { slots: 60, zero: true, ref: poolLimits.peds });
+  const meter = (id, v, max) => {
+    setTxt(id, v);
+    const pct = Math.min(100, Math.round(v / Math.max(1, max) * 100));
+    const bar = $(id + 'Bar');
+    bar.style.width = pct + '%';
+    bar.classList.toggle('warn', pct >= 85);
+  };
+  meter('wVeh', p.vehicles, poolLimits.vehicles);
+  meter('wPed', p.peds, poolLimits.peds);
+  setTxt('wVehNote', `${Math.min(100, Math.round(p.vehicles / poolLimits.vehicles * 100))}% of the ${poolLimits.vehicles} cleanup threshold`);
+  setTxt('wPedNote', `${Math.min(100, Math.round(p.peds / poolLimits.peds * 100))}% of the ${poolLimits.peds} cleanup threshold`);
+  setTxt('wObj', p.objects);
+  setTxt('wScr', p.scripted);
+  setTxt('wAmb', `${s.ambient != null ? s.ambient : 100}%`);
+  setTxt('wPrb', s.probes != null ? s.probes : '—');
+}
+
+/* ═══════════════ BOOST INSIGHTS ═══════════════ */
+function renderInsights() {
+  const spec = detectedSpec;
+  const info = spec && TIER_INFO[spec.tier];
+  if (info) {
+    setTxt('inHwTitle', `${info.name} PC${spec.guessed ? ' (estimated)' : ''}`);
+    setTxt('inHwBody', `${spec.gpu || 'GPU masked'} · suggests ${PRESET_LABEL[info.preset]}`);
+  } else {
+    setTxt('inHwTitle', 'Hardware not scanned');
+    setTxt('inHwBody', 'Detect your specs for a matched profile');
+  }
+  const ic = $('inCapIc');
+  if (!capTarget) {
+    ic.classList.add('warn');
+    setTxt('inCapTitle', 'Running uncapped');
+    setTxt('inCapBody', lastFps ? `${lastFps} fps now · a cap cuts GPU heat` : 'Set a frame cap to cut GPU heat');
+  } else if (lastFps && lastFps > capTarget + capOvershoot) {
+    ic.classList.add('warn');
+    setTxt('inCapTitle', `Cap of ${capTarget} not active`);
+    setTxt('inCapBody', `${lastFps} fps now · see the setup steps`);
+  } else {
+    ic.classList.remove('warn');
+    setTxt('inCapTitle', `Capped at ~${capTarget} fps`);
+    setTxt('inCapBody', 'Frame rate matches your target');
+  }
+  const key = activePreset || 'custom';
+  const r = benchResults[key];
+  if (r) {
+    setTxt('inBenchTitle', `${PRESET_LABEL[key]}: ${r.avgFps} fps average`);
+    setTxt('inBenchBody', `1% low ${r.low1Fps} fps · worst frame ${r.maxFt} ms`);
+  } else {
+    setTxt('inBenchTitle', `${PRESET_LABEL[key]} not measured yet`);
+    setTxt('inBenchBody', `Benchmark this profile in ${benchDuration} seconds`);
+  }
+}
+$$('.insight').forEach(b => b.addEventListener('click', () => goPage(b.dataset.goto)));
+
+/* ═══════════════ BACKGROUND SYSTEMS ═══════════════ */
+const SYSTEMS = [
+  { key:'textureStreamFix', name:'Texture streaming fix', desc:'Keeps HD textures anchored around you' },
+  { key:'entityPoolMonitor', name:'Entity pool monitor', desc:'Trims ambient entities near engine limits' },
+  { key:'assetCleanup', name:'Asset cleanup', desc:'Frees memory from distant vehicle models' },
+  { key:'ambientScaling', name:'Ambient scaling', desc:'Fewer NPCs when many players are near', live: s => s.ambient != null && s.ambient < 100 ? `${s.ambient}% density` : null },
+  { key:'cpu', name:'CPU load reduction', desc:'Lighter AI and ragdoll for distant NPCs' },
+  { key:'idle', name:'AFK throttle', desc:'Cuts load while you are away or paused', live: s => s.afk ? 'AFK now' : s.paused ? 'Paused' : null },
+  { key:'adaptive', name:'Adaptive optimizer', desc:'Boosts automatically when FPS drops', live: s => s.adaptive ? `Level ${s.adaptive}` : null },
+  { key:'session', name:'Session maintenance', desc:'Memory reclaim and break reminders' },
+  { key:'luaGC', name:'Lua garbage collection', desc:'Scheduled memory cleanup' },
+];
+
+function renderSystems() {
+  const list = $('sysList');
+  list.innerHTML = SYSTEMS.map(sy => {
+    const on = bgSystems[sy.key] === true;
+    return `<div class="sy${on ? ' on' : ''}" data-sys="${sy.key}"><i></i><div><b>${sy.name}</b><span>${sy.desc}</span></div><em>${on ? 'On' : 'Off'}</em></div>`;
+  }).join('');
+  renderLiveSystems();
+}
+
+function renderLiveSystems() {
+  SYSTEMS.forEach(sy => {
+    const el = document.querySelector(`.sy[data-sys="${sy.key}"]`);
+    if (!el || !sy.live) return;
+    const on = bgSystems[sy.key] === true;
+    const live = on ? sy.live(liveSystems) : null;
+    el.classList.toggle('active', !!live);
+    el.querySelector('em').textContent = live || (on ? 'On' : 'Off');
+  });
+  const lvl = liveSystems.adaptive || 0;
+  $('barAdaptive').hidden = !lvl;
+  if (lvl) setHtml('barAdaptive', `<svg><use href="#i-wand"/></svg>Adaptive <b>L${lvl}</b>`);
+  $('barBench').hidden = !liveSystems.benchmark;
+  setTxt('statSessionSub', lvl ? `Adaptive boost at level ${lvl}` : liveSystems.afk ? 'AFK throttle active' : 'Adaptive boost idle');
 }
 
 /* ═══════════════ NAV ═══════════════ */
 function goPage(page) {
   const leavingHealth = $('page-health').classList.contains('on') && page !== 'health';
   navs.forEach(x => x.classList.toggle('on', x.dataset.page === page));
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
-  const target = $('page-' + page);
-  if (target) target.classList.add('on');
+  $$('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + page));
   if (page === 'health') { health.open = true; post('healthOpen'); }
   else if (leavingHealth) { health.open = false; post('healthClose'); }
 }
-
 navs.forEach(n => n.addEventListener('click', () => goPage(n.dataset.page)));
-
-/* ═══════════════ CLOSE ═══════════════ */
-closeBtn.addEventListener('click', () => { closeMenu(); });
+$('closeBtn').addEventListener('click', closeMenu);
 
 /* ═══════════════ TOGGLES ═══════════════ */
-function flashLocked(row) {
-  row.classList.add('shake');
-  setTimeout(() => row.classList.remove('shake'), 300);
-}
+function flashLocked(row) { row.classList.add('shake'); setTimeout(() => row.classList.remove('shake'), 300); }
 
 settingRows.forEach(r => {
   r.addEventListener('click', () => {
     const k = r.dataset.setting;
-    if (!k) return;
     if (lockedKeys.has(k)) { flashLocked(r); return; }
     const on = r.classList.toggle('on');
     currentSettings[k] = on;
     refreshCounts();
-    setStatus(null);
-    post('toggle', { setting:k, value:on }).then(res => {
-      if (res && res.ok === false) {
-        r.classList.toggle('on', !on);
-        currentSettings[k] = !on;
-        refreshCounts();
-      }
+    setPresetUI(null);
+    post('toggle', { setting: k, value: on }).then(res => {
+      if (res && res.ok === false) { r.classList.toggle('on', !on); currentSettings[k] = !on; refreshCounts(); }
     });
   });
 });
@@ -626,15 +735,12 @@ settingRows.forEach(r => {
 effectRows.forEach(r => {
   r.addEventListener('click', () => {
     const k = r.dataset.effect;
-    if (!k) return;
     if (lockedKeys.has(k)) { flashLocked(r); return; }
     const on = r.classList.toggle('on');
     currentSettings[k] = on;
-    post('setEffectValue', { setting:k, value:on }).then(res => {
-      if (res && res.ok === false) {
-        r.classList.toggle('on', !on);
-        currentSettings[k] = !on;
-      }
+    refreshCounts();
+    post('setEffectValue', { setting: k, value: on }).then(res => {
+      if (res && res.ok === false) { r.classList.toggle('on', !on); currentSettings[k] = !on; refreshCounts(); }
     });
   });
 });
@@ -644,7 +750,7 @@ function applyPresetLocally(p) {
   if (!PRESET_STATE[p]) return;
   settingRows.forEach(r => {
     const k = r.dataset.setting;
-    if (k && PRESET_STATE[p][k] !== undefined && !lockedKeys.has(k)) {
+    if (PRESET_STATE[p][k] !== undefined && !lockedKeys.has(k)) {
       r.classList.toggle('on', PRESET_STATE[p][k] === true);
       currentSettings[k] = PRESET_STATE[p][k];
     }
@@ -655,168 +761,135 @@ function applyPresetLocally(p) {
 presetBtns.forEach(b => {
   b.addEventListener('click', () => {
     const p = b.dataset.preset;
-    if (!p) return;
-    post('preset', { preset:p });
-    setStatus(p);
+    post('preset', { preset: p });
     applyPresetLocally(p);
-    presetBtns.forEach(x => x.classList.remove('hot'));
-    b.classList.add('hot');
-    setTimeout(() => b.classList.remove('hot'), 900);
+    setPresetUI(p);
   });
 });
 
-/* ═══════════════ SELECTS ═══════════════ */
-[['killFxSelect','killFx'], ['hitFxSelect','hitFx'],
- ['killSoundSelect','killSoundId'], ['hitSoundSelect','hitSoundId'],
- ['hitParticleSelect','hitParticleId']].forEach(([id, key]) => {
+/* ═══════════════ SELECTS / SLIDERS / PREVIEWS ═══════════════ */
+[['killFxSelect','killFx'], ['hitFxSelect','hitFx'], ['killSoundSelect','killSoundId'],
+ ['hitSoundSelect','hitSoundId'], ['hitParticleSelect','hitParticleId']].forEach(([id, key]) => {
   const el = $(id);
-  if (!el) return;
-  el.addEventListener('change', e => {
-    currentSettings[key] = e.target.value;
-    post('setEffectValue', { setting:key, value:e.target.value });
-  });
-  el.addEventListener('click', e => e.stopPropagation());
+  el.addEventListener('change', e => { currentSettings[key] = e.target.value; post('setEffectValue', { setting: key, value: e.target.value }); });
 });
 
-/* ═══════════════ SLIDERS ═══════════════ */
-[['killVolumeSlider','killVolumeValue','killSoundVolume'],
- ['hitVolumeSlider','hitVolumeValue','hitSoundVolume']].forEach(([sId, vId, key]) => {
-  const el = $(sId);
-  if (!el) return;
-  el.addEventListener('input', e => {
+[['killVolumeSlider','killVolumeValue','killSoundVolume'], ['hitVolumeSlider','hitVolumeValue','hitSoundVolume']].forEach(([sId, vId, key]) => {
+  $(sId).addEventListener('input', e => {
     const v = parseInt(e.target.value);
-    $(vId).textContent = v + '%';
+    setTxt(vId, v + '%');
     currentSettings[key] = v;
-    post('setEffectValue', { setting:key, value:v });
+    post('setEffectValue', { setting: key, value: v });
   });
-  el.addEventListener('click', e => e.stopPropagation());
 });
 
-/* ═══════════════ PREVIEWS ═══════════════ */
-document.querySelectorAll('.icon-btn[data-preview]').forEach(btn => {
+const val = id => { const el = $(id); return el ? el.value : null; };
+$$('.icon-btn[data-preview]').forEach(btn => {
   btn.addEventListener('click', e => {
     e.stopPropagation();
     const t = btn.dataset.preview;
-
-    if (t === 'killFx')            post('previewScreenFx', { fx: val('killFxSelect') });
-    else if (t === 'hitFx')        post('previewScreenFx', { fx: val('hitFxSelect') });
-    else if (t === 'hitParticle')  post('previewParticle', { id: val('hitParticleSelect') });
-    else if (t === 'killSound')    playSound(val('killSoundSelect'), parseInt(val('killVolumeSlider')));
-    else if (t === 'hitSound')     playSound(val('hitSoundSelect'), parseInt(val('hitVolumeSlider')));
-
-    btn.style.background = 'rgba(8,175,162,.3)';
-    setTimeout(() => { btn.style.background = ''; }, 260);
+    if (t === 'killFx') post('previewScreenFx', { fx: val('killFxSelect') });
+    else if (t === 'hitFx') post('previewScreenFx', { fx: val('hitFxSelect') });
+    else if (t === 'hitParticle') post('previewParticle', { id: val('hitParticleSelect') });
+    else if (t === 'killSound') playSound(val('killSoundSelect'), parseInt(val('killVolumeSlider')));
+    else if (t === 'hitSound') playSound(val('hitSoundSelect'), parseInt(val('hitVolumeSlider')));
+    btn.classList.add('flash');
+    setTimeout(() => btn.classList.remove('flash'), 260);
   });
 });
 
-function val(id) {
-  const el = $(id);
-  return el ? el.value : null;
-}
-
 /* ═══════════════ FIX TEXTURES ═══════════════ */
 const fixBtn = $('fixTexturesBtn');
-if (fixBtn) {
-  fixBtn.addEventListener('click', () => {
-    const btn   = fixBtn.querySelector('.btn-teal');
-    const label = btn.querySelector('span');
-    if (fixBtn.dataset.busy === '1') return;
-
-    fixBtn.dataset.busy = '1';
-    fixBtn.classList.add('done');
-    btn.classList.add('busy');
-    label.textContent = 'Working';
-
-    post('fixTextures');
-    closeMenu();
-
-    setTimeout(() => {
-      fixBtn.classList.remove('done');
-      btn.classList.remove('busy');
-      label.textContent = 'Run';
-      fixBtn.dataset.busy = '0';
-    }, 9000);
-  });
-}
+fixBtn.addEventListener('click', () => {
+  const btn = fixBtn.querySelector('.btn-teal');
+  const label = btn.querySelector('span');
+  if (fixBtn.dataset.busy === '1') return;
+  fixBtn.dataset.busy = '1';
+  fixBtn.classList.add('done');
+  btn.classList.add('busy');
+  label.textContent = 'Working';
+  post('fixTextures');
+  closeMenu();
+  setTimeout(() => {
+    fixBtn.classList.remove('done');
+    btn.classList.remove('busy');
+    label.textContent = 'Run';
+    fixBtn.dataset.busy = '0';
+  }, 9000);
+});
 
 /* ═══════════════ BENCHMARK ═══════════════ */
-const benchRun = $('benchRunBtn');
-if (benchRun) {
-  benchRun.addEventListener('click', () => {
-    post('benchmark').then(res => {
-      if (res && res.ok === false) {
-        setModal('Benchmark busy', 'A benchmark or frame sample is already running. Try again in a few seconds.', null, 'Close');
-      }
-    });
+$('benchRunBtn').addEventListener('click', () => {
+  post('benchmark').then(res => {
+    if (res && res.ok === false) setModal('Benchmark busy', 'A benchmark or frame sample is already running. Try again in a few seconds.', null, null);
   });
-}
-if ($('benchClear')) {
-  $('benchClear').addEventListener('click', () => {
+});
+$('benchClear').addEventListener('click', () => {
+  setModal('Clear benchmark results', 'Removes every saved result on this PC.', null, 'Clear', () => {
     benchResults = {};
     post('clearBenchmarks');
     renderBench();
-  });
-}
+    closeModal();
+  }, { danger: true });
+});
 
+const BENCH_ORDER = ['quality','balanced','performance','potato','streaming','shooter','custom'];
 function renderBench() {
-  const grid = $('benchGrid'), empty = $('benchEmpty'), count = $('benchCount'), clearWrap = $('benchClearWrap');
-  if (!grid) return;
-  const keys = Object.keys(benchResults || {});
-  if (!keys.length) {
-    grid.hidden = true; grid.innerHTML = '';
-    if (empty) empty.hidden = false;
-    if (count) count.textContent = '';
-    if (clearWrap) clearWrap.hidden = true;
-    return;
-  }
-  const rows = keys.map(k => ({ key: k, ...benchResults[k] })).sort((a, b) => (b.avgFps || 0) - (a.avgFps || 0));
-  const base = benchResults.quality || rows[rows.length - 1];
-  grid.innerHTML = rows.map((r, i) => {
-    const delta = base && base.avgFps ? Math.round((r.avgFps - base.avgFps) / base.avgFps * 100) : 0;
-    const showDelta = base && r.key !== (benchResults.quality ? 'quality' : rows[rows.length - 1].key);
-    const tag = showDelta ? `<i class="${delta < 0 ? 'down' : ''}">${delta > 0 ? '+' : ''}${delta}%</i>` : (i === 0 ? '<i>best</i>' : '');
+  const keys = BENCH_ORDER.filter(k => benchResults[k]).concat(Object.keys(benchResults).filter(k => !BENCH_ORDER.includes(k)));
+  const chart = $('benchChart'), empty = $('benchEmpty');
+  $('benchClear').hidden = !keys.length;
+  const tally = $('benchTally');
+  tally.hidden = !keys.length;
+  tally.textContent = keys.length;
+
+  $$('.preset .pg').forEach(el => el.textContent = '');
+  if (!keys.length) { chart.innerHTML = ''; empty.hidden = false; renderProfileSub(); return; }
+  empty.hidden = true;
+
+  const base = benchResults.quality;
+  const maxAvg = Math.max(...keys.map(k => benchResults[k].avgFps || 0), 1);
+  const bestKey = keys.reduce((a, k) => (benchResults[k].avgFps || 0) > (benchResults[a].avgFps || 0) ? k : a, keys[0]);
+  chart.innerHTML = keys.map(k => {
+    const r = benchResults[k];
+    let sub = r.frames ? `${r.frames} frames` : '';
+    let cls = '';
+    if (base && k !== 'quality' && base.avgFps) {
+      const d = Math.round((r.avgFps - base.avgFps) / base.avgFps * 100);
+      sub = `${d >= 0 ? '+' : ''}${d}% vs Quality`;
+      cls = d >= 0 ? 'up' : 'down';
+    } else if (k === 'quality') {
+      sub = 'Baseline';
+    }
+    const avgW = (r.avgFps / maxAvg * 100).toFixed(1);
+    const lowW = (Math.min(r.low1Fps, r.avgFps) / maxAvg * 100).toFixed(1);
+    const title = `${PRESET_LABEL[k] || k}: average ${r.avgFps} fps, 1% low ${r.low1Fps} fps, worst frame ${r.maxFt} ms, ${r.stutters || 0} stutters over 50 ms`;
     return `
-      <div class="bench${i === 0 ? ' best' : ''}">
-        <div class="bench-top"><b>${esc(PRESET_LABEL[r.key] || r.key)}</b>${tag}</div>
-        <div class="bench-nums">
-          <div><span>Average</span><b>${r.avgFps}<em>fps</em></b></div>
-          <div><span>1% low</span><b>${r.low1Fps}<em>fps</em></b></div>
-          <div><span>Worst frame</span><b>${r.maxFt}<em>ms</em></b></div>
+      <div class="bc-row${k === bestKey ? ' best' : ''}" title="${esc(title)}">
+        <div class="bc-name"><b>${esc(PRESET_LABEL[k] || k)}</b><span class="${cls}">${esc(sub)}</span></div>
+        <div class="bc-track"><i class="bc-avg" style="width:${avgW}%"></i><i class="bc-low" style="width:${lowW}%"></i></div>
+        <div class="bc-nums">
+          <div><b>${r.avgFps}</b><span>avg fps</span></div>
+          <div><b>${r.low1Fps}</b><span>1% low</span></div>
+          <div><b class="${r.maxFt >= 50 ? 'hot' : ''}">${r.maxFt}</b><span>worst ms</span></div>
         </div>
-        <div class="bench-foot">${r.frames} frames${r.stutters ? ` · ${r.stutters} stutter${r.stutters === 1 ? '' : 's'} over 50 ms` : ' · no stutters'}</div>
       </div>`;
   }).join('');
-  grid.hidden = false;
-  if (empty) empty.hidden = true;
-  if (count) count.textContent = `${rows.length} profile${rows.length === 1 ? '' : 's'}${benchResults.quality ? ' · vs Quality' : ''}`;
-  if (clearWrap) clearWrap.hidden = false;
+
+  if (base && base.avgFps) {
+    keys.forEach(k => {
+      if (k === 'quality' || k === 'custom') return;
+      const el = document.querySelector(`.pg[data-gain="${k}"]`);
+      if (el) { const d = Math.round((benchResults[k].avgFps - base.avgFps) / base.avgFps * 100); el.textContent = `${d >= 0 ? '+' : ''}${d}%`; }
+    });
+  }
+  renderProfileSub();
 }
 
-/* ═══════════════ EXPORT / IMPORT / RESET ═══════════════ */
-const EXPORT_SKIP = new Set(['setupDone','specGpu','specThreads','specRam','specWidth','specHeight','specHz','specTier','specGuessed','shareTelemetry']);
-
-function buildExportCode() {
-  const out = {};
-  Object.keys(currentSettings).forEach(k => { if (!EXPORT_SKIP.has(k)) out[k] = currentSettings[k]; });
-  return 'NZ1-' + btoa(unescape(encodeURIComponent(JSON.stringify(out))));
-}
-
-function parseImportCode(code) {
-  const s = String(code || '').trim();
-  if (!s.startsWith('NZ1-')) throw new Error('Not an Optimizer code');
-  const json = decodeURIComponent(escape(atob(s.slice(4))));
-  const obj = JSON.parse(json);
-  if (!obj || typeof obj !== 'object') throw new Error('Invalid code');
-  return obj;
-}
-
-let modalMode = null;
+/* ═══════════════ MODAL ═══════════════ */
 let modalAction = null;
-
 function setModal(title, sub, code, primaryLabel, onPrimary, opts = {}) {
-  const m = $('codeModal');
-  $('modalTitle').textContent = title;
-  $('modalSub').textContent = sub || '';
+  setTxt('modalTitle', title);
+  setTxt('modalSub', sub || '');
   const ta = $('modalCode');
   ta.hidden = code === null;
   ta.readOnly = !opts.editable;
@@ -826,558 +899,552 @@ function setModal(title, sub, code, primaryLabel, onPrimary, opts = {}) {
   pb.hidden = !primaryLabel;
   pb.querySelector('span').textContent = primaryLabel || '';
   pb.classList.toggle('red', !!opts.danger);
-  $('modalMsg').textContent = '';
+  setTxt('modalMsg', '');
   $('modalMsg').classList.remove('err');
   modalAction = onPrimary || null;
-  m.hidden = false;
+  $('codeModal').hidden = false;
   if (opts.editable) setTimeout(() => ta.focus(), 30);
 }
+function closeModal() { $('codeModal').hidden = true; modalAction = null; }
+function modalMsg(text, isErr) { setTxt('modalMsg', text); $('modalMsg').classList.toggle('err', !!isErr); }
+$('modalClose').addEventListener('click', closeModal);
+$('modalPrimary').addEventListener('click', () => { if (modalAction) modalAction(); });
 
-function closeModal() {
-  const m = $('codeModal');
-  if (m) m.hidden = true;
-  modalAction = null;
+/* ═══════════════ EXPORT / IMPORT / RESET ═══════════════ */
+const EXPORT_SKIP = new Set(['setupDone','specGpu','specThreads','specRam','specWidth','specHeight','specHz','specTier','specGuessed','shareTelemetry']);
+function buildExportCode() {
+  const out = {};
+  Object.keys(currentSettings).forEach(k => { if (!EXPORT_SKIP.has(k)) out[k] = currentSettings[k]; });
+  return 'NZ1-' + btoa(unescape(encodeURIComponent(JSON.stringify(out))));
+}
+function parseImportCode(code) {
+  const s = String(code || '').trim();
+  if (!s.startsWith('NZ1-')) throw new Error('Not an Optimizer code');
+  const obj = JSON.parse(decodeURIComponent(escape(atob(s.slice(4)))));
+  if (!obj || typeof obj !== 'object') throw new Error('Invalid code');
+  return obj;
 }
 
-function modalMsg(text, isErr) {
-  const el = $('modalMsg');
-  el.textContent = text;
-  el.classList.toggle('err', !!isErr);
-}
+$('exportBtn').addEventListener('click', () => {
+  setModal('Export settings', 'Share this code. Importing it applies every toggle and effect setting, not your hardware scan.', buildExportCode(), 'Copy', () => {
+    const ta = $('modalCode');
+    ta.focus(); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    modalMsg(ok ? 'Copied to clipboard.' : 'Select the code and press Ctrl+C.', !ok);
+  });
+});
 
-if ($('modalClose')) $('modalClose').addEventListener('click', closeModal);
-if ($('modalPrimary')) $('modalPrimary').addEventListener('click', () => { if (modalAction) modalAction(); });
-
-if ($('exportBtn')) {
-  $('exportBtn').addEventListener('click', () => {
-    const code = buildExportCode();
-    setModal('Export settings', 'Share this code. Importing it applies every toggle and effect setting (not your hardware scan).', code, 'Copy', () => {
-      const ta = $('modalCode');
-      ta.focus(); ta.select();
-      let ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) {}
-      if (!ok && navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => modalMsg('Copied to clipboard.')).catch(() => modalMsg('Select the code and press Ctrl+C.', true));
-      else modalMsg(ok ? 'Copied to clipboard.' : 'Select the code and press Ctrl+C.', !ok);
+$('importBtn').addEventListener('click', () => {
+  setModal('Import settings', 'Paste a code from a friend. Locked options stay as the server set them.', '', 'Apply', () => {
+    let obj;
+    try { obj = parseImportCode($('modalCode').value); }
+    catch (e) { modalMsg(e.message || 'Invalid code', true); return; }
+    post('importSettings', { settings: obj }).then(res => {
+      if (res && res.ok) {
+        modalMsg(`Applied ${res.applied} setting${res.applied === 1 ? '' : 's'}${res.rejected ? `, ${res.rejected} skipped` : ''}.`);
+        setTimeout(closeModal, 900);
+      } else {
+        modalMsg((res && res.error) || 'Nothing could be applied from that code.', true);
+      }
     });
-  });
-}
+  }, { editable: true, placeholder: 'NZ1-…' });
+});
 
-if ($('importBtn')) {
-  $('importBtn').addEventListener('click', () => {
-    setModal('Import settings', 'Paste a code from a friend. Locked options stay as the server set them.', '', 'Apply', () => {
-      let obj;
-      try { obj = parseImportCode($('modalCode').value); }
-      catch (e) { modalMsg(e.message || 'Invalid code', true); return; }
-      post('importSettings', { settings: obj }).then(res => {
-        if (res && res.ok) {
-          modalMsg(`Applied ${res.applied} setting${res.applied === 1 ? '' : 's'}${res.rejected ? `, ${res.rejected} skipped` : ''}.`);
-          setTimeout(closeModal, 900);
-        } else {
-          modalMsg((res && res.error) || 'Nothing could be applied from that code.', true);
-        }
-      });
-    }, { editable: true, placeholder: 'NZ1-…' });
-  });
-}
+$('resetBtn').addEventListener('click', () => {
+  setModal('Reset to defaults', 'Every performance option and effect goes back to the server defaults. Your hardware scan and benchmark results are kept.', null, 'Reset', () => {
+    post('resetDefaults');
+    closeModal();
+  }, { danger: true });
+});
 
-if ($('resetBtn')) {
-  $('resetBtn').addEventListener('click', () => {
-    setModal('Reset to defaults', 'Every performance option and effect goes back to the server defaults. Your hardware scan and benchmark results are kept.', null, 'Reset', () => {
-      post('resetDefaults');
-      closeModal();
-    }, { danger: true });
-  });
-}
-
-/* ═══════════════ FRAME CAP HELPER ═══════════════ */
+/* ═══════════════ FRAME CAP ═══════════════ */
 const GUIDES = {
   nvidia: t => [
-    'Right-click your desktop and open <b>NVIDIA Control Panel</b>.',
-    'Go to <b>Manage 3D settings</b> &rarr; <b>Program Settings</b>.',
-    'Add or select <b>FiveM</b> (the FiveM_b____ GTAprocess executable).',
-    `Set <b>Max Frame Rate</b> to <b>On</b> and enter <b>${t}</b>.`,
-    'Apply, then fully restart FiveM — it will not take effect until you do.'
+    'Open <b>NVIDIA Control Panel</b> &rarr; <b>Manage 3D settings</b> &rarr; <b>Program Settings</b>.',
+    'Select <b>FiveM</b> (the FiveM_b____ GTAProcess executable).',
+    `Set <b>Max Frame Rate</b> to <b>${t}</b>, then apply.`,
+    'Fully restart FiveM for it to take effect.',
   ],
   amd: t => [
-    'Open <b>AMD Software: Adrenalin Edition</b>.',
-    'Go to <b>Gaming</b> and select your <b>FiveM</b> profile.',
-    'Turn on <b>Frame Rate Target Control</b> (or <b>Radeon Chill</b>).',
-    `Set the target to <b>${t}</b> fps. For Chill, set min and max both to <b>${t}</b>.`,
-    'Apply, then fully restart FiveM.'
+    'Open <b>AMD Software: Adrenalin</b> &rarr; <b>Gaming</b> &rarr; <b>FiveM</b>.',
+    'Turn on <b>Frame Rate Target Control</b> or <b>Radeon Chill</b>.',
+    `Set the target to <b>${t}</b> fps (Chill: min and max both ${t}).`,
+    'Fully restart FiveM for it to take effect.',
   ],
   gta: t => [
-    'Press <b>ESC</b> and open <b>Settings</b> &rarr; <b>Graphics</b>.',
-    'Scroll to <b>Frame Scaling Mode</b> / <b>VSync</b>.',
-    `Turn <b>VSync On</b> — this locks frames to your monitor refresh rate.`,
-    'Apply the settings and return to the game.',
-    `Note: VSync locks to your display refresh, not an arbitrary ${t}. For an exact number use the GPU driver tab.`
-  ]
+    'Press <b>ESC</b> &rarr; <b>Settings</b> &rarr; <b>Graphics</b>.',
+    'Turn <b>VSync On</b> to lock frames to your monitor.',
+    `VSync uses your display refresh, not exactly ${t}. Use the GPU tab for an exact cap.`,
+  ],
 };
-
-let capTarget = 0;
-let capGpu = 'nvidia';
-let lastFps = 0;
-let capOvershoot = 25;
+let capTarget = 0, capGpu = 'nvidia', lastFps = 0, capOvershoot = 25;
 
 function renderGuide() {
   const guide = $('capGuide');
-  const steps = $('guideSteps');
-  if (!guide || !steps) return;
-
   if (!capTarget) { guide.hidden = true; return; }
   guide.hidden = false;
-  steps.innerHTML = GUIDES[capGpu](capTarget).map(s => `<li>${s}</li>`).join('');
+  $('guideSteps').innerHTML = GUIDES[capGpu](capTarget).map(s => `<li>${s}</li>`).join('');
 }
 
 function renderCapNote() {
-  const note  = $('capNote');
-  const title = $('capNoteTitle');
-  const body  = $('capNoteBody');
-  if (!note || !title || !body) return;
-
-  note.classList.remove('good','warn');
-
+  const note = $('capNote');
+  note.classList.remove('good', 'warn');
   if (!capTarget) {
-    title.textContent = 'Running uncapped';
-    body.textContent  = 'Uncapped frames push your GPU flat out for frames your monitor never shows. Pick your refresh rate above for setup steps.';
-    return;
-  }
-
-  if (!lastFps) {
-    title.textContent = `Target ${capTarget} fps`;
-    body.textContent  = 'Follow the steps below, then restart FiveM and check back here.';
-    return;
-  }
-
-  if (lastFps > capTarget + capOvershoot) {
+    setTxt('capNoteTitle', 'Running uncapped');
+    setTxt('capNoteBody', 'Your GPU renders frames your monitor never shows. Pick your refresh rate for setup steps.');
+  } else if (!lastFps) {
+    setTxt('capNoteTitle', `Target ${capTarget} fps`);
+    setTxt('capNoteBody', 'Follow the steps below, then restart FiveM and check back here.');
+  } else if (lastFps > capTarget + capOvershoot) {
     note.classList.add('warn');
-    title.textContent = `Not capped yet — ${lastFps} fps`;
-    body.textContent  = `You're running well above your ${capTarget} fps target, so the cap isn't active. Follow the steps below and restart FiveM.`;
+    setTxt('capNoteTitle', `Not capped yet: ${lastFps} fps`);
+    setTxt('capNoteBody', `Well above your ${capTarget} fps target. Follow the steps below and restart FiveM.`);
   } else {
     note.classList.add('good');
-    title.textContent = `Capped at ~${capTarget} fps`;
-    body.textContent  = 'Your frame rate matches your target. This is the single biggest thing you can do for GPU temperature.';
+    setTxt('capNoteTitle', `Capped at ~${capTarget} fps`);
+    setTxt('capNoteBody', 'Frame rate matches your target. Best single thing for GPU temperature.');
   }
+  renderInsights();
 }
 
-const frameCapSelect = $('frameCapSelect');
-if (frameCapSelect) {
-  frameCapSelect.addEventListener('change', e => {
-    capTarget = parseInt(e.target.value) || 0;
-    post('setFrameCapTarget', { target: capTarget });
-    renderCapNote();
-    renderGuide();
-  });
-  frameCapSelect.addEventListener('click', e => e.stopPropagation());
-}
+$('frameCapSelect').addEventListener('change', e => {
+  capTarget = parseInt(e.target.value) || 0;
+  post('setFrameCapTarget', { target: capTarget });
+  renderCapNote();
+  renderGuide();
+  renderFps();
+});
 
-document.querySelectorAll('.guide-tabs .gt').forEach(b => {
+$$('#capGuide .gt').forEach(b => {
   b.addEventListener('click', () => {
-    document.querySelectorAll('.guide-tabs .gt').forEach(x => x.classList.remove('on'));
+    $$('#capGuide .gt').forEach(x => x.classList.remove('on'));
     b.classList.add('on');
     capGpu = b.dataset.gpu;
     renderGuide();
   });
 });
 
-/* ═══════════════════════════════════════════════════════════
-   FIRST-RUN SETUP + GRAPHICS PAGE
-   ═══════════════════════════════════════════════════════════ */
-
+/* ═══════════════ FIRST-RUN SETUP + GRAPHICS ═══════════════ */
 let detectedSpec = null;
 let recommendedPreset = null;
 
-function showStep(id) {
-  document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('on'));
-  const el = $(id);
-  if (el) el.classList.add('on');
-}
-
-function openSetup() {
-  const o = $('setupOverlay');
-  if (!o) return;
-  o.hidden = false;
-  showStep('setupChoose');
-}
-
-function finishSetup() {
-  const o = $('setupOverlay');
-  if (o) o.hidden = true;
-  post('setupDone');
-}
+function showStep(id) { $$('.setup-step').forEach(s => s.classList.toggle('on', s.id === id)); }
+function openSetup() { $('setupOverlay').hidden = false; showStep('setupChoose'); }
+function finishSetup() { $('setupOverlay').hidden = true; post('setupDone'); }
 
 function renderSpecs(spec) {
   const res = (spec.width && spec.height) ? `${spec.width} × ${spec.height}` : 'Unknown';
-  const hz  = spec.hz ? `~${spec.hz} Hz` : 'Unknown';
-
-  const setTxt = (id, v) => { const e = $(id); if (e) e.textContent = v; };
   setTxt('specGpu', spec.gpu || 'Not detected');
+  $('specGpu').title = spec.gpu || '';
   setTxt('specCpu', spec.threads ? `${spec.threads} threads` : 'Unknown');
   setTxt('specRam', spec.ram || 'Unknown');
   setTxt('specRes', res);
-  setTxt('specHz', hz);
-
+  setTxt('specHz', spec.hz ? `~${spec.hz} Hz` : 'Unknown');
   const info = TIER_INFO[spec.tier] || null;
   const tierEl = $('specTier');
   if (info) {
-    setTxt('tierName', info.name + (spec.guessed ? ' (estimated)' : ''));
+    setTxt('tierName', info.name + (spec.guessed ? ' (est.)' : ''));
     setTxt('tierNote', spec.guessed
-      ? 'Your graphics card was masked by the driver, so this is based on CPU threads. Adjust if it feels off.'
-      : info.note);
-    if (tierEl) tierEl.classList.toggle('warn', !!spec.guessed);
+      ? 'Your graphics card was masked by the driver, so the tier is estimated from CPU threads. Adjust if it feels off.'
+      : `${info.note} Suggested profile: ${PRESET_LABEL[info.preset]}.`);
+    tierEl.classList.toggle('warn', !!spec.guessed);
   } else {
     setTxt('tierName', 'Not detected');
     setTxt('tierNote', 'Your hardware could not be read. Pick a profile that feels right and adjust from there.');
-    if (tierEl) tierEl.classList.add('warn');
+    tierEl.classList.add('warn');
   }
-
-  const empty = $('specEmpty'), list = $('specList'), rescan = $('rescanBtn');
-  if (empty)  empty.hidden = true;
-  if (list)   list.hidden = false;
-  if (rescan) rescan.hidden = false;
-
-  renderGfx(spec);
-}
-
-function renderGfx(spec) {
-  const list = $('gfxList'), intro = $('gfxIntro'), foot = $('gfxFoot'), count = $('gfxCount');
-  if (!list) return;
+  $('specEmpty').hidden = true;
+  $('specList').hidden = false;
+  $('rescanBtn').hidden = false;
   const recs = gfxRecommendations(spec);
-  list.innerHTML = recs.map(r => `
-    <div class="gfx">
-      <div class="gfx-top">
-        <b>${esc(r.name)}</b>
-        <span class="gfx-val${r.off ? ' off' : ''}">${esc(r.value)}</span>
-      </div>
+  $('gfxList').innerHTML = recs.map(r => `
+    <div class="gfx" title="${esc(r.name)}: ${esc(r.value)}. ${esc(r.why)}">
+      <div class="gfx-top"><b>${esc(r.name)}</b><span class="gfx-val${r.off ? ' off' : ''}">${esc(r.value)}</span></div>
       <span>${esc(r.why)}</span>
     </div>`).join('');
-  list.hidden = false;
-  if (intro) intro.hidden = true;
-  if (foot) foot.hidden = false;
-  if (count) count.textContent = `${recs.length} settings`;
+  setTxt('gfxCount', `${recs.length} settings for ${info ? info.name.toLowerCase() : 'your'} hardware`);
+  renderInsights();
 }
 
 async function runScan(onDone) {
   showStep('setupScan');
   const bar = $('scanBar'), status = $('scanStatus');
-  const steps = [
-    [18, 'Checking graphics card…'],
-    [42, 'Reading CPU and memory…'],
-    [70, 'Measuring display refresh rate…'],
-    [92, 'Matching a profile…'],
-  ];
+  const steps = [[18, 'Checking graphics card…'], [42, 'Reading CPU and memory…'], [70, 'Measuring display refresh rate…'], [92, 'Matching a profile…']];
   let i = 0;
-  const timer = setInterval(() => {
-    if (i >= steps.length) return;
-    if (bar) bar.style.width = steps[i][0] + '%';
-    if (status) status.textContent = steps[i][1];
-    i++;
-  }, 380);
-
+  const timer = setInterval(() => { if (i >= steps.length) return; bar.style.width = steps[i][0] + '%'; status.textContent = steps[i][1]; i++; }, 380);
   const spec = await detectSpecs();
   clearInterval(timer);
-  if (bar) bar.style.width = '100%';
-
+  bar.style.width = '100%';
   detectedSpec = spec;
   const info = TIER_INFO[spec.tier];
   recommendedPreset = info ? info.preset : 'balanced';
-
-  post('saveSpec', {
-    gpu: spec.gpu || '', threads: spec.threads || 0,
-    ram: spec.ram || '', width: spec.width || 0, height: spec.height || 0,
-    hz: spec.hz || 0, tier: spec.tier || '', guessed: !!spec.guessed,
-  });
-
+  post('saveSpec', { gpu: spec.gpu || '', threads: spec.threads || 0, ram: spec.ram || '', width: spec.width || 0, height: spec.height || 0, hz: spec.hz || 0, tier: spec.tier || '', guessed: !!spec.guessed });
   renderSpecs(spec);
   if (onDone) onDone(spec, info);
 }
 
-function showResult(spec, info) {
-  const res = (spec.width && spec.height) ? `${spec.width} × ${spec.height}` : 'Unknown';
-  const rows = [
-    ['Graphics card', spec.gpu || 'Not detected', true],
-    ['CPU threads', spec.threads ? `${spec.threads}` : 'Unknown', false],
-    ['Memory', spec.ram || 'Unknown', false],
-    ['Resolution', res, false],
-    ['Refresh rate', spec.hz ? `~${spec.hz} Hz` : 'Unknown', false],
-  ];
-  const holder = $('resultSpecs');
-  if (holder) {
-    holder.innerHTML = rows.map(([l, v, wide]) =>
-      `<div class="rs${wide ? ' span2' : ''}"><label>${esc(l)}</label><b>${esc(v)}</b></div>`).join('');
-  }
-
-  const label = info ? (PRESET_LABEL[info.preset] || info.preset) : 'Balanced';
-  const pn = $('pickName'), pw = $('pickWhy'), rt = $('resultTitle'), rs = $('resultSub');
-  if (pn) pn.textContent = label;
-  if (pw) pw.textContent = info ? info.note : 'A safe starting point you can tune from.';
-  if (rt) rt.textContent = info ? `${info.name} system detected` : 'Could not read your hardware';
-  if (rs) rs.textContent = info
-    ? 'Based on what we found, this profile should give you the best balance. You can change it any time.'
-    : 'Pick a profile that feels right — you can change it any time.';
-
-  showStep('setupResult');
-}
-
-if ($('optAuto'))   $('optAuto').addEventListener('click', () => runScan(showResult));
-if ($('optManual')) $('optManual').addEventListener('click', finishSetup);
-if ($('setupSkip')) $('setupSkip').addEventListener('click', finishSetup);
-if ($('pickOwn'))   $('pickOwn').addEventListener('click', finishSetup);
-
-if ($('applyRec')) {
-  $('applyRec').addEventListener('click', () => {
-    const p = recommendedPreset || 'balanced';
-    post('preset', { preset: p });
-    setStatus(p);
-    applyPresetLocally(p);
-    finishSetup();
+function runGraphicsScan() {
+  const btn = $('rescanBtn');
+  btn.classList.add('busy');
+  detectSpecs().then(spec => {
+    detectedSpec = spec;
+    post('saveSpec', { gpu: spec.gpu || '', threads: spec.threads || 0, ram: spec.ram || '', width: spec.width || 0, height: spec.height || 0, hz: spec.hz || 0, tier: spec.tier || '', guessed: !!spec.guessed });
+    renderSpecs(spec);
+    btn.classList.remove('busy');
   });
 }
 
-if ($('scanBtn'))   $('scanBtn').addEventListener('click', () => runScan(null));
-if ($('rescanBtn')) $('rescanBtn').addEventListener('click', () => runScan(null));
+function showResult(spec, info) {
+  const res = (spec.width && spec.height) ? `${spec.width} × ${spec.height}` : 'Unknown';
+  const rows = [['Graphics card', spec.gpu || 'Not detected', true], ['CPU threads', spec.threads ? `${spec.threads}` : 'Unknown'], ['Memory', spec.ram || 'Unknown'], ['Resolution', res], ['Refresh rate', spec.hz ? `~${spec.hz} Hz` : 'Unknown']];
+  $('resultSpecs').innerHTML = rows.map(([l, v, wide]) => `<div class="rs${wide ? ' span2' : ''}"><label>${esc(l)}</label><b>${esc(v)}</b></div>`).join('');
+  setTxt('pickName', info ? (PRESET_LABEL[info.preset] || info.preset) : 'Balanced');
+  setTxt('pickWhy', info ? info.note : 'A safe starting point you can tune from.');
+  setTxt('resultTitle', info ? `${info.name} system detected` : 'Could not read your hardware');
+  setTxt('resultSub', info ? 'Based on what we found, this profile should give you the best balance. You can change it any time.' : 'Pick a profile that feels right. You can change it any time.');
+  showStep('setupResult');
+}
+
+$('optAuto').addEventListener('click', () => runScan(showResult));
+$('optManual').addEventListener('click', finishSetup);
+$('setupSkip').addEventListener('click', finishSetup);
+$('pickOwn').addEventListener('click', finishSetup);
+$('applyRec').addEventListener('click', () => {
+  const p = recommendedPreset || 'balanced';
+  post('preset', { preset: p });
+  applyPresetLocally(p);
+  setPresetUI(p);
+  finishSetup();
+});
+$('scanBtn').addEventListener('click', runGraphicsScan);
+$('rescanBtn').addEventListener('click', runGraphicsScan);
 
 /* ═══════════════════════════════════════════════════════════
-   HEALTH PAGE (admins)
+   HEALTH (admins)
    ═══════════════════════════════════════════════════════════ */
-
-const health = { server: null, client: null, clientFrames: null, view: 'server', open: false };
+const PAGE_SIZE = 12;
+const health = { server: null, client: null, clientFrames: null, view: 'server', tab: 'overview', page: 0, filter: 'all', search: '', sel: null, open: false };
 
 function setAdmin(flag) {
   isAdmin = !!flag;
-  if ($('grpServer')) $('grpServer').hidden = !isAdmin;
-  if ($('navHealth')) $('navHealth').hidden = !isAdmin;
+  $('grpServer').hidden = !isAdmin;
+  $('navHealth').hidden = !isAdmin;
   if (!isAdmin && $('page-health').classList.contains('on')) goPage('boost');
 }
 
 function fmtAgo(sec) {
-  if (sec == null) return '';
+  if (sec == null || isNaN(sec)) return '';
   if (sec < 60) return `${Math.floor(sec)}s ago`;
   if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
   return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m ago`;
 }
 
-function setHealthStatus(message, kind) {
+let toastTimer = null;
+function toast(message, kind) {
   const n = $('hStatus');
-  if (!n) return;
-  n.hidden = !message;
-  n.className = `note ${kind || 'info'}`;
-  $('hStatusTitle').textContent = kind === 'error' ? 'Error' : kind === 'warn' ? 'Notice' : kind === 'ok' ? 'Done' : 'Working';
-  $('hStatusBody').textContent = message || '';
-  if (message && kind !== 'error') setTimeout(() => { if ($('hStatusBody').textContent === message) n.hidden = true; }, 12000);
+  if (!message) { n.hidden = true; return; }
+  n.className = `toast ${kind || 'info'}`;
+  setTxt('hStatusBody', message);
+  $('hStatusBody').title = message;
+  n.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { n.hidden = true; }, kind === 'error' ? 15000 : 7000);
 }
 
-function renderHealthServer() {
+function setHTab(tab) {
+  health.tab = tab;
+  $$('#hTabs .gt').forEach(b => b.classList.toggle('on', b.dataset.htab === tab));
+  $$('.htab').forEach(t => t.classList.toggle('on', t.id === 'htab-' + tab));
+}
+$$('#hTabs .gt').forEach(b => b.addEventListener('click', () => setHTab(b.dataset.htab)));
+
+function renderHealth() {
+  renderOverview();
+  renderResources();
+  renderProbes();
+  const d = health.server;
+  const tally = $('healthTally');
+  const bad = d ? (d.resources || []).concat((d.clients && d.clients.rows) || []).filter(r => r.grade === 'bad' || r.grade === 'poor').length : 0;
+  tally.hidden = bad === 0;
+  tally.textContent = bad;
+  tally.classList.toggle('bad', bad > 0);
+}
+
+/* ── Overview ── */
+function renderOverview() {
   const d = health.server;
   if (!d || !d.server) return;
-  const s = d.server;
-
-  const tile = $('hGradeTile');
-  tile.className = `tile g-${s.grade}`;
-  $('hGrade').textContent = GRADE_LABEL[s.grade] || '—';
-  $('hHitch').innerHTML = `${s.tick.perHour}<em>/h</em>`;
-  $('hMemLabel').textContent = s.memoryLabel || 'Memory';
-  $('hMem').innerHTML = `${s.memoryMB}<em>MB</em>`;
+  const s = d.server, t = s.tick || {};
+  $('hGradeTile').className = `tile g-${s.grade}`;
+  setTxt('hGrade', GRADE_LABEL[s.grade] || '—');
+  setTxt('hGradeSub', `Up ${s.uptimeMin >= 60 ? Math.floor(s.uptimeMin / 60) + 'h ' + (s.uptimeMin % 60) + 'm' : s.uptimeMin + ' min'} · avg drift ${t.avgDrift} ms`);
+  setHtml('hHitch', `${t.perHour}<em>/h</em>`);
+  setTxt('hHitchSub', `${t.hitches} total · ${t.severe} severe · worst ${t.worst} ms`);
+  setTxt('hMemLabel', s.memoryLabel || 'Memory');
+  setHtml('hMem', `${s.memoryMB}<em>MB</em>`);
+  const hist = (s.memoryHistory || []).filter(v => typeof v === 'number');
+  if (hist.length >= 2) {
+    const delta = hist[hist.length - 1] - hist[0];
+    setTxt('hMemSub', `${delta >= 0 ? '+' : ''}${delta} MB over ${Math.round(hist.length * (s.memoryIntervalSec || 60) / 60)} min`);
+  } else {
+    setTxt('hMemSub', 'Trend after a few samples');
+  }
   const c = d.clients || {};
-  $('hClients').innerHTML = `${c.reporting || 0}<em>/ ${c.players != null ? c.players : s.players}</em>`;
+  setHtml('hPlayers', `${s.players}<em>online</em>`);
+  setTxt('hPlayersSub', c.reporting ? `${c.reporting} sharing · avg ${c.fpsAvg} fps` : `${s.resourcesStarted} resources running`);
 
-  renderTimeline(s.timeline || [], s.tick);
+  // timeline
+  const tl = s.timeline || [];
+  let max = 1, total = 0, severe = 0;
+  tl.forEach(b => { total += b[0] || 0; severe += b[1] || 0; if ((b[0] || 0) > max) max = b[0]; });
+  $('hTimeline').innerHTML = tl.map((b, i) => {
+    const h = b[0] || 0, sv = b[1] || 0, n = h - sv, ago = tl.length - 1 - i;
+    const when = ago === 0 ? 'this minute' : `${ago} min ago`;
+    const title = h ? `${h} hitch${h === 1 ? '' : 'es'}${sv ? `, ${sv} severe` : ''} · ${when}` : `No hitches · ${when}`;
+    return `<i title="${esc(title)}">${n ? `<b style="height:${Math.max(6, n / max * 100)}%"></b>` : ''}${sv ? `<em style="height:${Math.max(6, sv / max * 100)}%"></em>` : ''}</i>`;
+  }).join('');
+  setTxt('hTlCount', total ? `${total} hitches · ${severe} severe` : 'No hitches');
+  setTxt('hTlInfo', t.lastSevereAgo != null ? `Last severe hitch ${fmtAgo(t.lastSevereAgo)}` : 'No severe hitches');
 
-  const tally = $('healthTally');
-  if (tally) {
-    const bad = (d.resources || []).filter(r => r.grade === 'bad' || r.grade === 'poor').length;
-    tally.hidden = bad === 0;
-    tally.textContent = bad;
-    tally.classList.toggle('live', bad > 0);
+  // memory
+  drawSpark($('hMemSpark'), hist, { minSpan: 8 });
+  setTxt('hMemRange', hist.length ? `${Math.min(...hist)}–${Math.max(...hist)} MB` : 'Collecting');
+  setTxt('hMemFrom', hist.length >= 2 ? `${hist[0]} → ${hist[hist.length - 1]} MB` : 'Samples every ' + (s.memoryIntervalSec || 60) + 's');
+  const e = s.entities || {};
+  setTxt('hEntities', `${e.vehicles ?? '—'} veh · ${e.peds ?? '—'} peds · ${e.objects ?? '—'} obj`);
+
+  // needs attention
+  const rows = (d.resources || []).map(r => ({ ...r, view: 'server' }))
+    .concat(((c.rows) || []).map(r => ({ ...r, view: 'clients' })));
+  const attn = rows.filter(r => r.verdict && r.verdict !== 'healthy' && r.verdict !== 'monitor')
+    .sort((a, b) => (GRADE_ORDER[b.grade] - GRADE_ORDER[a.grade]) || (b.load - a.load));
+  setTxt('hAttnCount', attn.length ? `${attn.length} resource${attn.length === 1 ? '' : 's'}` : '');
+  $('hAttn').innerHTML = attn.length ? attn.slice(0, 6).map((r, i) => `
+    <div class="at g-${esc(r.grade)}" data-i="${i}" title="${esc((r.hints || [])[0] || '')}">
+      <div class="at-name"><b>${esc(r.name)}</b><span class="v-${esc(r.verdict)}">${VERDICT_LABEL[r.verdict] || r.verdict}</span></div>
+      <span class="at-side">${r.view === 'server' ? 'Server' : 'Clients'}</span>
+      <i class="pill g-${esc(r.grade)}">${GRADE_LABEL[r.grade]}</i>
+      <span class="at-hint">${esc((r.hints || [])[0] || '')}</span>
+    </div>`).join('')
+    : `<div class="empty-mini"><svg><use href="#i-check"/></svg><b>Nothing needs attention</b><span>No resource is graded Poor or Bad${(d.probe && d.probe.covered) ? '' : ' yet. Install the probe or run a deep scan to grade resources'}.</span></div>`;
+  $$('#hAttn .at').forEach(el => el.addEventListener('click', () => {
+    const r = attn[+el.dataset.i];
+    health.view = r.view;
+    $$('#hSeg .gt').forEach(b => b.classList.toggle('on', b.dataset.view === r.view));
+    health.filter = 'all'; health.search = ''; $('hSearch').value = '';
+    $$('#hGradeFilter .gt').forEach(b => b.classList.toggle('on', b.dataset.grade === 'all'));
+    health.sel = r.name;
+    const list = currentRows();
+    health.page = Math.max(0, Math.floor(list.findIndex(x => x.name === r.name) / PAGE_SIZE));
+    setHTab('resources');
+    renderResources();
+  }));
+
+  // players
+  const pp = $('hPlayersPanel');
+  if (!c.reporting) {
+    setTxt('hPlCount', '');
+    pp.innerHTML = `<div class="empty-mini"><svg><use href="#i-users"/></svg><b>No player reports yet</b><span>Players with "Share performance data" on report once a minute, starting about a minute after they join.</span></div>`;
+  } else {
+    setTxt('hPlCount', `${c.reporting} of ${c.players} sharing`);
+    const tiers = c.tiers || {};
+    const tierOrder = ['ultra','high','mid','low','potato'];
+    const tierChips = tierOrder.filter(k => tiers[k]).map(k => `<span>${TIER_INFO[k] ? TIER_INFO[k].name : k} · ${tiers[k]}</span>`).join('') || '<span>No hardware scans yet</span>';
+    pp.innerHTML = `
+      <div class="pl-big">
+        <div><span>Average FPS</span><b>${c.fpsAvg}<em>fps</em></b></div>
+        <div><span>Average 1% low</span><b>${c.lowAvg}<em>fps</em></b></div>
+      </div>
+      <div class="hb"><div class="hb-top"><span>Under 45 fps</span><b>${c.under45}%</b></div><i class="bar-m"><u class="${c.under45 >= 40 ? 'warn' : ''}" style="width:${c.under45}%"></u></i></div>
+      <div class="hb"><div class="hb-top"><span>Under 30 fps</span><b>${c.under30}%</b></div><i class="bar-m"><u class="${c.under30 >= 20 ? 'warn' : ''}" style="width:${c.under30}%"></u></i></div>
+      <div class="chips">${tierChips}</div>`;
+  }
+}
+
+/* ── Resources ── */
+function currentRows() {
+  let rows = [];
+  if (health.view === 'server') rows = (health.server && health.server.resources) || [];
+  else if (health.view === 'clients') rows = (health.server && health.server.clients && health.server.clients.rows) || [];
+  else rows = (health.client && health.client.rows) || [];
+  const q = health.search.trim().toLowerCase();
+  return rows.filter(r => (!q || r.name.toLowerCase().includes(q)) && (health.filter === 'all' || r.grade === 'poor' || r.grade === 'bad'));
+}
+
+function renderResources() {
+  const view = health.view;
+  setTxt('hLegendNote', view === 'server' ? 'Load = % of server main thread' : view === 'clients' ? 'Load = median ms per frame across players' : 'Load = ms per frame on your PC');
+  const rows = currentRows();
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (health.page >= pages) health.page = pages - 1;
+  const start = health.page * PAGE_SIZE;
+  const slice = rows.slice(start, start + PAGE_SIZE);
+
+  const empty = $('hTableEmpty');
+  if (!rows.length) {
+    $('hTable').innerHTML = '';
+    empty.hidden = false;
+    setTxt('hTableEmptyBody', health.search || health.filter !== 'all' ? 'No resources match this filter.'
+      : view === 'server' ? 'Install the probe or run a deep scan from the Probes & scan tab.'
+      : view === 'clients' ? 'No player reports yet.' : 'No probe reports from your PC yet. Resources need the probe line and a restart.');
+  } else {
+    empty.hidden = true;
+    $('hTable').innerHTML = slice.map(r => {
+      const peakCls = r.peakMs >= 50 ? 'bad' : r.peakMs >= 5 ? 'hot' : '';
+      const evCls = r.eventsPs >= 200 ? 'bad' : r.eventsPs >= 50 ? 'hot' : '';
+      const load = view === 'server' ? `${fmt(r.load, 2)}<em>%</em>` : `${fmt(r.load, 3)}<em>ms</em>`;
+      const tag = view === 'clients' ? `${r.clients} pc` : r.source === 'scan' ? 'scan' : '';
+      return `
+        <div class="rt-row g-${esc(r.grade)}${health.sel === r.name ? ' sel' : ''}" data-name="${esc(r.name)}">
+          <div class="rt-name" title="${esc(r.name)}">${esc(r.name)}${tag ? `<em>${esc(tag)}</em>` : ''}</div>
+          <div class="rt-load">${load}</div>
+          <div class="rt-m ${peakCls}">${fmt(r.peakMs, 1)} ms</div>
+          <div class="rt-m ${evCls}">${fmt(r.eventsPs, 0)}</div>
+          <div><i class="pill g-${esc(r.grade)}">${GRADE_LABEL[r.grade] || r.grade}</i></div>
+          <div class="rt-verdict v-${esc(r.verdict)}">${VERDICT_LABEL[r.verdict] || r.verdict}</div>
+        </div>`;
+    }).join('');
+    $$('#hTable .rt-row').forEach(el => el.addEventListener('click', () => { health.sel = el.dataset.name; renderResources(); }));
+  }
+  setTxt('hPageInfo', rows.length ? `${start + 1}–${Math.min(start + PAGE_SIZE, rows.length)} of ${rows.length}` : '0 resources');
+  $('hPrev').disabled = health.page <= 0;
+  $('hNext').disabled = health.page >= pages - 1;
+  renderDetail(rows.find(r => r.name === health.sel) || null);
+}
+
+function renderDetail(r) {
+  $('hDetailEmpty').hidden = !!r;
+  $('hDetailBody').hidden = !r;
+  if (!r) return;
+  const view = health.view;
+  setTxt('dName', r.name);
+  setTxt('dSource', view === 'clients' ? `Measured on ${r.clients} player PC${r.clients === 1 ? '' : 's'}` : view === 'mine' ? 'Measured on your PC' : r.source === 'scan' ? 'Graded by the deep scan' : `Graded by the probe${r.scanLoad != null ? ', scan agrees' : ''}`);
+  const g = $('dGrade');
+  g.className = `pill lg g-${r.grade}`;
+  g.textContent = GRADE_LABEL[r.grade] || r.grade;
+  const v = $('dVerdict');
+  v.className = `d-verdict v-${r.verdict}`;
+  v.textContent = VERDICT_LABEL[r.verdict] || r.verdict;
+
+  const cell = (label, value, cls) => `<div><span>${label}</span><b class="${cls || ''}">${value}</b></div>`;
+  const cells = [];
+  if (view === 'server') {
+    cells.push(cell('Main thread', `${fmt(r.load, 2)}%`));
+    cells.push(cell(r.msPerTick != null ? 'Per tick' : 'Per second', r.msPerTick != null ? `${fmt(r.msPerTick, 3)} ms` : `${fmt(r.msPerSec, 1)} ms`));
+  } else {
+    cells.push(cell('Per frame', `${fmt(r.load, 3)} ms`));
+    cells.push(cell('Loops / frame', fmt(r.loops, 1), r.loops >= 8 ? 'bad' : r.loops >= 3 ? 'hot' : ''));
+  }
+  cells.push(cell('Peak slice', `${fmt(r.peakMs, 1)} ms`, r.peakMs >= 50 ? 'bad' : r.peakMs >= 5 ? 'hot' : ''));
+  cells.push(cell('Events / s', fmt(r.eventsPs, 0), r.eventsPs >= 200 ? 'bad' : r.eventsPs >= 50 ? 'hot' : ''));
+  cells.push(cell('Lua memory', r.memMB != null ? `${fmt(r.memMB, 1)} MB` : '—'));
+  cells.push(cell('Growth / h', r.memGrowth != null ? `${r.memGrowth >= 0 ? '+' : ''}${fmt(r.memGrowth, 1)} MB` : '—', r.memGrowth >= 50 ? 'bad' : r.memGrowth >= 10 ? 'hot' : ''));
+  if (view === 'server' && r.slicesPs != null) cells.push(cell('Calls / s', fmt(r.slicesPs, 0)));
+  if (view === 'server' && r.scanLoad != null) cells.push(cell('Scan load', `${fmt(r.scanLoad, 2)}%`));
+  $('dGrid').innerHTML = cells.join('');
+
+  const sev = r.grade === 'bad' ? 'bad' : r.grade === 'poor' ? 'warn' : '';
+  $('dHints').innerHTML = (r.hints || []).map(h => `<li class="${sev}">${esc(h)}</li>`).join('');
+}
+
+$$('#hSeg .gt').forEach(b => b.addEventListener('click', () => {
+  $$('#hSeg .gt').forEach(x => x.classList.toggle('on', x === b));
+  health.view = b.dataset.view; health.page = 0; health.sel = null;
+  renderResources();
+}));
+$$('#hGradeFilter .gt').forEach(b => b.addEventListener('click', () => {
+  $$('#hGradeFilter .gt').forEach(x => x.classList.toggle('on', x === b));
+  health.filter = b.dataset.grade; health.page = 0;
+  renderResources();
+}));
+$('hSearch').addEventListener('input', e => { health.search = e.target.value; health.page = 0; renderResources(); });
+$('hPrev').addEventListener('click', () => { health.page = Math.max(0, health.page - 1); renderResources(); });
+$('hNext').addEventListener('click', () => { health.page += 1; renderResources(); });
+
+/* ── Probes & scan ── */
+function renderProbes() {
+  const d = health.server;
+  if (!d) return;
+  const p = d.probe || {};
+  const pct = p.total ? Math.round(p.covered / p.total * 100) : 0;
+  setTxt('pCovPct', `${pct}% covered`);
+  $('pRing').style.strokeDasharray = `${(pct / 100 * 100.5).toFixed(1)} 101`;
+  setTxt('pCovered', `${p.covered || 0} / ${p.total || 0}`);
+  setTxt('pReporting', p.reporting || 0);
+  setTxt('pExcluded', p.excluded || 0);
+  setTxt('pLegacy', p.legacy || 0);
+  const missing = p.missing || [];
+  setTxt('pMissCount', missing.length ? `${missing.length} resource${missing.length === 1 ? '' : 's'}` : 'All covered');
+  const MAX = 26;
+  $('pMissing').innerHTML = missing.length
+    ? missing.slice(0, MAX).map(n => `<span title="${esc(n)}">${esc(n)}</span>`).join('') + (missing.length > MAX ? `<span class="more">+${missing.length - MAX} more</span>` : '')
+    : '<span class="ok">Every started Lua resource has the probe</span>';
+  setTxt('pAuto', p.autoInstall ? 'On' : 'Off');
+  setTxt('pAutoNew', p.autoInstallNew ? 'On' : 'Off');
+  const ib = $('hProbe');
+  ib.disabled = !missing.length;
+  ib.querySelector('span').textContent = missing.length ? `Install on ${missing.length}` : 'All installed';
+
+  const sc = d.scan || {};
+  const running = sc.status === 'running';
+  setTxt('sStatus', running ? 'Recording…' : sc.status === 'done' ? 'Complete' : sc.status === 'error' ? 'Failed' : 'Not run');
+  setTxt('sWhen', sc.at && sc.status !== 'idle' ? fmtAgo(Math.max(0, Date.now() / 1000 - sc.at)) : 'Never');
+  setTxt('sFrames', sc.frames && sc.status !== 'idle' ? sc.frames : '—');
+  setTxt('sCount', sc.count || '—');
+  const sb = $('hScan');
+  sb.disabled = running;
+  sb.querySelector('span').textContent = running ? 'Scanning…' : 'Run deep scan';
+  sb.classList.toggle('busy', running);
+  const sn = $('sNote');
+  if (sc.status === 'error') {
+    sn.className = 'note slim warn';
+    sn.innerHTML = `<b>Last scan failed</b><span>${esc(sc.error || 'Unknown error')}</span>`;
+  } else {
+    sn.className = 'note slim';
+    sn.innerHTML = '<b>Covers JS and C# too</b><span>Uses the built-in FXServer profiler for 500 frames. Expect one short hitch while the trace is saved.</span>';
   }
 
   const u = d.update || {};
-  const un = $('hUpdate');
-  if (un) {
-    if (u.outdated) {
-      un.hidden = false; un.className = 'note warn';
-      $('hUpdateTitle').textContent = `Update available: ${u.current} → ${u.latest}`;
-      $('hUpdateBody').textContent = `${u.notes || ''}${u.url ? ` ${u.url}` : ''}`.trim() || 'Download the latest version from your keymaster.';
-    } else {
-      un.hidden = true;
-    }
-  }
-
-  const scanBtn = $('hScan');
-  if (scanBtn) {
-    const running = d.scan && d.scan.status === 'running';
-    scanBtn.classList.toggle('busy', !!running);
-    scanBtn.textContent = running ? 'Scanning…' : 'Deep scan';
-  }
-  const probeBtn = $('hProbe');
-  if (probeBtn && d.probe) {
-    probeBtn.textContent = d.probe.missing && d.probe.missing.length ? `Install probes (${d.probe.missing.length})` : 'Probes installed';
-    probeBtn.classList.toggle('busy', !(d.probe.missing && d.probe.missing.length));
-  }
-
-  renderCoverage();
-  renderResourceTable();
-}
-
-function renderTimeline(tl, tick) {
-  const el = $('hTimeline');
-  if (!el) return;
-  let max = 1, total = 0, severe = 0;
-  tl.forEach(b => { const h = b[0] || 0; total += h; severe += b[1] || 0; if (h > max) max = h; });
-  el.innerHTML = tl.map((b, i) => {
-    const h = b[0] || 0, s = b[1] || 0, n = h - s;
-    const ago = tl.length - 1 - i;
-    const title = h ? `${h} hitch${h === 1 ? '' : 'es'}${s ? ` (${s} severe)` : ''} · ${ago === 0 ? 'this minute' : `${ago} min ago`}` : `${ago === 0 ? 'this minute' : `${ago} min ago`} · clean`;
-    return `<i title="${esc(title)}">${n ? `<b style="height:${Math.max(6, n / max * 100)}%"></b>` : ''}${s ? `<em style="height:${Math.max(6, s / max * 100)}%"></em>` : ''}</i>`;
-  }).join('');
-  $('hTlCount').textContent = total ? `${total} hitches · ${severe} severe` : 'no hitches';
-  $('hTlInfo').textContent = tick ? `worst ${tick.worst} ms · avg drift ${tick.avgDrift} ms${tick.lastSevereAgo != null ? ` · last severe ${fmtAgo(tick.lastSevereAgo)}` : ''}` : '';
-}
-
-function renderCoverage() {
-  const d = health.server;
-  const title = $('hCovTitle'), body = $('hCovBody'), note = $('hCoverage'), legendNote = $('hLegendNote');
-  if (!title) return;
-  note.className = 'note';
-
-  if (health.view === 'server') {
-    legendNote.textContent = 'Load = % of server main thread';
-    if (!d) { title.textContent = 'Waiting for data'; body.textContent = 'Requesting the server report…'; return; }
-    const p = d.probe || {};
-    const sc = d.scan || {};
-    const missing = p.missing || [];
-    title.textContent = `Probe active in ${p.covered || 0} of ${p.total || 0} started resources · ${p.reporting || 0} reporting now`;
-    let txt = '';
-    if (missing.length) {
-      txt += `${missing.length} not covered: ${missing.slice(0, 12).join(', ')}${missing.length > 12 ? '…' : ''}. Click Install probes (adds one line to each manifest, backup kept), then restart those resources. `;
-      note.classList.add('warn');
-    } else if (p.total) {
-      txt += 'Every Lua resource is covered. ';
-    }
-    if (p.legacy) txt += `${p.legacy} legacy __resource.lua manifest${p.legacy === 1 ? '' : 's'} need the line added by hand. `;
-    if (sc.status === 'done') txt += `Deep scan: ${sc.count} resources over ${sc.frames} frames, ${fmtAgo(Math.max(0, Date.now() / 1000 - sc.at))}. `;
-    else if (sc.status === 'running') txt += 'Deep scan running… ';
-    else if (sc.status === 'error') { txt += `Deep scan failed: ${sc.error} `; }
-    else txt += 'Run a Deep scan to grade JS/C# resources and anything without the probe. ';
-    body.textContent = txt.trim();
-  } else if (health.view === 'clients') {
-    legendNote.textContent = 'Load = median ms per frame across players (resmon scale)';
-    const c = d && d.clients;
-    if (!c || !c.reporting) {
-      title.textContent = 'No client data yet';
-      body.textContent = 'Players send an anonymous FPS and script-load report every minute when "Share performance data" is on. Reports start about a minute after they join.';
-      return;
-    }
-    title.textContent = `${c.reporting} of ${c.players} players sharing · avg ${c.fpsAvg} fps · avg 1% low ${c.lowAvg} fps`;
-    body.textContent = `${c.under30}% of reporting players are under 30 fps, ${c.under45}% under 45 fps. A resource graded Poor or Bad here costs frame time on every player's PC, not just yours.`;
-    if (c.under30 >= 25) note.classList.add('warn');
-  } else {
-    legendNote.textContent = 'Load = ms per frame on your PC (resmon scale)';
-    const cl = health.client;
-    const fr = health.clientFrames;
-    if (!cl) { title.textContent = 'Waiting for probes'; body.textContent = 'Probe reports from your client arrive every 5 seconds.'; return; }
-    const g = (fr && fr.grade) || cl.grade;
-    title.textContent = `Your client: ${cl.fps} fps now${fr && fr.summary ? ` · 1% low ${fr.summary.low1Fps} fps · worst frame ${fr.summary.maxFt} ms` : ''}${g ? ` · ${GRADE_LABEL[g]}` : ''}`;
-    const p = cl.pools || {};
-    body.textContent = `${cl.probes} resources reporting on your client. Nearby: ${p.vehicles ?? '—'} vehicles, ${p.peds ?? '—'} peds, ${p.objects ?? '—'} objects (${p.scripted ?? 0} script-spawned). For a live per-frame view of every resource use the F8 console: resmon 1.`;
-    if (g === 'poor' || g === 'bad') note.classList.add('warn');
+  $('hUpdate').hidden = !u.outdated;
+  if (u.outdated) {
+    setTxt('hUpdateTitle', `Update available: ${u.current} → ${u.latest}`);
+    setTxt('hUpdateBody', `${u.notes || ''} ${u.url || ''}`.trim() || 'Download the latest version from your keymaster.');
   }
 }
 
-function loadCell(r, view) {
-  if (view === 'server') return `${(r.load || 0).toFixed(2)}<em>%</em>`;
-  return `${(r.load || 0).toFixed(3)}<em>ms</em>`;
-}
+$('hRefresh').addEventListener('click', () => {
+  post('healthRefresh');
+  const b = $('hRefresh');
+  b.classList.add('busy');
+  setTimeout(() => b.classList.remove('busy'), 900);
+});
 
-function renderResourceTable() {
-  const table = $('hTable'), empty = $('hTableEmpty');
-  if (!table) return;
-  const view = health.view;
-  let rows = [];
-  if (view === 'server') rows = (health.server && health.server.resources) || [];
-  else if (view === 'clients') rows = (health.server && health.server.clients && health.server.clients.rows) || [];
-  else rows = (health.client && health.client.rows) || [];
-
-  if (!rows.length) {
-    table.innerHTML = '';
-    empty.hidden = false;
-    $('hTableEmptyBody').textContent = view === 'server'
-      ? 'Install the probe or run a deep scan to see server resources graded here.'
-      : view === 'clients' ? 'No player reports yet.' : 'No probe reports from your client yet. Resources need the probe line and a restart.';
-    return;
-  }
-  empty.hidden = true;
-
-  const head = view === 'server'
-    ? ['Resource','Load','Peak slice','Calls/s','Events/s','Lua mem','Grade','Verdict']
-    : ['Resource','Load','Peak slice','Loops/frame','Events/s','Lua mem','Grade','Verdict'];
-
-  const html = [`<div class="rt-head">${head.map(h => `<div>${h}</div>`).join('')}</div>`];
-  rows.slice(0, 80).forEach(r => {
-    const sub = view === 'clients' ? `${r.clients} client${r.clients === 1 ? '' : 's'}` : (r.source === 'scan' ? 'deep scan' : 'probe') + (r.scanLoad != null ? ` · scan ${r.scanLoad}%` : '');
-    const peakCls = r.peakMs >= 50 ? 'bad' : r.peakMs >= 5 ? 'hot' : '';
-    const third = view === 'server'
-      ? `${Math.round(r.slicesPs || 0)}`
-      : `${(r.loops || 0).toFixed(1)}`;
-    const thirdCls = view !== 'server' && r.loops >= 8 ? 'bad' : view !== 'server' && r.loops >= 3 ? 'hot' : '';
-    const evCls = r.eventsPs >= 200 ? 'bad' : r.eventsPs >= 50 ? 'hot' : '';
-    const mem = r.memMB != null ? `${r.memMB.toFixed(1)} MB${r.memGrowth != null && r.memGrowth >= 10 ? ` ↑${r.memGrowth.toFixed(0)}/h` : ''}` : '—';
-    const memCls = r.memGrowth != null && r.memGrowth >= 50 ? 'bad' : r.memGrowth != null && r.memGrowth >= 10 ? 'hot' : '';
-    const hint = (r.hints && r.hints[0]) || '';
-    const showHint = r.verdict !== 'healthy';
-    html.push(`
-      <div class="rt-row g-${esc(r.grade)}">
-        <div class="rt-name"><b title="${esc(r.name)}">${esc(r.name)}</b><span>${esc(sub)}</span></div>
-        <div class="rt-load">${loadCell(r, view)}</div>
-        <div class="rt-m ${peakCls}">${(r.peakMs || 0).toFixed(1)} ms</div>
-        <div class="rt-m ${thirdCls}">${third}</div>
-        <div class="rt-m ${evCls}">${(r.eventsPs || 0).toFixed(0)}</div>
-        <div class="rt-m ${memCls}">${mem}</div>
-        <div><i class="pill g-${esc(r.grade)}">${GRADE_LABEL[r.grade] || r.grade}</i></div>
-        <div class="rt-verdict v-${esc(r.verdict)}">${VERDICT_LABEL[r.verdict] || r.verdict}</div>
-        ${showHint ? `<div class="rt-hint">${esc(hint)}</div>` : ''}
-      </div>`);
-  });
-  table.innerHTML = html.join('');
-}
-
-document.querySelectorAll('#hSeg .gt').forEach(b => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('#hSeg .gt').forEach(x => x.classList.remove('on'));
-    b.classList.add('on');
-    health.view = b.dataset.view;
-    renderCoverage();
-    renderResourceTable();
+$('hScan').addEventListener('click', () => {
+  setModal('Run a deep scan', 'Records 500 server frames with the built-in FXServer profiler, then grades every resource including JS and C#. The server keeps running; expect one short hitch when the trace is saved.', null, 'Start scan', () => {
+    post('healthAction', { what: 'scan' });
+    toast('Deep scan requested…', 'info');
+    closeModal();
   });
 });
 
-if ($('hRefresh')) $('hRefresh').addEventListener('click', () => { post('healthRefresh'); setHealthStatus('Refreshing…', 'info'); });
-
-if ($('hScan')) {
-  $('hScan').addEventListener('click', () => {
-    setModal('Run a deep scan', 'Records 500 server frames with the built-in FXServer profiler (a few seconds), then grades every resource including JS and C#. The server keeps running normally; expect a small hitch when the trace is saved.', null, 'Start scan', () => {
-      post('healthAction', { what: 'scan' });
-      setHealthStatus('Deep scan requested…', 'info');
-      closeModal();
-    });
+$('hProbe').addEventListener('click', () => {
+  const missing = (health.server && health.server.probe && health.server.probe.missing) || [];
+  if (!missing.length) return;
+  setModal('Install probes', `Adds "shared_script '@nayzeee-optimizerv2/probe.lua'" to ${missing.length} manifest${missing.length === 1 ? '' : 's'} with a backup of each. Nothing restarts automatically: run refresh and restart those resources to activate.`, missing.join('\n'), 'Install', () => {
+    post('healthAction', { what: 'probeInstall' });
+    toast('Installing probes…', 'info');
+    closeModal();
   });
-}
+});
 
-if ($('hProbe')) {
-  $('hProbe').addEventListener('click', () => {
-    const d = health.server;
-    const missing = (d && d.probe && d.probe.missing) || [];
-    if (!missing.length) {
-      setModal('Probes', 'Every started Lua resource already has the probe line. To remove it everywhere, run optimizerprobe remove in the server console.', null, null);
-      return;
-    }
-    setModal('Install probes', `Adds "shared_script '@nayzeee-optimizerv2/probe.lua'" to the manifest of ${missing.length} resource${missing.length === 1 ? '' : 's'}. A backup of each manifest is written next to it. Nothing restarts automatically: run "refresh" and restart those resources (or the server) to activate. Remove any time with optimizerprobe remove.`, missing.join('\n'), 'Install', () => {
-      post('healthAction', { what: 'probeInstall' });
-      setHealthStatus('Installing probes…', 'info');
-      closeModal();
-    });
-  });
-}
+$('hProbeRemove').addEventListener('click', () => {
+  setModal('Remove all probes', 'Removes the probe line from every manifest and deletes the backups. Restart those resources to unload it.', null, 'Remove', () => {
+    post('healthAction', { what: 'probeRemove' });
+    toast('Removing probes…', 'info');
+    closeModal();
+  }, { danger: true });
+});
 
 /* ═══════════════ KEYBOARD ═══════════════ */
 document.addEventListener('keyup', e => {

@@ -846,6 +846,8 @@ local function BuildHealthPayload()
             players = GetPlayerCount(),
             memoryMB = memory,
             memoryLabel = memLabel,
+            memoryHistory = memorySamples,
+            memoryIntervalSec = cfg.memoryInterval or 60,
             tick = {
                 hitches = hitchCount,
                 severe = severeHitchCount,

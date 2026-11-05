@@ -351,6 +351,25 @@ local function BuildMeta()
     }
 end
 
+-- Which automatic background systems the server owner enabled (Advanced page)
+local function BackgroundSummary()
+    local bg = Config.Background or {}
+    local on = bg.enabled == true
+    local function sub(t) return on and type(t) == 'table' and t.enabled == true end
+    return {
+        enabled = on,
+        textureStreamFix = on and bg.textureStreamFix == true,
+        entityPoolMonitor = on and bg.entityPoolMonitor == true,
+        assetCleanup = on and bg.assetCleanup == true,
+        ambientScaling = on and bg.ambientScaling == true,
+        luaGC = on and bg.luaGC == true,
+        cpu = sub(bg.cpu),
+        idle = sub(bg.idle),
+        adaptive = sub(bg.adaptive),
+        session = sub(bg.session),
+    }
+end
+
 local function BuildOpenPayload(forceSetupDone)
     local setupCfg = Config.Background.setup or {}
     local sendSettings = settings
@@ -388,6 +407,23 @@ local function BuildOpenPayload(forceSetupDone)
             textureFix = not (Config.Background.textureFix and Config.Background.textureFix.enabled == false),
             telemetry = Config.Health and Config.Health.enabled and Config.Health.clientTelemetry or false,
             health = Config.Health and Config.Health.enabled or false,
+        },
+        background = BackgroundSummary(),
+        limits = {
+            vehicles = Config.Background.maxVehicles or 180,
+            peds = Config.Background.maxPeds or 180,
+        },
+        version = '1.1.0',
+        command = Config.Command,
+        options = {
+            screenFx   = Config.ScreenFX,
+            killSounds = Config.KillSounds,
+            hitSounds  = Config.HitSounds,
+            particles  = (function()
+                local list = {}
+                for i, p in ipairs(Config.HitParticles or {}) do list[i] = { id = p.id, label = p.label } end
+                return list
+            end)(),
         },
     }
 end
