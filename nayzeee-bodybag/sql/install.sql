@@ -31,6 +31,31 @@ CREATE TABLE IF NOT EXISTS `nayzeee_bodybag_evidence` (
   `created` DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS `nayzeee_funeral_morgue` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(100) DEFAULT NULL,
+  `identifier` VARCHAR(60) DEFAULT NULL,
+  `npc` TINYINT(1) DEFAULT 0,
+  `identifiable` TINYINT(1) DEFAULT 1,
+  `stage` VARCHAR(30) DEFAULT 'fresh',
+  `dna` TEXT DEFAULT NULL,
+  `stored_by` VARCHAR(100) DEFAULT NULL,
+  `status` VARCHAR(20) DEFAULT 'stored',
+  `created` DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS `nayzeee_funeral_memorials` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `plot` INT NOT NULL,
+  `name` VARCHAR(100) DEFAULT NULL,
+  `epitaph` VARCHAR(150) DEFAULT NULL,
+  `died` VARCHAR(20) DEFAULT NULL,
+  `director` VARCHAR(100) DEFAULT NULL,
+  `respects` INT DEFAULT 0,
+  `flowers` INT DEFAULT 0,
+  `created` DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Upgrading from 1.1.x? (MariaDB syntax - on MySQL 8 drop the "IF NOT EXISTS")
 ALTER TABLE `nayzeee_bodybag_evidence` ADD COLUMN IF NOT EXISTS `details` TEXT DEFAULT NULL;
 

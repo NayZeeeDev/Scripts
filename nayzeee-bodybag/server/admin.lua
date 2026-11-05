@@ -94,6 +94,7 @@ RegisterNetEvent('nayzeee-bodybag:server:adminAction', function(action, type, ke
         for netId in pairs(Containers) do freeBody('container', netId) n = n + 1 end
         for netId, b in pairs(Barrels) do if b.body then freeBody('barrel', netId) n = n + 1 end end
         for vehNetId in pairs(Trunks) do freeBody('trunk', vehNetId) n = n + 1 end
+        if ClearAllServices then n = n + ClearAllServices() end
         Notify(src, ('Cleared %d body(s). Graves were left alone.'):format(n), 'success')
         Log(src, 'ADMIN_CLEAR_ALL', ('%d cleared'):format(n))
     end

@@ -230,8 +230,9 @@ end)
 local ALERT_STYLE = {
     police  = { colour = Config.Dispatch.BlipColour or 1, sprite = Config.Dispatch.BlipSprite or 161,
                 radius = Config.Dispatch.BlipRadius or 80.0, time = Config.Dispatch.BlipTime or 120, exact = false },
-    coroner = { colour = Config.Funeral.Blip.Colour or 40, sprite = Config.Funeral.CoronerCalls.BlipSprite or 1,
-                radius = 25.0, exact = true, time = Config.Funeral.CoronerCalls.BlipTime or 300 },
+    coroner = { colour = Config.Funeral and Config.Funeral.Blip.Colour or 40,
+                sprite = Config.Funeral and Config.Funeral.CoronerCalls.BlipSprite or 1,
+                radius = 25.0, exact = true, time = Config.Funeral and Config.Funeral.CoronerCalls.BlipTime or 300 },
 }
 
 RegisterNetEvent('nayzeee-bodybag:client:alert', function(coords, title, message, kind)

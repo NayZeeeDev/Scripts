@@ -100,6 +100,7 @@ end
 -- The victim is FREE again (body taken out, bag destroyed, revived...)
 function ReleaseBody(body)
     if not body then return end
+    if body.record and ReturnRecordToMorgue then ReturnRecordToMorgue(body) end
     -- a freed victim is alive again: this body must never CK / respawn them later
     body.identifier = nil
     if not body.victimId then return end
@@ -159,7 +160,9 @@ end
 
 -- a container someone ELSE is carrying can't be touched
 local function canTouch(src, c)
-    return c and (not c.carrier or c.carrier == src) and IsNearEntity(src, c.obj)
+    if not c or (c.carrier and c.carrier ~= src) then return false end
+    if c.body.record and not IsFuneral(src) then return false end -- prepared funeral coffin
+    return IsNearEntity(src, c.obj)
 end
 
 -- ═══════════════════════════════════════════════════════════════
@@ -290,6 +293,7 @@ lib.callback.register('nayzeee-bodybag:claimCarry', function(src, netId)
     local c = Containers[netId]
     if not c then return 'There\'s nothing to pick up' end
     if c.carrier and c.carrier ~= src then return 'Someone else is carrying that' end
+    if c.body.record and not IsFuneral(src) then return 'This coffin belongs to the funeral home' end
     if not IsNearEntity(src, c.obj) then return 'You\'re too far away' end
     c.carrier = src
     AddDna(c.body, src)
@@ -329,6 +333,7 @@ RegisterNetEvent('nayzeee-bodybag:server:removeBody', function(netId)
     if not Config.RemoveBody.Enabled then return end
     local c = Containers[netId]
     if not canTouch(src, c) then return end
+    if c.body.record then return Notify(src, 'Prepared bodies go back to the morgue, not on the ground.', 'error') end
 
     RemoveContainer(netId)
     ReleaseBody(c.body)
@@ -477,7 +482,7 @@ end)
 RegisterNetEvent('nayzeee-bodybag:server:acidDissolve', function(netId)
     local src = source
     local c = Containers[netId]
-    if not canTouch(src, c) or c.carrier then return end
+    if not canTouch(src, c) or c.carrier or c.kind ~= 'bodybag' or c.body.record then return end
     if not HasItem(src, Config.Items.acid) then return Notify(src, 'You need acid', 'error') end
     exports.ox_inventory:RemoveItem(src, Config.Items.acid, 1)
 
@@ -523,6 +528,7 @@ RegisterNetEvent('nayzeee-bodybag:server:bury', function(netId)
     local src = source
     local c = Containers[netId]
     if not canTouch(src, c) or c.carrier then return end
+    if c.body.record then return Notify(src, 'A prepared coffin is buried with a funeral service at a cemetery plot.', 'error') end
     if not HasItem(src, Config.Items.shovel) then return Notify(src, 'You need a shovel', 'error') end
 
     local coords = GetEntityCoords(c.obj)
@@ -540,6 +546,9 @@ RegisterNetEvent('nayzeee-bodybag:server:bury', function(netId)
     RemoveContainer(netId)
     local key = cemetery and 'cemetery' or 'shallow'
     burialsThisRestart[key] = burialsThisRestart[key] + 1
+    if cemetery and (limits.Cemetery or 0) > 0 and burialsThisRestart.cemetery >= limits.Cemetery then
+        GlobalState.nzCemeteryFull = true -- menus grey out the open grave
+    end
 
     local gCoords, gHeading = coords, GetEntityHeading(c.obj)
     if cemetery and Config.Burial.Cemetery.Tombstone then
@@ -636,7 +645,7 @@ end
 
 lib.callback.register('nayzeee-bodybag:waterDump', function(src, netId)
     local c = Containers[netId]
-    if not c or c.carrier ~= src then return false end
+    if not c or c.carrier ~= src or c.body.record then return false end
     if Config.WaterDump.RequireCrate and c.kind == 'bodybag' then return false end
     if not nearDumpZone(src) then return false end
 
@@ -701,6 +710,8 @@ RegisterNetEvent('nayzeee-bodybag:server:victimRevived', function()
         end
     elseif where.type == 'trunk' then
         RemoveFromTrunk(where.key, body)
+    elseif where.type == 'service' and EndServiceForBody then
+        EndServiceForBody(where.key, body)
     end
     ReleaseBody(body)
     Log(src, 'REVIVED_IN_BAG', body.name)

@@ -59,14 +59,23 @@ lib.callback.register('nayzeee-bodybag:trunkPut', function(src, vehNetId, bagNet
     local c = Containers[bagNetId]
     if not c or c.carrier ~= src then return false end
     local veh = getVehicle(vehNetId)
-    if not veh or not IsNearEntity(src, veh, 8.0) then return false end
+    if not veh or not IsNearEntity(src, veh, 8.0) then
+        Notify(src, 'Get closer to the vehicle', 'error')
+        return false
+    end
     local rules = TrunkRules(GetEntityModel(veh))
     if not rules.AllowedKinds[c.kind] then
         Notify(src, ('A %s doesn\'t fit in this vehicle'):format(KindLabel(c.kind):lower()), 'error')
         return false
     end
-    if GetVehicleType(veh) ~= 'automobile' then return false end -- bikes, boats, helis have no trunk
-    if trunkLocked(src, veh) then return false end
+    if GetVehicleType(veh) ~= 'automobile' then -- bikes, boats, helis, trailers have no trunk
+        Notify(src, 'This vehicle has no trunk', 'error')
+        return false
+    end
+    if trunkLocked(src, veh) then
+        Notify(src, 'The trunk is locked', 'error')
+        return false
+    end
 
     local t = Trunks[vehNetId] or { veh = veh, items = {} }
     if #t.items >= rules.MaxBodies then

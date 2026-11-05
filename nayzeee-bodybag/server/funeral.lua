@@ -9,7 +9,7 @@ local F = Config.Funeral
 local L = F.Locations
 
 local Hearses     = {} -- src -> vehicle entity
-local Prepared    = {} -- morgue record id -> coffin netId on the prep table / in transit
+local paidFor     = {} -- identifier -> os.time() of the last morgue payout for that character
 local Services    = {} -- plot index -> { obj, body, director, stage = 'placed'|'service', startedAt, epitaph, name }
 local Memorials   = {} -- plot index -> { obj, dbId, name, epitaph, died, respects, flowers }
 local respected   = {} -- 'plot:identifier' -> true (one "pay respects" per character per restart)
@@ -28,8 +28,27 @@ end
 
 local function v3(v) return vector3(v.x, v.y, v.z) end
 
-local function containerItem(kind)
-    return ({ crate = Config.Items.bodyCrate, coffin = Config.Items.coffin })[kind]
+-- where is the prepared coffin of this morgue record right now? (prep table, carried, trunk, plot)
+local function findRecordBody(id)
+    for netId, c in pairs(Containers) do
+        if c.body.record == id then return 'container', netId, c.body end
+    end
+    for vehNetId, t in pairs(Trunks) do
+        for _, item in ipairs(t.items) do
+            if item.body.record == id then return 'trunk', vehNetId, item.body end
+        end
+    end
+    for i, sv in pairs(Services) do
+        if sv.body.record == id then return 'service', i, sv.body end
+    end
+end
+
+-- called by ReleaseBody (server/main.lua) when a prepared coffin is lost:
+-- the body goes back into its drawer instead of vanishing
+function ReturnRecordToMorgue(body)
+    if not body.record then return end
+    MySQL.update("UPDATE nayzeee_funeral_morgue SET status = 'stored' WHERE id = ?", { body.record })
+    body.record = nil
 end
 
 -- players within radius of coords
@@ -171,26 +190,38 @@ lib.callback.register('nayzeee-bodybag:funeral:storeBody', function(src, netId)
     if not c or c.carrier ~= src then return false end
 
     local body = c.body
-    RemoveContainer(netId)
-    if containerItem(c.kind) and not body.record then exports.ox_inventory:AddItem(src, containerItem(c.kind), 1) end
 
     -- a prepared coffin that comes back just goes back into its drawer
     if body.record then
-        Prepared[body.record] = nil
-        MySQL.update("UPDATE nayzeee_funeral_morgue SET status = 'stored' WHERE id = ?", { body.record })
-        Notify(src, ('Returned to drawer #%d.'):format(body.record), 'success', 'Morgue')
+        local record = body.record
+        RemoveContainer(netId)
+        ReturnRecordToMorgue(body)
+        Notify(src, ('Returned to drawer #%d.'):format(record), 'success', 'Morgue')
         return true
     end
 
+    -- log it FIRST: if the database fails, nothing happens to the body
     local d = DescribeBody(body, true)
     local id = MySQL.insert.await([[INSERT INTO nayzeee_funeral_morgue
         (name, identifier, npc, identifiable, stage, dna, stored_by) VALUES (?, ?, ?, ?, ?, ?, ?)]], {
         body.name, body.identifier, body.npc and 1 or 0, d.name and 1 or 0, d.stage,
         json.encode(body.dna or {}), GetCharName(src),
     })
+    if not id then return deny(src, 'The morgue database is unavailable. Tell staff (sql/install.sql).') end
+    if Containers[netId] ~= c then -- someone else dealt with it while we were saving
+        MySQL.update('DELETE FROM nayzeee_funeral_morgue WHERE id = ?', { id })
+        return false
+    end
+    RemoveContainer(netId) -- the bag / crate / coffin stays with the morgue
     DestroyBody(body, 'taken to the morgue')
 
-    pay(src, body.npc and F.Pay.MorgueNPC or F.Pay.MorgueBody, 'morgue intake')
+    -- the same character only pays out once per cooldown (stops respawn-mode farming)
+    local key = body.identifier
+    local cooldown = (F.Pay.SameBodyCooldown or 30) * 60
+    if not key or os.time() - (paidFor[key] or 0) >= cooldown then
+        if key then paidFor[key] = os.time() end
+        pay(src, body.npc and F.Pay.MorgueNPC or F.Pay.MorgueBody, 'morgue intake')
+    end
     Notify(src, ('%s logged as record #%d.'):format(d.name or 'John Doe', id or 0), 'success', 'Morgue')
     Tip(src, 'Open the morgue records to issue a death certificate, cremate, or prepare a coffin for a funeral.')
     Log(src, 'MORGUE_IN', ('#%s %s'):format(id or '?', body.name or 'NPC'))
@@ -233,6 +264,7 @@ lib.callback.register('nayzeee-bodybag:funeral:cremate', function(src, id)
     if not IsNear(src, L.Crematory, 6.0) then return false end
     local r = getRecord(id)
     if not r then return false end
+    if not exports.ox_inventory:CanCarryItem(src, Config.Items.urn, 1) then return deny(src, 'Make room for the urn first.') end
     -- atomic: two employees can't cremate the same record
     if (MySQL.update.await("DELETE FROM nayzeee_funeral_morgue WHERE id = ? AND status = 'stored'", { r.id }) or 0) == 0 then
         return deny(src, 'That body isn\'t in its drawer.')
@@ -240,7 +272,7 @@ lib.callback.register('nayzeee-bodybag:funeral:cremate', function(src, id)
     exports.ox_inventory:AddItem(src, Config.Items.urn, 1, {
         description = ('The ashes of %s  \nCremated %s'):format(recordName(r), os.date('%m/%d/%Y')),
     })
-    pay(src, F.Pay.Cremation, 'cremation')
+    pay(src, r.npc == 1 and (F.Pay.CremationNPC or 0) or F.Pay.Cremation, 'cremation')
     Tip(src, 'Hand the urn to the family - or lay it to rest yourself.')
     Log(src, 'FUNERAL_CREMATION', recordName(r))
     return true
@@ -249,13 +281,15 @@ end)
 lib.callback.register('nayzeee-bodybag:funeral:prepare', function(src, id)
     if not IsFuneral(src, 'Morgue') then return deny(src, 'Only on-duty funeral staff can prepare bodies.') end
     if not IsNear(src, L.Morgue, 8.0) then return false end
-    if not HasItem(src, Config.Items.coffin) then return deny(src, 'You need a coffin (buy one at the counter).') end
+    -- take the coffin FIRST so it can't be dropped / given away while we wait on the database
+    if not exports.ox_inventory:RemoveItem(src, Config.Items.coffin, 1) then
+        return deny(src, 'You need a coffin (buy one at the counter).')
+    end
     local r = getRecord(id)
-    if not r then return false end
-    if (MySQL.update.await("UPDATE nayzeee_funeral_morgue SET status = 'prepared' WHERE id = ? AND status = 'stored'", { r.id }) or 0) == 0 then
+    if not r or (MySQL.update.await("UPDATE nayzeee_funeral_morgue SET status = 'prepared' WHERE id = ? AND status = 'stored'", { r.id }) or 0) == 0 then
+        exports.ox_inventory:AddItem(src, Config.Items.coffin, 1)
         return deny(src, 'That body has already been prepared.')
     end
-    exports.ox_inventory:RemoveItem(src, Config.Items.coffin, 1)
 
     local p = L.PrepTable
     local obj, netId = SpawnProp('coffin', vector3(p.x, p.y, p.z), p.w)
@@ -269,7 +303,6 @@ lib.callback.register('nayzeee-bodybag:funeral:prepare', function(src, id)
         name = recordName(r), npc = r.npc == 1 or r.identifiable ~= 1, dna = json.decode(r.dna or '[]') or {},
         resolved = true, embalmed = true, record = r.id, baggedAt = os.time(),
     })
-    Prepared[r.id] = netId
     Notify(src, ('%s is embalmed and laid in the coffin on the prep table.'):format(recordName(r)), 'success', 'Morgue')
     Tip(src, 'Pick up the coffin, load it into the hearse, and drive to a cemetery plot.')
     Log(src, 'FUNERAL_PREPARED', recordName(r))
@@ -279,10 +312,21 @@ end)
 RegisterNetEvent('nayzeee-bodybag:server:funeralDiscard', function(id)
     local src = source
     if not IsFuneral(src, 'ClearPlot') and not IsStaff(src) then return deny(src, 'Only the director can discard records.') end
+    if not IsNear(src, L.Morgue, 8.0) then return end
     local r = getRecord(id)
     if not r then return end
     MySQL.update('DELETE FROM nayzeee_funeral_morgue WHERE id = ?', { r.id })
-    if Prepared[r.id] then RemoveContainer(Prepared[r.id]) Prepared[r.id] = nil end
+
+    -- remove its prepared coffin, wherever it is
+    local where, key, body = findRecordBody(r.id)
+    if body then body.record = nil end
+    if where == 'container' then
+        RemoveContainer(key)
+    elseif where == 'trunk' then
+        RemoveFromTrunk(key, body)
+    elseif where == 'service' then
+        EndServiceForBody(key, body)
+    end
     Notify(src, ('Record #%d discarded.'):format(r.id), 'inform', 'Morgue')
     Log(src, 'MORGUE_DISCARD', recordName(r))
 end)
@@ -333,15 +377,18 @@ lib.callback.register('nayzeee-bodybag:funeral:placeCasket', function(src, plotI
     local c = Containers[netId]
     if not c or c.carrier ~= src or c.kind ~= 'coffin' then return deny(src, 'You need to be carrying a coffin.') end
 
+    local name = DescribeBody(c.body).name or 'an unknown soul'
+    local sv = { body = c.body, director = src, stage = 'placed', name = name }
+    Services[i] = sv -- reserve the plot before we wait for the prop
     RemoveContainer(netId)
-    local spot = PlotCasketCoords(plot)
-    local obj = SpawnProp('coffin', spot, plot.heading)
+    local obj = SpawnProp('coffin', PlotCasketCoords(plot), plot.heading)
     if not obj then
+        Services[i] = nil
         ReleaseBody(c.body)
         return deny(src, 'The casket couldn\'t be placed.')
     end
-    local name = DescribeBody(c.body).name or 'an unknown soul'
-    Services[i] = { obj = obj, body = c.body, director = src, stage = 'placed', name = name }
+    sv.obj = obj
+    c.body.where = { type = 'service', key = i }
     SetVictimStatus(c.body, 'coffin')
     syncPlots()
     Tip(src, 'When the mourners are here, open the plot menu and Begin Service.')
@@ -380,7 +427,7 @@ end
 
 local function updateMemorialState(i)
     local m = Memorials[i]
-    if not m or not DoesEntityExist(m.obj) then return end
+    if not m or not m.obj or not DoesEntityExist(m.obj) then return end
     Entity(m.obj).state:set('nzMemorial', {
         plot = i, name = m.name, epitaph = m.epitaph, died = m.died, respects = m.respects, flowers = m.flowers,
     }, true)
@@ -394,15 +441,17 @@ RegisterNetEvent('nayzeee-bodybag:server:funeralLower', function(plotIndex)
     local left = F.Service.MinDuration - (os.time() - s.startedAt)
     if left > 0 then return deny(src, ('Give the mourners a moment - %s left.'):format(FormatTime(left))) end
 
+    -- the headstone claims the plot right away so nothing can be placed while we save
+    local m = { name = s.name, epitaph = s.epitaph, died = os.date('%m/%d/%Y'), respects = 0, flowers = 0 }
     Services[i] = nil
-    if DoesEntityExist(s.obj) then DeleteEntity(s.obj) end
+    Memorials[i] = m
+    if s.obj and DoesEntityExist(s.obj) then DeleteEntity(s.obj) end
     DestroyBody(s.body, 'funeral')
     if s.body.record then
-        Prepared[s.body.record] = nil
         MySQL.update('DELETE FROM nayzeee_funeral_morgue WHERE id = ?', { s.body.record })
+        s.body.record = nil
     end
 
-    local m = { name = s.name, epitaph = s.epitaph, died = os.date('%m/%d/%Y'), respects = 0, flowers = 0 }
     m.dbId = MySQL.insert.await(
         'INSERT INTO nayzeee_funeral_memorials (plot, name, epitaph, died, director) VALUES (?, ?, ?, ?, ?)',
         { i, m.name, m.epitaph, m.died, GetCharName(src) })
@@ -424,6 +473,7 @@ RegisterNetEvent('nayzeee-bodybag:server:funeralCancel', function(plotIndex)
     if not s or not IsFuneral(src, 'Service') or not IsNear(src, plot.coords, 10.0) then return end
 
     Services[i] = nil
+    if not s.obj then return end -- still being placed
     local spot = DoesEntityExist(s.obj) and GetEntityCoords(s.obj) or PlotCasketCoords(plot)
     if DoesEntityExist(s.obj) then DeleteEntity(s.obj) end
     local obj, netId = SpawnProp('coffin', spot, plot.heading)
@@ -472,11 +522,54 @@ RegisterNetEvent('nayzeee-bodybag:server:memorialClear', function(plotIndex)
     if not m then return end
     if not IsFuneral(src, 'ClearPlot') and not IsStaff(src) then return deny(src, 'Only the director can clear a plot.') end
     Memorials[i] = nil
-    if DoesEntityExist(m.obj) then DeleteEntity(m.obj) end
+    if m.obj and DoesEntityExist(m.obj) then DeleteEntity(m.obj) end
     MySQL.update('DELETE FROM nayzeee_funeral_memorials WHERE id = ?', { m.dbId })
     syncPlots()
     Notify(src, ('Plot %d is free again.'):format(i), 'inform', 'Funeral Home')
     Log(src, 'PLOT_CLEARED', ('%s (plot %d)'):format(m.name, i))
+end)
+
+-- ═══════════════════════════════════════════════════════════════
+--  SERVICE CLEANUP (used by revive, discard, admin "clear all")
+-- ═══════════════════════════════════════════════════════════════
+-- remove a casket from its plot without a funeral (body is handled by the caller)
+function EndServiceForBody(i, body)
+    local sv = Services[i]
+    if not sv or (body and sv.body ~= body) then return end
+    Services[i] = nil
+    if sv.obj and DoesEntityExist(sv.obj) then DeleteEntity(sv.obj) end
+    if sv.stage == 'service' and F.Service.AnnounceServerWide then
+        TriggerClientEvent('nayzeee-bodybag:client:funeralAnnounce', -1, F.Plots[i].coords, sv.name, false)
+    end
+    syncPlots()
+end
+
+function ClearAllServices()
+    local n = 0
+    for i, sv in pairs(Services) do
+        EndServiceForBody(i)
+        ReleaseBody(sv.body)
+        n = n + 1
+    end
+    return n
+end
+
+-- caskets that vanish (cleanup scripts) free their victim; victims stay next to their casket
+CreateThread(function()
+    while true do
+        Wait(3000)
+        for i, sv in pairs(Services) do
+            if sv.obj then
+                if not DoesEntityExist(sv.obj) then
+                    Services[i] = nil
+                    ReleaseBody(sv.body)
+                    syncPlots()
+                elseif sv.body.victimId then
+                    TriggerClientEvent('nayzeee-bodybag:client:syncToBag', sv.body.victimId, GetEntityCoords(sv.obj))
+                end
+            end
+        end
+    end
 end)
 
 -- ═══════════════════════════════════════════════════════════════
@@ -506,7 +599,8 @@ AddEventHandler('playerDropped', function()
     local src = source
     coronerWait[src] = nil
     local veh = Hearses[src]
-    if veh and DoesEntityExist(veh) then DeleteEntity(veh) end -- bodies inside are released by the trunk watchdog
+    -- an empty hearse is returned; one with bodies inside stays put so a colleague can unload it
+    if veh and DoesEntityExist(veh) and not Trunks[NetworkGetNetworkIdFromEntity(veh)] then DeleteEntity(veh) end
     Hearses[src] = nil
 end)
 
@@ -515,7 +609,7 @@ AddEventHandler('onResourceStop', function(res)
     for _, veh in pairs(Hearses) do if DoesEntityExist(veh) then DeleteEntity(veh) end end
     for _, s in pairs(Services) do
         ReleaseBody(s.body)
-        if DoesEntityExist(s.obj) then DeleteEntity(s.obj) end
+        if s.obj and DoesEntityExist(s.obj) then DeleteEntity(s.obj) end
     end
-    for _, m in pairs(Memorials) do if DoesEntityExist(m.obj) then DeleteEntity(m.obj) end end
+    for _, m in pairs(Memorials) do if m.obj and DoesEntityExist(m.obj) then DeleteEntity(m.obj) end end
 end)

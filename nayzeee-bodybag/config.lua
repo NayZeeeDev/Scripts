@@ -552,7 +552,9 @@ Config.Funeral = {
         MorgueBody = 250, -- per player body logged into the morgue
         MorgueNPC  = 75,  -- per unknown local
         Cremation  = 400,
+        CremationNPC = 0, -- cremating an unknown local pays nothing (stops NPC farming)
         Service    = 1000,
+        SameBodyCooldown = 30, -- MINUTES before the same character pays out again (respawn-mode farming)
     },
 
     Morgue = {

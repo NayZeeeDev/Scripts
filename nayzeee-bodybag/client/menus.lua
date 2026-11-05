@@ -43,7 +43,9 @@ local function burialSpot(coords)
         if #(coords - zone.coords) < zone.radius then return 'blocked' end
     end
     local cem = Config.Burial.Cemetery
-    if cem.Enabled and #(coords - cem.Coords) < cem.Radius then return 'cemetery' end
+    if cem.Enabled and #(coords - cem.Coords) < cem.Radius then
+        return GlobalState.nzCemeteryFull and 'full' or 'cemetery'
+    end
     return 'shallow'
 end
 
@@ -118,6 +120,19 @@ function OpenContainerMenu(ent)
     local hands = Carrying.entity ~= nil
     local masked = IsMaskOn()
 
+    -- a coffin prepared by the funeral home: only staff can move it, and it's buried with a service
+    if info.record then
+        local staff = IsFuneralJob()
+        return ShowActions('nz_container', 'Prepared Coffin  •  funeral home', {
+            { title = 'Pick Up', icon = 'hand',
+              description = 'Load it into the hearse and take it to a cemetery plot.',
+              available = staff and not hands, reason = staff and 'Your hands are full' or 'This coffin belongs to the funeral home',
+              onSelect = function() StartCarrying(ent, kind) end },
+            { title = 'Inspect', icon = 'magnifying-glass', description = 'Who is it?',
+              onSelect = function() InspectBody(ent) end },
+        })
+    end
+
     ShowActions('nz_container', ('%s  •  %s'):format(KindLabel(kind), info.stage or 'fresh'), {
         { title = 'Pick Up', icon = 'hand',
           description = ('Carry it. Press [%s] while carrying to see where it can go.'):format(Config.CarryMenuKey),
@@ -129,8 +144,9 @@ function OpenContainerMenu(ent)
           description = spot == 'cemetery' and 'A tombstone with their name marks the grave.'
               or 'Leaves a dirt pile. Police can find it and dig it up.',
           metadata = { { label = 'Needs', value = ItemLabel(Config.Items.shovel) }, { label = 'Time', value = seconds(Config.Burial.DigTime) } },
-          available = spot ~= 'blocked' and HasItem(Config.Items.shovel) and not hands,
+          available = spot ~= 'blocked' and spot ~= 'full' and HasItem(Config.Items.shovel) and not hands,
           reason = spot == 'blocked' and 'The ground here is too hard - move somewhere else'
+              or (spot == 'full' and 'The cemetery grave is already taken until the next restart')
               or (hands and 'Put down what you are carrying' or 'You need a shovel'),
           onSelect = function() BuryContainer(ent) end },
         { title = 'Dissolve With Acid', icon = 'flask', hidden = kind ~= 'bodybag',
@@ -232,6 +248,8 @@ function OpenCarryMenu()
     local me = GetEntityCoords(cache.ped)
     local kind = Carrying.kind
     local isBag = kind == 'bodybag'
+    local carried = BodyState(Carrying.entity)
+    local carriedRecord = carried and carried.record ~= nil
 
     local empty = isBag and NearbyEmpty(me, 3.0)
     local barrel = isBag and FindNearbyObject(me, 3.0, function(s) return s.nzBarrel and not s.nzBody and not s.nzBurning end)
@@ -265,13 +283,15 @@ function OpenCarryMenu()
           onSelect = function() PutInTrunk(veh) end },
         { title = 'Lower Into The Open Grave', icon = 'arrow-down', hidden = not cem.Enabled,
           description = 'Then bury it with a shovel - it gets a tombstone with their name.',
-          available = atHole, reason = 'Go to the open grave at the cemetery',
+          available = atHole and not GlobalState.nzCemeteryFull,
+          reason = GlobalState.nzCemeteryFull and 'The grave is already taken until the next restart' or 'Go to the open grave at the cemetery',
           onSelect = PlaceInGraveHole },
         { title = 'Dump In The Water', icon = 'water',
           description = kind == 'bodybag' and 'Bags float and can wash ashore later. Crates sink for good.'
               or 'It sinks. Gone forever.',
-          available = atDump and not (Config.WaterDump.RequireCrate and isBag),
-          reason = (atDump and 'The bag would float - it needs a weighted crate')
+          available = atDump and not (Config.WaterDump.RequireCrate and isBag) and not carriedRecord,
+          reason = (carriedRecord and 'This coffin is for a funeral service')
+              or (atDump and 'The bag would float - it needs a weighted crate')
               or 'Go to a dump spot (piers / docks - see /' .. Config.HelpCommand .. ')',
           onSelect = DumpCarried },
         { title = 'Store In The Morgue', icon = 'temperature-low', hidden = not (funeral and IsFuneralJob()),
