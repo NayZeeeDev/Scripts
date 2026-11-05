@@ -324,53 +324,117 @@ function canCreate() { return S.account === 'society' ? perm('create') : S.ctx?.
 
 function renderSide() {
     const av = pages();
-    const tally = S.dash && S.dash.account === S.account ? S.dash.due : 0;
-    const nav = (id, icon, label, extra = '') => av[id] ? `<button class="nav ${S.page === id ? 'on' : ''}" data-act="go" data-page="${id}">${ic(icon)}${esc(label)}${extra}</button>` : '';
-    const soc = S.account === 'society';
+    const soc = S.account === 'society' && S.ctx.society;
+    const dash = S.dash && S.dash.account === S.account ? S.dash : null;
+    const tally = dash ? dash.due : 0;
+    const nav = (id, icon, label, extra = '') => av[id] ? `<button class="nav ${S.page === id ? 'on' : ''}" data-act="go" data-page="${id}">${ic(icon)}<span class="nl">${esc(label)}</span>${extra}</button>` : '';
+    const grp = (label) => `<div class="grp"><span>${esc(label)}</span></div>`;
     const mgmt = nav('activity', 'history', t('nav.activity', 'Activity')) + nav('permissions', 'userkey', t('nav.permissions', 'Permissions'));
     const tools = nav('inspect', 'search', t('nav.inspect', 'Inspect'));
-    const bal = soc ? S.ctx.society?.balance : S.ctx.player.bank;
+    const p = S.ctx.player;
+    const bal = soc ? S.ctx.society.balance : p.bank;
+    const sub = soc ? `${S.ctx.society.label}${S.ctx.society.group ? ' · ' + S.ctx.society.group.label : ''}` : [p.job, p.grade].filter(Boolean).join(' · ');
     $('#side').innerHTML = `
-        <div class="brand"><div class="mark"></div><span>${esc(S.brand)}<b>${esc(S.title)}</b></span></div>
+        <div class="side-top">
+            <div class="who"><span class="av lg">${initials(p.name)}</span><div><b>${esc(p.name)}</b><span>${esc(sub)}</span></div></div>
+            <div class="pulse"><span id="sideClock">${esc(clockText())}</span>${sideStatus(dash)}</div>
+        </div>
         <div class="nav-scroll">
-            <div class="grp">${t('nav.general', 'General')}</div>${nav('overview', 'grid', t('nav.overview', 'Overview'))}
-            <div class="grp">${t('nav.invoices', 'Invoices')}</div>
+            ${grp(t('nav.general', 'General'))}${nav('overview', 'grid', t('nav.overview', 'Overview'))}
+            ${grp(t('nav.invoices', 'Invoices'))}
             ${nav('received', 'inbox', t('nav.received', 'Received'), tally ? `<span class="tally hot">${tally}</span>` : '')}
             ${nav('sent', 'file', t('nav.sent', 'Sent'))}${nav('templates', 'copy', t('nav.templates', 'Templates'))}
-            ${mgmt ? `<div class="grp">${t('nav.management', 'Management')}</div>${mgmt}` : ''}
-            ${tools ? `<div class="grp">${t('nav.tools', 'Tools')}</div>${tools}` : ''}
+            ${mgmt ? grp(t('nav.management', 'Management')) + mgmt : ''}
+            ${tools ? grp(t('nav.tools', 'Tools')) + tools : ''}
         </div>
         <div class="side-foot">
-            <div class="qa" id="qa"><button class="qa-btn" data-act="qaToggle">${ic('plus')}${t('nav.quick_actions', 'Quick Actions')}${'<span class="chev">' + ic('chevron') + '</span>'}</button></div>
             <div class="qa" id="acctWrap"><button class="acct" data-act="acctToggle">
-                <span class="acct-top">${ic(soc ? 'building' : 'user')}${soc ? t('acct.society', 'Society Billing') : t('acct.personal', 'Personal Billing')}${S.ctx.society ? '<span class="chev">' + ic('chevron') + '</span>' : ''}</span>
+                <span class="acct-top"><span class="tile sm ${soc ? 'blue' : 'teal'}">${ic(soc ? 'building' : 'user')}</span><span class="acct-name"><small>${t('acct.account', 'Account')}</small>${soc ? esc(S.ctx.society.short || S.ctx.society.label) : t('acct.personal', 'Personal Billing')}</span>${S.ctx.society ? '<span class="chev">' + ic('chevron') + '</span>' : ''}</span>
                 <span class="acct-bal"><span>${t('acct.balance', 'Balance')}</span><b>${bal === null || bal === undefined ? '—' : money(bal)}</b></span></button></div>
         </div>`;
 }
 
-const PAGE_TITLES = () => ({ overview: t('nav.overview', 'Overview'), received: t('nav.received', 'Received'), sent: t('nav.sent', 'Sent'), templates: t('nav.templates', 'Templates'),
-    activity: t('nav.activity', 'Activity'), permissions: t('nav.permissions', 'Permissions'), inspect: t('nav.inspect', 'Inspect') });
+function clockText() { return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+function sideStatus(dash) {
+    if (!dash) return `<span class="ps"><span class="dot on"></span>${t('side.online', 'Online')}</span>`;
+    const overdue = (dash.alerts || []).filter((a) => a.status === 'overdue' && a.direction === 'received').length;
+    if (overdue) return `<span class="ps bad"><span class="dot overdue"></span>${t('side.overdue', '{n} overdue', { n: overdue })}</span>`;
+    if (dash.due) return `<span class="ps warn"><span class="dot pending"></span>${t('side.to_pay', '{n} to pay', { n: dash.due })}</span>`;
+    return `<span class="ps ok"><span class="dot on"></span>${t('side.clear', 'All paid up')}</span>`;
+}
 
 function renderTop() {
     const soc = S.account === 'society' && S.ctx.society;
-    const name = soc ? S.ctx.society.label : S.ctx.player.name;
-    const d = new Date();
-    $('#top').innerHTML = `<h1>${esc(PAGE_TITLES()[S.page] || '')}</h1>
-        <div class="top-right">
-            ${S.clock ? `<span class="clock-mini"><b>${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</b> · ${d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' })}</span>` : ''}
-            <span class="chip-acct"><span class="av">${initials(soc ? S.ctx.society.short : name)}</span>${esc(name)}</span>
-            <button class="pill-close" data-act="close">${t('btn.close', 'Close')}</button></div>`;
+    const p = S.ctx.player;
+    const bal = soc ? S.ctx.society.balance : p.bank;
+    $('#top').innerHTML = `
+        <div class="top-brand"><div class="mark"></div><div><b><span>${esc(S.brand)}</span>${esc(S.title)}</b><small>${esc(soc ? S.ctx.society.label : t('top.personal', 'Personal billing'))}</small></div></div>
+        <div class="top-bar">
+            <span class="signed"><span class="dot on"></span>${t('top.signed_in', 'Signed in as')} <b>${esc(p.name)}</b></span>
+            ${S.ctx.settings && S.ctx.settings.version ? `<span class="ver">v${esc(S.ctx.settings.version)}</span>` : ''}
+            <div class="top-right">
+                <span class="wallet"><span>${t('top.cash', 'Cash')}</span><b>${money(p.cash)}</b></span>
+                <span class="wallet"><span>${soc ? t('top.society', 'Society') : t('top.bank', 'Bank')}</span><b class="acc">${bal === null || bal === undefined ? '—' : money(bal)}</b></span>
+                <button class="pill-close" data-act="close">${t('btn.close', 'Close')}</button>
+            </div>
+        </div>`;
 }
-setInterval(() => { if (S.mode === 'billing') renderTop(); }, 30000);
 
-function setPage(html) { $('#page').innerHTML = `<div class="wm-wrap"><div class="wm"></div></div>${html}`; }
+function renderKeys(list) {
+    const keys = list || [
+        ['ESC', t('keys.close', 'Close')],
+        canCreate() && ['N', t('keys.new', 'New invoice')],
+        S.ctx.settings.payByReference && ['R', t('keys.ref', 'Pay by reference')],
+        S.ctx.society && ['S', t('keys.switch', 'Switch account')],
+        ['1–9', t('keys.pages', 'Jump to page')],
+    ];
+    $('#keys').innerHTML = keys.filter(Boolean).map(([k, l]) => `<span><kbd>${esc(k)}</kbd>${esc(l)}</span>`).join('')
+        + `<span class="keys-r">${esc(S.brand)} ${esc(S.title)}</span>`;
+}
+setInterval(() => { const c = $('#sideClock'); if (c) c.textContent = clockText(); }, 15000);
+
+const PAGE_META = () => {
+    const soc = S.account === 'society' && S.ctx.society;
+    const name = soc ? S.ctx.society.label : '';
+    return {
+        received: [t('nav.received', 'Received'), soc ? t('page.received_soc', 'Invoices billed to {name}', { name }) : t('page.received', 'Invoices billed to you')],
+        sent: [t('nav.sent', 'Sent'), soc ? t('page.sent_soc', 'Invoices issued by {name}', { name }) : t('page.sent', 'Invoices you have issued')],
+        templates: [t('nav.templates', 'Templates'), soc ? t('page.templates_soc', 'Saved items for {name}', { name }) : t('page.templates', 'Saved items for faster invoicing')],
+        activity: [t('nav.activity', 'Activity'), t('page.activity', 'Every invoice, payment and change, newest first')],
+        permissions: [t('nav.permissions', 'Permissions'), t('page.permissions', 'Who can do what at {name}', { name })],
+        inspect: [t('nav.inspect', 'Inspect'), t('page.inspect', 'Look up the billing history of a citizen or society')],
+    };
+};
+function pageActions(page) {
+    const soc = S.account === 'society';
+    const out = [];
+    if (page === 'received' || page === 'overview') {
+        if (S.ctx.settings.payByReference) out.push(`<button class="btn line md" data-act="payRef">${ic('hash')}${t('btn.pay_ref', 'Pay by reference')}</button>`);
+        const due = S.dash && S.dash.account === S.account ? S.dash.due : 1;
+        if (!soc || perm('pay')) out.push(`<button class="btn line md" data-act="payAll" ${due ? '' : 'disabled'}>${ic('card')}${t('btn.pay_all', 'Pay All')}</button>`);
+    }
+    if ((page === 'sent' || page === 'overview') && canCreate()) out.push(`<button class="btn pri md" data-act="create">${ic('plus')}${t('btn.new_invoice', 'New Invoice')}</button>`);
+    return out.join('');
+}
+function phead(title, sub, actions) {
+    return `<div class="phead"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>${actions ? `<div class="phead-act">${actions}</div>` : ''}</div>`;
+}
+
+function setPage(html) {
+    let head = '';
+    if (S.mode === 'billing' && S.page !== 'overview') {
+        const m = PAGE_META()[S.page];
+        if (m) head = phead(esc(m[0]), esc(m[1]), pageActions(S.page));
+    }
+    $('#page').innerHTML = `<div class="wm-wrap"><div class="wm"></div></div>${head}${html}`;
+}
 
 function go(page) {
     const av = pages();
     if (!av[page]) page = Object.keys(av).find((k) => av[k]) || 'received';
     S.page = page;
     closeRail(); closePop();
-    renderSide(); renderTop();
+    renderSide(); renderTop(); renderKeys();
     ({ overview: pageOverview, received: () => pageTable('received'), sent: () => pageTable('sent'), templates: pageTemplates, activity: pageActivity, permissions: pagePermissions, inspect: pageInspect }[page] || pageOverview)();
 }
 
@@ -417,103 +481,198 @@ function closeUI() {
 }
 
 // ═══════════════ OVERVIEW ═══════════════
+function moneyShort(n) {
+    const v = Math.abs(num(n));
+    let s;
+    if (v >= 1e6) s = `${r2(v / 1e6).toFixed(v >= 1e7 ? 0 : 1)}M`;
+    else if (v >= 1e3) s = `${(v / 1e3).toFixed(v >= 1e4 ? 0 : 1)}k`;
+    else s = String(Math.round(v));
+    s = s.replace(/\.0(?=[kM])/, '');
+    return (n < 0 ? '-' : '') + (S.currencyPos === 'after' ? `${s} ${S.currency}` : `${S.currency}${s}`);
+}
+function fmtWhen(v) {
+    const d = toDate(v); if (!d) return '';
+    const today = new Date(); const y = new Date(); y.setDate(today.getDate() - 1);
+    const same = (a, b) => a.toDateString() === b.toDateString();
+    if (same(d, today)) return `${t('time.today', 'Today')} ${fmtTime(d)}`;
+    if (same(d, y)) return `${t('time.yesterday', 'Yesterday')} ${fmtTime(d)}`;
+    return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${fmtTime(d)}`;
+}
+const DAYS = () => [t('day.0', 'Sun'), t('day.1', 'Mon'), t('day.2', 'Tue'), t('day.3', 'Wed'), t('day.4', 'Thu'), t('day.5', 'Fri'), t('day.6', 'Sat')];
+
 async function pageOverview() {
-    setPage(`<div class="grid-4">${Array.from({ length: 4 }, () => '<div class="card stat"><div class="sk" style="height:14px;width:50%"></div><div class="sk" style="height:24px;width:70%"></div></div>').join('')}</div>
-        <div class="grid-main"><div class="card pad">${skel(4, 34)}</div><div class="card pad">${skel(3, 34)}</div></div>`);
+    setPage(`<div class="phead"><div><div class="sk" style="height:26px;width:280px"></div><div class="sk" style="height:12px;width:340px;margin-top:10px"></div></div></div>
+        <div class="grid-4">${Array.from({ length: 4 }, () => '<div class="card kpi"><div class="sk" style="width:40px;height:40px"></div><div style="flex:1"><div class="sk" style="height:11px;width:50%"></div><div class="sk" style="height:22px;width:70%;margin-top:8px"></div></div></div>').join('')}</div>
+        <div class="grid-ov"><div class="card pad">${skel(5, 34)}</div><div class="card pad">${skel(6, 34)}</div></div>`);
     if (!S.dash || S.dash.account !== S.account) {
         const d = await call('dashboard:get', { account: S.account });
         if (!d || S.page !== 'overview') return;
-        S.dash = d;
+        S.dash = d; S.nx = 0;
         renderSide();
     }
     const d = S.dash;
-    const soc = S.account === 'society';
-    const deltaBadge = `<span class="badge ${d.delta >= 0 ? 'ok' : 'bad'}">${ic(d.delta >= 0 ? 'trend' : 'trenddown')}${d.delta >= 0 ? '+' : ''}${d.delta}%</span>`;
-    const alertsBadge = d.alerts.some((a) => a.status === 'overdue')
-        ? `<span class="badge warn">${ic('alert')}${t('dash.alerts_n', '{n} alert(s)', { n: d.alerts.filter((a) => a.status === 'overdue').length })}</span>`
-        : `<span class="badge ok">${ic('checkc')}${t('dash.all_clear', 'All clear')}</span>`;
-    setPage(`
-        <div class="grid-4">
-            <div class="card stat">${ic('clock')}<span>${t('dash.due', 'Invoices Due')}</span><b>${d.due}</b></div>
-            <div class="card stat ${d.unpaid > 0 ? '' : ''}">${ic('doc')}<span>${t('dash.unpaid', 'Unpaid Amount')}</span><b>${money(d.unpaid)}</b></div>
-            <div class="card stat">${ic('trend')}<span>${t('dash.paid_week', 'Paid This Week')}</span><b>${money(d.paidWeek)}</b></div>
-            <div class="card stat">${ic('receive')}<span>${t('dash.received_week', 'Received This Week')}</span><b>${money(d.receivedWeek)}</b></div>
-        </div>
-        <div class="grid-main">
-            <div class="card"><div class="card-h"><h3>${t('dash.weekly', 'Weekly Summary')}</h3><div class="r">
-                <div class="legend"><span><i style="background:var(--c-received)"></i>${t('dash.legend_received', 'Received')}</span><span><i class="dash"></i>${t('dash.legend_paid', 'Paid')}</span></div>${deltaBadge}</div></div>
-                <div class="card-b" style="padding-top:4px"><div class="chart-wrap" id="chart"></div></div></div>
-            <div class="card"><div class="card-h"><h3>${t('dash.pending', 'Pending Payments')}</h3></div>
-                <div class="card-b">
-                    <div class="pp-row"><div><b>${d.due}</b><span>${t('dash.unpaid_invoices', 'Unpaid Invoices')}</span></div><div class="tile blue">${ic('doc')}</div></div>
-                    <div class="pp-row"><div><b>${money(d.unpaid)}</b><span>${t('dash.outstanding', 'Outstanding')}</span></div><div class="tile teal">${ic('wallet')}</div></div>
-                    ${soc && d.receivable !== undefined ? `<div class="pp-row"><div><b>${money(d.receivable)}</b><span>${t('dash.receivable', 'Owed to the society')}</span></div><div class="tile amber">${ic('receive')}</div></div>` : ''}
-                    <div class="row2" style="margin-top:4px"><button class="btn line" data-act="go" data-page="received">${t('btn.view', 'View')}</button>
-                        <button class="btn soft" data-act="payAll" ${d.due === 0 || (soc && !perm('pay')) ? 'disabled' : ''}>${t('btn.pay_all', 'Pay All')}</button></div>
-                </div></div>
-        </div>
-        <div class="grid-2">
-            <div class="card"><div class="card-h"><h3>${t('dash.alerts', 'Payment Alerts')}</h3><div class="r">${alertsBadge}</div></div>
-                <div class="card-b">${d.alerts.length ? d.alerts.map((a) => {
-                    const due = dueIn(a.dueDate, a.status);
-                    const who = a.direction === 'sent' ? a.recipient : a.sender;
-                    return `<div class="lrow click" data-act="view" data-id="${a.id}"><div class="tile sm ${due.hot ? 'amber' : 'gray'}">${ic(due.hot ? 'alert' : 'clock')}</div>
-                        <div class="tx"><b>${esc(who)}</b><span class="${due.hot ? 'hot' : ''}">${esc(due.text)}${a.direction === 'sent' ? ' · ' + t('dash.owed_to_you', 'owed to you') : ''}</span></div><span class="amt">${money(a.remaining)}</span></div>`;
-                }).join('') : emptyState('checkc', t('dash.no_alerts', 'Nothing due'), t('dash.no_alerts_sub', 'Upcoming and overdue invoices show up here.'))}</div></div>
-            <div class="card"><div class="card-h"><h3>${t('dash.recent', 'Recent Activity')}</h3><div class="r"><span class="badge mute">${t('dash.updated', 'Updated {t}', { t: t('time.now', 'just now') })}</span></div></div>
-                <div class="card-b">${d.recent.length ? d.recent.map((r) => {
-                    const map = { payment_in: ['arrowdown', 'teal', t('act.received_from', 'Received payment from {name}')], payment_out: ['arrowup', 'blue', t('act.paid_for', 'Paid invoice for {name}')],
-                        created: ['send', 'blue', t('act.created_for', 'Created invoice for {name}')], invoice_in: ['inbox', 'amber', t('act.invoice_from', 'Invoice from {name}')], cancelled: ['ban', 'red', t('act.cancelled', 'Cancelled invoice {name}')] }[r.kind] || ['file', 'gray', '{name}'];
-                    return `<div class="lrow click" data-act="view" data-id="${r.id}"><div class="tile sm ${map[1]}">${ic(map[0])}</div><div class="tx"><b>${esc(map[2].replace('{name}', r.name))}</b><span>${esc(r.ref)} · ${money(r.amount)}</span></div><span class="ago">${esc(ago(r.at))}</span></div>`;
-                }).join('') : emptyState('history', t('dash.no_recent', 'No activity yet'), '')}</div></div>
+    const soc = S.account === 'society' && S.ctx.society;
+    const p = S.ctx.player;
+    const hr = new Date().getHours();
+    const greet = hr < 5 ? t('dash.evening', 'Good evening, {name}') : hr < 12 ? t('dash.morning', 'Good morning, {name}') : hr < 18 ? t('dash.afternoon', 'Good afternoon, {name}') : t('dash.evening', 'Good evening, {name}');
+    const first = String(p.name || '').split(' ')[0];
+    const bal = soc ? S.ctx.society.balance : (d.balance ?? p.bank);
+    const overdue = d.alerts.filter((a) => a.status === 'overdue' && a.direction === 'received').length;
+    const wk = d.weeks || [];
+    const wDelta = (key) => (wk.length >= 2 ? pctChange(wk[wk.length - 1][key], wk[wk.length - 2][key]) : null);
+    const deltaTxt = (v) => (v === null ? t('dash.this_week', 'This week') : `<span class="${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '+' : ''}${v}%</span> ${t('dash.vs_last', 'vs last week')}`);
+    const kpi = (icon, tone, label, value, sub, cls = '') => `<div class="card kpi ${cls}"><div class="tile lg ${tone}">${ic(icon)}</div><div class="kv"><span>${label}</span><b>${value}</b><small>${sub}</small></div></div>`;
+    const kpis = soc ? [
+        kpi('building', 'teal', t('dash.soc_balance', 'Society balance'), bal === null || bal === undefined ? '—' : money(bal), esc(S.ctx.society.label)),
+        kpi('receive', 'amber', t('dash.owed_to', 'Owed to {name}', { name: esc(S.ctx.society.short || S.ctx.society.label) }), money(d.receivable || 0), t('dash.owed_sub', 'Open invoices you issued')),
+        kpi('arrowdown', 'teal', t('dash.money_in', 'Money in'), money(d.receivedWeek), deltaTxt(wDelta('received'))),
+        kpi('arrowup', 'red', t('dash.to_pay', 'To pay'), money(d.unpaid), t('dash.open_n', '{n} open · {o} overdue', { n: d.due, o: overdue }), d.unpaid > 0 ? 'hot' : ''),
+    ] : [
+        kpi('wallet', 'teal', t('dash.bank_balance', 'Bank balance'), bal === null || bal === undefined ? '—' : money(bal), t('dash.personal_acct', 'Personal account')),
+        kpi('alert', 'red', t('dash.outstanding', 'Outstanding'), money(d.unpaid), t('dash.open_n', '{n} open · {o} overdue', { n: d.due, o: overdue }), d.unpaid > 0 ? 'hot' : ''),
+        kpi('arrowdown', 'teal', t('dash.money_in', 'Money in'), money(d.receivedWeek), deltaTxt(wDelta('received'))),
+        kpi('arrowup', 'blue', t('dash.money_out', 'Money out'), money(d.paidWeek), deltaTxt(wDelta('paid'))),
+    ];
+    const subline = soc ? t('dash.sub_soc', 'Invoices, payments and cashflow for {name}.', { name: esc(S.ctx.society.label) })
+        : t('dash.sub', 'Your invoices, payments and cashflow in one place.');
+    setPage(`${phead(esc(greet.replace('{name}', first)), subline, pageActions('overview'))}
+        <div class="grid-4">${kpis.join('')}</div>
+        <div class="grid-ov">
+            <div class="ov-col">
+                <div class="card cf" id="cf"></div>
+                <div class="card"><div class="ch"><div><h3>${t('dash.latest', 'Latest activity')}</h3><p>${soc ? t('dash.across_soc', 'Across {name}', { name: esc(S.ctx.society.label) }) : t('dash.across', 'Across Personal billing')}</p></div>
+                    ${pages().activity ? `<button class="btn line sm" data-act="go" data-page="activity">${ic('chart')}${t('btn.see_all', 'See all')}</button>` : ''}</div>
+                    <div class="txl">${d.recent.length ? d.recent.slice(0, 5).map(txRow).join('') : emptyState('history', t('dash.no_recent', 'No activity yet'), t('dash.no_recent_sub', 'Invoices and payments show up here.'))}</div></div>
+            </div>
+            <div class="card nx" id="nx"></div>
         </div>`);
-    drawChart($('#chart'), d.series);
+    renderCashflow();
+    renderNext();
 }
 
-// Two-series smooth area chart. Received = solid teal, Paid = dashed blue (identity never colour-only).
-function drawChart(el, series) {
-    if (!el || !series) return;
-    const W = el.clientWidth || 600, H = el.clientHeight || 190, pl = 6, pr = 6, pt = 12, pb = 26;
-    const max = Math.max(1, ...series.map((d) => Math.max(d.paid, d.received))) * 1.15;
-    const x = (i) => pl + (i * (W - pl - pr)) / (series.length - 1);
-    const y = (v) => pt + (H - pt - pb) * (1 - v / max);
-    const path = (key) => {
-        const pts = series.map((d, i) => [x(i), y(d[key])]);
-        let s = `M${pts[0][0]},${pts[0][1]}`;
-        for (let i = 0; i < pts.length - 1; i++) {
-            const [x0, y0] = pts[Math.max(0, i - 1)], [x1, y1] = pts[i], [x2, y2] = pts[i + 1], [x3, y3] = pts[Math.min(pts.length - 1, i + 2)];
-            s += ` C${x1 + (x2 - x0) / 6},${y1 + (y2 - y0) / 6} ${x2 - (x3 - x1) / 6},${y2 - (y3 - y1) / 6} ${x2},${y2}`;
-        }
-        return s;
-    };
-    const area = (key) => `${path(key)} L${x(series.length - 1)},${H - pb} L${x(0)},${H - pb} Z`;
-    const days = [t('day.0', 'Sun'), t('day.1', 'Mon'), t('day.2', 'Tue'), t('day.3', 'Wed'), t('day.4', 'Thu'), t('day.5', 'Fri'), t('day.6', 'Sat')];
-    const grid = [0.25, 0.5, 0.75, 1].map((f) => `<line x1="${pl}" x2="${W - pr}" y1="${y(max * f / 1.15)}" y2="${y(max * f / 1.15)}" stroke="rgba(255,255,255,.05)"/>`).join('');
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(series.map((d) => `${days[d.dow]}: ${t('dash.legend_received', 'Received')} ${money(d.received)}, ${t('dash.legend_paid', 'Paid')} ${money(d.paid)}`).join('; '))}">
-        <defs><linearGradient id="gR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c-received)" stop-opacity=".38"/><stop offset="1" stop-color="var(--c-received)" stop-opacity="0"/></linearGradient>
-        <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c-paid)" stop-opacity=".26"/><stop offset="1" stop-color="var(--c-paid)" stop-opacity="0"/></linearGradient></defs>
-        ${grid}<path d="${area('paid')}" fill="url(#gP)"/><path d="${area('received')}" fill="url(#gR)"/>
-        <path d="${path('paid')}" fill="none" stroke="var(--c-paid)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>
-        <path d="${path('received')}" fill="none" stroke="var(--c-received)" stroke-width="2" stroke-linecap="round"/>
-        ${series.map((d, i) => `<text class="xl" x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${esc(days[d.dow])}</text>`).join('')}
-        <line id="cx" x1="0" x2="0" y1="${pt}" y2="${H - pb}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 3" style="display:none"/>
-        <circle id="cR" r="4" fill="var(--c-received)" stroke="var(--panel)" stroke-width="2" style="display:none"/><circle id="cP" r="4" fill="var(--c-paid)" stroke="var(--panel)" stroke-width="2" style="display:none"/>
-        <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" id="chit"/></svg><div class="chart-tip hidden" id="ctip"></div>`;
-    const hit = $('#chit', el), tip = $('#ctip', el);
-    hit.addEventListener('mousemove', (e) => {
-        const rect = el.getBoundingClientRect();
-        const px = ((e.clientX - rect.left) / rect.width) * W;
-        const i = Math.max(0, Math.min(series.length - 1, Math.round(((px - pl) / (W - pl - pr)) * (series.length - 1))));
-        const d = series[i];
-        const set = (id, cx, cy) => { const c = $(id, el); c.style.display = ''; c.setAttribute('cx', cx); c.setAttribute('cy', cy); };
-        const cx = $('#cx', el); cx.style.display = ''; cx.setAttribute('x1', x(i)); cx.setAttribute('x2', x(i));
-        set('#cR', x(i), y(d.received)); set('#cP', x(i), y(d.paid));
-        tip.classList.remove('hidden');
-        tip.style.left = Math.min(Math.max((x(i) / W) * rect.width, 70), rect.width - 70) + 'px';
-        tip.innerHTML = `<b>${esc(days[d.dow])} · ${esc(fmtDate(d.key))}</b><div><i style="background:var(--c-received)"></i>${t('dash.legend_received', 'Received')}<span>${money(d.received)}</span></div>
-            <div><i style="background:var(--c-paid)"></i>${t('dash.legend_paid', 'Paid')}<span>${money(d.paid)}</span></div>`;
-    });
-    hit.addEventListener('mouseleave', () => { tip.classList.add('hidden'); ['#cx', '#cR', '#cP'].forEach((s) => { $(s, el).style.display = 'none'; }); });
+function pctChange(now, before) {
+    now = num(now); before = num(before);
+    if (before <= 0) return now > 0 ? 100 : 0;
+    return Math.round(((now - before) / before) * 100);
+}
+
+function txRow(r) {
+    const map = {
+        payment_in: ['arrowdown', 'teal', t('tx.payment_in', 'Payment received'), 'pos'],
+        payment_out: ['arrowup', 'red', t('tx.payment_out', 'Invoice paid'), 'neg'],
+        created: ['send', 'blue', t('tx.created', 'Invoice sent'), ''],
+        invoice_in: ['inbox', 'amber', t('tx.invoice_in', 'Invoice received'), ''],
+        cancelled: ['ban', 'gray', t('tx.cancelled', 'Invoice cancelled'), 'void'],
+    }[r.kind] || ['file', 'gray', '', ''];
+    const sign = map[3] === 'pos' ? '+ ' : map[3] === 'neg' ? '− ' : '';
+    return `<div class="txr" data-act="view" data-id="${r.id}"><div class="tile ${map[1]}">${ic(map[0])}</div>
+        <div class="tx"><b>${esc(map[2])}${r.name ? ' · ' + esc(r.name) : ''}</b><span>${esc(fmtWhen(r.at))} · <span class="mono">${esc(r.ref)}</span></span></div>
+        <span class="txa ${map[3]}">${sign}${money(r.amount)}</span></div>`;
+}
+
+// Cashflow: banking-style bar chart. Money in / out, last 7 days or 12 weeks; the current period is highlighted.
+function renderCashflow() {
+    const el = $('#cf'); const d = S.dash; if (!el || !d) return;
+    const cf = S.cf || (S.cf = { flow: 'in', range: '7d' });
+    const key = cf.flow === 'in' ? 'received' : 'paid';
+    const other = cf.flow === 'in' ? 'paid' : 'received';
+    const weekly = cf.range === '12w' && (d.weeks || []).length;
+    const list = weekly ? d.weeks : d.series;
+    const vals = list.map((x) => num(x[key]));
+    const total = vals.reduce((s, v) => s + v, 0);
+    const max = Math.max(1, ...vals);
+    const days = DAYS();
+    const label = (x) => (weekly ? (toDate(x.key + 'T12:00:00') || new Date()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : days[x.dow]);
+    const full = (x) => (weekly ? t('cf.week_of', 'Week of {d}', { d: fmtDate(x.key + 'T12:00:00') }) : `${days[x.dow]} · ${fmtDate(x.key + 'T12:00:00')}`);
+    let delta = null;
+    const wk = d.weeks || [];
+    if (!weekly && wk.length >= 2) delta = pctChange(wk[wk.length - 1][key], wk[wk.length - 2][key]);
+    if (weekly && wk.length >= 12) delta = pctChange(wk.slice(6).reduce((s, x) => s + num(x[key]), 0), wk.slice(0, 6).reduce((s, x) => s + num(x[key]), 0));
+    const best = list.reduce((b, x) => (num(x[key]) > num(b[key]) ? x : b), list[0] || {});
+    const otherTotal = list.reduce((s, x) => s + num(x[other]), 0);
+    const tone = cf.flow === 'in' ? 'in' : 'out';
+    const sub = cf.flow === 'in'
+        ? (weekly ? t('cf.sub_in_12w', 'Money in over the last twelve weeks') : t('cf.sub_in_7d', 'Money in over the last seven days'))
+        : (weekly ? t('cf.sub_out_12w', 'Money out over the last twelve weeks') : t('cf.sub_out_7d', 'Money out over the last seven days'));
+    el.innerHTML = `
+        <div class="ch"><div><h3>${t('cf.title', 'Cashflow')}</h3><p>${sub}</p></div>
+            <div class="cf-legend"><span><i class="${tone}"></i>${cf.flow === 'in' ? t('cf.money_in', 'Money in') : t('cf.money_out', 'Money out')}</span><span><i class="q"></i>${weekly ? t('cf.quiet_weeks', 'Quiet weeks') : t('cf.quiet_days', 'Quiet days')}</span></div></div>
+        <div class="cf-top">
+            <div class="cf-total"><b>${money(total)}</b>${delta === null ? '' : `<span class="badge ${delta >= 0 ? 'ok' : 'bad'}">${ic(delta >= 0 ? 'trend' : 'trenddown')}${delta >= 0 ? '+' : ''}${delta}%</span>`}
+                <small>${weekly ? t('cf.vs_6w', 'last 6 weeks vs the 6 before') : t('cf.vs_week', 'this week vs last week')}</small></div>
+            <div class="cf-ctl">
+                <div class="seg sm">${[['in', t('cf.in', 'In')], ['out', t('cf.out', 'Out')]].map(([v, l]) => `<button class="${cf.flow === v ? 'on' : ''}" data-act="cfFlow" data-v="${v}">${l}</button>`).join('')}</div>
+                <div class="seg sm">${[['7d', t('cf.7d', '7D')], ['12w', t('cf.12w', '12W')]].map(([v, l]) => `<button class="${cf.range === v ? 'on' : ''}" data-act="cfRange" data-v="${v}">${l}</button>`).join('')}</div>
+            </div>
+        </div>
+        <div class="cf-bars ${tone}" role="img" aria-label="${esc(list.map((x) => `${full(x)}: ${money(x[key])}`).join('; '))}">
+            ${list.map((x, i) => {
+                const v = num(x[key]); const cur = i === list.length - 1;
+                const h = v <= 0 ? 9 : Math.max(16, Math.round((v / max) * 100));
+                return `<div class="cf-col ${cur ? 'cur' : ''} ${v <= 0 ? 'quiet' : ''}" title="${esc(full(x))}: ${esc(money(v))}">
+                    <div class="cf-track"><div class="cf-bar" style="height:${h}%"><span class="cf-pill">${esc(moneyShort(v))}</span></div></div><span class="cf-x">${esc(label(x))}</span></div>`;
+            }).join('')}
+        </div>
+        <div class="cf-foot">
+            <div><span>${weekly ? t('cf.best_week', 'Best week') : t('cf.best_day', 'Best day')}</span><b>${num(best[key]) > 0 ? `${esc(label(best))} · ${money(best[key])}` : '—'}</b></div>
+            <div><span>${weekly ? t('cf.avg_week', 'Weekly average') : t('cf.avg_day', 'Daily average')}</span><b>${money(list.length ? total / list.length : 0)}</b></div>
+            <div><span>${cf.flow === 'in' ? t('cf.money_out', 'Money out') : t('cf.money_in', 'Money in')}</span><b>${money(otherTotal)}</b></div>
+            <div><span>${t('cf.net', 'Net')}</span><b class="${(cf.flow === 'in' ? total - otherTotal : otherTotal - total) >= 0 ? 'up' : 'down'}">${money(cf.flow === 'in' ? total - otherTotal : otherTotal - total)}</b></div>
+        </div>`;
+}
+
+// Up next: the open invoices as a ticket you can flip through, most urgent first
+function renderNext() {
+    const el = $('#nx'); const d = S.dash; if (!el || !d) return;
+    const list = d.alerts || [];
+    const i = Math.min(Math.max(S.nx || 0, 0), Math.max(list.length - 1, 0)); S.nx = i;
+    const inv = list[i];
+    const head = `<div class="ch"><div><h3>${t('nx.title', 'Up next')}</h3><p>${t('nx.sub', 'Open invoices, most urgent first')}</p></div></div>`;
+    if (!inv) {
+        el.innerHTML = `${head}<div class="nx-stage"><div class="ticket gray"><div class="tk-top"><span class="tk-chip">${ic('checkc')}</span><span class="tk-tag">${t('nx.clear', 'All clear')}</span></div>
+            <div class="tk-amt">${money(0)}</div><div class="tk-reason">${t('nx.none', 'No open invoices')}</div><div class="tk-cut"></div>
+            <div class="tk-bot"><div><small>${t('nx.status', 'Status')}</small><b>${t('side.clear', 'All paid up')}</b></div></div></div></div>
+            <div class="nx-empty">${t('nx.none_sub', 'New and overdue invoices appear here so you can pay or follow up quickly.')}</div>
+            ${canCreate() ? `<button class="btn pri block" data-act="create">${ic('plus')}${t('btn.new_invoice', 'New Invoice')}</button>` : ''}`;
+        return;
+    }
+    const sent = inv.direction === 'sent';
+    const due = dueIn(inv.dueDate, inv.status);
+    const dueTs = toDate(inv.dueDate);
+    const soon = inv.status !== 'overdue' && dueTs && dueTs.getTime() - Date.now() < 864e5;
+    const tone = sent ? 'blue' : inv.status === 'overdue' ? 'red' : soon ? 'amber' : 'teal';
+    const tag = sent ? t('nx.owed', 'Owed to you') : inv.status === 'overdue' ? t('status.overdue', 'Overdue') : soon ? t('nx.due_soon', 'Due soon') : (STATUS_LABEL()[inv.status] || inv.status);
+    const owed = num(inv.total) + num(inv.lateFee);
+    const paidPct = owed > 0 ? Math.min(100, Math.round((num(inv.amountPaid) / owed) * 100)) : 0;
+    const dd = dueTs;
+    const canPay = !sent && isOpen(inv) && (S.account === 'personal' || perm('pay'));
+    el.innerHTML = `${head}
+        <div class="nx-stage"><div class="ticket ${tone}" data-act="view" data-id="${inv.id}">
+            <div class="tk-top"><span class="tk-chip">${ic(sent ? 'send' : 'doc')}</span><span class="tk-from">${esc(sent ? inv.recipient : inv.sender)}</span><span class="tk-tag">${esc(tag)}</span></div>
+            <div class="tk-amt">${money(inv.remaining)}</div>
+            <div class="tk-reason">${esc(inv.reason || '')}</div>
+            <div class="tk-cut"></div>
+            <div class="tk-bot"><div><small>${sent ? t('nx.billed_to', 'Billed to') : t('nx.billed_by', 'Billed by')}</small><b>${esc(sent ? inv.recipient : (inv.senderType === 'society' && inv.senderName ? inv.senderName : inv.sender))}</b></div>
+                <div class="r"><small>${t('nx.due', 'Due')}</small><b>${dd ? dd.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }) : '—'}</b></div></div>
+        </div></div>
+        <div class="nx-ctl">
+            <button class="ibtn" data-act="view" data-id="${inv.id}" title="${t('btn.view', 'View')}">${ic('eye')}</button>
+            <button class="ibtn" data-act="copyRef" data-ref="${esc(inv.ref)}" title="${t('btn.copy', 'Copy')}">${ic('copy')}</button>
+            <button class="ibtn" data-act="nxMove" data-v="-1" ${i === 0 ? 'disabled' : ''}>${ic('chevup')}</button>
+            <button class="ibtn" data-act="nxMove" data-v="1" ${i >= list.length - 1 ? 'disabled' : ''}>${ic('chevron')}</button>
+            <span class="nx-pos">${i + 1}/${list.length}</span>
+            ${canCreate() ? `<button class="ibtn" data-act="create" title="${t('btn.new_invoice', 'New Invoice')}">${ic('plus')}</button>` : ''}
+        </div>
+        <div class="nx-rows">
+            <div><span>${t('nx.type', 'Type')}</span><b>${inv.senderType === 'society' ? t('nx.society_invoice', 'Society invoice') : t('nx.personal_invoice', 'Personal invoice')}</b></div>
+            <div><span>${sent ? t('nx.to', 'To') : t('nx.from', 'From')}</span><b class="ell">${esc(sent ? inv.recipient : inv.sender)}</b></div>
+            <div><span>${t('nx.status', 'Status')}</span><b class="stt ${esc(inv.status)}">${esc(STATUS_LABEL()[inv.status] || inv.status)}</b></div>
+            <div><span>${t('nx.paid', 'Paid')}</span><span class="nx-prog"><i style="width:${paidPct}%"></i></span><b>${moneyShort(inv.amountPaid)} / ${moneyShort(owed)}</b></div>
+            <div><span>${t('nx.due', 'Due')}</span><b class="${due.hot ? 'hot' : ''}">${esc(due.text)}</b></div>
+        </div>
+        <div class="row2"><button class="btn line" data-act="view" data-id="${inv.id}">${t('nx.details', 'View details')}</button>
+            ${canPay ? `<button class="btn pri" data-act="pay" data-id="${inv.id}">${t('nx.pay_now', 'Pay now')}</button>` : `<button class="btn line" data-act="print" data-id="${inv.id}" ${S.ctx.settings.print ? '' : 'disabled'}>${t('menu.print', 'Print')}</button>`}</div>
+        <div class="nx-ref"><button class="refbox mono" data-act="copyRef" data-ref="${esc(inv.ref)}">${esc(inv.ref)}</button><button class="ibtn lg" data-act="copyRef" data-ref="${esc(inv.ref)}" title="${t('btn.copy', 'Copy')}">${ic('copy')}</button></div>`;
 }
 
 // ═══════════════ RECEIVED / SENT ═══════════════
@@ -541,7 +700,7 @@ function pageTable(box) {
             ${received ? `<div class="selbox" id="selbox"></div>` : ''}
             <div class="r">${active ? `<button class="link" data-act="fReset">${t('filter.reset_filters', 'Reset filters')}</button>` : ''}
                 <div style="position:relative"><button class="fbtn ${active ? 'on' : ''}" data-act="fOpen">${ic('filter')}${t('filter.filters', 'Filters')}${ic('chevron')}${active ? `<span class="n">${active}</span>` : ''}</button></div>
-                ${canCreate() && !received ? `<button class="btn pri" data-act="create">${ic('plus')}${t('btn.new_invoice', 'New Invoice')}</button>` : ''}</div>
+</div>
         </div>
         <div class="tscroll" id="tbody">${skel(7, 44)}</div>
         <div class="tfoot" id="tfoot"></div></div>`);
@@ -1130,10 +1289,12 @@ function openPos(data) {
     S.pos = { register: data.register, menu: data.menu || [], vat: num(data.vatRate), nearby: data.nearby || [], customer: null, items: [], status: 'idle', cat: data.menu && data.menu[0] ? data.menu[0].id : null, search: '' };
     S.mode = 'pos';
     $('#frame').classList.remove('hidden');
-    $('#side').innerHTML = `<div class="brand"><div class="mark"></div><span>${esc(S.brand)}<b>POS</b></span></div><div class="nav-scroll"><div class="grp">${t('pos.menu', 'Menu')}</div>
+    $('#side').innerHTML = `<div class="nav-scroll"><div class="grp"><span>${t('pos.menu', 'Menu')}</span></div>
         ${S.pos.menu.map((c) => `<button class="nav ${S.pos.cat === c.id ? 'on' : ''}" data-act="posCat" data-id="${esc(c.id)}">${ticon(c.icon, c.color)}${esc(c.name)}</button>`).join('')}</div>`;
-    $('#top').innerHTML = `<h1>${esc(data.register.label)}</h1><span class="crumb">${esc(data.register.societyLabel)} · ${t('pos.vat', 'VAT {rate}', { rate: pct(S.pos.vat) })}</span>
-        <div class="top-right"><button class="pill-close" data-act="close">${t('pos.close', 'Close register')}</button></div>`;
+    $('#top').innerHTML = `<div class="top-brand"><div class="mark"></div><div><b><span>${esc(S.brand)}</span>POS</b><small>${esc(data.register.societyLabel)}</small></div></div>
+        <div class="top-bar"><span class="signed"><span class="dot on"></span><b>${esc(data.register.label)}</b></span><span class="ver">${t('pos.vat', 'VAT {rate}', { rate: pct(S.pos.vat) })}</span>
+        <div class="top-right"><button class="pill-close" data-act="close">${t('pos.close', 'Close register')}</button></div></div>`;
+    renderKeys([['ESC', t('pos.close', 'Close register')]]);
     setPage(`<div class="pos-grid"><div class="card tcard"><div class="tbar"><label class="search">${ic('search')}<input data-input="posSearch" placeholder="${t('label.search', 'Search...')}"></label></div>
         <div class="card-b" style="flex:1;overflow:hidden"><div class="menu-grid" id="posMenu"></div></div></div>
         <div class="card tcard"><div class="card-h"><h3>${t('pos.order', 'Order')}</h3><div class="r"><button class="ibtn sm danger" data-act="posClear">${ic('trash')}</button></div></div>
@@ -1309,6 +1470,9 @@ const A = {
     view: (d) => { closePop(); openRail(+d.id); },
     railClose: () => closeRail(),
     copyRef: (d) => copyText(d.ref),
+    cfFlow: (d) => { S.cf.flow = d.v; renderCashflow(); },
+    cfRange: (d) => { S.cf.range = d.v; renderCashflow(); },
+    nxMove: (d) => { S.nx = (S.nx || 0) + Number(d.v); renderNext(); },
     pay: (d) => { closePop(); payInvoice(+d.id); },
     paperPay: () => { if (S.paperInv) payInvoice(S.paperInv.id, S.paperInv); },
     print: async (d) => { closePop(); if (await call('invoices:print', { id: +d.id })) toast(t('toast.printed', 'Invoice printed'), t('toast.printed_body', 'A copy was added to your pockets'), 'success'); },
@@ -1528,6 +1692,18 @@ document.addEventListener('keydown', (e) => {
         if (S.mode) closeUI();
         return;
     }
+    if (S.mode === 'billing' && !typing && !topModal() && !openPop && !e.ctrlKey && !e.altKey && !e.metaKey && !e.repeat) {
+        const k = e.key.toLowerCase();
+        if (k === 'n' && canCreate()) { e.preventDefault(); createInvoice(); return; }
+        if (k === 'r' && S.ctx.settings.payByReference) { e.preventDefault(); payByReference(''); return; }
+        if (k === 's' && S.ctx.society) { e.preventDefault(); A.acct({ v: S.account === 'society' ? 'personal' : 'society' }); return; }
+        if (/^[1-9]$/.test(k)) {
+            const av = pages(); const order = ['overview', 'received', 'sent', 'templates', 'activity', 'permissions', 'inspect'].filter((x) => av[x]);
+            const target = order[Number(k) - 1];
+            if (target) { e.preventDefault(); go(target); }
+            return;
+        }
+    }
     if (e.key === 'Enter') {
         if (document.activeElement && document.activeElement.id === 'refIn') { e.preventDefault(); A.refLookup(); return; }
         if (document.activeElement && ['tiLabel', 'tiAmount'].includes(document.activeElement.id)) { e.preventDefault(); const b = $('[data-act="tplItemSave"]'); if (b) A.tplItemSave(b.dataset); return; }
@@ -1612,9 +1788,13 @@ const Mock = (() => {
     const days = [5, 6, 0, 1, 2, 3, 4];
     const dash = { account: 'personal', due: 3, unpaid: 2000, paidWeek: 188050, receivedWeek: 270475, delta: 44,
         series: days.map((dow, i) => ({ key: `2026-10-${30 + i > 31 ? '0' + (i - 1) : 30 + i}`, dow, received: [42000, 28000, 21000, 46000, 61000, 38000, 34475][i], paid: [30000, 33000, 26000, 18000, 39000, 24000, 18050][i] })),
-        alerts: [inv(79, { sender: 'Joe Doe1G', remaining: 850, dueDate: now + 6 * 24 * H }), inv(78, { sender: 'Nine Films', remaining: 850, dueDate: now + 6 * 24 * H }), inv(77, { sender: 'Mia Chen', remaining: 300, dueDate: now + 7 * 24 * H })],
+        weeks: Array.from({ length: 12 }, (_, i) => ({ key: new Date(now - (11 - i) * 7 * 24 * H - 6 * 24 * H).toISOString().slice(0, 10),
+            received: [118000, 96000, 0, 142000, 131000, 88000, 0, 154000, 176000, 162000, 187600, 270475][i], paid: [90000, 74000, 41000, 0, 99000, 120000, 64000, 81000, 133000, 101000, 130500, 188050][i] })),
+        alerts: [inv(89, { sender: 'Pillbox Medical Center', senderType: 'society', senderName: 'Maya Reyes', reason: 'Hospital admission', total: 1200, remaining: 1320, lateFee: 120, status: 'overdue', dueDate: now - 4 * H, ref: 'PMC-7KQ2MZ4P' }),
+            inv(88, { sender: 'Los Santos Customs', senderType: 'society', senderName: 'Tyrone Banks', reason: 'Engine repair', total: 800, amountPaid: 300, remaining: 500, status: 'partial', dueDate: now + 18 * H, ref: 'LSC-A1B2C3D4' }),
+            inv(79, { sender: 'Joe Doe', remaining: 850, total: 850, reason: 'Gardening', dueDate: now + 6 * 24 * H }), inv(77, { direction: 'sent', recipient: 'Mia Chen', reason: 'Down payment', total: 5000, amountPaid: 2500, remaining: 2500, status: 'partial', dueDate: now + 7 * 24 * H })],
         recent: [{ kind: 'payment_out', id: 1, ref: 'PDM-1A', name: 'Lucas Reed', amount: 240, at: now - 0.53 * H }, { kind: 'payment_out', id: 2, ref: 'PDM-2B', name: 'Mia Chen', amount: 300, at: now - 2 * H },
-            { kind: 'payment_in', id: 3, ref: 'PDM-3C', name: 'Noah Evans', amount: 2200, at: now - 3 * H }, { kind: 'created', id: 4, ref: 'PDM-4D', name: 'Sofia Turner', amount: 640, at: now - 4 * H }], balance: 3975 };
+            { kind: 'payment_in', id: 3, ref: 'PDM-3C', name: 'Noah Evans', amount: 2200, at: now - 3 * H }, { kind: 'created', id: 4, ref: 'PDM-4D', name: 'Sofia Turner', amount: 640, at: now - 4 * H }, { kind: 'invoice_in', id: 5, ref: 'LSC-A1B2C3D4', name: 'Los Santos Customs', amount: 800, at: now - 27 * H }], balance: 48210 };
     const templates = [
         { id: 1, name: 'Vehicle Sales', icon: 'car', color: 'blue', items: [{ id: 'a', label: 'Trade-in Adjustment', amount: 8500 }, { id: 'b', label: 'Performance Package', amount: 12000 }, { id: 'c', label: 'Used Vehicle', amount: 32000 }, { id: 'd', label: 'New Vehicle', amount: 85000 }] },
         { id: 2, name: 'Paperwork & Fees', icon: 'file', color: 'teal', items: [{ id: 'e', label: 'Registration', amount: 1500 }] },

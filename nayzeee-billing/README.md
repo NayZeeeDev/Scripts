@@ -10,8 +10,10 @@ Discord: discord.gg/nayzeeedev
 ## Features
 
 **Dashboard**
-- Invoices due, unpaid amount, paid this week, received this week
-- Weekly summary chart (money in vs money out), pending payments with **Pay All**, payment alerts, recent activity
+- Greeting header with Pay by reference / Pay All / New Invoice, plus balance, outstanding, money in and money out cards
+- **Cashflow** bar chart: money in or money out, last 7 days or last 12 weeks, with best period, average and net
+- **Up next**: open invoices as a ticket you flip through (most urgent first) with paid progress, due time and a copyable reference
+- Latest activity feed, profile and status card in the sidebar, keyboard shortcuts (`N` new invoice, `R` pay by reference, `S` switch account, `1`–`9` pages)
 - **Personal and society accounts**, each with its own balance. Switch from the sidebar.
 
 **Invoices**

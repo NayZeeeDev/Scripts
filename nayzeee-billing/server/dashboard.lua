@@ -12,18 +12,42 @@ local function lastDays(todayStr, count)
     return days
 end
 
-local function series(paidSql, receivedSql, params)
+local DAY = "DATE_FORMAT(created_at, '%Y-%m-%d')"
+local WEEK = 'created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)'
+local PREV = 'created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) AND created_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY)'
+local WEEKS = 12
+
+--[[
+    Cashflow for the chart: last 7 days and last 12 weeks (rolling 7-day buckets, bucket 1 = the 7 days ending today).
+    paid = { sum, where } money out, received = { sum, where } money in
+]]
+local function cashflow(paid, received, params)
     local today = MySQL.scalar.await("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d')") or os.date('%Y-%m-%d')
     local days = lastDays(today, 7)
     local idx = {}
     for i, d in ipairs(days) do idx[d.key] = i end
-    for _, r in ipairs(MySQL.query.await(paidSql, params) or {}) do
-        local i = idx[r.day]; if i then days[i].paid = Shared.Round(tonumber(r.total) or 0) end
+
+    local y, m, d = today:match('(%d+)-(%d+)-(%d+)')
+    local weeks = {}
+    for i = WEEKS - 1, 0, -1 do
+        local start = os.time({ year = tonumber(y), month = tonumber(m), day = tonumber(d) - (i * 7 + 6), hour = 12 })
+        weeks[#weeks + 1] = { key = os.date('%Y-%m-%d', start), paid = 0, received = 0 }
     end
-    for _, r in ipairs(MySQL.query.await(receivedSql, params) or {}) do
-        local i = idx[r.day]; if i then days[i].received = Shared.Round(tonumber(r.total) or 0) end
+
+    for _, part in ipairs({ { 'paid', paid }, { 'received', received } }) do
+        local key, q = part[1], part[2]
+        local daily = ('SELECT %s AS day, %s AS total FROM nayzeee_billing_payments WHERE %s AND %s GROUP BY day'):format(DAY, q.sum, q.where, WEEK)
+        for _, r in ipairs(MySQL.query.await(daily, params) or {}) do
+            local i = idx[r.day]; if i then days[i][key] = Shared.Round(tonumber(r.total) or 0) end
+        end
+        local weekly = ([[SELECT FLOOR(DATEDIFF(CURDATE(), DATE(created_at)) / 7) AS w, %s AS total FROM nayzeee_billing_payments
+            WHERE %s AND created_at >= DATE_SUB(CURDATE(), INTERVAL %d DAY) GROUP BY w]]):format(q.sum, q.where, WEEKS * 7 - 1)
+        for _, r in ipairs(MySQL.query.await(weekly, params) or {}) do
+            local i = WEEKS - (tonumber(r.w) or WEEKS)
+            if weeks[i] then weeks[i][key] = Shared.Round(tonumber(r.total) or 0) end
+        end
     end
-    return days
+    return days, weeks
 end
 
 local function delta(now, before)
@@ -31,10 +55,6 @@ local function delta(now, before)
     if before <= 0 then return now > 0 and 100 or 0 end
     return math.floor(((now - before) / before) * 100 + 0.5)
 end
-
-local DAY = "DATE_FORMAT(created_at, '%Y-%m-%d')"
-local WEEK = 'created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)'
-local PREV = 'created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) AND created_at < DATE_SUB(CURDATE(), INTERVAL 6 DAY)'
 
 -- Recent activity entries built from invoices + payments involving the account
 local function recent(where, params, viewer)
@@ -74,14 +94,16 @@ RPC('dashboard:get', function(source, payload)
             ORDER BY (status = 'overdue') DESC, due_date ASC LIMIT 5]], p) or {}
         for i, r in ipairs(alerts) do alerts[i] = FormatInvoice(r, { identifier = ctx.identifier }) end
 
+        local days, weeks = cashflow(
+            { sum = 'SUM(amount + tip)', where = "payer_identifier = @me AND method <> 'society' AND kind <> 'refund'" },
+            { sum = 'SUM(amount)', where = "sender_identifier = @me AND company_id IS NULL AND kind <> 'refund'" }, p)
+
         return {
             account = 'personal',
             due = tonumber(s.due) or 0, unpaid = tonumber(s.unpaid) or 0,
             paidWeek = tonumber(s.paidWeek) or 0, receivedWeek = tonumber(s.receivedWeek) or 0,
             delta = delta(s.receivedWeek, s.receivedPrev),
-            series = series(
-                ("SELECT %s AS day, SUM(amount + tip) AS total FROM nayzeee_billing_payments WHERE payer_identifier = @me AND method <> 'society' AND kind <> 'refund' AND %s GROUP BY day"):format(DAY, WEEK),
-                ("SELECT %s AS day, SUM(amount) AS total FROM nayzeee_billing_payments WHERE sender_identifier = @me AND company_id IS NULL AND kind <> 'refund' AND %s GROUP BY day"):format(DAY, WEEK), p),
+            series = days, weeks = weeks,
             alerts = alerts,
             recent = recent("(COALESCE(recipient_type,'citizen') = 'citizen' AND target_identifier = @me) OR (company_id IS NULL AND sender_identifier = @me)", p, { identifier = ctx.identifier }),
             balance = Money.Get(source, 'bank'),
@@ -105,15 +127,17 @@ RPC('dashboard:get', function(source, payload)
         ORDER BY (status = 'overdue') DESC, due_date ASC LIMIT 5]], p) or {}
     for i, r in ipairs(alerts) do alerts[i] = FormatInvoice(r, { identifier = ctx.identifier, society = ctx.society }) end
 
+    local days, weeks = cashflow(
+        { sum = 'SUM(amount + tip)', where = "target_society = @soc AND method = 'society' AND kind <> 'refund'" },
+        { sum = 'SUM(amount)', where = "company_id = @soc AND kind <> 'refund'" }, p)
+
     return {
         account = 'society',
         due = tonumber(s.due) or 0, unpaid = tonumber(s.unpaid) or 0,
         paidWeek = tonumber(s.paidWeek) or 0, receivedWeek = tonumber(s.receivedWeek) or 0,
         receivable = tonumber(s.receivable) or 0,
         delta = delta(s.receivedWeek, s.receivedPrev),
-        series = series(
-            ("SELECT %s AS day, SUM(amount + tip) AS total FROM nayzeee_billing_payments WHERE target_society = @soc AND method = 'society' AND kind <> 'refund' AND %s GROUP BY day"):format(DAY, WEEK),
-            ("SELECT %s AS day, SUM(amount) AS total FROM nayzeee_billing_payments WHERE company_id = @soc AND kind <> 'refund' AND %s GROUP BY day"):format(DAY, WEEK), p),
+        series = days, weeks = weeks,
         alerts = alerts,
         recent = recent("(recipient_type = 'society' AND target_society = @soc) OR company_id = @soc", p, { identifier = ctx.identifier, society = ctx.society }),
         balance = Banking.SocietyBalance(ctx.society),
