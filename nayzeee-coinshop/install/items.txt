@@ -1,0 +1,10 @@
+Only needed if you set Config.General.Item (a usable item that opens the shop).
+
+ox_inventory (data/items.lua):
+    ['coinshop_tablet'] = { label = 'Coin Shop Tablet', weight = 300, stack = false, close = true },
+
+qb-core (shared/items.lua):
+    coinshop_tablet = { name = 'coinshop_tablet', label = 'Coin Shop Tablet', weight = 300, type = 'item', image = 'coinshop_tablet.png', unique = true, useable = true, shouldClose = true, description = 'Opens the coin shop' },
+
+ESX (SQL):
+    INSERT INTO items (name, label, weight) VALUES ('coinshop_tablet', 'Coin Shop Tablet', 1);
