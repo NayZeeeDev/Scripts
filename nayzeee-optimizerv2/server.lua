@@ -684,6 +684,27 @@ local PROBE_REF  = '@' .. RES .. '/probe.lua'
 local PROBE_LINE = ("shared_script '%s' -- nayzeee-optimizer probe (remove with `optimizerprobe remove`)"):format(PROBE_REF)
 local BOM = '\239\187\191'
 
+-- FXServer only lets a resource write into ANOTHER resource's folder when
+-- server.cfg grants it, one line per target resource, at boot:
+--     add_filesystem_permission nayzeee-optimizerv2 write <resource>
+-- (SaveResourceFile, io.open and os.remove all go through that check, and
+-- there is no wildcard.) So the optimizer writes those lines into a .cfg
+-- in its OWN folder, which it is always allowed to do, and server.cfg
+-- loads it with a single line:  exec @nayzeee-optimizerv2/probe_permissions.cfg
+local PERMS_FILE = 'probe_permissions.cfg'
+local PERMS_EXEC = ('exec @%s/%s'):format(RES, PERMS_FILE)
+
+-- What this boot was granted: the file as server.cfg ran it, before we
+-- regenerate it below. The file sets nz_probe_permissions so we can tell
+-- whether server.cfg loaded it at all.
+local permsLoaded = GetConvar('nz_probe_permissions', '') ~= ''
+local writeAccess = {}
+if permsLoaded then
+    for name in (LoadResourceFile(RES, PERMS_FILE) or ''):gmatch('add_filesystem_permission%s+%S+%s+write%s+(%S+)') do
+        writeAccess[name] = true
+    end
+end
+
 local function IsExcluded(res)
     local lower = res:lower()
     for _, ex in ipairs(pcfg.exclude or {}) do
@@ -718,9 +739,46 @@ local function InstallProbe(res)
         body = body:sub(4)
     end
 
-    SaveResourceFile(res, file .. '.optimizer-backup', content, -1)
     local ok = SaveResourceFile(res, file, bom .. PROBE_LINE .. '\n' .. body, -1)
-    return ok and 'installed' or 'failed'
+    if not ok then
+        -- Without a grant FXServer refuses every write; with one, a refusal
+        -- means the disk itself said no.
+        return writeAccess[res] and 'failed' or 'noperm'
+    end
+    SaveResourceFile(res, file .. '.optimizer-backup', content, -1)
+    return 'installed'
+end
+
+-- Regenerate probe_permissions.cfg with every resource the probe could go
+-- into. Returns how many it lists and how many of those this boot has no
+-- grant for yet (they get it on the next server restart).
+local function WritePermissionsFile()
+    local names = {}
+    for _, res in ipairs(AllResources()) do
+        if res ~= RES and not IsExcluded(res) then
+            local file = ReadManifest(res)
+            if file == 'fxmanifest.lua' then names[#names + 1] = res end
+        end
+    end
+    table.sort(names)
+    local lines = {
+        '# NayZeee Optimizer: lets the optimizer add its probe line to these resources.',
+        '# Generated on every start, so new resources are added automatically. Do not edit.',
+        '# Load it from server.cfg with:  ' .. PERMS_EXEC,
+        '',
+    }
+    local missing = 0
+    for _, res in ipairs(names) do
+        lines[#lines + 1] = ('add_filesystem_permission %s write %s'):format(RES, res)
+        if not writeAccess[res] then missing = missing + 1 end
+    end
+    lines[#lines + 1] = ''
+    lines[#lines + 1] = ('set nz_probe_permissions "%d"'):format(#names)
+    local content = table.concat(lines, '\n') .. '\n'
+    if LoadResourceFile(RES, PERMS_FILE) ~= content then
+        SaveResourceFile(RES, PERMS_FILE, content, -1)
+    end
+    return #names, missing
 end
 
 local function RemoveProbe(res)
@@ -785,6 +843,7 @@ local function ProbeStatus()
         excluded = excluded, legacy = legacy, missing = missing,
         autoInstall = pcfg.autoInstall == true, autoInstallNew = pcfg.autoInstallNew == true,
         pending = PendingList(), canRefresh = CanRunCommand('refresh'),
+        writeAccess = permsLoaded, permExec = PERMS_EXEC,
     }
 end
 
@@ -848,8 +907,9 @@ end
 -- auto (startup auto-install: say nothing when there is nothing to add)
 local function InstallAll(requester, opts)
     opts = opts or {}
-    local counts = { installed = 0, present = 0, skipped = 0, legacy = 0, nomanifest = 0, failed = 0 }
+    local counts = { installed = 0, present = 0, skipped = 0, legacy = 0, nomanifest = 0, failed = 0, noperm = 0 }
     local names, failedNames = {}, {}
+    WritePermissionsFile()
     for _, res in ipairs(AllResources()) do
         if res ~= RES and GetResourceState(res) == 'started' then
             local r = InstallProbe(res)
@@ -863,9 +923,19 @@ local function InstallAll(requester, opts)
         end
     end
     if opts.quiet then return counts, names end
-    if opts.auto and counts.installed == 0 and counts.failed == 0 then return counts, names end
+    if opts.auto and counts.installed == 0 and counts.failed == 0 and counts.noperm == 0 then return counts, names end
 
-    if counts.installed == 0 and counts.failed == 0 then
+    if counts.noperm > 0 then
+        if permsLoaded then
+            NotifyAdmin(requester, ('%d resource(s) are new since the server started, so FiveM has not given the optimizer write access to them yet. They are in %s now and work after the next server restart.'):format(counts.noperm, PERMS_FILE), 'warn')
+        else
+            NotifyAdmin(requester, ('FiveM blocks one resource from editing another unless server.cfg allows it. Add this line to server.cfg once, restart the server, then press Install again:  %s'):format(PERMS_EXEC), 'warn')
+        end
+    end
+
+    if counts.installed == 0 and counts.failed == 0 and counts.noperm > 0 then
+        -- nothing else to say
+    elseif counts.installed == 0 and counts.failed == 0 then
         NotifyAdmin(requester, ('Probe install: nothing to add. %d resource(s) already have it, %d skipped, %d legacy manifest(s).'):format(
             counts.present, counts.skipped + counts.nomanifest, counts.legacy), 'ok')
     else
@@ -873,7 +943,7 @@ local function InstallAll(requester, opts)
         if #names > 0 then Console.log('info', 'Probe added to: %s', table.concat(names, ', ')) end
     end
     if counts.failed > 0 then
-        NotifyAdmin(requester, ('Could not write the manifest of %d resource(s), the folder is probably read-only: %s'):format(counts.failed, table.concat(failedNames, ', ')), 'warn')
+        NotifyAdmin(requester, ('Could not write the manifest of %d resource(s) even with permission, check that the server can write to those folders: %s'):format(counts.failed, table.concat(failedNames, ', ')), 'warn')
     end
     if counts.legacy > 0 then
         Console.log('info', '%d resource(s) use __resource.lua: add the probe line to those by hand', counts.legacy)
@@ -921,15 +991,22 @@ else
         end
     end
 
+    local listed, notYet = WritePermissionsFile()
+
     local text = ('in %d of %d resources'):format(covered, total)
     if legacy > 0 then text = text .. (', %d legacy manifest(s) need the line by hand'):format(legacy) end
-    if pcfg.autoInstall then
+    if not permsLoaded and covered < total then
+        Console.check('probe', 'warn', 'Probe', text .. (': to let it install itself, add "%s" to server.cfg and restart'):format(PERMS_EXEC))
+    elseif pcfg.autoInstall then
         text = text .. ', auto-install runs once the server has started'
         Console.check('probe', 'ok', 'Probe', text)
     elseif covered == 0 then
         Console.check('probe', 'info', 'Probe', text .. ': run optimizerprobe install to grade them')
     else
         Console.check('probe', 'ok', 'Probe', text)
+    end
+    if permsLoaded and notYet > 0 then
+        Console.log('info', '%d new resource(s) added to %s, the optimizer can write to them after the next restart', notYet, PERMS_FILE)
     end
 
     -- Auto install once every resource has finished starting, so it covers
@@ -1325,6 +1402,14 @@ RegisterCommand('optimizerprobe', function(source, args)
         end
     elseif sub == 'restart' then
         RestartPending(source)
+    elseif sub == 'permissions' then
+        local listed, notYet = WritePermissionsFile()
+        Console.log('ok', 'Wrote %s with %d resource(s).', PERMS_FILE, listed)
+        if not permsLoaded then
+            Console.log('warn', 'Add this line to server.cfg, then restart the server:  %s', PERMS_EXEC)
+        elseif notYet > 0 then
+            Console.log('info', '%d of them are new and get write access after the next server restart.', notYet)
+        end
     elseif sub == 'remove' then
         if args[2] then
             Console.log('info', 'Probe remove %s: %s', args[2], RemoveProbe(args[2]))
@@ -1341,6 +1426,9 @@ RegisterCommand('optimizerprobe', function(source, args)
         end
         if #p.pending > 0 then
             Console.log('warn', 'Waiting for a restart: %s. Run optimizerprobe restart', table.concat(p.pending, ', '))
+        end
+        if not p.writeAccess then
+            Console.log('warn', 'No write access to other resources yet: add "%s" to server.cfg and restart the server', PERMS_EXEC)
         end
         if not p.canRefresh then
             Console.log('warn', 'Automatic restarts need permission: %s', ACE_FIX)

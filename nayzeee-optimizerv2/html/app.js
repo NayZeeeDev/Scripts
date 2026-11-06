@@ -1380,7 +1380,10 @@ function renderProbes() {
   rb.disabled = !pending.length;
   rb.querySelector('span').textContent = pending.length ? `Restart ${pending.length}` : 'Restart';
   const pn = $('pNote');
-  if (p.canRefresh === false) {
+  if (p.writeAccess === false && (p.missing || []).length) {
+    pn.className = 'note slim warn';
+    pn.innerHTML = `<b>One server.cfg line needed</b><span>FiveM blocks one resource from editing another. Add <code>${esc(p.permExec || '')}</code> to server.cfg and restart the server once.</span>`;
+  } else if (p.canRefresh === false) {
     pn.className = 'note slim warn';
     pn.innerHTML = `<b>Needs one server.cfg line</b><span>Add <code>add_ace resource.${esc(RESOURCE)} command allow</code> so Restart can reload the changed manifests and the deep scan can run.</span>`;
   } else if (pending.length) {
@@ -1445,8 +1448,21 @@ $('hScan').addEventListener('click', () => {
 });
 
 $('hProbe').addEventListener('click', () => {
-  const missing = (health.server && health.server.probe && health.server.probe.missing) || [];
+  const probe = (health.server && health.server.probe) || {};
+  const missing = probe.missing || [];
   if (!missing.length) return;
+  if (probe.writeAccess === false) {
+    setModal('Allow the optimizer to install',
+      'FiveM only lets a resource edit another resource\'s files when server.cfg allows it. The optimizer has written the permission list for you. Add this one line to server.cfg, restart the server, then press Install again.',
+      probe.permExec || '', 'Copy line', () => {
+        const ta = $('modalCode');
+        ta.focus(); ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        modalMsg(ok ? 'Copied. Paste it into server.cfg.' : 'Select the line and press Ctrl+C.', !ok);
+      });
+    return;
+  }
   setModal('Install probes', `Adds "shared_script '@${RESOURCE}/probe.lua'" to ${missing.length} manifest${missing.length === 1 ? '' : 's'} with a backup of each, then restarts them so they start measuring. Core scripts other resources depend on wait for the next server restart.`, missing.join('\n'), 'Install and restart', () => {
     post('healthAction', { what: 'probeInstall', arg: true });
     toast('Installing probes…', 'info');

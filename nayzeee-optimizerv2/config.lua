@@ -678,9 +678,11 @@ Config.Locked = {
         optimizeradmin <playerId>
 
     The resource itself needs permission to run refresh, restart and the
-    profiler (probe restarts and the deep scan). Add this to server.cfg:
+    profiler (probe restarts and the deep scan), and to write the probe line
+    into other resources. Add both to server.cfg:
 
         add_ace resource.nayzeee-optimizerv2 command allow
+        exec @nayzeee-optimizerv2/probe_permissions.cfg
 
     Console commands (server console / txAdmin):
         optimizerhealth                         full health report
@@ -688,6 +690,7 @@ Config.Locked = {
         optimizerprobe status                   which resources have the probe
         optimizerprobe install [restart]        add the probe everywhere (and restart those resources)
         optimizerprobe restart                  restart resources waiting for their probe
+        optimizerprobe permissions              rewrite probe_permissions.cfg now
         optimizerprobe remove                   take the probe out again
         optimizeradmin <playerId>               show whether a player is admin and why
         optimizerpreset <id|all> <preset>       push a preset to a player or everyone
@@ -841,6 +844,11 @@ Config.Probe = {
     enabled        = true,
     reportInterval = 5,       -- seconds between probe reports (per resource)
 
+    -- Installing needs write access to other resources. FiveM only grants
+    -- that from server.cfg, so add this line once (the optimizer keeps the
+    -- file up to date itself):
+    --     exec @nayzeee-optimizerv2/probe_permissions.cfg
+    --
     -- Add the probe line to every resource manifest when this resource
     -- starts. A backup of each manifest is written as
     -- fxmanifest.lua.optimizer-backup. `optimizerprobe remove` reverts.
