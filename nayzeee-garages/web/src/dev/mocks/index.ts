@@ -13,3 +13,6 @@ import './adminVehicles';
 import './keys';
 import './locksmith';
 import './contract';
+import './fob';
+import './minigame';
+import './keyadmin';

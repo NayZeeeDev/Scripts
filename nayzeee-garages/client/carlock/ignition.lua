@@ -145,7 +145,7 @@ function CarLock.enterPin(vehicle, info)
   end
   local data = type(res.data) == 'table' and res.data or {}
   if data.success then
-    if mySettings().alertEngine ~= false then notify('success', L('PIN accepted')) end
+    notify('success', L('PIN accepted')) -- a security step: always confirmed
     state.pin = nil
     if state.vehicle == vehicle then state.recheckAt = 0 end
     return true
@@ -279,7 +279,8 @@ function CarLock.toggleEngine()
   if GetIsVehicleEngineRunning(vehicle) then
     SetVehicleEngineOn(vehicle, false, false, true)
     if state.vehicle == vehicle then state.manualOff = true end
-    if mySettings().alertEngine ~= false then notify('info', L('Engine off')) end
+    -- no notification for a toggle the player just pressed (alertEngine covers the
+    -- non-obvious changes: auto start on entering, remote start)
     return true, false
   end
   if CarLock.enabled() and ignitionCfg().requireKey ~= false and not localBypass(vehicle)
@@ -311,7 +312,6 @@ function CarLock.toggleEngine()
     state.manualOff = false
   end
   SetVehicleEngineOn(vehicle, true, false, true)
-  if mySettings().alertEngine ~= false then notify('info', L('Engine started')) end
   return true, true
 end
 

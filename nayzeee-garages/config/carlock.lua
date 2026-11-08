@@ -106,7 +106,7 @@ Config.CarLock = {
     keylessDistance = 10.0,        -- metres
     engineOnEnter = false,         -- start the engine as you sit down (with a key)
     keepEngineRunning = true,      -- the engine keeps running when you get out
-    fobBeep = true,
+    fobBeep = true,                -- the fob beep only you hear (the click animation always plays)
     hints = true,
     fobPosition = { x = 0.86, y = 0.72, scale = 1.0 }, -- fob HUD (share of the screen)
     keyOrder = 'recent',           -- 'recent' | 'name' | 'plate' | 'distance'
@@ -114,9 +114,9 @@ Config.CarLock = {
     groundPrompts = true,          -- show the pick-up prompt at keys on the ground
     units = 'metric',              -- 'metric' | 'imperial'
     alertLock = true,
-    alertEngine = true,
+    alertEngine = true,            -- engine started on entering / remotely (never on a manual toggle)
     alertShare = true,
-    shareRecall = true,            -- remind me of keys I shared
+    shareRecall = true,            -- on character load: remind me of keys still shared
   },
 
   -- Owners, players a vehicle is shared with and job / gang fleet members always have a key.

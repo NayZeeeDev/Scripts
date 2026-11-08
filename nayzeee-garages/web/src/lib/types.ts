@@ -947,6 +947,7 @@ export interface PlayerKeySettings {
   keylessDistance: number;
   engineOnEnter: boolean;
   keepEngineRunning: boolean;
+  /** the fob beep only this player hears (the click animation always plays) */
   fobBeep: boolean;
   hints: boolean;
   /** fob HUD: share of the screen (0-1) and scale (0.5-2) */
@@ -956,8 +957,10 @@ export interface PlayerKeySettings {
   groundPrompts: boolean;
   units: 'metric' | 'imperial';
   alertLock: boolean;
+  /** engine started on entering / remotely (a manual toggle never notifies) */
   alertEngine: boolean;
   alertShare: boolean;
+  /** on character load: which owned vehicles still have keys out with other players */
   shareRecall: boolean;
 }
 
@@ -1241,7 +1244,7 @@ export type ContractOpenData = ContractDraftData | ContractReviewData | Contract
 /* ───────────────────────── NUI protocol ───────────────────────── */
 
 export type AppName = 'garage' | 'impound' | 'impoundForm' | 'forSale' | 'admin' | 'creator' | 'setup' | 'interior'
-  | 'keys' | 'locksmith' | 'contract';
+  | 'keys' | 'locksmith' | 'contract' | 'fob' | 'minigame' | 'keyadmin';
 
 export interface AppDataMap {
   garage: GarageOpenData;
@@ -1255,6 +1258,12 @@ export interface AppDataMap {
   keys: KeysOpenData;
   locksmith: LocksmithOpenData;
   contract: ContractOpenData;
+  /** on-screen key fob HUD (filled by the car lock UI wave) */
+  fob: Record<string, unknown>;
+  /** lockpick / hotwire / reader minigames */
+  minigame: Record<string, unknown>;
+  /** admin key manager + admin key settings */
+  keyadmin: Record<string, unknown>;
 }
 
 /** Lua -> NUI messages ({ action, data }). */

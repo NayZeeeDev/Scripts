@@ -661,6 +661,45 @@ AddEventHandler('nz:server:playerUnloaded', function(src)
   if id then playerSettingsCache[id] = nil end
 end)
 
+--- Share recall reminder (player setting shareRecall, G.11): tell the owner which of their
+--- vehicles still have keys out with other players (virtual / temporary keys). Returns the
+--- number of plates reminded about (at most 3 notifications; the rest in one line).
+---@param src number
+---@return integer
+function CarLock.shareRecall(src)
+  src = validSrc(src)
+  local id = src and identifierOf(src)
+  if not id or not CarLock.enabled() or CarLock.playerSettings(src).shareRecall == false then return 0 end
+  local okOwned, owned = pcall(NZ.DB.getVehiclesByOwner, id)
+  local reminded = 0
+  for _, v in ipairs(okOwned and type(owned) == 'table' and owned or {}) do
+    local plate = normPlate(v.plate)
+    if plate then
+      local okH, holders = pcall(CarLock.holders, plate)
+      local n = 0
+      for _, h in ipairs(okH and type(holders) == 'table' and holders or {}) do
+        if h.identifier ~= id then n = n + 1 end
+      end
+      if n > 0 then
+        reminded = reminded + 1
+        if reminded <= 3 then
+          notify(src, L('{count} key(s) of {plate} are still shared: recall them in the key ring',
+            { count = n, plate = plate }), 'info')
+        end
+      end
+    end
+  end
+  if reminded > 3 then
+    notify(src, L('{count} more vehicles have shared keys', { count = reminded - 3 }), 'info')
+  end
+  return reminded
+end
+
+AddEventHandler('nz:server:playerLoaded', function(src)
+  -- after the spawn screen / loading notifications
+  SetTimeout(20000, function() pcall(CarLock.shareRecall, src) end)
+end)
+
 ---------------------------------------------------------------------------------------
 -- Admin key settings (docs/CARLOCK.md §15): nz_settings 'carlock_settings' over
 -- config/carlock.lua (schema: shared/carlock.lua). Applied into Config.CarLock on the server

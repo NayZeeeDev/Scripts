@@ -148,3 +148,34 @@ CREATE TABLE IF NOT EXISTS `nz_keys` (
 --   ADD COLUMN IF NOT EXISTS `nz_finance_total` INT NULL,
 --   ADD COLUMN IF NOT EXISTS `nz_key_version` INT NOT NULL DEFAULT 0,
 --   ADD COLUMN IF NOT EXISTS `nz_key_owner` VARCHAR(64) NULL;
+
+-- car lock v2 (created automatically by server/migrations.lua)
+CREATE TABLE IF NOT EXISTS `nz_key_items` (
+  `key_id` VARCHAR(32) NOT NULL,            -- PLATE:itemId
+  `plate` VARCHAR(16) NOT NULL,
+  `version` INT NOT NULL DEFAULT 0,
+  `kind` VARCHAR(8) NOT NULL DEFAULT 'key',
+  `origin` VARCHAR(16) NULL DEFAULT NULL,
+  `custody` VARCHAR(16) NOT NULL DEFAULT 'unknown', -- player | stash | ground | unknown | lost
+  `holder` VARCHAR(64) NULL DEFAULT NULL,  -- identifier | glovebox:PLATE | trunk:PLATE | <type>:<id> | ground:<id>
+  `slot` INT NULL DEFAULT NULL,
+  `created_by` VARCHAR(64) NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`key_id`), KEY `nz_key_items_plate` (`plate`), KEY `nz_key_items_holder` (`holder`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `nz_key_security` (
+  `plate` VARCHAR(16) NOT NULL, `immobiliser` VARCHAR(8) NOT NULL DEFAULT 'none', `pin_hash` VARCHAR(64) NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`plate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `nz_key_players` (
+  `identifier` VARCHAR(64) NOT NULL, `data` LONGTEXT NOT NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`identifier`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS `nz_ground_keys` (
+  `id` VARCHAR(32) NOT NULL, `plate` VARCHAR(16) NOT NULL, `data` LONGTEXT NOT NULL,
+  `x` DOUBLE NOT NULL, `y` DOUBLE NOT NULL, `z` DOUBLE NOT NULL, `heading` DOUBLE NOT NULL DEFAULT 0,
+  `bucket` INT NOT NULL DEFAULT 0, `expires_at` INT NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`), KEY `nz_ground_keys_plate` (`plate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- admin key settings: nz_settings key 'carlock_settings' (JSON { [settingId] = value })

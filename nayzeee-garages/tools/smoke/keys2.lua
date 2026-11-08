@@ -256,6 +256,10 @@ function GetEntityCoords(h)
   local src = h - 1000
   return playerPos[src] or vec3(0, 0, 0)
 end
+local pedHealth = {}
+function GetEntityHealth(h) return pedHealth[h] or 200 end
+local deadState = {}
+function Player(src) return { state = { isDead = deadState[tonumber(src)] } } end
 function SetVehicleDoorsLocked(h, s) if entities[h] then entities[h].lock = s end end
 function GetVehicleDoorLockStatus(h) return entities[h] and entities[h].lock or 0 end
 function DeleteEntity(h)
@@ -771,6 +775,19 @@ res = cb('nz:carlock:share', 1, { plate = 'LIM111', target = 2 })
 local t = CarLock.tempKeyOf(2, 'LIM111')
 check(res.ok and res.data.how == 'temp' and t and t.reason == 'share' and CarLock.isServiceKey('share'),
   'sharing.hours: a temporary key of that length (a real key: service reason)')
+-- share recall reminder (player setting shareRecall)
+local notesBefore = #notifications
+local reminded = run(CarLock.shareRecall, 1)
+local recallNote = false
+for i = notesBefore + 1, #notifications do
+  local n = notifications[i]
+  if n.src == 1 and n.message:find('FOB777', 1, true) and n.message:find('still shared', 1, true) then recallNote = true end
+end
+check(reminded >= 1 and recallNote, 'share recall: the owner is reminded of keys still out')
+run(CarLock.savePlayerSettings, 1, { shareRecall = false })
+notesBefore = #notifications
+check(run(CarLock.shareRecall, 1) == 0 and #notifications == notesBefore, 'share recall off: no reminder')
+run(CarLock.savePlayerSettings, 1, { shareRecall = true })
 CarLock.revokeTemp(2, 'LIM111')
 run(CarLock.revokeVirtual, nil, 'CID002', 'FOB777')
 settingsSave(nil, { 'keys.mode', 'keys.shareHours' })
@@ -1035,7 +1052,7 @@ playerPos[1] = vec3(4, 0, 0)
 res = cb('nz:carlock:ground:pickup', 1, { id = missed.id })
 playerPos[1] = vec3(0, 0, 0)
 check(res.ok and #itemsOf(1, 'vehicle_fob') == 1, 'picked up by the thrower')
--- the catcher walked off before catching: it lands, never lost
+-- the catcher walked off before catching: it lands near the throw (never at the far catcher), never lost
 fob1 = itemsOf(1, 'vehicle_fob')[1]
 res = cb('nz:carlock:ground:throw', 1, { slot = fob1.slot, target = 2 })
 playerPos[2] = vec3(15, 0, 0)
@@ -1043,10 +1060,21 @@ local miss2 = cb('nz:carlock:ground:catch', 2, { id = res.data.id })
 local landed = CarLock.groundKeys('FOB777')[1]
 check(not miss2.ok and landed and landed.kind == 'item' and keyItemsDb[fobRef].custody == 'ground',
   'catch out of range: the key lands on the ground')
+check(landed and math.abs(landed.coords.x) < 2.0, 'catcher out of the throw range: the key lands at the thrower, not 15 m away')
 playerPos[2] = vec3(1, 0, 0)
-playerPos[1] = vec3(14, 0, 0)
 cb('nz:carlock:ground:pickup', 1, { id = landed and landed.id })
-playerPos[1] = vec3(0, 0, 0)
+-- a dead / downed catcher does not catch (GTA dead at <= 100 health, or the isDead state bag)
+for _, how in ipairs({ 'health', 'state' }) do
+  fob1 = itemsOf(1, 'vehicle_fob')[1]
+  res = cb('nz:carlock:ground:throw', 1, { slot = fob1.slot, target = 2 })
+  if how == 'health' then pedHealth[1002] = 100 else deadState[2] = true end
+  miss2 = cb('nz:carlock:ground:catch', 2, { id = res.data.id })
+  pedHealth[1002], deadState[2] = nil, nil
+  landed = CarLock.groundKeys('FOB777')[1]
+  check(not miss2.ok and miss2.error == 'You missed the key' and #itemsOf(2, 'vehicle_fob') == 0 and landed ~= nil,
+    'downed catcher (' .. how .. '): the key lands on the ground')
+  cb('nz:carlock:ground:pickup', 1, { id = landed and landed.id })
+end
 -- a full pocket: the catch fails, the key lands
 fob1 = itemsOf(1, 'vehicle_fob')[1]
 res = cb('nz:carlock:ground:throw', 1, { slot = fob1.slot, target = 2 })
@@ -1151,6 +1179,17 @@ TriggerEvent('onResourceStop', 'nayzeee-garages')
 local snap = kvp['nz:carlock:ground'] and json.decode(kvp['nz:carlock:ground']) or nil
 check(res.ok and snap and #snap.keys == 1 and snap.keys[1].id == res.data.id and next(objects) == nil,
   'resource stop: props removed, ground keys kept in the session snapshot')
+
+-- a restart whose admin settings fail to load (database error): persistence is unknown, the
+-- stored ground keys are neither restored nor wiped
+groundDb = { kept1 = { id = 'kept1', plate = 'FOB777', x = 1.0, y = 0.0, z = 0.0, heading = 0.0, bucket = 0,
+  data = { kind = 'item', item = 'vehicle_fob', metadata = { plate = 'FOB777' }, keyKind = 'fob' } } }
+local loadSettings = NZ.DB.keySettings.load
+NZ.DB.keySettings.load = function() return nil end
+loadServer()
+advance(3000)
+check(groundDb.kept1 ~= nil, 'admin settings not loaded at boot: the stored ground keys are not wiped')
+NZ.DB.keySettings.load = loadSettings
 
 ---------------------------------------------------------------------------------------
 -- Report

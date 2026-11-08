@@ -43,6 +43,9 @@ const emptySlots = (): Slots => ({
   keys: { open: false, data: null },
   locksmith: { open: false, data: null },
   contract: { open: false, data: null },
+  fob: { open: false, data: null },
+  minigame: { open: false, data: null },
+  keyadmin: { open: false, data: null },
 });
 
 export interface UiState {

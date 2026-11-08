@@ -23,6 +23,9 @@ import { AdminApp } from './apps/admin/AdminApp';
 import { KeysApp } from './apps/keys/KeysApp';
 import { LocksmithApp } from './apps/locksmith/LocksmithApp';
 import { ContractApp } from './apps/contract/ContractApp';
+import { FobApp } from './apps/fob/FobApp';
+import { MinigameApp } from './apps/minigame/MinigameApp';
+import { KeyAdminApp } from './apps/keyadmin/KeyAdminApp';
 
 export function App() {
   const anyOpen = useUi((s) => Object.values(s.apps).some((a) => a.open));
@@ -47,6 +50,9 @@ export function App() {
       <KeysApp />
       <LocksmithApp />
       <ContractApp />
+      <FobApp />
+      <MinigameApp />
+      <KeyAdminApp />
       <Toasts />
     </div>
   );
