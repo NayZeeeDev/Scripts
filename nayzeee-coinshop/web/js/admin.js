@@ -5,7 +5,7 @@
 
 const ADM_TABS = [
   ['dashboard', 'fa-chart-simple', 'ADM_DASHBOARD'], ['packages', 'fa-boxes-stacked', 'ADM_PACKAGES'], ['categories', 'fa-layer-group', 'ADM_CATEGORIES'],
-  ['deals', 'fa-layer-group', 'ADM_DEALS'], ['players', 'fa-users', 'ADM_PLAYERS'], ['codes', 'fa-ticket', 'ADM_CODES'], ['logs', 'fa-list', 'ADM_LOGS'], ['appearance', 'fa-palette', 'ADM_APPEARANCE'],
+  ['deals', 'fa-layer-group', 'ADM_DEALS'], ['sales', 'fa-percent', 'ADM_SALES'], ['members', 'fa-crown', 'ADM_MEMBERS'], ['players', 'fa-users', 'ADM_PLAYERS'], ['codes', 'fa-ticket', 'ADM_CODES'], ['logs', 'fa-list', 'ADM_LOGS'], ['appearance', 'fa-palette', 'ADM_APPEARANCE'],
 ];
 const ICONS = ['fa-car-side', 'fa-car', 'fa-motorcycle', 'fa-truck-monster', 'fa-helicopter', 'fa-plane', 'fa-ship', 'fa-box-open', 'fa-boxes-stacked', 'fa-gift',
   'fa-crosshairs', 'fa-gun', 'fa-bomb', 'fa-shield-halved', 'fa-screwdriver-wrench', 'fa-toolbox', 'fa-hammer', 'fa-kit-medical', 'fa-burger', 'fa-mug-hot',
@@ -19,6 +19,7 @@ async function loadAdmin(tab) {
   const map = {
     dashboard: ['admin:dashboard', {}, 'dash'], logs: ['admin:logs', { q: a.logQ }, 'logs'], players: ['admin:players', { q: a.playerQ }, 'players'],
     codes: ['admin:codes', { q: a.codeQ }, 'codes'], deals: ['admin:deals', {}, 'deals'],
+    sales: ['admin:sales', {}, 'sales'], members: ['admin:members', { q: a.memberQ || '' }, 'members'],
   }[tab];
   if (tab === 'packages') { const r = await req('catalog'); if (r.data) { setCatalog(r.data); render(); } return; }
   if (!map) return;
@@ -174,6 +175,153 @@ ADMV.logs = () => {
       <td class="act">${r.refunded ? `<span class="chip amber">${esc(t('UI_REFUNDED'))}</span>` : `<button class="btn btn-ghost sm" data-a="refund" data-v="${r.id}"><i class="fas fa-rotate-left"></i>${esc(t('ADM_REFUND'))}</button>`}</td></tr>`), t('UI_NOTHING'))}</div>`;
 };
 
+// ── sales ────────────────────────────────────────────────────────────────
+const pad2 = n => String(n).padStart(2, '0');
+const toLocalInput = sec => { const d = new Date(sec * 1000); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const fromLocalInput = v => { const ms = new Date(v).getTime(); return isNaN(ms) ? 0 : Math.floor(ms / 1000); };
+const fmtWhen = sec => new Date(sec * 1000).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function saleStatus(x) {
+  if (!x.enabled) return `<span class="chip">${esc(t('ADM_SALE_OFF'))}</span>`;
+  if (x.live) return `<span class="chip green"><i class="fas fa-bolt"></i>${esc(t('ADM_SALE_LIVE'))} · ${esc(clock(x.endsIn))}</span>`;
+  if (x.startsIn > 0) return `<span class="chip amber"><i class="fas fa-hourglass-half"></i>${esc(t('ADM_SALE_SCHEDULED', clock(x.startsIn)))}</span>`;
+  return `<span class="chip red">${esc(t('ADM_SALE_DONE'))}</span>`;
+}
+
+ADMV.sales = () => {
+  const list = S.adm.sales;
+  if (!list) return loading();
+  return `<div class="toolbar"><p class="hint" style="flex:1">${esc(t('ADM_SALES_TXT'))}</p><button class="btn btn-teal" data-a="saleEdit"><i class="fas fa-plus"></i>${esc(t('ADM_NEW_SALE'))}</button></div>
+    <div class="panel">${admTable([[t('PF_NAME')], [t('TH_DISCOUNT'), 'num'], [t('TH_SCOPE')], [t('TH_WHEN')], [t('TH_STATUS')], [t('TH_ON')], ['', 'act']], list.map(x => `<tr>
+      <td><div class="cell"><div class="tile ${x.live ? '' : 'w'}" style="width:30px;height:30px"><i class="fas fa-percent"></i></div><div class="cell-t"><b>${esc(x.name)}</b><span>#${x.id}</span></div></div></td>
+      <td class="num"><b class="sale-off">-${num(x.percent)}%</b></td>
+      <td><div class="cell-t"><b>${esc(x.scopeName)}</b><span>${esc(t('ADM_SALE_PKGS', num(x.packages || 0)))}</span></div></td>
+      <td><div class="cell-t"><b>${esc(fmtWhen(x.starts))}</b><span>→ ${esc(fmtWhen(x.ends))}</span></div></td>
+      <td>${saleStatus(x)}</td>
+      <td><button class="toggle ${x.enabled ? 'on' : ''}" data-a="saleToggle" data-v="${x.id}"></button></td>
+      <td class="act"><button class="icon-btn" data-a="saleEdit" data-v="${x.id}"><i class="fas fa-pen"></i></button><button class="icon-btn danger" data-a="saleDelete" data-v="${x.id}"><i class="fas fa-trash"></i></button></td></tr>`), t('UI_NOTHING'))}</div>`;
+};
+
+MODALS.saleEdit = () => {
+  const f = S.modal.f;
+  const pct = Math.max(0, Math.min(99, Number(f.percent) || 0));
+  const scopes = [['all', t('SALE_ALL')]].concat(S.cats.map(c => ['cat:' + c.id, c.name]));
+  const inScope = i => f.scope === 'all' || (() => { const c = S.cats.find(x => 'cat:' + x.id === f.scope); return c && (c.type ? i.category === c.type : i.customCategory === c.id); })();
+  const sample = S.items.filter(inScope).slice(0, 3);
+  const starts = fromLocalInput(f.starts), ends = fromLocalInput(f.ends);
+  return modalFrame('w-md', `<i class="fas fa-percent"></i>${esc(f.id ? t('SF_EDIT') : t('ADM_NEW_SALE'))}`, `<div class="m-body">
+      <div class="field"><label>${esc(t('PF_NAME'))}</label><input class="input" id="sf-name" value="${esc(f.name || '')}" data-f="modal.f.name" data-r placeholder="Weekend Sale"></div>
+      <div class="grid2"><div class="field"><label>${esc(t('SF_PERCENT'))} <small>1 – ${num(S.cfg.saleMax || 90)}%</small></label>
+          <div class="pct-row"><input class="input" id="sf-pct" value="${esc(f.percent || '')}" data-f="modal.f.percent" data-r inputmode="numeric"><span>%</span></div>
+          <div class="suggest">${[10, 20, 25, 30, 50].map(p => `<button class="${pct === p ? 'on' : ''}" data-a="salePct" data-v="${p}">${p}%</button>`).join('')}</div></div>
+        <div class="field"><label>${esc(t('SF_SCOPE'))}</label><select class="select" data-f="modal.f.scope" data-r>${scopes.map(([v, l]) => `<option value="${esc(v)}" ${f.scope === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>
+      <div class="grid2"><div class="field"><label>${esc(t('SF_STARTS'))}</label><input class="input" type="datetime-local" id="sf-start" value="${esc(f.starts)}" data-f="modal.f.starts" data-r></div>
+        <div class="field"><label>${esc(t('SF_ENDS'))}</label><input class="input" type="datetime-local" id="sf-end" value="${esc(f.ends)}" data-f="modal.f.ends" data-r></div></div>
+      <div class="field"><label>${esc(t('SF_LENGTH'))}</label><div class="suggest">${[['1d', 'SF_1D'], ['3d', 'SF_3D'], ['weekend', 'SF_WEEKEND'], ['7d', 'SF_7D']].map(([k, l]) => `<button data-a="saleLen" data-v="${k}">${esc(t(l))}</button>`).join('')}</div></div>
+      <div class="confirm-box"><div class="confirm-line"><span>${esc(t('SF_PREVIEW'))}</span><span class="muted">${starts && ends > starts ? esc(clock(ends - starts)) : '—'}</span></div>
+        ${sample.map(i => `<div class="confirm-line sub"><span>${esc(i.name)}</span><b>${coin()}${num(Math.floor(i.basePrice * (100 - pct) / 100))} <span class="strike">${num(i.basePrice)}</span></b></div>`).join('') || `<span class="muted">${esc(t('UI_NO_RESULTS'))}</span>`}</div>
+      <div class="check-row" data-a="saleFlag"><div><b>${esc(t('SF_ACTIVE'))}</b><span>${esc(t('SF_ACTIVE_HINT'))}</span></div><span class="toggle ${f.enabled ? 'on' : ''}"></span></div>
+    </div>`,
+    `${f.id ? `<button class="btn btn-red" data-a="saleDelete" data-v="${f.id}"><i class="fas fa-trash"></i>${esc(t('UI_DELETE'))}</button>` : ''}<div class="sp"></div>
+     <button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CANCEL'))}</button><button class="btn btn-teal" data-a="saleSave" ${S.busy ? 'disabled' : ''}><i class="fas fa-floppy-disk"></i>${esc(t('UI_SAVE'))}</button>`);
+};
+
+ACT.saleEdit = v => {
+  const x = v ? (S.adm.sales || []).find(s => String(s.id) === String(v)) : null;
+  const now = Math.floor(Date.now() / 1000);
+  openModal('saleEdit', { f: x ? { id: x.id, name: x.name, percent: String(x.percent), scope: x.scope, starts: toLocalInput(x.starts), ends: toLocalInput(x.ends), enabled: x.enabled }
+    : { name: '', percent: '20', scope: 'all', starts: toLocalInput(now), ends: toLocalInput(now + 2 * 86400), enabled: true } });
+  render();
+};
+ACT.salePct = v => { S.modal.f.percent = String(v); render(); };
+ACT.saleFlag = () => { S.modal.f.enabled = !S.modal.f.enabled; render(); };
+ACT.saleLen = v => {
+  const f = S.modal.f, now = new Date();
+  let a = now, b;
+  if (v === 'weekend') {               // next Friday 18:00 until Monday 00:00 (or now, if it is already the weekend)
+    const d = now.getDay(), fri = new Date(now); fri.setDate(now.getDate() + ((5 - d + 7) % 7)); fri.setHours(18, 0, 0, 0);
+    a = d === 0 || d === 6 || (d === 5 && now.getHours() >= 18) ? now : fri;
+    b = new Date(fri); if (d === 0 || d === 6) b.setDate(fri.getDate() - 7); b.setDate(b.getDate() + 3); b.setHours(0, 0, 0, 0);
+  } else b = new Date(now.getTime() + { '1d': 1, '3d': 3, '7d': 7 }[v] * 86400000);
+  f.starts = toLocalInput(Math.floor(a.getTime() / 1000)); f.ends = toLocalInput(Math.floor(b.getTime() / 1000));
+  render();
+};
+ACT.saleSave = async () => {
+  const f = S.modal.f;
+  const r = await call('admin:sale:save', { id: f.id, name: f.name, percent: f.percent, scope: f.scope, starts: fromLocalInput(f.starts), ends: fromLocalInput(f.ends), enabled: f.enabled }, { success: t('ADM_SAVED') });
+  if (!r) return;
+  closeModal();
+  await reloadCatalog();
+  loadAdmin('sales');
+};
+ACT.saleToggle = async v => {
+  const x = (S.adm.sales || []).find(s => String(s.id) === String(v));
+  if (x) { x.enabled = !x.enabled; render(); }
+  const r = await req('admin:sale:toggle', { id: Number(v) });
+  if (r.error) toast(errText(r), true);
+  await reloadCatalog();
+  loadAdmin('sales');
+};
+ACT.saleDelete = v => confirmBox(t('ADM_DELETE_SALE'), t('ADM_DELETE_TXT', ((S.adm.sales || []).find(s => String(s.id) === String(v)) || {}).name || '#' + v), async () => {
+  const r = await call('admin:sale:delete', { id: Number(v) }, { success: t('ADM_DELETED') });
+  if (r) { await reloadCatalog(); loadAdmin('sales'); }
+  return !!r;
+}, { danger: true, ok: t('UI_DELETE') });
+
+// ── members ──────────────────────────────────────────────────────────────
+ADMV.members = () => {
+  const m = S.adm.members;
+  return `${m && !m.aceReady ? `<div class="warn"><i class="fas fa-triangle-exclamation"></i><div><b>${esc(t('ADM_ACE_MISSING'))}</b>
+      <code>add_ace resource.${esc(RES)} command.add_principal allow<br>add_ace resource.${esc(RES)} command.remove_principal allow</code></div></div>` : ''}
+    <div class="toolbar"><div class="lsearch" style="max-width:340px"><i class="fas fa-magnifying-glass"></i><input class="input" id="memq" placeholder="${esc(t('ADM_SEARCH_MEMBERS'))}" value="${esc(S.adm.memberQ || '')}" data-f="adm.memberQ" data-live="memberSearch"></div>
+      <div class="sp"></div><button class="btn btn-ghost" data-a="admRefresh"><i class="fas fa-rotate"></i>${esc(t('UI_REFRESH'))}</button><button class="btn btn-teal" data-a="grantOpen"><i class="fas fa-gift"></i>${esc(t('ADM_GRANT'))}</button></div>
+    <div class="panel">${!m ? loading() : admTable([[t('TH_PLAYER')], [t('TH_MEMBERSHIP')], [t('TH_GROUP')], [t('TH_EXPIRES')], ['', 'act']], m.rows.map(r => `<tr>
+      <td><div class="cell-t"><b>${r.online ? '<i class="fas fa-circle online-dot"></i>' : ''}${esc(r.player || r.identifier)}</b><span>${esc(r.identifier)}</span></div></td>
+      <td><b>${esc(r.name || r.itemId)}</b></td>
+      <td>${r.aceGroup ? `<span class="chip"><i class="fas fa-users"></i>group.${esc(r.aceGroup)}</span>` : '<span class="muted">—</span>'}</td>
+      <td>${r.active ? `<span class="chip teal"><i class="fas fa-clock"></i>${esc(clock(r.remaining))}</span>` : `<span class="chip">${esc(t('MEMBER_ENDED'))}</span>`}</td>
+      <td class="act"><button class="btn btn-ghost sm" data-a="memberExtend" data-v="${r.id}|7">${esc(t('ADM_EXTEND', 7))}</button><button class="btn btn-ghost sm" data-a="memberExtend" data-v="${r.id}|30">${esc(t('ADM_EXTEND', 30))}</button>
+        ${r.active ? `<button class="btn btn-red sm" data-a="memberEnd" data-v="${r.id}">${esc(t('ADM_END'))}</button>` : ''}</td></tr>`), t('ADM_NO_MEMBERS'))}</div>`;
+};
+
+MODALS.grant = () => {
+  const m = S.modal;
+  const pkgs = S.items.filter(i => i.category === 'membership');
+  const ok = m.lookup && m.lookup.name && m.itemId && Number(m.days) > 0;
+  return modalFrame('w-sm', `<i class="fas fa-gift"></i>${esc(t('ADM_GRANT'))}`, `<div class="m-body">
+      ${pkgs.length ? `<div class="field"><label>${esc(t('GF_TARGET'))}</label><div class="row" style="align-items:center"><input class="input" id="giftid" style="max-width:130px" value="${esc(m.giftId || '')}" data-f="modal.giftId" data-live="giftLookup" inputmode="numeric">
+          <div class="lookup ${m.lookup && m.lookup.name ? 'ok' : m.lookup && m.lookup.error ? 'bad' : ''}">${m.lookup && m.lookup.name ? `<i class="fas fa-circle-check"></i>${esc(m.lookup.name)}` : m.lookup && m.lookup.error ? `<i class="fas fa-circle-xmark"></i>${esc(t(m.lookup.error))}` : ''}</div></div></div>
+        <div class="field"><label>${esc(t('GF_PACKAGE'))}</label><select class="select" data-f="modal.itemId" data-live="grantPkg" data-r>${pkgs.map(i => `<option value="${esc(i.id)}" ${m.itemId === i.id ? 'selected' : ''}>${esc(i.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>${esc(t('GF_DAYS'))}</label><input class="input" id="gdays" value="${esc(m.days || '')}" data-f="modal.days" data-r inputmode="numeric"></div>`
+      : `<div class="empty" style="padding:24px"><i class="fas fa-crown"></i><span>${esc(t('ADM_NO_MEMBERSHIP_PKG'))}</span></div>`}
+    </div>`,
+    `<div class="sp"></div><button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CANCEL'))}</button><button class="btn btn-teal" data-a="grantGo" ${ok && !S.busy ? '' : 'disabled'}><i class="fas fa-gift"></i>${esc(t('ADM_GRANT'))}</button>`);
+};
+
+let memberTimer;
+ACT.memberSearch = () => { clearTimeout(memberTimer); memberTimer = setTimeout(() => loadAdmin('members'), 300); };
+ACT.memberExtend = async v => {
+  const [id, days] = v.split('|').map(Number);
+  if (await call('admin:member:extend', { id, days }, { success: t('ADM_SAVED') })) loadAdmin('members');
+};
+ACT.memberEnd = v => confirmBox(t('ADM_END'), t('ADM_END_TXT'), async () => {
+  const r = await call('admin:member:end', { id: Number(v) }, { success: t('ADM_SAVED') });
+  if (r) loadAdmin('members');
+  return !!r;
+}, { danger: true, ok: t('ADM_END') });
+ACT.grantOpen = () => {
+  const first = S.items.find(i => i.category === 'membership');
+  openModal('grant', { itemId: first ? first.id : '', days: first ? String(first.days || 30) : '30' });
+  render();
+};
+ACT.grantPkg = v => { const it = item(v); if (it) { S.modal.days = String(it.days || 30); } };
+ACT.grantGo = async () => {
+  const m = S.modal;
+  const r = await call('admin:member:grant', { target: m.lookup.id, itemId: m.itemId, days: m.days }, { success: t('ADM_SAVED') });
+  if (!r) return;
+  closeModal(); render();
+  loadAdmin('members');
+};
+
 ADMV.appearance = () => {
   const v = S.adm.theme || (S.adm.theme = Object.assign({}, S.settings));
   const color = (k, l) => `<div class="field"><label>${esc(t(l))}</label><div class="swatch-row"><input type="color" value="${esc(v[k])}" data-f="adm.theme.${k}" data-live="themeLive" data-r><input class="input" id="th-${k}" value="${esc(v[k])}" data-f="adm.theme.${k}" data-live="themeLive"></div></div>`;
@@ -193,18 +341,20 @@ ADMV.appearance = () => {
 // ── package editor ───────────────────────────────────────────────────────
 MODALS.pkg = () => {
   const f = S.modal.f;
-  const typeSeg = ['vehicle', 'item', 'weapon', 'tool'].map(c => `<button class="${f.category === c ? 'on' : ''}" data-a="pkgType" data-v="${c}"><i class="fas ${CAT_ICON[c]}"></i>${esc(t('CAT_' + c.toUpperCase()))}</button>`).join('');
+  const typeSeg = ['vehicle', 'item', 'weapon', 'tool', 'membership'].map(c => `<button class="${f.category === c ? 'on' : ''}" data-a="pkgType" data-v="${c}"><i class="fas ${CAT_ICON[c]}"></i>${esc(t('CAT_' + c.toUpperCase()))}</button>`).join('');
   const inp = (k, l, ph, hint, attrs) => `<div class="field"><label>${esc(t(l))}${hint ? ` <small>${esc(t(hint))}</small>` : ''}</label><input class="input" id="pf-${k}" value="${esc(f[k] ?? '')}" data-f="modal.f.${k}" data-r placeholder="${esc(ph || '')}" ${attrs || ''}></div>`;
   const custom = S.cats.filter(c => !c.type);
   const prev = { id: f.id || 'preview', name: f.name || t('PF_NAME'), category: f.category, price: Number(f.salePrice) >= 0 && f.salePrice !== '' && Number(f.salePrice) < Number(f.price) ? Number(f.salePrice) : Number(f.price) || 0,
     basePrice: Number(f.price) || 0, sale: f.salePrice !== '' && Number(f.salePrice) >= 0 && Number(f.salePrice) < Number(f.price), images: String(f.images || '').split('\n').map(x => x.trim()).filter(Boolean),
-    itemCount: Number(f.itemCount) || 1, tags: String(f.tags || '').split(',').map(x => x.trim()).filter(Boolean), trending: f.trending, stock: f.stock === '' ? null : Number(f.stock), single: f.category === 'vehicle' || (f.category === 'weapon' && !f.itemName) };
+    itemCount: Number(f.itemCount) || 1, tags: String(f.tags || '').split(',').map(x => x.trim()).filter(Boolean), trending: f.trending, stock: f.stock === '' ? null : Number(f.stock), single: f.category === 'vehicle' || f.category === 'membership' || (f.category === 'weapon' && !f.itemName), days: Number(f.days) || 0 };
   return modalFrame('w-lg', `<i class="fas fa-box"></i>${esc(f.editing ? t('PF_EDIT') : t('ADM_NEW_PKG'))}`, `<div class="m-body" data-keep="pkg"><div class="editor">
       <div class="editor-form">
         <div class="seg">${typeSeg}</div>
         <div class="grid2">${inp('name', 'PF_NAME', 'Truffade Adder')}${f.editing ? `<div class="field"><label>${esc(t('PF_ID'))}</label><input class="input" value="${esc(f.id)}" disabled></div>` : inp('id', 'PF_ID', 'veh_adder', 'PF_ID_HINT')}</div>
         ${f.category === 'vehicle' ? inp('spawnName', 'PF_SPAWN', 'adder', 'PF_SPAWN_HINT') : ''}
         ${f.category === 'weapon' ? `<div class="grid2">${inp('weaponName', 'PF_WEAPON', 'WEAPON_PISTOL', 'PF_WEAPON_HINT')}${inp('itemName', 'PF_WEAPON_ITEM', 'weapon_pistol', 'PF_OPTIONAL')}</div>` : ''}
+        ${f.category === 'membership' ? `<div class="grid2">${inp('aceGroup', 'PF_GROUP', 'vip', 'PF_GROUP_HINT')}${inp('days', 'PF_DAYS', '30', '', 'inputmode="numeric"')}</div>
+          <div class="field"><label>${esc(t('PF_PERKS'))} <small>${esc(t('PF_PERKS_HINT'))}</small></label><textarea class="textarea" id="pf-perks" data-f="modal.f.perks" data-r style="min-height:54px" placeholder="Priority queue&#10;VIP garage">${esc(f.perks || '')}</textarea></div>` : ''}
         ${f.category === 'item' || f.category === 'tool' || (f.category === 'weapon' && f.itemName) ? `<div class="grid2">${f.category !== 'weapon' ? inp('itemName', 'PF_ITEM', 'repairkit', 'PF_ITEM_HINT') : '<div></div>'}${inp('itemCount', 'PF_COUNT', '1', '', 'inputmode="numeric"')}</div>` : ''}
         <div class="grid3">${inp('price', 'PF_PRICE', '1000', '', 'inputmode="numeric"')}${inp('salePrice', 'PF_SALE', '', 'PF_OPTIONAL', 'inputmode="numeric"')}${inp('saleHours', 'PF_SALE_HOURS', f.editing && f.saleEndsRaw ? t('PF_KEEP') : '', 'PF_SALE_HOURS_HINT', 'inputmode="numeric"')}</div>
         <div class="field"><label>${esc(t('PF_DESC'))}</label><textarea class="textarea" id="pf-desc" data-f="modal.f.description" data-r>${esc(f.description || '')}</textarea></div>
@@ -336,7 +486,8 @@ ACT.pkgEdit = v => {
     saleHours: '', saleEndsRaw: it.saleEndsRaw, images: it.images.join('\n'), spawnName: it.spawnName || '', itemName: it.itemName || '', itemCount: String(it.itemCount || 1),
     weaponName: it.weaponName || '', tags: it.tags.join(', '), customCategory: it.customCategory || 'none', stock: it.stock != null ? String(it.stock) : '',
     playerLimit: it.playerLimit ? String(it.playerLimit) : '', trending: it.trending, enabled: it.enabled,
-  } : { category: 'vehicle', price: '', salePrice: '', saleHours: '', images: '', itemCount: '1', tags: '', stock: '', playerLimit: '', trending: false, enabled: true, customCategory: 'none' };
+    aceGroup: it.aceGroup || '', days: it.days ? String(it.days) : '30', perks: (it.perks || []).join('\n'),
+  } : { aceGroup: '', days: '30', perks: '', category: 'vehicle', price: '', salePrice: '', saleHours: '', images: '', itemCount: '1', tags: '', stock: '', playerLimit: '', trending: false, enabled: true, customCategory: 'none' };
   openModal('pkg', { f });
   render();
 };
@@ -346,6 +497,7 @@ ACT.pkgSave = async () => {
   const f = S.modal.f;
   const payload = Object.assign({}, f, {
     tags: String(f.tags || '').split(',').map(x => x.trim()).filter(Boolean),
+    perks: String(f.perks || '').split('\n').map(x => x.trim()).filter(Boolean),
     images: String(f.images || '').split('\n').map(x => x.trim()).filter(Boolean),
     salePrice: f.salePrice === '' ? null : f.salePrice, stock: f.stock === '' ? null : f.stock, playerLimit: f.playerLimit === '' ? null : f.playerLimit,
     saleHours: f.saleHours === '' ? null : f.saleHours,

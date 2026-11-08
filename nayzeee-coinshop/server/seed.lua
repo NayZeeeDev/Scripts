@@ -62,6 +62,8 @@ SeedData.Items = {
     { id = 'tool_gps', name = 'GPS Tracker', category = 'tool', price = 800, item = 'gps', count = 1, tags = { 'tech', 'tracking', 'utility' }, image = 'https://raw.githubusercontent.com/McKleans-Scripts/mk-items/main/tech/garmin-gps.png', desc = 'Advanced GPS tracking device. Track vehicles and assets in real-time.' },
     { id = 'tool_handcuffs', name = 'Handcuffs', category = 'tool', price = 350, item = 'handcuffs', count = 1, tags = { 'restraint', 'law', 'utility' }, image = 'https://raw.githubusercontent.com/McKleans-Scripts/mk-items/main/police/handcuffs.png', desc = 'Professional-grade handcuffs. For those who need to restrain someone temporarily.' },
     { id = 'tool_nightvision', name = 'Night Vision Goggles', category = 'tool', price = 2000, item = 'nightvision', count = 1, trending = true, tags = { 'tactical', 'military', 'premium' }, image = 'https://raw.githubusercontent.com/McKleans-Scripts/mk-items/main/tech/nightvision.png', desc = 'Military-grade NVGs for operating in total darkness. See everything.' },
+    { id = 'vip_monthly', name = 'VIP Membership', category = 'membership', price = 2500, group = 'vip', days = 30, trending = true, tags = { 'vip', 'membership' }, image = '',
+      perks = { 'VIP role in game (group.vip)', 'Priority support', 'Access to VIP-only areas' }, desc = 'Thirty days of VIP. Buying again adds another 30 days on top of the time you have left.' },
     { id = 'tool_bodycam', name = 'Body Camera', category = 'tool', price = 500, item = 'bodycam', count = 1, tags = { 'law', 'recording', 'utility' }, image = 'https://raw.githubusercontent.com/McKleans-Scripts/mk-items/main/police/bodycam.png', desc = 'Record everything that happens. Perfect evidence for any situation.' },
 }
 
@@ -70,6 +72,7 @@ SeedData.Categories = {
     { id = 'items',    name = 'Items',    icon = 'fa-box-open',            type = 'item',    sort = 2 },
     { id = 'weapons',  name = 'Weapons',  icon = 'fa-crosshairs',          type = 'weapon',  sort = 3 },
     { id = 'tools',    name = 'Tools',    icon = 'fa-screwdriver-wrench',  type = 'tool',    sort = 4 },
+    { id = 'memberships', name = 'Memberships', icon = 'fa-crown',         type = 'membership', sort = 5 },
 }
 
 SeedData.Deals = {

@@ -17,6 +17,7 @@ shared_scripts {
 client_scripts {
     'bridge/client.lua',
     'client/main.lua',
+    'client/showroom.lua',
 }
 
 server_scripts {
@@ -27,6 +28,9 @@ server_scripts {
     'server/db.lua',
     'server/main.lua',
     'server/shop.lua',
+    'server/sales.lua',
+    'server/rewards.lua',
+    'server/members.lua',
     'server/admin.lua',
 }
 

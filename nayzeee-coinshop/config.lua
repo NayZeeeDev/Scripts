@@ -131,6 +131,94 @@ Config.Bundles = {
 }
 
 -- ======================================================================
+--   ___ ___ ___ _  _   ___ _   ___ _  __  _   ___ ___ ___
+--  / __/ _ \_ _| \| | | _ \ /_\ / __| |/ / /_\ / __| __/ __|
+-- | (_| (_) | || .` | |  _// _ \ (__| ' < / _ \ (_ | _|\__ \
+--  \___\___/___|_|\_| |_| /_/ \_\___|_|\_\/_/ \_\___|___|___/
+-- ======================================================================
+-- Shown on the "Get coins" page. Each tile opens your Tebex store:
+--   id  = Tebex package ID (opens StoreUrl/package/<id>)   url = any full link instead   (neither = StoreUrl)
+--   bonus = extra % already included in coins (just a label)   tag = 'popular' | 'best' | nil
+Config.CoinPackages = {
+    { coins = 500,   price = '$4.99',  id = 0, bonus = 0 },
+    { coins = 1100,  price = '$9.99',  id = 0, bonus = 10 },
+    { coins = 2400,  price = '$19.99', id = 0, bonus = 20, tag = 'popular' },
+    { coins = 6500,  price = '$49.99', id = 0, bonus = 30, tag = 'best' },
+}
+
+-- ======================================================================
+--  ___  _   _    ___ ___
+-- / __|/_\ | |  | __/ __|
+-- \__ \/ _ \| |__| _|\__ \
+-- |___/_/ \_\____|___|___/
+-- ======================================================================
+-- Scheduled sales are created in the shop: Admin panel -> Sales.
+Config.Sales = {
+    MaxPercent = 90,                                         -- Highest % off an admin can set
+}
+
+-- ======================================================================
+--  ___    _   _  _ _  _____
+-- | _ \  /_\ | \| | |/ / __|
+-- |   / / _ \| .` | ' <\__ \
+-- |_|_\/_/ \_\_|\_|_|\_\___/
+-- ======================================================================
+-- Ranks come from the total coins a player has spent. Bonus = extra % coins on every Tebex order they redeem.
+Config.Ranks = {
+    Enabled = true,
+    List = {
+        { name = 'Bronze',  spent = 0,     bonus = 0,  color = '#c8834a', icon = 'fa-medal' },
+        { name = 'Silver',  spent = 5000,  bonus = 5,  color = '#b9c3cc', icon = 'fa-medal' },
+        { name = 'Gold',    spent = 20000, bonus = 10, color = '#e5b53a', icon = 'fa-crown' },
+        { name = 'Diamond', spent = 50000, bonus = 15, color = '#5cd6f2', icon = 'fa-gem' },
+    },
+}
+
+-- ======================================================================
+--  ___   _   ___ _ __   __
+-- |   \ /_\ |_ _| |\ \ / /
+-- | |) / _ \ | || |_\ V /
+-- |___/_/ \_\___|____|_|
+-- ======================================================================
+Config.Daily = {
+    Enabled      = true,                                     -- Daily login reward (claimed in the shop under Rewards)
+    Rewards      = { 5, 5, 10, 10, 15, 20, 50 },             -- Coins for day 1..7 of a streak, then it starts again at day 1
+    ResetOnMiss  = true,                                     -- Missing a day starts the streak again at day 1
+    NotifyOnJoin = true,                                     -- Tell players when their reward is ready after they load in
+}
+
+-- ======================================================================
+--  __  __ ___ __  __ ___ ___ ___  ___ _  _ ___ ___  ___
+-- |  \/  | __|  \/  | _ ) __| _ \/ __| || |_ _| _ \/ __|
+-- | |\/| | _|| |\/| | _ \ _||   /\__ \ __ || ||  _/\__ \
+-- |_|  |_|___|_|  |_|___/___|_|_\|___/_||_|___|_|  |___/
+-- ======================================================================
+-- Membership packages grant an ACE group for X days (e.g. group.vip). Buying again extends the time.
+-- Needs these two lines in server.cfg so the shop may add / remove the group:
+--   add_ace resource.nayzeee-coinshop command.add_principal allow
+--   add_ace resource.nayzeee-coinshop command.remove_principal allow
+Config.Memberships = {
+    CheckEvery = 60,                                         -- Seconds between expiry checks
+}
+
+-- ======================================================================
+--  ___ _  _  _____      _____  ___   ___  __  __
+-- / __| || |/ _ \ \    / / _ \/ _ \ / _ \|  \/  |
+-- \__ \ __ | (_) \ \/\/ /|   / (_) | (_) | |\/| |
+-- |___/_||_|\___/ \_/\_/ |_|_\\___/ \___/|_|  |_|
+-- ======================================================================
+Config.Showroom = {
+    Enabled  = true,                                         -- 3D preview button on vehicles
+    Location = vector4(-1639.68, -2647.89, 13.82, 330.0),    -- Where the preview vehicle is placed (only you can see it)
+    Time     = 12,                                           -- Hour of day while previewing (false = keep the real time)
+    Colors   = {                                             -- Paint swatches { label, r, g, b }
+        { 'White', 240, 240, 240 }, { 'Black', 12, 12, 14 }, { 'Silver', 150, 155, 160 }, { 'Red', 180, 16, 22 },
+        { 'Orange', 230, 110, 20 }, { 'Yellow', 235, 190, 20 }, { 'Green', 20, 140, 70 }, { 'Teal', 8, 175, 162 },
+        { 'Blue', 20, 60, 170 }, { 'Purple', 100, 40, 150 },
+    },
+}
+
+-- ======================================================================
 --  _   _ ___
 -- | | | |_ _|
 -- | |_| || |

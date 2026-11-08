@@ -11,7 +11,7 @@ const S = {
   open: false, loading: true, loc: {}, cfg: null, me: null, admin: false,
   items: [], cats: [], deals: [], favs: new Set(), settings: {},
   page: 'home', cat: 'all', q: '', sort: 'featured', tag: null, heroIdx: 0,
-  modal: null, history: null, histTab: 'purchases', busy: null,
+  modal: null, history: null, histTab: 'purchases', busy: null, sales: [], rewards: null, preview: null, lastError: null,
   adm: { tab: 'dashboard', dash: null, logs: null, logQ: '', players: null, playerQ: '', codes: null, codeQ: '', pkgQ: '', pkgCat: 'all', deals: null },
 };
 
@@ -40,7 +40,7 @@ function ago(ts) {
   if (s < 86400 * 30) return t('UI_DAY_AGO', Math.floor(s / 86400));
   return new Date(ts * 1000).toLocaleDateString();
 }
-const CAT_ICON = { vehicle: 'fa-car-side', item: 'fa-box-open', weapon: 'fa-crosshairs', tool: 'fa-screwdriver-wrench' };
+const CAT_ICON = { vehicle: 'fa-car-side', item: 'fa-box-open', weapon: 'fa-crosshairs', tool: 'fa-screwdriver-wrench', membership: 'fa-crown' };
 const DEFAULT_COIN = `<svg viewBox="0 0 24 24"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--teal-hi)"/><stop offset="1" stop-color="var(--teal-lo)"/></linearGradient></defs><circle cx="12" cy="12" r="11" fill="url(#cg)"/><circle cx="12" cy="12" r="8.2" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1.2"/><path d="M8.5 8.5h7v3.8l-3.2 3.2H8.5z" fill="rgba(0,0,0,.55)"/></svg>`;
 function coin() {
   const u = S.settings.coinIcon;
@@ -86,6 +86,7 @@ async function call(name, data, opts = {}) {
   render();
   const res = await req(name, data);
   S.busy = null;
+  S.lastError = res.error || null;
   if (res.error) { toast(errText(res), true); render(); return null; }
   if (opts.success) toast(opts.success);
   render();
@@ -242,7 +243,8 @@ document.addEventListener('input', e => {
 document.addEventListener('keydown', e => {
   if (!S.open) return;
   if (e.key === 'Escape') {
-    if (S.modal) { closeModal(); render(); } else close();
+    if (S.preview) ACT.srBack();
+    else if (S.modal) { closeModal(); render(); } else close();
   } else if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.enter) {
     const fn = ACT[e.target.dataset.enter];
     if (fn) fn(e.target.value, e.target);
@@ -274,6 +276,9 @@ async function boot() {
   if (res.error) { toast(errText(res), true); S.loading = false; render(); return; }
   const d = res.data;
   S.me = d.me; S.admin = d.admin; S.cfg = d.config; S.settings = d.settings || {};
+  S.preview = null;
+  const t0 = Date.now() / 1000;
+  (S.me.memberships || []).forEach(m => { m.endsAt = t0 + m.remaining; });
   S.favs = new Set(d.favorites || []);
   setCatalog(d);
   applyTheme(S.settings);
@@ -286,6 +291,7 @@ function setCatalog(d) {
   S.items = d.items || [];
   S.cats = d.categories || [];
   S.deals = (d.deals || []).map(x => Object.assign(x, { until: x.remaining != null ? now + x.remaining : null }));
+  S.sales = (d.sales || []).map(x => Object.assign(x, { endsAt: now + x.endsIn, startsAt: now + x.startsIn }));
   S.items.forEach(i => { if (i.sale && i.saleEnds) i.saleUntil = i.saleEnds; });
   if (S.heroIdx >= S.deals.length) S.heroIdx = 0;
 }
@@ -333,7 +339,7 @@ window.addEventListener('message', e => {
   const d = m.data;
   switch (m.action) {
     case 'open': S.open = true; S.modal = null; boot(); break;
-    case 'close': S.open = false; S.modal = null; render(); break;
+    case 'close': S.open = false; S.modal = null; S.preview = null; render(); break;
     case 'testdrive': testDriveHud(d); break;
     case 'push':
       if (!d) break;

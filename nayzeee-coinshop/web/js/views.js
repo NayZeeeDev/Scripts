@@ -5,6 +5,7 @@
 
 // ── shell ────────────────────────────────────────────────────────────────
 function shell() {
+  if (S.preview && S.me) return previewView();
   const bg = `<div class="shell-bg" style="${S.settings.bgImage ? `background-image:url('${esc(cssUrl(S.settings.bgImage))}')` : ''}"></div>`;
   if (S.loading || !S.me) {
     const sk = n => Array.from({ length: n }, () => '<div class="sk sk-card"><div class="sk-img"></div><div class="sk-line w60"></div><div class="sk-line w40"></div></div>').join('');
@@ -29,7 +30,7 @@ function bar() {
   return `<div class="bar">
     <div class="bar-brand"><div class="mark"></div><div class="bar-title"><b>${esc(t('APP_TITLE'))}</b><span>${esc(t('APP_SUB'))}</span></div></div>
     <div class="bar-mid">${me ? `<div class="gsearch"><i class="fas fa-magnifying-glass"></i><input id="gsearch" placeholder="${esc(t('UI_SEARCH_ALL'))}" value="${esc(S.q)}" data-f="q" data-live="globalSearch" autocomplete="off"></div>` : ''}</div>
-    ${me ? `<div class="wallet" title="${esc(t('UI_BALANCE'))}"><span class="wallet-lbl">${esc(t('UI_BALANCE'))}</span>${coin()}<b>${num(me.coins)}</b><button data-a="redeem" title="${esc(t('UI_REDEEM'))}"><i class="fas fa-plus"></i>${esc(t('UI_ADD_COINS'))}</button></div>` : ''}
+    ${me ? `<div class="wallet" title="${esc(t('UI_BALANCE'))}"><span class="wallet-lbl">${esc(t('UI_BALANCE'))}</span>${coin()}<b>${num(me.coins)}</b><button ${S.cfg && S.cfg.coinPackages && S.cfg.coinPackages.length ? 'data-a="go" data-v="coins"' : 'data-a="redeem"'} title="${esc(t('UI_ADD_COINS'))}"><i class="fas fa-plus"></i>${esc(t('UI_ADD_COINS'))}</button></div>` : ''}
     <span class="ver">v${esc(S.cfg ? S.cfg.version : '1.0.0')}</span>
     <button class="pill-close" data-a="close">${esc(t('UI_CLOSE'))}</button>
   </div>`;
@@ -54,7 +55,7 @@ function sidebar() {
   const cats = S.cats.map(c => nav('browse', c.id, catIcon(c.icon, CAT_ICON[c.type] || 'fa-tag'), c.name, catItems(c.id).length)).join('');
   const sale = SHOP().filter(i => i.sale).length;
   return `<div class="side"><div class="side-scroll" data-keep="side">
-    <div class="who">${avatar(me)}<div class="who-txt"><b>${esc(me.name)}</b><span>${esc(t('UI_WHO_SUB', me.serverId, num(me.spent)))}</span></div><span class="who-dot"></span></div>
+    <div class="who" ${me.rank ? 'data-a="go" data-v="rewards"' : ''}>${avatar(me)}<div class="who-txt"><b>${esc(me.name)}</b><span>${esc(t('UI_WHO_SUB', me.serverId, num(me.spent)))}</span>${rankChip(me.rank)}</div><span class="who-dot"></span></div>
     <div class="grp">${esc(t('UI_SHOP'))}</div>
     ${nav('home', undefined, '<i class="fas fa-house"></i>', t('NAV_HOME'))}
     ${nav('browse', 'all', '<i class="fas fa-grip"></i>', t('NAV_ALL'), SHOP().length)}
@@ -63,6 +64,8 @@ function sidebar() {
     ${nav('browse', 'favorites', '<i class="fas fa-heart"></i>', t('NAV_FAVORITES'), S.favs.size || '')}
     ${S.cats.length ? `<div class="grp">${esc(t('UI_CATEGORIES'))}</div>${cats}` : ''}
     <div class="grp">${esc(t('UI_ACCOUNT'))}</div>
+    ${S.cfg.coinPackages && S.cfg.coinPackages.length ? nav('coins', undefined, '<i class="fas fa-coins"></i>', t('NAV_COINS')) : ''}
+    ${S.cfg.daily || S.cfg.ranks || (me.memberships || []).length ? nav('rewards', undefined, '<i class="fas fa-gift"></i>', t('NAV_REWARDS'), me.daily ? '1' : '', true) : ''}
     ${nav('history', undefined, '<i class="fas fa-receipt"></i>', t('NAV_HISTORY'))}
     <button class="nav" data-a="redeem"><i class="fas fa-ticket"></i><span class="lbl">${esc(t('NAV_REDEEM'))}</span></button>
     ${S.cfg.transfer ? `<button class="nav" data-a="transfer"><i class="fas fa-paper-plane"></i><span class="lbl">${esc(t('NAV_TRANSFER'))}</span></button>` : ''}
@@ -88,6 +91,7 @@ function badges(it) {
 
 function meta(it) {
   const parts = [`<i class="fas ${CAT_ICON[it.category] || 'fa-tag'}"></i>${esc(t('CAT_' + it.category.toUpperCase()))}`];
+  if (it.category === 'membership' && it.days) parts.push(esc(t('MEMBER_DAYS', num(it.days))));
   if (!isSingle(it) && it.itemCount > 1) parts.push(`x${num(it.itemCount)}`);
   if (it.tags && it.tags[0]) parts.push(esc(it.tags[0]));
   return parts.join(' · ');
@@ -174,7 +178,7 @@ VIEWS.home = () => {
   const fresh = SHOP().filter(i => i.isNew && !trending.includes(i)).slice(0, PER);
   const popular = SHOP().slice().filter(i => i.sold > 0 && !trending.includes(i)).sort((a, b) => b.sold - a.sold).slice(0, PER);
   const sec = (title, sub, list, go, render = card) => list.length ? `<div class="sec"><h2>${esc(title)}</h2><span>${esc(sub)}</span><div class="rule"></div>${go ? `<button data-a="go" data-v="${go}">${esc(t('UI_SEE_ALL'))}<i class="fas fa-arrow-right"></i></button>` : ''}</div><div class="cards">${list.map(render).join('')}</div>` : '';
-  const body = hero
+  const body = dailyStrip() + saleBanners() + hero
     + sec(t('NAV_DEALS'), t('DEALS_SUB'), S.deals.slice(0, PER), 'deals', bundleCard)
     + sec(t('HOME_TRENDING'), t('HOME_TRENDING_SUB'), trending, 'browse:all')
     + sec(t('HOME_SALE'), t('HOME_SALE_SUB'), sale, 'browse:sale')
@@ -230,7 +234,8 @@ VIEWS.deals = () => `<div class="scroll" data-keep="deals">
 </div>`;
 
 // ── history ──────────────────────────────────────────────────────────────
-const REASON_ICON = { purchase: 'fa-bag-shopping', deal: 'fa-tags', redeem: 'fa-ticket', promo: 'fa-gift', refund: 'fa-rotate-left', playtime: 'fa-clock',
+const REASON_ICON = { purchase: 'fa-bag-shopping', deal: 'fa-layer-group', redeem: 'fa-ticket', promo: 'fa-gift', refund: 'fa-rotate-left', playtime: 'fa-clock',
+  daily: 'fa-calendar-check', rank_bonus: 'fa-crown',
   transfer_in: 'fa-arrow-down', transfer_out: 'fa-paper-plane', admin_give: 'fa-shield-halved', admin_set: 'fa-shield-halved', admin_remove: 'fa-shield-halved', export: 'fa-plug' };
 
 VIEWS.history = () => {
@@ -274,7 +279,7 @@ VIEWS.tutorial = () => {
     <div class="head"><div class="head-txt"><h1>${esc(t('NAV_TUTORIAL'))}</h1><p>${esc(t('TUT_SUB'))}</p></div></div>
     <div class="steps">${[1, 2, 3].map(n => `<div class="step"><div class="step-img">${imgs[n - 1] ? `<img src="${esc(imgs[n - 1])}" alt="">` : `<i class="fas ${icons[n - 1]}"></i>`}</div>
       <div class="step-b"><div class="n">${n}</div><b>${esc(t('TUT_' + n))}</b><p>${esc(t('TUT_' + n + '_TXT', S.cfg.coinName))}</p></div></div>`).join('')}</div>
-    <div class="callout"><i class="fas fa-store"></i><div><b>${esc(t('TUT_STORE'))}</b><span>${esc(S.cfg.storeUrl || '')}</span></div><button class="btn btn-teal" data-a="store">${esc(t('UI_BUY_COINS'))}<i class="fas fa-arrow-up-right-from-square"></i></button></div>
+    <div class="callout"><i class="fas fa-store"></i><div><b>${esc(t('TUT_STORE'))}</b><span>${esc(S.cfg.storeUrl || '')}</span></div><button class="btn btn-teal" ${S.cfg.coinPackages && S.cfg.coinPackages.length ? 'data-a="go" data-v="coins"' : 'data-a="store"'}>${esc(t('UI_BUY_COINS'))}<i class="fas fa-arrow-right"></i></button></div>
     ${S.cfg.playtime ? `<div class="callout" style="border-color:var(--line-soft);background:var(--panel)"><i class="fas fa-clock"></i><div><b>${esc(t('TUT_PLAYTIME'))}</b><span>${esc(t('TUT_PLAYTIME_TXT', S.cfg.playtime.coins, S.cfg.coinName, S.cfg.playtime.minutes))}</span></div></div>` : ''}
   </div>`;
 };
@@ -334,6 +339,8 @@ MODALS.item = () => {
        <button class="btn btn-teal" data-a="buyItem" ${S.busy ? 'disabled' : ''}>${S.busy ? '<i class="fas fa-circle-notch spin"></i>' : '<i class="fas fa-check"></i>'}${esc(t('UI_CONFIRM'))}</button>`);
   }
   const specs = [[t('SPEC_CATEGORY'), t('CAT_' + it.category.toUpperCase())]];
+  if (it.category === 'membership' && it.days) specs.push([t('SPEC_DURATION'), t('MEMBER_DAYS', num(it.days))]);
+  const owned = it.category === 'membership' ? activeMember(it.id) : null;
   if (it.category === 'vehicle' && it.spawnName) specs.push([t('SPEC_MODEL'), it.spawnName]);
   if (!isSingle(it)) specs.push([t('SPEC_CONTAINS'), `${num(it.itemCount)}x`]);
   if (it.stock != null) specs.push([t('SPEC_STOCK'), soldOut(it) ? t('UI_SOLD_OUT') : t('UI_LEFT', it.stock)]);
@@ -342,6 +349,7 @@ MODALS.item = () => {
   const canBuy = enough && !soldOut(it) && giftReady(m);
   return modalFrame('w-item', '', `<div class="detail">
       <div class="gallery"><div class="gallery-main">${imgs[gi] ? `<img src="${esc(imgs[gi])}" alt="">` : `<i class="fas ${CAT_ICON[it.category]} noimg"></i>`}
+        ${it.category === 'vehicle' && it.spawnName && S.cfg.showroom ? `<button class="sr-open" data-a="srOpen" data-v="${esc(it.id)}"><i class="fas fa-cube"></i>${esc(t('SR_PREVIEW'))}</button>` : ''}
         ${imgs.length > 1 ? `<button class="gallery-nav l" data-a="img" data-v="-1"><i class="fas fa-chevron-left"></i></button><button class="gallery-nav r" data-a="img" data-v="1"><i class="fas fa-chevron-right"></i></button>` : ''}
         <div class="badges" style="left:14px;top:14px">${badges(it)}</div></div>
         ${imgs.length > 1 ? `<div class="gallery-thumbs">${imgs.map((s, i) => `<button class="${i === gi ? 'on' : ''}" data-a="imgAt" data-v="${i}"><img src="${esc(s)}"></button>`).join('')}</div>` : ''}
@@ -355,8 +363,11 @@ MODALS.item = () => {
           ${it.tags.length ? `<div class="thumbs">${it.tags.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>` : ''}
           ${it.description ? `<p class="desc">${esc(it.description)}</p>` : ''}
           <div class="specs">${specs.map(([a, b]) => `<div class="spec"><span>${esc(a)}</span><b>${esc(b)}</b></div>`).join('')}</div>
-          ${it.sale && it.saleUntil ? `<div class="timer"><i class="fas fa-percent"></i>${esc(t('UI_SALE_ENDS'))} <b data-until="${it.saleUntil}">${clock(it.saleUntil - Date.now() / 1000)}</b></div>` : ''}
+          ${it.sale && it.saleUntil ? `<div class="timer"><i class="fas fa-percent"></i>${it.saleName ? esc(it.saleName) + ' · ' : ''}${esc(t('UI_SALE_ENDS'))} <b data-until="${it.saleUntil}">${clock(it.saleUntil - Date.now() / 1000)}</b></div>` : ''}
           ${!isSingle(it) ? `<div class="field"><label>${esc(t('UI_QUANTITY'))}</label><div class="qty"><button data-a="qty" data-v="-1"><i class="fas fa-minus"></i></button><input id="qty" value="${qty}" data-f="modal.qty" data-live="qtyInput" inputmode="numeric"><button data-a="qty" data-v="1"><i class="fas fa-plus"></i></button></div></div>` : ''}
+          ${it.category === 'membership' && it.perks && it.perks.length ? `<div class="field"><label>${esc(t('MEMBER_PERKS'))}</label><ul class="perks big">${it.perks.map(p => `<li><i class="fas fa-check"></i>${esc(p)}</li>`).join('')}</ul></div>` : ''}
+          ${owned ? `<div class="owned"><i class="fas fa-circle-check"></i><div><b>${esc(t('MEMBER_YOURS', clock(owned.endsAt - Date.now() / 1000)))}</b><span>${esc(t('MEMBER_EXTENDS', num(it.days || 30)))}</span></div></div>`
+            : it.category === 'membership' ? `<p class="hint">${esc(t('MEMBER_EXTENDS', num(it.days || 30)))}</p>` : ''}
           ${giftBlock(m)}
         </div>
         <div class="buybar">
@@ -429,7 +440,11 @@ MODALS.deal = () => {
 MODALS.redeem = () => {
   const m = S.modal;
   if (m.done) {
-    return modalFrame('w-sm', '', `<div class="m-body">${resultView(true, t('REDEEM_DONE'), m.done.gift ? t('REDEEM_DONE_GIFT', num(m.done.amount), S.cfg.coinName, m.done.gift) : t('REDEEM_DONE_TXT', num(m.done.amount), S.cfg.coinName))}</div>`,
+    const got = m.done.amount + (m.done.bonus || 0);
+    return modalFrame('w-sm', '', `<div class="m-body">${resultView(true, t('REDEEM_DONE'), m.done.gift ? t('REDEEM_DONE_GIFT', num(got), S.cfg.coinName, m.done.gift) : t('REDEEM_DONE_TXT', num(got), S.cfg.coinName))}
+      ${m.done.bonus ? `<div class="confirm-box"><div class="confirm-line"><span>${esc(t('REDEEM_TEBEX'))}</span><b>${coin()}${num(m.done.amount)}</b></div>
+        <div class="confirm-line"><span>${rankChip(S.me.rank)} ${esc(t('R_RANK_BONUS'))}</span><b class="teal">+${num(m.done.bonus)}</b></div>
+        <div class="confirm-line total-line"><span>${esc(t('UI_TOTAL'))}</span><b>${coin()}${num(got)}</b></div></div>` : ''}</div>`,
       `<button class="btn btn-ghost" data-a="redeemAgain">${esc(t('REDEEM_ANOTHER'))}</button><div class="sp"></div><button class="btn btn-teal" data-a="closeModal">${esc(t('UI_CONTINUE'))}</button>`);
   }
   const tebex = m.tab !== 'promo';
@@ -486,6 +501,7 @@ ACT.go = v => {
   if (cat) { if (S.cat !== cat) { S.tag = null; } S.cat = cat; }
   if (page !== 'browse') S.q = '';
   if (page === 'history') loadHistory();
+  if (page === 'rewards') loadRewards();
   if (page === 'admin' && window.adminEnter) adminEnter();
   render();
 };
@@ -543,13 +559,19 @@ ACT.giftLookup = () => {
 
 ACT.buyItem = async () => {
   const m = S.modal;
-  const r = await call('buy:item', { id: m.id, qty: m.qty, gift: m.gift ? m.lookup.id : null }, { busy: 'buy' });
-  if (!r) { if (S.modal === m) { m.step = 'view'; render(); } return; }
+  const seen = item(m.id);
+  const r = await call('buy:item', { id: m.id, qty: m.qty, gift: m.gift ? m.lookup.id : null, expect: seen ? seen.price : undefined }, { busy: 'buy' });
+  if (!r) {
+    if (S.lastError === 'ERR_PRICE_CHANGED') await reloadCatalog();
+    if (S.modal === m) { m.step = 'view'; render(); }
+    return;
+  }
   setCoins(r.coins);
   const it = item(m.id);
   if (it) { it.sold += isSingle(it) ? 1 : m.qty; if (r.stock !== undefined && r.stock !== null) it.stock = r.stock; }
   m.step = 'done'; m.result = r;
   render();
+  if (it && it.category === 'membership' && !m.gift) loadRewards();
 };
 ACT.buyDeal = async () => {
   const m = S.modal;
@@ -583,6 +605,7 @@ ACT.redeemGo = async () => {
   setCoins(r.coins);
   m.done = r;
   render();
+  if (r.bonus && S.me.rank) loadRewards();
 };
 
 ACT.transfer = () => { openModal('transfer', { amount: '' }); render(); };

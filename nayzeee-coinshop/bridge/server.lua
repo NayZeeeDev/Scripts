@@ -259,6 +259,17 @@ function Bridge.RegisterUsableItem(name, cb)
     end)
 end
 
+-- Runs once a player's character has loaded in
+function Bridge.OnLoaded(fn)
+    if Bridge.Framework == 'esx' then
+        AddEventHandler('esx:playerLoaded', function(src) fn(src) end)
+    elseif Bridge.Framework == 'qbcore' or Bridge.Framework == 'qbox' then
+        AddEventHandler('QBCore:Server:PlayerLoaded', function(p) fn(p and p.PlayerData and p.PlayerData.source or source) end)
+    else
+        AddEventHandler('playerJoining', function() fn(source) end)
+    end
+end
+
 function Bridge.OnLogout(fn)
     if Bridge.Framework == 'esx' then
         AddEventHandler('esx:playerLogout', function(src) fn(src) end)

@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS nayzeee_coinshop_items (
         item_name VARCHAR(60) DEFAULT NULL,
         item_count INT NOT NULL DEFAULT 1,
         weapon_name VARCHAR(60) DEFAULT NULL,
+        ace_group VARCHAR(60) DEFAULT NULL,
+        days INT DEFAULT NULL,
+        perks TEXT,
         trending TINYINT(1) NOT NULL DEFAULT 0,
         custom_category VARCHAR(60) DEFAULT NULL,
         stock INT DEFAULT NULL,
@@ -130,6 +133,41 @@ CREATE TABLE IF NOT EXISTS nayzeee_coinshop_favorites (
         identifier VARCHAR(80) NOT NULL,
         item_id VARCHAR(60) NOT NULL,
         PRIMARY KEY (identifier, item_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nayzeee_coinshop_sales (
+        id INT NOT NULL AUTO_INCREMENT,
+        name VARCHAR(100) NOT NULL,
+        percent INT NOT NULL DEFAULT 10,
+        scope VARCHAR(80) NOT NULL DEFAULT 'all',
+        starts_at TIMESTAMP NULL DEFAULT NULL,
+        ends_at TIMESTAMP NULL DEFAULT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nayzeee_coinshop_daily (
+        identifier VARCHAR(80) NOT NULL,
+        streak INT NOT NULL DEFAULT 0,
+        last_claim DATE DEFAULT NULL,
+        claims INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (identifier)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS nayzeee_coinshop_memberships (
+        id INT NOT NULL AUTO_INCREMENT,
+        identifier VARCHAR(80) NOT NULL,
+        license VARCHAR(80) DEFAULT NULL,
+        item_id VARCHAR(60) NOT NULL,
+        name VARCHAR(100) DEFAULT NULL,
+        ace_group VARCHAR(60) DEFAULT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        ended TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_member (identifier, item_id),
+        KEY k_expiry (ended, expires_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS nayzeee_coinshop_settings (

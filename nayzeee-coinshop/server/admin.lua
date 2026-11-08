@@ -26,11 +26,12 @@ local function nilIfEmpty(v)
     return v ~= '' and v or nil
 end
 
-local function adminLog(src, title, fields)
+function AdminLog(src, title, fields)
     local list = { { 'Admin', Who(src) } }
     for i = 1, 15 do if fields[i] then list[#list + 1] = fields[i] end end
     Webhook('admin', title, list)
 end
+local adminLog = AdminLog
 
 -- ── dashboard ───────────────────────────────────────────────────────────
 Handle('admin:dashboard', function()
@@ -155,7 +156,7 @@ Handle('admin:coins', function(src, _, d)
 end, A)
 
 -- ── packages ────────────────────────────────────────────────────────────
-local VALID = { vehicle = true, item = true, weapon = true, tool = true }
+local VALID = { vehicle = true, item = true, weapon = true, tool = true, membership = true }
 
 local function itemPayload(d)
     local name = NZC.Trim(d.name)
@@ -172,7 +173,14 @@ local function itemPayload(d)
         stock = (tonumber(d.stock) and tonumber(d.stock) >= 0) and NZC.Int(d.stock, 0, 10000000, 0) or nil,
         playerLimit = (tonumber(d.playerLimit) and tonumber(d.playerLimit) > 0) and NZC.Int(d.playerLimit, 1, 100000, 1) or nil,
         enabled = d.enabled == false and 0 or 1,
+        aceGroup = nilIfEmpty(d.aceGroup), days = nil, perks = json.encode(strList(d.perks, 10)),
     }
+    if cat == 'membership' then
+        v.days = NZC.Int(d.days, 1, 3650, 30)
+        if v.aceGroup and not v.aceGroup:match('^[%w_%-%.]+$') then return nil, 'ERR_GROUP_INVALID' end
+    else
+        v.aceGroup = nil
+    end
     if v.salePrice and v.salePrice >= v.price then v.salePrice, v.saleEnds = nil, nil end
     if cat == 'vehicle' and not v.spawnName then return nil, 'ERR_SPAWN_REQUIRED' end
     if (cat == 'item' or cat == 'tool') and not v.itemName then return nil, 'ERR_ITEMNAME_REQUIRED' end
@@ -193,17 +201,18 @@ Handle('admin:item:save', function(src, _, d)
     local editing = id ~= '' and Catalog.Get(id) ~= nil
     if editing then
         MySQL.update.await(([[UPDATE nayzeee_coinshop_items SET name=?, description=?, category=?, tags=?, price=?, sale_price=?, sale_ends=%s, images=?,
-            spawn_name=?, item_name=?, item_count=?, weapon_name=?, trending=?, custom_category=?, stock=?, player_limit=?, enabled=? WHERE id=?]]):format(saleSql(v, not d.saleHours)), {
+            spawn_name=?, item_name=?, item_count=?, weapon_name=?, ace_group=?, days=?, perks=?, trending=?, custom_category=?, stock=?, player_limit=?, enabled=? WHERE id=?]]):format(saleSql(v, not d.saleHours)), {
             v.name, v.description, v.category, v.tags, v.price, v.salePrice, v.images, v.spawnName, v.itemName, v.itemCount, v.weaponName,
-            v.trending, v.customCategory, v.stock, v.playerLimit, v.enabled, id })
+            v.aceGroup, v.days, v.perks, v.trending, v.customCategory, v.stock, v.playerLimit, v.enabled, id })
     else
         id = slug(id ~= '' and id or v.name)
         if id == '' or Catalog.Get(id) then id = (id ~= '' and id or 'pkg') .. '_' .. math.random(1000, 9999) end
         local sort = (MySQL.scalar.await('SELECT IFNULL(MAX(sort), 0) + 1 FROM nayzeee_coinshop_items') or 1)
         MySQL.insert.await(([[INSERT INTO nayzeee_coinshop_items (id, name, description, category, tags, price, sale_price, sale_ends, images, spawn_name, item_name,
-            item_count, weapon_name, trending, custom_category, stock, player_limit, enabled, sort) VALUES (?, ?, ?, ?, ?, ?, ?, %s, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]]):format(saleSql(v)), {
+            item_count, weapon_name, ace_group, days, perks, trending, custom_category, stock, player_limit, enabled, sort)
+            VALUES (?, ?, ?, ?, ?, ?, ?, %s, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]]):format(saleSql(v)), {
             id, v.name, v.description, v.category, v.tags, v.price, v.salePrice, v.images, v.spawnName, v.itemName, v.itemCount, v.weaponName,
-            v.trending, v.customCategory, v.stock, v.playerLimit, v.enabled, sort })
+            v.aceGroup, v.days, v.perks, v.trending, v.customCategory, v.stock, v.playerLimit, v.enabled, sort })
     end
     Catalog.Changed()
     adminLog(src, editing and T('LOG_ITEM_EDITED') or T('LOG_ITEM_CREATED'), { { 'Package', ('%s (`%s`)'):format(v.name, id) }, { 'Category', v.category }, { 'Price', v.price } })

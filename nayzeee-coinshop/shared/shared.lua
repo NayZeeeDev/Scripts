@@ -4,13 +4,19 @@ NZC = {}
 NZC.Resource = GetCurrentResourceName()
 NZC.Version  = GetResourceMetadata(NZC.Resource, 'version', 0) or '1.0.0'
 
-Categories = { VEHICLE = 'vehicle', ITEM = 'item', WEAPON = 'weapon', TOOL = 'tool' }
+Categories = { VEHICLE = 'vehicle', ITEM = 'item', WEAPON = 'weapon', TOOL = 'tool', MEMBERSHIP = 'membership' }
 
 -- Defaults in case the Config.Bundles block is missing from config.lua
 Config.Bundles = Config.Bundles or {}
 if Config.Bundles.CashAccount == nil then Config.Bundles.CashAccount = 'bank' end
 if Config.Bundles.MaxCash == nil then Config.Bundles.MaxCash = 10000000 end
 if Config.Bundles.HeroSeconds == nil then Config.Bundles.HeroSeconds = 7 end
+Config.CoinPackages = Config.CoinPackages or {}
+Config.Sales = Config.Sales or { MaxPercent = 90 }
+Config.Ranks = Config.Ranks or { Enabled = false, List = {} }
+Config.Daily = Config.Daily or { Enabled = false, Rewards = {} }
+Config.Memberships = Config.Memberships or { CheckEvery = 60 }
+Config.Showroom = Config.Showroom or { Enabled = false, Colors = {} }
 
 -- ── locale ──────────────────────────────────────────────────────────────
 local strings = {}

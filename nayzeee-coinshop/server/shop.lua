@@ -16,7 +16,8 @@ local function bool(v) return v == 1 or v == true end
 
 -- Vehicles and framework weapons are always bought one at a time
 function Catalog.IsSingle(it)
-    return it.category == Categories.VEHICLE or (it.category == Categories.WEAPON and (not it.itemName or it.itemName == ''))
+    return it.category == Categories.VEHICLE or it.category == Categories.MEMBERSHIP
+        or (it.category == Categories.WEAPON and (not it.itemName or it.itemName == ''))
 end
 
 -- Bundle contents are stored as [{ id, qty }]. Older rows (and FearX imports) are a plain list of ids.
@@ -39,6 +40,7 @@ local function mapItem(r)
         tags = DB.Decode(r.tags, {}), price = r.price, salePrice = r.sale_price, saleEnds = r.sale_ends_ts,
         images = DB.Decode(r.images, {}), spawnName = r.spawn_name, itemName = r.item_name, itemCount = r.item_count or 1,
         weaponName = r.weapon_name, trending = bool(r.trending), customCategory = r.custom_category,
+        aceGroup = r.ace_group, days = r.days, perks = DB.Decode(r.perks, {}),
         stock = r.stock, playerLimit = r.player_limit, enabled = bool(r.enabled), sort = r.sort, created = r.created_ts,
     }
 end
@@ -74,16 +76,28 @@ function Catalog.Load()
         settings[r.key] = r.value
     end
     Catalog.settings = settings
+    if Sales then Sales.Load() end
     Debug('Catalogue loaded: %d packages, %d categories, %d deals', #items, #Catalog.categories, #Catalog.deals)
 end
 
 function Catalog.Get(id) return Catalog.byId[tostring(id or '')] end
 
+-- Price right now: the package's own sale price or the biggest live scheduled sale, whichever is cheaper.
+-- Returns price, onSale, saleEndsAt, saleName
 function Catalog.Price(it)
-    if it.salePrice and it.salePrice >= 0 and it.salePrice < it.price and (not it.saleEnds or it.saleEnds > os.time()) then
-        return it.salePrice, true
+    local now = os.time()
+    local best, ends, name = it.price, nil, nil
+    if it.salePrice and it.salePrice >= 0 and it.salePrice < it.price and (not it.saleEnds or it.saleEnds > now) then
+        best, ends = it.salePrice, it.saleEnds
     end
-    return it.price, false
+    if Sales then
+        local pct, sEnds, sName = Sales.Best(it, now)
+        if pct then
+            local p = math.floor(it.price * (100 - pct) / 100)
+            if p < best then best, ends, name = p, sEnds, sName end
+        end
+    end
+    return best, best < it.price, ends, name
 end
 
 -- Items as the UI sees them
@@ -91,16 +105,17 @@ function Catalog.Items(admin)
     local out, now = {}, os.time()
     for _, it in ipairs(Catalog.items) do
         if admin or it.enabled then
-            local price, sale = Catalog.Price(it)
+            local price, sale, saleEnds, saleName = Catalog.Price(it)
             out[#out + 1] = {
                 id = it.id, name = it.name, description = it.description, category = it.category, tags = it.tags,
-                price = price, basePrice = it.price, sale = sale, saleEnds = sale and it.saleEnds or nil,
+                price = price, basePrice = it.price, sale = sale, saleEnds = sale and saleEnds or nil, saleName = saleName,
                 salePrice = admin and it.salePrice or nil, saleEndsRaw = admin and it.saleEnds or nil,
                 images = it.images, itemCount = it.itemCount, trending = it.trending, customCategory = it.customCategory,
                 stock = it.stock, playerLimit = it.playerLimit, sold = Catalog.sold[it.id] or 0, created = it.created,
                 single = Catalog.IsSingle(it),
                 enabled = it.enabled, isNew = it.created and now - it.created < 7 * 86400 or false,
                 spawnName = it.spawnName, itemName = admin and it.itemName or nil, weaponName = admin and it.weaponName or nil,
+                days = it.days, perks = it.perks, aceGroup = admin and it.aceGroup or nil,
             }
         end
     end
@@ -170,7 +185,9 @@ Handle('boot', function(src, id)
     local admin = IsAdmin(src)
     local d = profile(src)
     return {
-        me = { name = d and d.name or name, character = name, avatar = d and d.avatar or '', coins = w.coins or 0, spent = w.spent or 0, serverId = src },
+        me = { name = d and d.name or name, character = name, avatar = d and d.avatar or '', coins = w.coins or 0, spent = w.spent or 0, serverId = src,
+            rank = Rewards.Rank(w.spent or 0), daily = Rewards.DailyReady(id), memberships = Members.ForPlayer(id) },
+        sales = Sales.Public(false),
         admin = admin,
         items = Catalog.Items(admin),
         categories = Catalog.categories,
@@ -185,6 +202,8 @@ Handle('boot', function(src, id)
             tutorial = Config.UI.Tutorial, playtime = Config.Playtime.Enabled and { minutes = Config.Playtime.Minutes, coins = Config.Playtime.Coins } or nil,
             maxCash = Config.Bundles.MaxCash or 0, heroSeconds = Config.Bundles.HeroSeconds or 0,
             cashAccount = Config.Bundles.CashAccount or 'bank', framework = Bridge.Framework,
+            coinPackages = CoinPackages(), ranks = Config.Ranks.Enabled and Rewards.List() or nil, daily = Config.Daily.Enabled and #Config.Daily.Rewards > 0,
+            showroom = Config.Showroom.Enabled and { colors = Config.Showroom.Colors } or nil, saleMax = Config.Sales.MaxPercent or 90,
         },
     }
 end)
@@ -193,8 +212,20 @@ RegisterNetEvent('nzc:closed', function() Core.Open[source] = nil end)
 
 Handle('catalog', function(src)
     local admin = IsAdmin(src)
-    return { items = Catalog.Items(admin), categories = Catalog.categories, deals = Catalog.Deals(false) }
+    return { items = Catalog.Items(admin), categories = Catalog.categories, deals = Catalog.Deals(false), sales = Sales.Public(false) }
 end)
+
+-- Coin tiers for the "Get coins" page, with the link each tile opens
+function CoinPackages()
+    local store = tostring(Config.General.StoreUrl or ''):gsub('/+$', '')
+    local out = {}
+    for _, p in ipairs(Config.CoinPackages or {}) do
+        local url = p.url
+        if not url or url == '' then url = (tonumber(p.id) or 0) > 0 and ('%s/package/%d'):format(store, p.id) or store end
+        out[#out + 1] = { coins = tonumber(p.coins) or 0, price = tostring(p.price or ''), bonus = tonumber(p.bonus) or 0, tag = p.tag, url = url, label = p.label }
+    end
+    return out
+end
 
 Handle('player:lookup', function(src, _, d)
     local target = tonumber(d.id)
@@ -225,6 +256,8 @@ function Deliver(src, it, qty, spawn)
         Bridge.GiveKeys(src, plate)
         TriggerClientEvent('nzc:vehicle', src, it.spawnName, plate, spawn)
         return true, plate
+    elseif it.category == Categories.MEMBERSHIP then
+        return Members.Grant(src, it)
     elseif it.category == Categories.WEAPON and (not it.itemName or it.itemName == '') then
         if not it.weaponName or it.weaponName == '' then return false end
         for _ = 1, qty do
@@ -290,6 +323,8 @@ local function buyItem(src, id, d)
     end
 
     local unit = Catalog.Price(it)
+    -- the UI sends the price the player saw; refuse if a sale started or ended since then
+    if d.expect ~= nil and tonumber(d.expect) ~= unit then restock() Push(src, 'catalog', true) return nil, 'ERR_PRICE_CHANGED' end
     local total = unit * qty
     local ok, balance = Wallet.Take(id, total, 'purchase', ('%s x%d'):format(it.name, qty), true)
     if not ok then restock() return nil, 'ERR_NOT_ENOUGH' end
@@ -443,20 +478,28 @@ Handle('redeem:tebex', guarded(function(src, id, d)
         tid = tsrc and tsrc ~= src and GetPlayerName(tsrc) and Identify(tsrc)
         if not tid then return nil, 'ERR_TARGET_OFFLINE' end
     end
-    local row = MySQL.single.await('SELECT coins, status FROM nayzeee_coinshop_codes WHERE tbx_id = ?', { key })
+    local row = MySQL.single.await('SELECT coins, status, source FROM nayzeee_coinshop_codes WHERE tbx_id = ?', { key })
     if not row then failed(src) return nil, 'ERR_CODE_INVALID' end
     if row.status ~= 'pending' then return nil, 'ERR_CODE_USED' end
     local n = MySQL.update.await("UPDATE nayzeee_coinshop_codes SET status = 'redeemed', redeemed_by = ?, redeemed_at = NOW() WHERE tbx_id = ? AND status = 'pending'", { tid, key })
     if n ~= 1 then return nil, 'ERR_CODE_USED' end
     local balance = Wallet.Add(tid, row.coins, 'redeem', key)
+    -- rank bonus on store orders (not on admin gift codes), based on the player who redeems
+    local bonus, rank = 0, nil
+    if row.source ~= 'manual' then
+        rank = Rewards.Rank(Rewards.Spent(id))
+        bonus = rank and math.floor(row.coins * (rank.bonus or 0) / 100) or 0
+        if bonus > 0 then balance = Wallet.Add(tid, bonus, 'rank_bonus', ('%s +%d%%'):format(rank.name, rank.bonus)) end
+    end
     local gift = tsrc ~= src
-    if gift then Notify(tsrc, T('N_COINS_GIFTED', Bridge.GetName(src), row.coins, Config.General.CoinName), 'success') end
+    if gift then Notify(tsrc, T('N_COINS_GIFTED', Bridge.GetName(src), row.coins + bonus, Config.General.CoinName), 'success') end
     Webhook('redeems', gift and T('LOG_REDEEM_GIFT') or T('LOG_REDEEM'), {
         { 'Player', Who(src) }, { 'Identifier', id }, { 'Order', '`' .. key .. '`', false }, { 'Coins', row.coins },
-        gift and { 'Gifted to', Who(tsrc) } or nil,
+        bonus > 0 and { 'Rank bonus', ('%d (%s)'):format(bonus, rank.name) } or nil, gift and { 'Gifted to', Who(tsrc) } or nil,
     })
     TriggerEvent('nayzeee-coinshop:redeemed', src, id, key, row.coins, gift and tsrc or nil)
-    return { coins = gift and Wallet.Get(id) or balance, amount = row.coins, gift = gift and Bridge.GetName(tsrc) or nil }
+    return { coins = gift and Wallet.Get(id) or balance, amount = row.coins, bonus = bonus, rank = bonus > 0 and rank.name or nil,
+        gift = gift and Bridge.GetName(tsrc) or nil }
 end))
 
 Handle('redeem:promo', guarded(function(src, id, d)

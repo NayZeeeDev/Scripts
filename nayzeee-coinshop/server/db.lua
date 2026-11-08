@@ -33,6 +33,9 @@ local tables = {
         item_name VARCHAR(60) DEFAULT NULL,
         item_count INT NOT NULL DEFAULT 1,
         weapon_name VARCHAR(60) DEFAULT NULL,
+        ace_group VARCHAR(60) DEFAULT NULL,
+        days INT DEFAULT NULL,
+        perks TEXT,
         trending TINYINT(1) NOT NULL DEFAULT 0,
         custom_category VARCHAR(60) DEFAULT NULL,
         stock INT DEFAULT NULL,
@@ -140,6 +143,41 @@ local tables = {
         PRIMARY KEY (identifier, item_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
 
+    [[CREATE TABLE IF NOT EXISTS nayzeee_coinshop_sales (
+        id INT NOT NULL AUTO_INCREMENT,
+        name VARCHAR(100) NOT NULL,
+        percent INT NOT NULL DEFAULT 10,
+        scope VARCHAR(80) NOT NULL DEFAULT 'all',
+        starts_at TIMESTAMP NULL DEFAULT NULL,
+        ends_at TIMESTAMP NULL DEFAULT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+    [[CREATE TABLE IF NOT EXISTS nayzeee_coinshop_daily (
+        identifier VARCHAR(80) NOT NULL,
+        streak INT NOT NULL DEFAULT 0,
+        last_claim DATE DEFAULT NULL,
+        claims INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (identifier)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+    [[CREATE TABLE IF NOT EXISTS nayzeee_coinshop_memberships (
+        id INT NOT NULL AUTO_INCREMENT,
+        identifier VARCHAR(80) NOT NULL,
+        license VARCHAR(80) DEFAULT NULL,
+        item_id VARCHAR(60) NOT NULL,
+        name VARCHAR(100) DEFAULT NULL,
+        ace_group VARCHAR(60) DEFAULT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        ended TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_member (identifier, item_id),
+        KEY k_expiry (ended, expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
     [[CREATE TABLE IF NOT EXISTS nayzeee_coinshop_settings (
         `key` VARCHAR(50) NOT NULL,
         `value` TEXT NOT NULL,
@@ -169,6 +207,9 @@ local columns = {
     { 'nayzeee_coinshop_deals', 'featured',     'TINYINT(1) NOT NULL DEFAULT 1' },
     { 'nayzeee_coinshop_deals', 'enabled',      'TINYINT(1) NOT NULL DEFAULT 1' },
     { 'nayzeee_coinshop_deals', 'sort',         'INT NOT NULL DEFAULT 0' },
+    { 'nayzeee_coinshop_items', 'ace_group',    'VARCHAR(60) DEFAULT NULL' },
+    { 'nayzeee_coinshop_items', 'days',         'INT DEFAULT NULL' },
+    { 'nayzeee_coinshop_items', 'perks',        'TEXT' },
 }
 
 local function migrate()
@@ -227,10 +268,10 @@ local function seed()
     if (MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_coinshop_items') or 0) == 0 then
         local q = {}
         for i, it in ipairs(SeedData.Items) do
-            q[#q + 1] = { query = [[INSERT INTO nayzeee_coinshop_items (id, name, description, category, tags, price, images, spawn_name, item_name, item_count, weapon_name, trending, sort)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], values = {
-                it.id, it.name, it.desc or '', it.category, json.encode(it.tags or {}), it.price, json.encode(it.image ~= '' and { it.image } or {}),
-                it.spawn, it.item, it.count or 1, it.weapon, it.trending and 1 or 0, i,
+            q[#q + 1] = { query = [[INSERT INTO nayzeee_coinshop_items (id, name, description, category, tags, price, images, spawn_name, item_name, item_count,
+                weapon_name, ace_group, days, perks, trending, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)]], values = {
+                it.id, it.name, it.desc or '', it.category, json.encode(it.tags or {}), it.price, json.encode((it.image or '') ~= '' and { it.image } or {}),
+                it.spawn, it.item, it.count or 1, it.weapon, it.group, it.days, json.encode(it.perks or {}), it.trending and 1 or 0, i,
             } }
         end
         MySQL.transaction.await(q)

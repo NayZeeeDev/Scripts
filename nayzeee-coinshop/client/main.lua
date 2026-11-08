@@ -21,6 +21,7 @@ end
 local function closeShop(fromNui)
     if not open then return end
     open = false
+    if ShowroomStop then ShowroomStop() end
     SetNuiFocus(false, false)
     if Config.General.Blur then TriggerScreenblurFadeOut(200) end
     if not fromNui then UI('close') end
