@@ -5,7 +5,7 @@
 
 const ADM_TABS = [
   ['dashboard', 'fa-chart-simple', 'ADM_DASHBOARD'], ['packages', 'fa-boxes-stacked', 'ADM_PACKAGES'], ['categories', 'fa-layer-group', 'ADM_CATEGORIES'],
-  ['deals', 'fa-tags', 'ADM_DEALS'], ['players', 'fa-users', 'ADM_PLAYERS'], ['codes', 'fa-ticket', 'ADM_CODES'], ['logs', 'fa-list', 'ADM_LOGS'], ['appearance', 'fa-palette', 'ADM_APPEARANCE'],
+  ['deals', 'fa-layer-group', 'ADM_DEALS'], ['players', 'fa-users', 'ADM_PLAYERS'], ['codes', 'fa-ticket', 'ADM_CODES'], ['logs', 'fa-list', 'ADM_LOGS'], ['appearance', 'fa-palette', 'ADM_APPEARANCE'],
 ];
 const ICONS = ['fa-car-side', 'fa-car', 'fa-motorcycle', 'fa-truck-monster', 'fa-helicopter', 'fa-plane', 'fa-ship', 'fa-box-open', 'fa-boxes-stacked', 'fa-gift',
   'fa-crosshairs', 'fa-gun', 'fa-bomb', 'fa-shield-halved', 'fa-screwdriver-wrench', 'fa-toolbox', 'fa-hammer', 'fa-kit-medical', 'fa-burger', 'fa-mug-hot',
@@ -114,12 +114,21 @@ ADMV.categories = () => `<div class="toolbar"><p class="hint" style="flex:1">${e
 ADMV.deals = () => {
   const list = S.adm.deals;
   if (!list) return loading();
+  const status = d => !d.enabled ? `<span class="chip">${esc(t('ADM_HIDDEN'))}</span>`
+    : d.remaining == null ? `<span class="chip teal">${esc(t('ADM_ALWAYS'))}</span>`
+    : d.remaining > 0 ? `<span class="chip amber"><i class="fas fa-clock"></i>${esc(clock(d.remaining))}</span>` : `<span class="chip red">${esc(t('UI_EXPIRED'))}</span>`;
   return `<div class="toolbar"><p class="hint" style="flex:1">${esc(t('ADM_DEAL_TXT'))}</p><button class="btn btn-teal" data-a="dealEdit"><i class="fas fa-plus"></i>${esc(t('ADM_NEW_DEAL'))}</button></div>
-    <div class="panel">${admTable([[t('UI_DEAL')], [t('UI_PACKAGES'), 'num'], [t('TH_PRICE'), 'num'], [t('TH_STATUS')], ['', 'act']], list.map(d => `<tr>
-      <td><div class="cell"><div class="thumb">${d.image ? `<img src="${esc(d.image)}">` : '<i class="fas fa-gift"></i>'}</div><div class="cell-t"><b>${esc(d.name)}</b><span>${esc(d.id)}</span></div></div></td>
-      <td class="num">${d.items.length}</td><td class="num"><b>${num(d.price)}</b> <span class="muted">/ ${num(d.value)}</span></td>
-      <td>${d.remaining == null ? `<span class="chip">${esc(t('UI_NO_EXPIRY'))}</span>` : d.remaining > 0 ? `<span class="chip teal">${esc(t('ADM_ENDS', clock(d.remaining)))}</span>` : `<span class="chip red">${esc(t('UI_EXPIRED'))}</span>`}</td>
-      <td class="act"><button class="icon-btn" data-a="dealEdit" data-v="${esc(d.id)}"><i class="fas fa-pen"></i></button><button class="icon-btn danger" data-a="dealDelete" data-v="${esc(d.id)}"><i class="fas fa-trash"></i></button></td></tr>`), t('UI_NO_DEALS'))}</div>`;
+    <div class="panel">${admTable([[t('UI_DEAL')], [t('TH_CONTENTS')], [t('TH_PRICE'), 'num'], [t('TH_SOLD'), 'num'], [t('TH_STOCK'), 'num'], [t('TH_STATUS')], [t('UI_FEATURED')], [t('TH_ON')], ['', 'act']], list.map(d => `<tr>
+      <td><div class="cell"><div class="thumb">${dealCover(d) ? `<img src="${esc(dealCover(d))}" loading="lazy">` : '<i class="fas fa-gift"></i>'}</div><div class="cell-t"><b>${esc(d.name)}</b><span>${esc(d.id)}</span></div></div></td>
+      <td><div class="mini-thumbs">${d.items.slice(0, 5).map(i => `<span class="mt" title="${esc(i.name)} x${i.qty}">${i.image ? `<img src="${esc(i.image)}" loading="lazy">` : `<i class="fas ${CAT_ICON[i.category]}"></i>`}${i.qty > 1 ? `<em>${i.qty}</em>` : ''}</span>`).join('')}${d.items.length > 5 ? `<span class="mt more">+${d.items.length - 5}</span>` : ''}${d.cash > 0 ? `<span class="chip green">$${num(d.cash)}</span>` : ''}</div></td>
+      <td class="num"><b>${num(d.price)}</b> <span class="muted">/ ${num(d.value)}</span></td>
+      <td class="num">${num(d.sold)}</td>
+      <td class="num">${d.stock == null ? '∞' : num(d.stock)}${d.playerLimit ? `<div class="muted" style="font-size:9.5px">${esc(t('UI_PER_PLAYER', d.playerLimit))}</div>` : ''}</td>
+      <td>${status(d)}</td>
+      <td><button class="toggle ${d.featured ? 'on' : ''}" data-a="dealToggle" data-v="${esc(d.id)}|featured"></button></td>
+      <td><button class="toggle ${d.enabled ? 'on' : ''}" data-a="dealToggle" data-v="${esc(d.id)}|enabled"></button></td>
+      <td class="act"><button class="icon-btn" data-a="dealMove" data-v="${esc(d.id)}|up"><i class="fas fa-arrow-up"></i></button><button class="icon-btn" data-a="dealMove" data-v="${esc(d.id)}|down"><i class="fas fa-arrow-down"></i></button>
+        <button class="icon-btn" data-a="dealEdit" data-v="${esc(d.id)}"><i class="fas fa-pen"></i></button><button class="icon-btn danger" data-a="dealDelete" data-v="${esc(d.id)}"><i class="fas fa-trash"></i></button></td></tr>`), t('UI_NO_DEALS'))}</div>`;
 };
 
 ADMV.players = () => {
@@ -225,29 +234,50 @@ MODALS.cat = () => {
     `<div class="sp"></div><button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CANCEL'))}</button><button class="btn btn-teal" data-a="catSave"><i class="fas fa-floppy-disk"></i>${esc(t('UI_SAVE'))}</button>`);
 };
 
-// ── deal editor ──────────────────────────────────────────────────────────
+// ── bundle editor ────────────────────────────────────────────────────────
+function dfValue(f) { return f.items.reduce((s, e) => { const it = item(e.id); return s + (it ? it.basePrice * (it.single ? 1 : Math.max(1, Number(e.qty) || 1)) : 0); }, 0); }
+
 MODALS.dealEdit = () => {
   const f = S.modal.f;
-  const sel = new Set(f.items);
+  const sel = new Map(f.items.map(e => [e.id, e]));
   const q = (f.q || '').toLowerCase();
-  const value = f.items.reduce((s, id) => s + ((item(id) || {}).basePrice || 0), 0);
-  const inp = (k, l, ph, hint) => `<div class="field"><label>${esc(t(l))}${hint ? ` <small>${esc(t(hint))}</small>` : ''}</label><input class="input" id="df-${k}" value="${esc(f[k] ?? '')}" data-f="modal.f.${k}" data-r placeholder="${esc(ph || '')}"></div>`;
-  return modalFrame('w-lg', `<i class="fas fa-tags"></i>${esc(f.id ? t('DF_EDIT') : t('ADM_NEW_DEAL'))}`, `<div class="m-body" data-keep="dealed"><div class="editor">
+  const value = dfValue(f);
+  const price = Number(f.price) || 0;
+  const save = value > 0 && price < value ? Math.round((1 - price / value) * 100) : 0;
+  const cashOn = (S.cfg.maxCash || 0) > 0;
+  const inp = (k, l, ph, hint, attrs) => `<div class="field"><label>${esc(t(l))}${hint ? ` <small>${esc(t(hint))}</small>` : ''}</label><input class="input" id="df-${k}" value="${esc(f[k] ?? '')}" data-f="modal.f.${k}" data-r placeholder="${esc(ph || '')}" ${attrs || ''}></div>`;
+  const prev = { id: 'preview', name: f.name || t('PF_NAME'), price, value, cash: cashOn ? Number(f.cash) || 0 : 0, image: f.image,
+    items: f.items.map(e => item(e.id)).filter(Boolean).map(i => ({ image: i.images[0], category: i.category, name: i.name })) };
+  const picks = S.items.filter(i => !q || i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q));
+  return modalFrame('w-xl', `<i class="fas fa-layer-group"></i>${esc(f.id ? t('DF_EDIT') : t('ADM_NEW_DEAL'))}`, `<div class="m-body" data-keep="dealed"><div class="editor bundle-ed">
       <div class="editor-form">
         ${inp('name', 'PF_NAME', 'Starter Bundle')}
-        <div class="grid2">${inp('price', 'PF_PRICE', '3500')}${inp('hours', 'DF_HOURS', f.id ? t('PF_KEEP') : '168', 'DF_HOURS_HINT')}</div>
+        <div class="grid2">${inp('price', 'PF_PRICE', value ? String(Math.round(value * .8)) : '3500', 'DF_PRICE_HINT', 'inputmode="numeric"')}${inp('hours', 'DF_HOURS', f.id ? t('PF_KEEP') : '', 'DF_HOURS_HINT', 'inputmode="numeric"')}</div>
+        <div class="suggest">${[10, 20, 30, 40].map(p => `<button class="${save === p ? 'on' : ''}" data-a="dfSuggest" data-v="${p}" ${value ? '' : 'disabled'}>${esc(t('DF_SUGGEST', p + '%'))}</button>`).join('')}</div>
+        <div class="grid2">${inp('stock', 'DF_STOCK', '∞', 'DF_STOCK_HINT', 'inputmode="numeric"')}${inp('playerLimit', 'DF_LIMIT', '∞', 'DF_LIMIT_HINT', 'inputmode="numeric"')}</div>
+        ${cashOn ? (S.cfg.framework === 'standalone' ? `<p class="hint"><i class="fas fa-circle-info"></i> ${esc(t('DF_CASH_STANDALONE'))}</p>` : inp('cash', 'DF_CASH', '0', 'DF_CASH_HINT', 'inputmode="numeric"')) : ''}
         ${inp('image', 'DF_IMAGE', 'https://...', 'PF_OPTIONAL')}
-        <div class="field"><label>${esc(t('PF_DESC'))}</label><textarea class="textarea" id="df-desc" data-f="modal.f.description" data-r>${esc(f.description || '')}</textarea></div>
-        <div class="confirm-box"><div class="confirm-line"><span>${esc(t('DF_VALUE'))}</span><b>${coin()}${num(value)}</b></div><div class="confirm-line"><span>${esc(t('DF_SAVING'))}</span><b>${value > 0 && Number(f.price) < value ? Math.round((1 - Number(f.price) / value) * 100) + '%' : '—'}</b></div></div>
+        <div class="field"><label>${esc(t('PF_DESC'))}</label><textarea class="textarea" id="df-desc" data-f="modal.f.description" data-r style="min-height:58px">${esc(f.description || '')}</textarea></div>
+        <div class="grid2"><div class="check-row" data-a="dfFlag" data-v="featured"><div><b>${esc(t('DF_FEATURED'))}</b><span>${esc(t('DF_FEATURED_HINT'))}</span></div><span class="toggle ${f.featured ? 'on' : ''}"></span></div>
+          <div class="check-row" data-a="dfFlag" data-v="enabled"><div><b>${esc(t('DF_VISIBLE'))}</b><span>${esc(t('DF_VISIBLE_HINT'))}</span></div><span class="toggle ${f.enabled ? 'on' : ''}"></span></div></div>
       </div>
       <div class="editor-form">
-        <div class="field"><label>${esc(t('DF_ITEMS', f.items.length, S.cfg.dealMaxItems))}</label><input class="input" id="df-q" value="${esc(f.q || '')}" data-f="modal.f.q" data-r placeholder="${esc(t('ADM_SEARCH_PKG'))}"></div>
-        <div class="pick-list" style="max-height:330px">${S.items.filter(i => !q || i.name.toLowerCase().includes(q)).sort((a, b) => sel.has(b.id) - sel.has(a.id)).map(i => `<div class="pick ${sel.has(i.id) ? 'on' : ''}" data-a="dfPick" data-v="${esc(i.id)}"><span class="cb"><i class="fas fa-check"></i></span>
-          <div class="thumb">${i.images[0] ? `<img src="${esc(i.images[0])}">` : `<i class="fas ${CAT_ICON[i.category]}"></i>`}</div><div class="cell-t"><b>${esc(i.name)}</b><span>${esc(t('CAT_' + i.category.toUpperCase()))}</span></div><span class="muted">${num(i.basePrice)}</span></div>`).join('')}</div>
+        <div class="field"><label>${esc(t('DF_SELECTED'))} <small>${esc(t('DF_ITEMS', f.items.length, S.cfg.dealMaxItems))}</small></label>
+          <div class="pick-list sel-list">${f.items.length ? f.items.map((e, i) => { const it = item(e.id); if (!it) return ''; return `<div class="pick on" style="cursor:default">
+            <div class="thumb">${it.images[0] ? `<img src="${esc(it.images[0])}" loading="lazy">` : `<i class="fas ${CAT_ICON[it.category]}"></i>`}</div>
+            <div class="cell-t"><b>${esc(it.name)}</b><span>${coin()} ${num(it.basePrice * (it.single ? 1 : Math.max(1, Number(e.qty) || 1)))}${!it.single && it.itemCount > 1 ? ` · ${num(it.itemCount * Math.max(1, Number(e.qty) || 1))} ${esc(t('UI_PCS'))}` : ''}</span></div>
+            ${it.single ? '<span class="chip">x1</span>' : `<div class="qty sm"><button data-a="dfQty" data-v="${i}|-1"><i class="fas fa-minus"></i></button><input id="dfq-${i}" value="${esc(e.qty)}" data-f="modal.f.items.${i}.qty" data-live="dfQtyInput" data-r inputmode="numeric"><button data-a="dfQty" data-v="${i}|1"><i class="fas fa-plus"></i></button></div>`}
+            <button class="icon-btn danger" data-a="dfPick" data-v="${esc(e.id)}"><i class="fas fa-xmark"></i></button></div>`; }).join('') : `<div class="empty" style="padding:22px"><span>${esc(t('DF_NONE_SELECTED'))}</span></div>`}</div></div>
+        <div class="field"><label>${esc(t('UI_PACKAGES'))} <small>${esc(t('DF_PICK_HINT'))}</small></label><div class="lsearch-in"><i class="fas fa-magnifying-glass"></i><input class="input" id="df-q" value="${esc(f.q || '')}" data-f="modal.f.q" data-r placeholder="${esc(t('ADM_SEARCH_PKG'))}"></div></div>
+        <div class="pick-list" style="max-height:236px">${picks.map(i => `<div class="pick ${sel.has(i.id) ? 'on' : ''}" data-a="dfPick" data-v="${esc(i.id)}"><span class="cb"><i class="fas fa-check"></i></span>
+          <div class="thumb">${i.images[0] ? `<img src="${esc(i.images[0])}" loading="lazy">` : `<i class="fas ${CAT_ICON[i.category]}"></i>`}</div><div class="cell-t"><b>${esc(i.name)}</b><span>${esc(t('CAT_' + i.category.toUpperCase()))}${i.enabled === false ? ' · ' + esc(t('ADM_HIDDEN')) : ''}</span></div><span class="muted">${num(i.basePrice)}</span></div>`).join('') || `<div class="empty" style="padding:22px"><span>${esc(t('UI_NO_RESULTS'))}</span></div>`}</div>
       </div>
+      <div class="editor-prev"><span class="hint">${esc(t('PF_PREVIEW'))}</span>${bundleCard(prev)}
+        <div class="breakdown col"><div><span>${esc(t('DF_VALUE'))}</span><b>${coin()}${num(value)}</b></div><div><span>${esc(t('UI_YOU_PAY'))}</span><b>${coin()}${num(price)}</b></div>
+          <div class="save"><span>${esc(t('DF_SAVING'))}</span><b>${save ? save + '%' : '—'}</b></div></div></div>
     </div></div>`,
     `${f.id ? `<button class="btn btn-red" data-a="dealDelete" data-v="${esc(f.id)}"><i class="fas fa-trash"></i>${esc(t('UI_DELETE'))}</button>` : ''}<div class="sp"></div>
-     <button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CANCEL'))}</button><button class="btn btn-teal" data-a="dealSave"><i class="fas fa-floppy-disk"></i>${esc(t('UI_SAVE'))}</button>`);
+     <button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CANCEL'))}</button><button class="btn btn-teal" data-a="dealSave" ${S.busy ? 'disabled' : ''}><i class="fas fa-floppy-disk"></i>${esc(t('UI_SAVE'))}</button>`);
 };
 
 // ── coins + ledger + code modals ─────────────────────────────────────────
@@ -383,31 +413,74 @@ ACT.catMove = async v => {
 
 ACT.dealEdit = v => {
   const d = v ? (S.adm.deals || []).find(x => x.id === v) : null;
-  openModal('dealEdit', { f: d ? { id: d.id, name: d.name, price: String(d.price), image: d.image, description: d.description, items: d.itemIds.slice(), hours: '' }
-    : { items: [], price: '', hours: '168', image: '', description: '' } });
+  openModal('dealEdit', { f: d ? {
+    id: d.id, name: d.name, price: String(d.price), image: d.image, description: d.description, hours: '',
+    items: (d.entries || d.items).map(e => ({ id: e.id, qty: String(e.qty || 1) })),
+    stock: d.stock != null ? String(d.stock) : '', playerLimit: d.playerLimit ? String(d.playerLimit) : '', cash: d.cash ? String(d.cash) : '',
+    featured: d.featured !== false, enabled: d.enabled !== false,
+  } : { items: [], price: '', hours: '', image: '', description: '', stock: '', playerLimit: '', cash: '', featured: true, enabled: true } });
   render();
 };
 ACT.dfPick = v => {
   const f = S.modal.f;
-  const i = f.items.indexOf(v);
+  const i = f.items.findIndex(e => e.id === v);
   if (i >= 0) f.items.splice(i, 1);
-  else if (f.items.length < S.cfg.dealMaxItems) f.items.push(v);
+  else if (f.items.length < S.cfg.dealMaxItems) f.items.push({ id: v, qty: '1' });
   else toast(t('ERR_DEAL_ITEMS', S.cfg.dealMaxItems), true);
   render();
 };
+ACT.dfQty = v => {
+  const [i, dir] = v.split('|').map(Number);
+  const e = S.modal.f.items[i];
+  if (e) { e.qty = String(Math.max(1, Math.min(S.cfg.maxQty, (Number(e.qty) || 1) + dir))); render(); }
+};
+ACT.dfQtyInput = (_, el) => {
+  const i = Number(el.id.replace('dfq-', ''));
+  const e = S.modal.f.items[i];
+  const n = Math.floor(Number(e && e.qty));
+  if (e && n > S.cfg.maxQty) e.qty = String(S.cfg.maxQty);
+};
+ACT.dfFlag = v => { S.modal.f[v] = !S.modal.f[v]; render(); };
+ACT.dfSuggest = v => { const f = S.modal.f; const value = dfValue(f); if (value) { f.price = String(Math.max(0, Math.round(value * (1 - Number(v) / 100)))); render(); } };
 ACT.dealSave = async () => {
   const f = S.modal.f;
-  const r = await call('admin:deal:save', Object.assign({}, f, { keepExpiry: !!f.id && f.hours === '' }), { success: t('ADM_SAVED') });
+  const payload = Object.assign({}, f, {
+    items: f.items.map(e => ({ id: e.id, qty: Math.max(1, Math.floor(Number(e.qty) || 1)) })),
+    stock: f.stock === '' ? null : f.stock, playerLimit: f.playerLimit === '' ? null : f.playerLimit, cash: f.cash === '' ? 0 : f.cash,
+    keepExpiry: !!f.id && f.hours === '', q: undefined,
+  });
+  const r = await call('admin:deal:save', payload, { success: t('ADM_SAVED') });
   if (!r) return;
   closeModal();
   await reloadCatalog();
   loadAdmin('deals');
 };
-ACT.dealDelete = v => confirmBox(t('ADM_DELETE_DEAL'), t('ADM_DELETE_TXT', v), async () => {
-  const r = await call('admin:deal:delete', { id: v }, { success: t('ADM_DELETED') });
-  if (r) { await reloadCatalog(); loadAdmin('deals'); }
-  return !!r;
-}, { danger: true, ok: t('UI_DELETE') });
+ACT.dealToggle = async v => {
+  const [id, field] = v.split('|');
+  const d = (S.adm.deals || []).find(x => x.id === id);
+  if (d) { d[field] = !d[field]; render(); }
+  const r = await req('admin:deal:toggle', { id, field });
+  if (r.error) { toast(errText(r), true); if (d) d[field] = !d[field]; render(); return; }
+  reloadCatalog();
+};
+ACT.dealMove = async v => {
+  const [id, dir] = v.split('|');
+  const list = S.adm.deals || [];
+  const i = list.findIndex(x => x.id === id), j = i + (dir === 'up' ? -1 : 1);
+  if (i < 0 || j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  render();
+  await req('admin:deal:move', { id, dir });
+  reloadCatalog();
+};
+ACT.dealDelete = v => {
+  const d = (S.adm.deals || []).find(x => x.id === v);
+  confirmBox(t('ADM_DELETE_DEAL'), t('ADM_DELETE_TXT', d ? d.name : v), async () => {
+    const r = await call('admin:deal:delete', { id: v }, { success: t('ADM_DELETED') });
+    if (r) { await reloadCatalog(); loadAdmin('deals'); }
+    return !!r;
+  }, { danger: true, ok: t('UI_DELETE') });
+};
 
 ACT.coinsEdit = v => {
   const p = (S.adm.players || []).find(x => x.identifier === v);

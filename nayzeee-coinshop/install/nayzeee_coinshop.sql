@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS nayzeee_coinshop_deals (
         price INT NOT NULL DEFAULT 0,
         image VARCHAR(500) NOT NULL DEFAULT '',
         items TEXT,
+        stock INT DEFAULT NULL,
+        player_limit INT DEFAULT NULL,
+        cash INT NOT NULL DEFAULT 0,
+        featured TINYINT(1) NOT NULL DEFAULT 1,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        sort INT NOT NULL DEFAULT 0,
         expires_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)

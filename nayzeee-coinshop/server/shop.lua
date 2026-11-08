@@ -14,6 +14,25 @@ DefaultSettings = {
 
 local function bool(v) return v == 1 or v == true end
 
+-- Vehicles and framework weapons are always bought one at a time
+function Catalog.IsSingle(it)
+    return it.category == Categories.VEHICLE or (it.category == Categories.WEAPON and (not it.itemName or it.itemName == ''))
+end
+
+-- Bundle contents are stored as [{ id, qty }]. Older rows (and FearX imports) are a plain list of ids.
+function Catalog.Entries(raw)
+    local out = {}
+    local list = type(raw) == 'table' and raw or DB.Decode(raw, {})
+    for _, e in ipairs(list or {}) do
+        if type(e) == 'string' then
+            out[#out + 1] = { id = e, qty = 1 }
+        elseif type(e) == 'table' and e.id then
+            out[#out + 1] = { id = tostring(e.id), qty = math.max(1, math.floor(tonumber(e.qty) or 1)) }
+        end
+    end
+    return out
+end
+
 local function mapItem(r)
     return {
         id = r.id, name = r.name, description = r.description or '', category = r.category,
@@ -34,9 +53,16 @@ function Catalog.Load()
     end
     Catalog.items, Catalog.byId = items, byId
     Catalog.categories = MySQL.query.await('SELECT id, name, icon, type, sort FROM nayzeee_coinshop_categories ORDER BY sort ASC, created_at ASC') or {}
-    Catalog.deals = MySQL.query.await([[SELECT id, name, description, price, image, items, UNIX_TIMESTAMP(expires_at) AS expires
-        FROM nayzeee_coinshop_deals ORDER BY created_at DESC]]) or {}
-    for _, d in ipairs(Catalog.deals) do d.items = DB.Decode(d.items, {}) end
+    local deals = MySQL.query.await([[SELECT id, name, description, price, image, items, stock, player_limit, cash, featured, enabled, sort,
+        UNIX_TIMESTAMP(expires_at) AS expires FROM nayzeee_coinshop_deals ORDER BY sort ASC, created_at DESC]]) or {}
+    for _, d in ipairs(deals) do
+        d.items = Catalog.Entries(d.items)
+        d.description, d.image = d.description or '', d.image or ''
+        d.playerLimit, d.player_limit = d.player_limit, nil
+        d.cash = tonumber(d.cash) or 0
+        d.featured, d.enabled = bool(d.featured), bool(d.enabled)
+    end
+    Catalog.deals = deals
     local sold = {}
     for _, r in ipairs(MySQL.query.await("SELECT item_id, SUM(quantity) AS n FROM nayzeee_coinshop_purchases WHERE refunded = 0 GROUP BY item_id") or {}) do
         sold[r.item_id] = tonumber(r.n) or 0
@@ -72,7 +98,7 @@ function Catalog.Items(admin)
                 salePrice = admin and it.salePrice or nil, saleEndsRaw = admin and it.saleEnds or nil,
                 images = it.images, itemCount = it.itemCount, trending = it.trending, customCategory = it.customCategory,
                 stock = it.stock, playerLimit = it.playerLimit, sold = Catalog.sold[it.id] or 0, created = it.created,
-                single = it.category == Categories.VEHICLE or (it.category == Categories.WEAPON and (not it.itemName or it.itemName == '')),
+                single = Catalog.IsSingle(it),
                 enabled = it.enabled, isNew = it.created and now - it.created < 7 * 86400 or false,
                 spawnName = it.spawnName, itemName = admin and it.itemName or nil, weaponName = admin and it.weaponName or nil,
             }
@@ -81,27 +107,36 @@ function Catalog.Items(admin)
     return out
 end
 
+-- Coin value of a bundle (packages at their normal price x quantity) and its contents for the UI
 function Catalog.DealValue(d)
     local value, list = 0, {}
-    for _, iid in ipairs(d.items) do
-        local it = Catalog.Get(iid)
+    for _, e in ipairs(d.items) do
+        local it = Catalog.Get(e.id)
         if it then
-            value = value + it.price
-            list[#list + 1] = { id = it.id, name = it.name, price = it.price, image = it.images[1], category = it.category }
+            local qty = Catalog.IsSingle(it) and 1 or e.qty
+            value = value + it.price * qty
+            list[#list + 1] = { id = it.id, name = it.name, price = it.price, image = it.images[1], category = it.category,
+                qty = qty, count = (it.itemCount or 1) * qty, single = Catalog.IsSingle(it) }
         end
     end
     return value, list
+end
+
+function Catalog.Deal(id)
+    for _, d in ipairs(Catalog.deals) do if d.id == id then return d end end
 end
 
 function Catalog.Deals(admin)
     local out, now = {}, os.time()
     for _, d in ipairs(Catalog.deals) do
         local left = d.expires and (d.expires - now) or nil
-        if admin or not left or left > 0 then
+        if admin or (d.enabled and (not left or left > 0)) then
             local value, list = Catalog.DealValue(d)
             out[#out + 1] = {
                 id = d.id, name = d.name, description = d.description, price = d.price, image = d.image,
-                items = list, itemIds = d.items, value = value, remaining = left and math.max(0, left) or nil,
+                items = list, entries = admin and d.items or nil, value = value, remaining = left and math.max(0, left) or nil,
+                stock = d.stock, playerLimit = d.playerLimit, cash = d.cash, featured = d.featured, enabled = d.enabled,
+                sold = Catalog.sold[d.id] or 0,
             }
         end
     end
@@ -148,6 +183,8 @@ Handle('boot', function(src, id)
             giftItems = Config.Gifting.Items, transfer = Config.Gifting.CoinTransfer, transferFee = Config.Gifting.TransferFee,
             transferMin = Config.Gifting.TransferMin, maxQty = Config.Shop.MaxQuantity, dealMaxItems = Config.Shop.DealMaxItems,
             tutorial = Config.UI.Tutorial, playtime = Config.Playtime.Enabled and { minutes = Config.Playtime.Minutes, coins = Config.Playtime.Coins } or nil,
+            maxCash = Config.Bundles.MaxCash or 0, heroSeconds = Config.Bundles.HeroSeconds or 0,
+            cashAccount = Config.Bundles.CashAccount or 'bank', framework = Bridge.Framework,
         },
     }
 end)
@@ -177,14 +214,16 @@ local function newPlate()
 end
 
 -- Give one package to a player. Returns ok, plate
-function Deliver(src, it, qty)
+-- spawn: spawn a bought vehicle next to the player (defaults to Config.Vehicles.SpawnOnPurchase)
+function Deliver(src, it, qty, spawn)
     qty = qty or 1
+    if spawn == nil then spawn = Config.Vehicles.SpawnOnPurchase end
     if it.category == Categories.VEHICLE then
         if not it.spawnName or it.spawnName == '' then return false end
-        local plate = Bridge.AddVehicle(src, it.spawnName, newPlate())
+        local plate = Bridge.AddVehicle(src, it.spawnName, newPlate(), spawn)
         if not plate then return false end
         Bridge.GiveKeys(src, plate)
-        TriggerClientEvent('nzc:vehicle', src, it.spawnName, plate, Config.Vehicles.SpawnOnPurchase)
+        TriggerClientEvent('nzc:vehicle', src, it.spawnName, plate, spawn)
         return true, plate
     elseif it.category == Categories.WEAPON and (not it.itemName or it.itemName == '') then
         if not it.weaponName or it.weaponName == '' then return false end
@@ -229,8 +268,7 @@ end
 local function buyItem(src, id, d)
     local it = Catalog.Get(d.id)
     if not it or not it.enabled then return nil, 'ERR_ITEM_NOT_FOUND' end
-    local single = it.category == Categories.VEHICLE or (it.category == Categories.WEAPON and (not it.itemName or it.itemName == ''))
-    local qty = single and 1 or NZC.Int(d.qty, 1, Config.Shop.MaxQuantity, 1)
+    local qty = Catalog.IsSingle(it) and 1 or NZC.Int(d.qty, 1, Config.Shop.MaxQuantity, 1)
     local tsrc, tid = target(src, id, d.gift)
     if not tsrc then return nil, tid end
 
@@ -277,50 +315,93 @@ local function buyItem(src, id, d)
 end
 
 local function buyDeal(src, id, d)
-    local deal
-    for _, x in ipairs(Catalog.deals) do if x.id == d.id then deal = x end end
-    if not deal or (deal.expires and deal.expires <= os.time()) then return nil, 'ERR_DEAL_NOT_FOUND' end
+    local deal = Catalog.Deal(d.id)
+    if not deal or not deal.enabled or (deal.expires and deal.expires <= os.time()) then return nil, 'ERR_DEAL_NOT_FOUND' end
     local value, list = Catalog.DealValue(deal)
-    if #list == 0 then return nil, 'ERR_DEAL_EMPTY' end
+    local cash = Config.Bundles.MaxCash > 0 and deal.cash or 0
+    if #list == 0 and cash <= 0 then return nil, 'ERR_DEAL_EMPTY' end
     local tsrc, tid = target(src, id, d.gift)
     if not tsrc then return nil, tid end
 
-    local ok, balance = Wallet.Take(id, deal.price, 'deal', deal.name, true)
-    if not ok then return nil, 'ERR_NOT_ENOUGH' end
-
-    local failed, failedValue, plates = {}, 0, {}
-    for _, entry in ipairs(list) do
-        local it = Catalog.Get(entry.id)
-        local good, plate = Deliver(tsrc, it, 1)
-        if good then
-            if plate then plates[#plates + 1] = plate end
-        else
-            failed[#failed + 1] = it.name
-            failedValue = failedValue + it.price
+    if deal.playerLimit and deal.playerLimit > 0 then
+        local had = tonumber(MySQL.scalar.await([[SELECT COUNT(*) FROM nayzeee_coinshop_purchases
+            WHERE identifier = ? AND kind = 'deal' AND item_id = ? AND refunded = 0]], { id, deal.id })) or 0
+        if had >= deal.playerLimit then return nil, 'ERR_LIMIT', { 0 } end
+    end
+    if deal.stock then
+        local n = MySQL.update.await('UPDATE nayzeee_coinshop_deals SET stock = stock - 1 WHERE id = ? AND stock >= 1', { deal.id })
+        if n ~= 1 then return nil, 'ERR_OUT_OF_STOCK' end
+        deal.stock = deal.stock - 1
+    end
+    local function restock()
+        if deal.stock then
+            MySQL.update.await('UPDATE nayzeee_coinshop_deals SET stock = stock + 1 WHERE id = ?', { deal.id })
+            deal.stock = deal.stock + 1
         end
     end
-    if #failed == #list then
+
+    local ok, balance = Wallet.Take(id, deal.price, 'deal', deal.name, true)
+    if not ok then restock() return nil, 'ERR_NOT_ENOUGH' end
+
+    -- packages first: one vehicle spawns next to the player, any others go straight to the garage
+    local failed, failedValue, plates, spawned = {}, 0, {}, false
+    for _, entry in ipairs(list) do
+        local it = Catalog.Get(entry.id)
+        local spawn = Config.Vehicles.SpawnOnPurchase and not spawned
+        local good, plate = Deliver(tsrc, it, entry.qty, spawn)
+        if good then
+            if plate then plates[#plates + 1] = plate if spawn then spawned = true end end
+        else
+            failed[#failed + 1] = entry.qty > 1 and ('%s x%d'):format(it.name, entry.qty) or it.name
+            failedValue = failedValue + it.price * entry.qty
+        end
+    end
+    if #list > 0 and #failed == #list then
+        restock()
         Wallet.Refund(id, deal.price, deal.name)
         return nil, 'ERR_DELIVERY'
     end
-    -- items that could not be delivered are refunded at their share of the deal price
+
+    -- cash is a bonus on top of the packages; in a cash-only bundle it is the whole bundle
+    local cashOk = true
+    if cash > 0 then
+        cashOk = Bridge.AddMoney(tsrc, cash, deal.name)
+        if not cashOk then
+            if #list == 0 then
+                restock()
+                Wallet.Refund(id, deal.price, deal.name)
+                return nil, 'ERR_DELIVERY'
+            end
+            failed[#failed + 1] = T('UI_CASH_BONUS', cash)
+            Log('^1Bundle %s: cash bonus of %d could not be added to %s, give it by hand^0', deal.id, cash, tid)
+        end
+    end
+
+    -- packages that could not be delivered are refunded at their share of the bundle price
     local refund = 0
-    if #failed > 0 and value > 0 then
+    if failedValue > 0 and value > 0 then
         refund = math.floor(deal.price * failedValue / value)
         if refund > 0 then balance = Wallet.Refund(id, refund, deal.name) end
-        Notify(src, T('N_PARTIAL', table.concat(failed, ', '), refund, Config.General.CoinName), 'error')
     end
+    if #failed > 0 then Notify(src, T('N_PARTIAL', table.concat(failed, ', '), refund, Config.General.CoinName), 'error') end
 
     record(id, src, 'deal', deal.id, deal.name, 1, deal.price - refund, tsrc, tid, plates[1])
     Catalog.sold[deal.id] = (Catalog.sold[deal.id] or 0) + 1
     local gift = tsrc ~= src
     if gift then Notify(tsrc, T('N_GIFT_RECEIVED', Bridge.GetName(src), deal.name), 'success') end
-    Webhook('purchases', T('LOG_DEAL'), {
-        { 'Player', Who(src) }, { 'Identifier', id }, { 'Deal', ('%s (`%s`)'):format(deal.name, deal.id), false },
+    TriggerEvent('nayzeee-coinshop:purchased', src, id, deal.id, 1, deal.price - refund, gift and tsrc or nil)
+    local contents = {}
+    for _, e in ipairs(list) do contents[#contents + 1] = ('%s x%d'):format(e.name, e.qty) end
+    if cash > 0 then contents[#contents + 1] = T('UI_CASH_BONUS', cash) end
+    Webhook('purchases', gift and T('LOG_DEAL_GIFT') or T('LOG_DEAL'), {
+        { 'Player', Who(src) }, { 'Identifier', id }, { 'Bundle', ('%s (`%s`)'):format(deal.name, deal.id), false },
+        { 'Contents', table.concat(contents, ', '), false },
         { 'Price', ('%d %s'):format(deal.price - refund, Config.General.CoinName) }, { 'Balance', balance },
         gift and { 'Gifted to', Who(tsrc) } or nil, #failed > 0 and { 'Not delivered', table.concat(failed, ', '), false } or nil,
+        #plates > 0 and { 'Plates', table.concat(plates, ', ') } or nil,
     })
-    return { coins = balance, failed = failed, refund = refund, gift = gift and Bridge.GetName(tsrc) or nil }
+    return { coins = balance, failed = failed, refund = refund, gift = gift and Bridge.GetName(tsrc) or nil, plates = plates,
+        stock = deal.stock, cash = cashOk and cash or 0, contents = contents }
 end
 
 local function guarded(fn)

@@ -11,7 +11,7 @@
     ██║     ██║   ██║██║██║╚██╗██║╚════██║██╔══██║██║   ██║██╔═══╝
     ╚██████╗╚██████╔╝██║██║ ╚████║███████║██║  ██║╚██████╔╝██║
      ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
-    nayzeee-coinshop · v1.0.0
+    nayzeee-coinshop · v1.1.0
     Discord: discord.gg/nayzeeedev  ·  Docs: nayzeee-dev.gitbook.io/docs
 
     Server-only settings (admins, webhooks, Discord bot token) live in server_config.lua
@@ -111,10 +111,23 @@ Config.Playtime = {
 -- |___/_||_|\___/|_|
 -- ======================================================================
 Config.Shop = {
-    MaxQuantity    = 25,                                     -- Highest amount of one item a player can buy at once
-    DealMaxItems   = 10,                                     -- Max packages in one deal
+    MaxQuantity    = 25,                                     -- Highest amount of one item a player can buy at once (also the max per package in a bundle)
+    DealMaxItems   = 10,                                     -- Max packages in one bundle
     HistorySize    = 50,                                     -- Rows in "My purchases"
     PurchaseDelay  = 750,                                    -- ms between purchases per player
+}
+
+-- ======================================================================
+--  ___ _   _ _  _ ___  _    ___ ___
+-- | _ ) | | | \| |   \| |  | __/ __|
+-- | _ \ |_| | .` | |) | |__| _|\__ \
+-- |___/\___/|_|\_|___/|____|___|___/
+-- ======================================================================
+-- Admins build bundles in the shop: Admin panel -> Bundles -> New bundle.
+Config.Bundles = {
+    CashAccount = 'bank',                                    -- Account the optional cash bonus goes to (ESX / QBCore / Qbox: 'bank' or 'money' / 'cash')
+    MaxCash     = 10000000,                                  -- Highest cash bonus an admin can put in one bundle (0 = turn cash bonuses off)
+    HeroSeconds = 7,                                         -- Seconds between featured bundles on the home page (0 = no auto rotate)
 }
 
 -- ======================================================================

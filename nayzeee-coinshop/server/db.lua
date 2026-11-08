@@ -60,6 +60,12 @@ local tables = {
         price INT NOT NULL DEFAULT 0,
         image VARCHAR(500) NOT NULL DEFAULT '',
         items TEXT,
+        stock INT DEFAULT NULL,
+        player_limit INT DEFAULT NULL,
+        cash INT NOT NULL DEFAULT 0,
+        featured TINYINT(1) NOT NULL DEFAULT 1,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        sort INT NOT NULL DEFAULT 0,
         expires_at TIMESTAMP NULL DEFAULT NULL,
         created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
@@ -151,6 +157,29 @@ local function exists(tbl)
     return (MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', { tbl }) or 0) > 0
 end
 
+local function hasColumn(tbl, col)
+    return (MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', { tbl, col }) or 0) > 0
+end
+
+-- Columns added after v1.0.0. Added one by one so it works on MySQL and MariaDB.
+local columns = {
+    { 'nayzeee_coinshop_deals', 'stock',        'INT DEFAULT NULL' },
+    { 'nayzeee_coinshop_deals', 'player_limit', 'INT DEFAULT NULL' },
+    { 'nayzeee_coinshop_deals', 'cash',         'INT NOT NULL DEFAULT 0' },
+    { 'nayzeee_coinshop_deals', 'featured',     'TINYINT(1) NOT NULL DEFAULT 1' },
+    { 'nayzeee_coinshop_deals', 'enabled',      'TINYINT(1) NOT NULL DEFAULT 1' },
+    { 'nayzeee_coinshop_deals', 'sort',         'INT NOT NULL DEFAULT 0' },
+}
+
+local function migrate()
+    for _, c in ipairs(columns) do
+        if not hasColumn(c[1], c[2]) then
+            local ok, err = pcall(MySQL.query.await, ('ALTER TABLE %s ADD COLUMN `%s` %s'):format(c[1], c[2], c[3]))
+            if ok then Log('Added column %s.%s', c[1], c[2]) else Log('^1Could not add column %s.%s: %s^0', c[1], c[2], tostring(err)) end
+        end
+    end
+end
+
 local function flag(key)
     return MySQL.scalar.await('SELECT `value` FROM nayzeee_coinshop_settings WHERE `key` = ?', { key })
 end
@@ -208,8 +237,11 @@ local function seed()
     end
     if (MySQL.scalar.await('SELECT COUNT(*) FROM nayzeee_coinshop_deals') or 0) == 0 then
         for _, d in ipairs(SeedData.Deals) do
-            MySQL.insert.await('INSERT INTO nayzeee_coinshop_deals (id, name, description, price, image, items, expires_at) VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? DAY))',
-                { d.id, d.name, d.description, d.price, d.image, json.encode(d.items), d.days })
+            local entries = {}
+            for _, e in ipairs(d.items) do entries[#entries + 1] = type(e) == 'table' and e or { id = e, qty = 1 } end
+            MySQL.insert.await([[INSERT INTO nayzeee_coinshop_deals (id, name, description, price, image, items, featured, sort, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, 1, DATE_ADD(NOW(), INTERVAL ? DAY))]],
+                { d.id, d.name, d.description, d.price, d.image, json.encode(entries), d.days })
         end
     end
     setFlag('_seeded')
@@ -221,6 +253,7 @@ MySQL.ready(function()
         local ok, err = pcall(MySQL.query.await, q)
         if not ok then Log('^1Table setup failed: %s^0', tostring(err)) return end
     end
+    migrate()
     importFearx()
     seed()
     DB.ready = true

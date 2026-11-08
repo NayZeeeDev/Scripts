@@ -148,6 +148,27 @@ function Bridge.GiveWeapon(src, weapon, ammo)
     return false
 end
 
+-- ── money (bundle cash bonus) ───────────────────────────────────────────
+-- Returns true when the money was added
+function Bridge.AddMoney(src, amount, reason)
+    amount = math.floor(tonumber(amount) or 0)
+    if amount <= 0 then return true end
+    local account = Config.Bundles.CashAccount or 'bank'
+    if Bridge.Framework == 'esx' then
+        local x = esxPlayer(src)
+        if not x then return false end
+        if account == 'cash' then account = 'money' end
+        x.addAccountMoney(account, amount, reason)
+        return true
+    elseif Bridge.Framework == 'qbcore' or Bridge.Framework == 'qbox' then
+        local p = qbPlayer(src)
+        if not p then return false end
+        if account == 'money' then account = 'cash' end
+        return p.Functions.AddMoney(account, amount, reason) ~= false
+    end
+    return false   -- standalone: add your own money export here
+end
+
 -- ── vehicles ────────────────────────────────────────────────────────────
 function Bridge.PlateExists(plate)
     if Bridge.Framework == 'standalone' then return false end
@@ -157,7 +178,9 @@ function Bridge.PlateExists(plate)
 end
 
 -- Store a purchased vehicle. Returns the plate or nil.
-function Bridge.AddVehicle(src, model, plate)
+-- spawned = true when the vehicle is spawned next to the player (stored as "out"), false = parked in the garage
+function Bridge.AddVehicle(src, model, plate, spawned)
+    if spawned == nil then spawned = Config.Vehicles.SpawnOnPurchase end
     local g = Bridge.Garage
     local hash = joaat(model)
     if g == 'jg-advancedgarages' then
@@ -180,7 +203,7 @@ function Bridge.AddVehicle(src, model, plate)
         if not x then return nil end
         local props = json.encode({ model = hash, plate = plate, fuelLevel = 100.0, bodyHealth = 1000.0, engineHealth = 1000.0 })
         MySQL.insert.await('INSERT INTO owned_vehicles (owner, plate, vehicle, type, stored) VALUES (?, ?, ?, ?, ?)',
-            { x.identifier, plate, props, Config.Vehicles.Type, Config.Vehicles.SpawnOnPurchase and 0 or 1 })
+            { x.identifier, plate, props, Config.Vehicles.Type, spawned and 0 or 1 })
         return plate
     elseif Bridge.Framework == 'qbox' and started('qbx_vehicles') then
         local p = qbPlayer(src)
@@ -191,7 +214,7 @@ function Bridge.AddVehicle(src, model, plate)
         local p = qbPlayer(src)
         if not p then return nil end
         MySQL.insert.await('INSERT INTO player_vehicles (license, citizenid, vehicle, hash, mods, plate, garage, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            { p.PlayerData.license, p.PlayerData.citizenid, model, hash, '{}', plate, Config.Vehicles.Garage, Config.Vehicles.SpawnOnPurchase and 0 or 1 })
+            { p.PlayerData.license, p.PlayerData.citizenid, model, hash, '{}', plate, Config.Vehicles.Garage, spawned and 0 or 1 })
         return plate
     end
     return nil

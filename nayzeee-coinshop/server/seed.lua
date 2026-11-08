@@ -77,6 +77,6 @@ SeedData.Deals = {
         id = 'deal_starter_bundle', name = 'Starter Bundle', price = 3500, days = 7,
         description = 'Everything you need to get started! Includes an armored Kuruma, repair kit, first aid, a combat pistol, and night vision goggles.',
         image = 'https://raw.githubusercontent.com/MericcaN41/gta5carimages/main/images/kuruma2.png',
-        items = { 'veh_kuruma2', 'item_repairkit', 'item_medkit', 'wep_pistol', 'tool_nightvision' },
+        items = { { id = 'veh_kuruma2', qty = 1 }, { id = 'item_repairkit', qty = 2 }, { id = 'item_medkit', qty = 2 }, { id = 'wep_pistol', qty = 1 }, { id = 'tool_nightvision', qty = 1 } },
     },
 }

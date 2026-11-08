@@ -6,6 +6,12 @@ NZC.Version  = GetResourceMetadata(NZC.Resource, 'version', 0) or '1.0.0'
 
 Categories = { VEHICLE = 'vehicle', ITEM = 'item', WEAPON = 'weapon', TOOL = 'tool' }
 
+-- Defaults for settings added after v1.0.0, so an older config.lua keeps working
+Config.Bundles = Config.Bundles or {}
+if Config.Bundles.CashAccount == nil then Config.Bundles.CashAccount = 'bank' end
+if Config.Bundles.MaxCash == nil then Config.Bundles.MaxCash = 10000000 end
+if Config.Bundles.HeroSeconds == nil then Config.Bundles.HeroSeconds = 7 end
+
 -- ── locale ──────────────────────────────────────────────────────────────
 local strings = {}
 do

@@ -5,10 +5,13 @@
 
 // ── shell ────────────────────────────────────────────────────────────────
 function shell() {
-  const bg = `<div class="shell-bg" style="${S.settings.bgImage ? `background-image:url('${esc(S.settings.bgImage)}')` : ''}"></div>`;
+  const bg = `<div class="shell-bg" style="${S.settings.bgImage ? `background-image:url('${esc(cssUrl(S.settings.bgImage))}')` : ''}"></div>`;
   if (S.loading || !S.me) {
+    const sk = n => Array.from({ length: n }, () => '<div class="sk sk-card"><div class="sk-img"></div><div class="sk-line w60"></div><div class="sk-line w40"></div></div>').join('');
     return `<div class="stage dim"><div class="frame win"><div class="shell">${bg}${bar()}
-      <div class="body"><div class="main"><div class="empty" style="flex:1"><i class="fas fa-circle-notch fa-spin"></i><span>${esc(t('UI_LOADING'))}</span></div></div></div>
+      <div class="body"><div class="side"><div class="side-scroll">${'<div class="sk sk-nav"></div>'.repeat(9)}</div></div>
+        <div class="main"><div class="scroll"><div class="sk sk-title"></div><div class="sk sk-hero"></div><div class="cards">${sk(5)}</div></div></div></div>
+      <div class="foot"><span><i class="fas fa-circle-notch fa-spin"></i>${esc(t('UI_LOADING_SHOP'))}</span></div>
     </div></div></div>`;
   }
   const view = (VIEWS[S.page] || VIEWS.home)();
@@ -24,7 +27,7 @@ function shell() {
 function bar() {
   const me = S.me;
   return `<div class="bar">
-    <div class="bar-brand"><div class="mark">${coin()}</div><div class="bar-title"><b>${esc(t('APP_TITLE'))}</b><span>${esc(t('APP_SUB'))}</span></div></div>
+    <div class="bar-brand"><div class="mark"></div><div class="bar-title"><b>${esc(t('APP_TITLE'))}</b><span>${esc(t('APP_SUB'))}</span></div></div>
     <div class="bar-mid">${me ? `<div class="gsearch"><i class="fas fa-magnifying-glass"></i><input id="gsearch" placeholder="${esc(t('UI_SEARCH_ALL'))}" value="${esc(S.q)}" data-f="q" data-live="globalSearch" autocomplete="off"></div>` : ''}</div>
     ${me ? `<div class="wallet" title="${esc(t('UI_BALANCE'))}"><span class="wallet-lbl">${esc(t('UI_BALANCE'))}</span>${coin()}<b>${num(me.coins)}</b><button data-a="redeem" title="${esc(t('UI_REDEEM'))}"><i class="fas fa-plus"></i>${esc(t('UI_ADD_COINS'))}</button></div>` : ''}
     <span class="ver">v${esc(S.cfg ? S.cfg.version : '1.0.0')}</span>
@@ -121,27 +124,59 @@ function filterItems(list) {
 }
 
 // ── home ─────────────────────────────────────────────────────────────────
+const featured = () => S.deals.filter(d => d.featured);
+function dealSave(d) { return d.value > d.price ? Math.round((1 - d.price / d.value) * 100) : 0; }
+function dealCover(d) { return d.image || (d.items[0] && d.items[0].image) || ''; }
+function contentChips(d, max) {
+  const out = d.items.slice(0, max).map(i => `<span class="chip"><i class="fas ${CAT_ICON[i.category] || 'fa-tag'}"></i>${esc(i.name)}${i.qty > 1 ? ` <b class="qx">x${num(i.qty)}</b>` : ''}</span>`);
+  if (d.items.length > max) out.push(`<span class="chip">+${d.items.length - max}</span>`);
+  if (d.cash > 0) out.push(`<span class="chip green"><i class="fas fa-money-bill-wave"></i>${esc(t('UI_CASH_BONUS', num(d.cash)))}</span>`);
+  return out.join('');
+}
+function dealFlags(d) {
+  const b = [];
+  if (d.stock != null) b.push(d.stock > 0 ? `<span class="chip amber"><i class="fas fa-box"></i>${esc(t('UI_LEFT', num(d.stock)))}</span>` : `<span class="chip red">${esc(t('UI_SOLD_OUT'))}</span>`);
+  if (d.playerLimit) b.push(`<span class="chip"><i class="fas fa-user"></i>${esc(t('UI_PER_PLAYER', num(d.playerLimit)))}</span>`);
+  return b.join('');
+}
+const dealOut = d => d.stock != null && d.stock <= 0;
+
+function bundleCard(d) {
+  const save = dealSave(d);
+  return `<div class="card bcard ${dealOut(d) ? 'out' : ''}" data-a="deal" data-v="${esc(d.id)}">
+    <div class="card-img">${img(dealCover(d), 'fa-gift')}<div class="badges"><span class="chip teal"><i class="fas fa-layer-group"></i>${esc(t('UI_DEAL'))}</span>${save ? `<span class="chip white">-${save}%</span>` : ''}</div>
+      <span class="card-view">${esc(t('UI_VIEW'))}<i class="fas fa-arrow-right"></i></span></div>
+    <div class="card-b"><div class="card-meta"><i class="fas fa-layer-group"></i>${esc(t('UI_ITEMS_N', d.items.length))}${d.cash > 0 ? ` · ${esc(t('UI_CASH_BONUS', num(d.cash)))}` : ''}</div><b>${esc(d.name)}</b>
+      <div class="price">${coin()}<b>${num(d.price)}</b>${d.value > d.price ? `<span class="strike">${num(d.value)}</span>` : ''}<span class="go"><i class="fas fa-cart-shopping"></i></span></div></div>
+  </div>`;
+}
+
 VIEWS.home = () => {
-  const d = S.deals[S.heroIdx];
-  const hero = d ? `<div class="hero">
+  const feats = featured();
+  if (S.heroIdx >= feats.length) S.heroIdx = 0;
+  const d = feats[S.heroIdx];
+  const save = d ? dealSave(d) : 0;
+  const hero = d ? `<div class="hero" data-hero>
       <div class="hero-txt">
-        <div style="display:flex;gap:6px;align-items:center"><span class="chip teal"><i class="fas fa-bolt"></i>${esc(t('UI_SPECIAL_DEAL'))}</span>
-          ${d.until ? `<span class="timer"><i class="fas fa-clock"></i><b data-until="${d.until}">${clock(d.until - Date.now() / 1000)}</b></span>` : ''}</div>
-        <h2>${esc(d.name)}</h2><p>${esc(d.description)}</p>
-        <div class="hero-inc">${d.items.slice(0, 5).map(i => `<span class="chip"><i class="fas ${CAT_ICON[i.category] || 'fa-tag'}"></i>${esc(i.name)}</span>`).join('')}${d.items.length > 5 ? `<span class="chip">+${d.items.length - 5}</span>` : ''}</div>
-        <div class="hero-foot"><div class="hero-price"><b>${coin()}${num(d.price)}</b>${d.value > d.price ? `<span class="strike">${num(d.value)}</span><span class="chip white">${esc(t('UI_SAVE_PCT', Math.round((1 - d.price / d.value) * 100)))}</span>` : ''}</div>
+        <div class="hero-top"><span class="chip teal"><i class="fas fa-bolt"></i>${esc(t('UI_SPECIAL_DEAL'))}</span>
+          ${d.until ? `<span class="timer"><i class="fas fa-clock"></i><b data-until="${d.until}">${clock(d.until - Date.now() / 1000)}</b></span>` : ''}${dealFlags(d)}</div>
+        <h2>${esc(d.name)}</h2>${d.description ? `<p>${esc(d.description)}</p>` : ''}
+        <div class="hero-inc">${contentChips(d, 4)}</div>
+        <div class="hero-foot"><div class="hero-price"><b>${coin()}${num(d.price)}</b>${d.value > d.price ? `<span class="strike">${num(d.value)}</span>` : ''}${save ? `<span class="chip white">${esc(t('UI_SAVE_PCT', save))}</span>` : ''}</div>
           <button class="btn btn-teal" data-a="deal" data-v="${esc(d.id)}">${esc(t('UI_VIEW_DEAL'))}<i class="fas fa-arrow-right"></i></button></div>
       </div>
-      <div class="hero-img">${img(d.image || (d.items[0] && d.items[0].image), 'fa-gift')}</div>
-      ${S.deals.length > 1 ? `<div class="dots">${S.deals.map((_, i) => `<button class="${i === S.heroIdx ? 'on' : ''}" data-a="hero" data-v="${i}"></button>`).join('')}</div>` : ''}
+      <div class="hero-img">${img(dealCover(d), 'fa-gift')}</div>
+      ${feats.length > 1 ? `<div class="dots">${feats.map((_, i) => `<button class="${i === S.heroIdx ? 'on' : ''}" data-a="hero" data-v="${i}"></button>`).join('')}</div>` : ''}
     </div>` : '';
   const PER = 5;   // one row per section (5 columns)
   const trending = SHOP().filter(i => i.trending && !soldOut(i)).slice(0, PER);
   const sale = SHOP().filter(i => i.sale).slice(0, PER);
   const fresh = SHOP().filter(i => i.isNew && !trending.includes(i)).slice(0, PER);
   const popular = SHOP().slice().filter(i => i.sold > 0 && !trending.includes(i)).sort((a, b) => b.sold - a.sold).slice(0, PER);
-  const sec = (title, sub, list, go) => list.length ? `<div class="sec"><h2>${esc(title)}</h2><span>${esc(sub)}</span><div class="rule"></div>${go ? `<button data-a="go" data-v="${go}">${esc(t('UI_SEE_ALL'))}<i class="fas fa-arrow-right"></i></button>` : ''}</div><div class="cards">${list.map(card).join('')}</div>` : '';
-  const body = hero + sec(t('HOME_TRENDING'), t('HOME_TRENDING_SUB'), trending, 'browse:all')
+  const sec = (title, sub, list, go, render = card) => list.length ? `<div class="sec"><h2>${esc(title)}</h2><span>${esc(sub)}</span><div class="rule"></div>${go ? `<button data-a="go" data-v="${go}">${esc(t('UI_SEE_ALL'))}<i class="fas fa-arrow-right"></i></button>` : ''}</div><div class="cards">${list.map(render).join('')}</div>` : '';
+  const body = hero
+    + sec(t('NAV_DEALS'), t('DEALS_SUB'), S.deals.slice(0, PER), 'deals', bundleCard)
+    + sec(t('HOME_TRENDING'), t('HOME_TRENDING_SUB'), trending, 'browse:all')
     + sec(t('HOME_SALE'), t('HOME_SALE_SUB'), sale, 'browse:sale')
     + sec(t('HOME_NEW'), t('HOME_NEW_SUB'), fresh, 'browse:all')
     + sec(t('HOME_POPULAR'), t('HOME_POPULAR_SUB'), popular, 'browse:all');
@@ -176,14 +211,16 @@ VIEWS.browse = () => {
 
 // ── deals ────────────────────────────────────────────────────────────────
 function dealRow(d) {
-  return `<div class="deal" data-a="deal" data-v="${esc(d.id)}">
-    <div class="deal-img">${img(d.image || (d.items[0] && d.items[0].image), 'fa-gift')}</div>
-    <div class="deal-b"><h3>${esc(d.name)}${d.value > d.price ? `<span class="chip white">${esc(t('UI_SAVE_PCT', Math.round((1 - d.price / d.value) * 100)))}</span>` : ''}</h3>
-      <p>${esc(d.description)}</p>
-      <div class="thumbs">${d.items.map(i => `<div class="thumb" title="${esc(i.name)}">${i.image ? `<img src="${esc(i.image)}" alt="">` : `<i class="fas ${CAT_ICON[i.category]}"></i>`}</div>`).join('')}</div></div>
+  const save = dealSave(d);
+  return `<div class="deal ${dealOut(d) ? 'out' : ''}" data-a="deal" data-v="${esc(d.id)}">
+    <div class="deal-img">${img(dealCover(d), 'fa-gift')}${d.featured ? `<span class="chip teal deal-feat"><i class="fas fa-star"></i>${esc(t('UI_FEATURED'))}</span>` : ''}</div>
+    <div class="deal-b"><h3>${esc(d.name)}${save ? `<span class="chip white">${esc(t('UI_SAVE_PCT', save))}</span>` : ''}</h3>
+      ${d.description ? `<p>${esc(d.description)}</p>` : ''}
+      <div class="hero-inc">${contentChips(d, 6)}</div>
+      <div class="deal-flags">${dealFlags(d)}${d.sold ? `<span class="chip"><i class="fas fa-fire"></i>${esc(t('SPEC_SOLD'))} ${num(d.sold)}</span>` : ''}</div></div>
     <div class="deal-side">${d.until ? `<span class="timer"><i class="fas fa-clock"></i><b data-until="${d.until}">${clock(d.until - Date.now() / 1000)}</b></span>` : `<span class="chip">${esc(t('UI_NO_EXPIRY'))}</span>`}
       <div><div class="hero-price" style="justify-content:flex-end"><b>${coin()}${num(d.price)}</b></div>${d.value > d.price ? `<div class="strike" style="font-size:10.5px;margin-top:3px">${esc(t('UI_WORTH', num(d.value)))}</div>` : ''}</div>
-      <button class="btn btn-teal sm">${esc(t('UI_VIEW_DEAL'))}</button></div>
+      <button class="btn btn-teal sm">${esc(t('UI_VIEW_DEAL'))}<i class="fas fa-arrow-right"></i></button></div>
   </div>`;
 }
 
@@ -278,7 +315,9 @@ MODALS.item = () => {
   if (m.step === 'done') {
     const r = m.result;
     return modalFrame('w-sm', '', `<div class="m-body">${resultView(true, t('BUY_DONE'), r.gift ? t('BUY_DONE_GIFT', it.name, r.gift) : t('BUY_DONE_TXT', it.name),
-      r.plate ? `<span class="plate">${esc(r.plate)}</span>` : '')}</div>`,
+      r.plate ? `<span class="plate">${esc(r.plate)}</span>` : '')}
+      <div class="confirm-box"><div class="confirm-line"><span>${esc(t('UI_QUANTITY'))}</span><b>${num(isSingle(it) ? 1 : m.qty)}</b></div>
+        <div class="confirm-line total-line"><span>${esc(t('UI_NEW_BALANCE'))}</span><b>${coin()}${num(r.coins)}</b></div></div></div>`,
       `<div class="sp"></div><button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CONTINUE'))}</button>`);
   }
   if (m.step === 'confirm') {
@@ -332,39 +371,57 @@ MODALS.item = () => {
 };
 
 // ── deal modal ───────────────────────────────────────────────────────────
+function bundleLines(d) {
+  return `${d.items.map(i => `<div class="pick" style="cursor:default"><div class="thumb">${i.image ? `<img src="${esc(i.image)}" loading="lazy" alt="">` : `<i class="fas ${CAT_ICON[i.category]}"></i>`}</div>
+      <div class="cell-t"><b>${esc(i.name)}</b><span>${esc(t('CAT_' + i.category.toUpperCase()))}${i.count > i.qty ? ` · ${num(i.count)} ${esc(t('UI_PCS'))}` : ''}</span></div>
+      ${i.qty > 1 ? `<span class="qty-pill">x${num(i.qty)}</span>` : ''}<span class="muted">${coin()} ${num(i.price * i.qty)}</span></div>`).join('')}
+    ${d.cash > 0 ? `<div class="pick" style="cursor:default"><div class="thumb cash"><i class="fas fa-money-bill-wave"></i></div><div class="cell-t"><b>${esc(t('UI_CASH_BONUS', num(d.cash)))}</b><span>${esc(t('UI_CASH_SUB', S.cfg.cashAccount || 'bank'))}</span></div><span class="chip green">${esc(t('UI_CASH'))}</span></div>` : ''}`;
+}
+
 MODALS.deal = () => {
   const m = S.modal;
   const d = deal(m.id);
   if (!d) return '';
   const enough = S.me.coins >= d.price;
+  const save = dealSave(d);
   if (m.step === 'done') {
     const r = m.result;
     return modalFrame('w-sm', '', `<div class="m-body">${resultView(true, t('BUY_DONE'), r.gift ? t('BUY_DONE_GIFT', d.name, r.gift) : t('BUY_DONE_TXT', d.name))}
+      ${r.contents && r.contents.length ? `<div class="confirm-box"><div class="confirm-line"><span>${esc(t('UI_DELIVERED'))}</span></div>${r.contents.map(c => `<div class="confirm-line sub"><span><i class="fas fa-check teal"></i>${esc(c)}</span></div>`).join('')}
+        ${r.plates && r.plates.length ? `<div class="plates">${r.plates.map(p => `<span class="plate">${esc(p)}</span>`).join('')}</div>` : ''}
+        <div class="confirm-line total-line"><span>${esc(t('UI_NEW_BALANCE'))}</span><b>${coin()}${num(r.coins)}</b></div></div>` : ''}
       ${r.failed && r.failed.length ? `<p class="err" style="text-align:center">${esc(t('BUY_PARTIAL', r.failed.join(', '), num(r.refund)))}</p>` : ''}</div>`,
       `<div class="sp"></div><button class="btn btn-ghost" data-a="closeModal">${esc(t('UI_CONTINUE'))}</button>`);
   }
   if (m.step === 'confirm') {
-    return modalFrame('w-sm', `<i class="fas fa-tags"></i>${esc(t('BUY_CONFIRM_DEAL'))}`, `<div class="m-body">
+    return modalFrame('w-sm', `<i class="fas fa-layer-group"></i>${esc(t('BUY_CONFIRM_DEAL'))}`, `<div class="m-body">
+      <div class="cell"><div class="thumb" style="width:48px;height:48px">${dealCover(d) ? `<img src="${esc(dealCover(d))}" alt="">` : '<i class="fas fa-gift"></i>'}</div><div class="cell-t"><b style="font-size:13px">${esc(d.name)}</b><span>${esc(t('UI_ITEMS_N', d.items.length))}${d.cash > 0 ? ' · ' + esc(t('UI_CASH_BONUS', num(d.cash))) : ''}</span></div></div>
       <div class="confirm-box">
-        <div class="confirm-line"><span>${esc(t('UI_DEAL'))}</span><b>${esc(d.name)}</b></div>
-        <div class="confirm-line"><span>${esc(t('UI_PACKAGES'))}</span><b>${d.items.length}</b></div>
         ${m.gift ? `<div class="confirm-line"><span>${esc(t('UI_RECIPIENT'))}</span><b><i class="fas fa-gift teal"></i>${esc(m.lookup.name)}</b></div>` : ''}
+        <div class="confirm-line"><span>${esc(t('UI_BALANCE'))}</span><b>${coin()}${num(S.me.coins)}</b></div>
         <div class="confirm-line"><span>${esc(t('UI_AFTER'))}</span><b>${coin()}${num(S.me.coins - d.price)}</b></div>
         <div class="confirm-line total-line"><span>${esc(t('UI_TOTAL'))}</span><b>${coin()}${num(d.price)}</b></div>
       </div><p class="hint">${esc(t('BUY_CONFIRM_TXT'))}</p></div>`,
       `<button class="btn btn-ghost" data-a="step" data-v="view">${esc(t('UI_BACK'))}</button><div class="sp"></div>
        <button class="btn btn-teal" data-a="buyDeal" ${S.busy ? 'disabled' : ''}>${S.busy ? '<i class="fas fa-circle-notch spin"></i>' : '<i class="fas fa-check"></i>'}${esc(t('UI_CONFIRM'))}</button>`);
   }
-  return modalFrame('w-md', `<i class="fas fa-tags"></i>${esc(d.name)}`, `<div class="m-body" data-keep="deal">
-      <div class="hero" style="min-height:150px"><div class="hero-txt" style="padding:16px 18px"><p style="-webkit-line-clamp:4">${esc(d.description)}</p>
-        ${d.until ? `<span class="timer" style="margin-top:auto"><i class="fas fa-clock"></i>${esc(t('UI_ENDS_IN'))} <b data-until="${d.until}">${clock(d.until - Date.now() / 1000)}</b></span>` : ''}</div>
-        <div class="hero-img" style="width:220px">${img(d.image || (d.items[0] && d.items[0].image), 'fa-gift')}</div></div>
-      <div class="field"><label>${esc(t('UI_INCLUDED'))} <small>${esc(t('UI_WORTH', num(d.value)))}</small></label>
-        <div class="pick-list" style="max-height:200px">${d.items.map(i => `<div class="pick" style="cursor:default"><div class="thumb">${i.image ? `<img src="${esc(i.image)}">` : `<i class="fas ${CAT_ICON[i.category]}"></i>`}</div><div class="cell-t"><b>${esc(i.name)}</b><span>${esc(t('CAT_' + i.category.toUpperCase()))}</span></div><span class="muted">${coin()} ${num(i.price)}</span></div>`).join('')}</div></div>
+  const out = dealOut(d);
+  return modalFrame('w-md', `<i class="fas fa-layer-group"></i>${esc(d.name)}`, `<div class="m-body" data-keep="deal">
+      <div class="hero mini"><div class="hero-txt" style="padding:16px 18px">
+          <div class="hero-top">${d.featured ? `<span class="chip teal"><i class="fas fa-star"></i>${esc(t('UI_FEATURED'))}</span>` : ''}${dealFlags(d)}</div>
+          ${d.description ? `<p style="-webkit-line-clamp:4">${esc(d.description)}</p>` : ''}
+          ${d.until ? `<span class="timer" style="margin-top:auto"><i class="fas fa-clock"></i>${esc(t('UI_ENDS_IN'))} <b data-until="${d.until}">${clock(d.until - Date.now() / 1000)}</b></span>` : ''}</div>
+        <div class="hero-img" style="width:230px">${img(dealCover(d), 'fa-gift')}</div></div>
+      <div class="field"><label>${esc(t('UI_YOU_GET'))} <small>${esc(t('UI_ITEMS_N', d.items.length))}</small></label>
+        <div class="pick-list" style="max-height:252px">${bundleLines(d)}</div></div>
+      <div class="breakdown"><div><span>${esc(t('UI_BUNDLE_VALUE'))}</span><b>${coin()}${num(d.value)}</b></div><div><span>${esc(t('UI_YOU_PAY'))}</span><b>${coin()}${num(d.price)}</b></div>
+        <div class="save"><span>${esc(t('UI_YOU_SAVE'))}</span><b>${d.value > d.price ? `${coin()}${num(d.value - d.price)} <small>(${save}%)</small>` : '—'}</b></div></div>
       ${giftBlock(m)}
     </div>`,
-    `<div class="total"><span>${esc(t('UI_TOTAL'))}</span><b>${coin()}${num(d.price)}${d.value > d.price ? `<span class="strike">${num(d.value)}</span>` : ''}</b></div>
-     ${enough ? `<button class="btn btn-teal lg" data-a="step" data-v="confirm" ${giftReady(m) ? '' : 'disabled'}><i class="fas fa-bag-shopping"></i>${esc(m.gift ? t('UI_BUY_GIFT') : t('UI_BUY'))}</button>`
+    `<div class="total"><span>${esc(t('UI_TOTAL'))}</span><b>${coin()}${num(d.price)}${d.value > d.price ? `<span class="strike">${num(d.value)}</span>` : ''}</b>
+       ${!enough ? `<span class="red" style="margin-top:3px">${esc(t('UI_NEED_MORE', num(d.price - S.me.coins)))}</span>` : ''}</div>
+     ${out ? `<button class="btn btn-ghost lg" disabled>${esc(t('UI_SOLD_OUT'))}</button>`
+       : enough ? `<button class="btn btn-teal lg" data-a="step" data-v="confirm" ${giftReady(m) ? '' : 'disabled'}><i class="fas fa-bag-shopping"></i>${esc(m.gift ? t('UI_BUY_GIFT') : t('UI_BUY'))}</button>`
        : `<button class="btn btn-teal lg" data-a="redeem"><i class="fas fa-ticket"></i>${esc(t('UI_GET_COINS'))}</button>`}`);
 };
 
@@ -437,7 +494,18 @@ ACT.globalSearch = () => {
   render();
 };
 ACT.tag = v => { S.tag = v || null; render(); };
-ACT.hero = v => { S.heroIdx = Number(v) || 0; render(); };
+ACT.hero = v => { S.heroIdx = Number(v) || 0; heroAt = Date.now(); render(); };
+
+// Featured bundles rotate on the home page (paused while the mouse is on the banner)
+let heroAt = Date.now(), heroHover = false;
+document.addEventListener('mouseover', e => { heroHover = !!(e.target.closest && e.target.closest('[data-hero]')); });
+setInterval(() => {
+  const secs = S.cfg && S.cfg.heroSeconds;
+  if (!S.open || !secs || S.page !== 'home' || S.modal || S.loading) { heroAt = Date.now(); return; }
+  if (heroHover) { heroAt = Date.now(); return; }
+  const n = featured().length;
+  if (n > 1 && Date.now() - heroAt >= secs * 1000) { S.heroIdx = (S.heroIdx + 1) % n; heroAt = Date.now(); render(); }
+}, 500);
 ACT.item = v => { openModal('item', { id: v, qty: 1, img: 0, step: 'view' }); render(); };
 ACT.deal = v => { openModal('deal', { id: v, step: 'view' }); render(); };
 ACT.step = v => { if (S.modal) { S.modal.step = v; render(); } };
@@ -487,6 +555,8 @@ ACT.buyDeal = async () => {
   const m = S.modal;
   const r = await call('buy:deal', { id: m.id, gift: m.gift ? m.lookup.id : null }, { busy: 'buy' });
   if (!r) { if (S.modal === m) { m.step = 'view'; render(); } return; }
+  const d = deal(m.id);
+  if (d) { d.sold = (d.sold || 0) + 1; if (r.stock !== undefined && r.stock !== null) d.stock = r.stock; }
   setCoins(r.coins);
   m.step = 'done'; m.result = r;
   render();

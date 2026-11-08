@@ -47,8 +47,10 @@ function coin() {
   return `<span class="coin">${u ? `<img src="${esc(u)}" alt="">` : DEFAULT_COIN}</span>`;
 }
 function img(src, fb = 'fa-image') {
-  return src ? `<img src="${esc(src)}" alt="" onerror="this.outerHTML='<i class=&quot;fas ${fb} noimg&quot;></i>'">` : `<i class="fas ${fb} noimg"></i>`;
+  return src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" onerror="this.outerHTML='<i class=&quot;fas ${fb} noimg&quot;></i>'">` : `<i class="fas ${fb} noimg"></i>`;
 }
+// For url('...') inside a style attribute: drop characters that could end the url or the declaration
+const cssUrl = u => String(u || '').replace(/['"()\\;<>\s]/g, '');
 function catIcon(icon, fallback = 'fa-tag') {
   if (!icon) return `<i class="fas ${fallback}"></i>`;
   if (/^(https?:|data:|nui:)/.test(icon)) return `<span class="ic"><img src="${esc(icon)}" alt=""></span>`;

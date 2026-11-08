@@ -27,8 +27,9 @@ local function nilIfEmpty(v)
 end
 
 local function adminLog(src, title, fields)
-    table.insert(fields, 1, { 'Admin', Who(src) })
-    Webhook('admin', title, fields)
+    local list = { { 'Admin', Who(src) } }
+    for i = 1, 15 do if fields[i] then list[#list + 1] = fields[i] end end
+    Webhook('admin', title, list)
 end
 
 -- ── dashboard ───────────────────────────────────────────────────────────
@@ -285,37 +286,89 @@ Handle('admin:category:move', function(_, _, d)
     return true
 end, A)
 
--- ── deals ───────────────────────────────────────────────────────────────
+-- ── bundles (stored in the deals table) ─────────────────────────────────
+local function optInt(v, min, max)
+    v = tonumber(v)
+    if not v or v < min then return nil end
+    return NZC.Int(v, min, max, min)
+end
+
 Handle('admin:deal:save', function(src, _, d)
     local name = NZC.Trim(d.name)
     if name == '' then return nil, 'ERR_NAME_REQUIRED' end
-    local items = {}
-    for _, iid in ipairs(strList(d.items, Config.Shop.DealMaxItems)) do if Catalog.Get(iid) then items[#items + 1] = iid end end
-    if #items == 0 then return nil, 'ERR_DEAL_ITEMS', { Config.Shop.DealMaxItems } end
+    local entries, seen = {}, {}
+    for _, e in ipairs(type(d.items) == 'table' and d.items or {}) do
+        local iid = NZC.Trim(type(e) == 'table' and e.id or e)
+        local it = Catalog.Get(iid)
+        if it and not seen[iid] and #entries < Config.Shop.DealMaxItems then
+            seen[iid] = true
+            local qty = Catalog.IsSingle(it) and 1 or NZC.Int(type(e) == 'table' and e.qty or 1, 1, Config.Shop.MaxQuantity, 1)
+            entries[#entries + 1] = { id = iid, qty = qty }
+        end
+    end
+    local cash = (Config.Bundles.MaxCash or 0) > 0 and NZC.Int(d.cash, 0, Config.Bundles.MaxCash, 0) or 0
+    if #entries == 0 and cash == 0 then return nil, 'ERR_DEAL_ITEMS', { Config.Shop.DealMaxItems } end
     local hours = tonumber(d.hours)
     local price = NZC.Int(d.price, 0, 100000000, 0)
+    local stock = optInt(d.stock, 0, 10000000)
+    local limit = optInt(d.playerLimit, 1, 100000)
+    local featured, enabled = d.featured ~= false and 1 or 0, d.enabled ~= false and 1 or 0
     local id = NZC.Trim(d.id)
-    local editing = false
-    for _, x in ipairs(Catalog.deals) do if x.id == id then editing = true end end
-    local expiry = (hours and hours > 0) and ('DATE_ADD(NOW(), INTERVAL %d MINUTE)'):format(math.floor(hours * 60)) or (editing and d.keepExpiry and 'expires_at' or 'NULL')
+    local editing = Catalog.Deal(id) ~= nil
+    local expiry = (hours and hours > 0) and ('DATE_ADD(NOW(), INTERVAL %d MINUTE)'):format(math.floor(math.min(hours, 24 * 365) * 60))
+        or (editing and d.keepExpiry and 'expires_at' or 'NULL')
+    local desc, image = NZC.Trim(d.description):sub(1, 500), NZC.Trim(d.image):sub(1, 500)
     if editing then
-        MySQL.update.await(('UPDATE nayzeee_coinshop_deals SET name = ?, description = ?, price = ?, image = ?, items = ?, expires_at = %s WHERE id = ?'):format(expiry),
-            { name:sub(1, 100), NZC.Trim(d.description):sub(1, 500), price, NZC.Trim(d.image):sub(1, 500), json.encode(items), id })
+        MySQL.update.await(([[UPDATE nayzeee_coinshop_deals SET name = ?, description = ?, price = ?, image = ?, items = ?, stock = ?, player_limit = ?,
+            cash = ?, featured = ?, enabled = ?, expires_at = %s WHERE id = ?]]):format(expiry),
+            { name:sub(1, 100), desc, price, image, json.encode(entries), stock, limit, cash, featured, enabled, id })
     else
-        id = 'deal_' .. slug(name) .. '_' .. math.random(1000, 9999)
-        MySQL.insert.await(('INSERT INTO nayzeee_coinshop_deals (id, name, description, price, image, items, expires_at) VALUES (?, ?, ?, ?, ?, ?, %s)'):format(expiry),
-            { id, name:sub(1, 100), NZC.Trim(d.description):sub(1, 500), price, NZC.Trim(d.image):sub(1, 500), json.encode(items) })
+        id = 'deal_' .. slug(name):sub(1, 40) .. '_' .. math.random(1000, 9999)
+        local sort = (MySQL.scalar.await('SELECT IFNULL(MAX(sort), 0) + 1 FROM nayzeee_coinshop_deals') or 1)
+        MySQL.insert.await(([[INSERT INTO nayzeee_coinshop_deals (id, name, description, price, image, items, stock, player_limit, cash, featured, enabled, sort, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, %s)]]):format(expiry),
+            { id, name:sub(1, 100), desc, price, image, json.encode(entries), stock, limit, cash, featured, enabled, sort })
     end
     MySQL.update('DELETE FROM nayzeee_coinshop_deals WHERE expires_at IS NOT NULL AND expires_at < NOW() - INTERVAL 7 DAY')
     Catalog.Changed()
-    adminLog(src, editing and T('LOG_DEAL_EDITED') or T('LOG_DEAL_CREATED'), { { 'Deal', ('%s (`%s`)'):format(name, id) }, { 'Price', price }, { 'Packages', #items } })
+    adminLog(src, editing and T('LOG_DEAL_EDITED') or T('LOG_DEAL_CREATED'), {
+        { 'Bundle', ('%s (`%s`)'):format(name, id) }, { 'Price', price }, { 'Packages', #entries },
+        cash > 0 and { 'Cash bonus', cash } or nil, stock and { 'Stock', stock } or nil, limit and { 'Per player', limit } or nil,
+    })
     return { id = id }
 end, A)
 
-Handle('admin:deal:delete', function(src, _, d)
-    MySQL.update.await('DELETE FROM nayzeee_coinshop_deals WHERE id = ?', { NZC.Trim(d.id) })
+Handle('admin:deal:toggle', function(src, _, d)
+    local deal = Catalog.Deal(d.id)
+    if not deal then return nil, 'ERR_DEAL_NOT_FOUND' end
+    local field = d.field == 'featured' and 'featured' or 'enabled'
+    local value = not deal[field]
+    MySQL.update.await(('UPDATE nayzeee_coinshop_deals SET %s = ? WHERE id = ?'):format(field), { value and 1 or 0, deal.id })
     Catalog.Changed()
-    adminLog(src, T('LOG_DEAL_DELETED'), { { 'Deal', '`' .. NZC.Trim(d.id) .. '`' } })
+    adminLog(src, T('LOG_DEAL_EDITED'), { { 'Bundle', deal.name }, { field, tostring(value) } })
+    return true
+end, A)
+
+Handle('admin:deal:move', function(_, _, d)
+    local list = Catalog.deals
+    local idx
+    for i, x in ipairs(list) do if x.id == d.id then idx = i end end
+    local to = idx and idx + (d.dir == 'up' and -1 or 1)
+    if not idx or to < 1 or to > #list then return true end
+    list[idx], list[to] = list[to], list[idx]
+    local q = {}
+    for i, x in ipairs(list) do q[#q + 1] = { query = 'UPDATE nayzeee_coinshop_deals SET sort = ? WHERE id = ?', values = { i, x.id } } end
+    MySQL.transaction.await(q)
+    Catalog.Changed()
+    return true
+end, A)
+
+Handle('admin:deal:delete', function(src, _, d)
+    local id = NZC.Trim(d.id)
+    local deal = Catalog.Deal(id)
+    MySQL.update.await('DELETE FROM nayzeee_coinshop_deals WHERE id = ?', { id })
+    Catalog.Changed()
+    adminLog(src, T('LOG_DEAL_DELETED'), { { 'Bundle', ('%s (`%s`)'):format(deal and deal.name or '?', id) } })
     return true
 end, A)
 
