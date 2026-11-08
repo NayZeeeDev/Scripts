@@ -24,12 +24,10 @@
   "NAV_TRANSFER": "Send coins",
   "NAV_TUTORIAL": "How it works",
   "NAV_ADMIN": "Admin panel",
-
   "CAT_VEHICLE": "Vehicle",
   "CAT_ITEM": "Item",
   "CAT_WEAPON": "Weapon",
   "CAT_TOOL": "Tool",
-
   "HOME_TITLE": "Welcome back, %s",
   "HOME_SUB": "Pick something good. Everything is delivered the moment you buy it.",
   "HOME_TRENDING": "Trending",
@@ -45,7 +43,6 @@
   "UI_SAVE_PCT": "Save %s%",
   "UI_SEE_ALL": "See all",
   "UI_EMPTY_SHOP": "The shop is empty right now",
-
   "UI_SHOWING": "Showing %s of %s packages",
   "UI_ALL_TAGS": "All",
   "SORT_FEATURED": "Featured",
@@ -64,7 +61,6 @@
   "UI_NEW": "New",
   "UI_LEFT": "%s left",
   "UI_PER_PLAYER": "%s per player",
-
   "DEALS_SUB": "Bundles of packages for less than buying them one by one.",
   "UI_NO_DEALS": "No deals right now",
   "UI_NO_DEALS_SUB": "Check back soon, new bundles drop regularly.",
@@ -75,7 +71,6 @@
   "UI_INCLUDED": "Included",
   "UI_DEAL": "Deal",
   "UI_PACKAGES": "Packages",
-
   "SPEC_CATEGORY": "Type",
   "SPEC_MODEL": "Model",
   "SPEC_CONTAINS": "Contains",
@@ -107,7 +102,6 @@
   "BUY_DONE_TXT": "%s has been delivered to you.",
   "BUY_DONE_GIFT": "%s has been delivered to %s.",
   "BUY_PARTIAL": "Not delivered: %s. %s coins were refunded.",
-
   "HIST_SUB": "Everything you bought, every coin in and out.",
   "HIST_PURCHASES": "Purchases",
   "HIST_LEDGER": "Coin history",
@@ -154,7 +148,6 @@
   "UI_MIN_AGO": "%sm ago",
   "UI_HOUR_AGO": "%sh ago",
   "UI_DAY_AGO": "%sd ago",
-
   "TUT_SUB": "How to get coins and spend them.",
   "TUT_1": "Buy a coin package",
   "TUT_1_TXT": "Open the store and buy the %s package you want. After paying you get an order number that starts with tbx-.",
@@ -166,7 +159,6 @@
   "TUT_PLAYTIME": "Earn coins by playing",
   "TUT_PLAYTIME_TXT": "You receive %s %s for every %s minutes you are online.",
   "UI_BUY_COINS": "Buy coins",
-
   "REDEEM_TITLE": "Redeem",
   "REDEEM_TEBEX": "Store order",
   "REDEEM_PROMO": "Promo code",
@@ -178,7 +170,6 @@
   "REDEEM_DONE_TXT": "%s %s have been added to your balance.",
   "REDEEM_DONE_GIFT": "%s %s were sent to %s.",
   "REDEEM_ANOTHER": "Redeem another",
-
   "TRANSFER_TXT": "Send %s to another player who is online.",
   "TRANSFER_MIN": "minimum %s",
   "TRANSFER_FEE": "Fee (%s%)",
@@ -187,10 +178,8 @@
   "TRANSFER_DONE": "Coins sent",
   "UI_AMOUNT": "Amount",
   "UI_TYPE_TO_CONFIRM": "Type %s to confirm",
-
   "TD_TITLE": "Test drive",
   "TD_HINT": "Leave the vehicle to end early",
-
   "ADM_SUB": "Manage the catalogue, players, codes and the look of the shop.",
   "ADM_DASHBOARD": "Dashboard",
   "ADM_PACKAGES": "Packages",
@@ -272,7 +261,6 @@
   "ADM_DELETE_CODE": "Delete code",
   "ADM_DELETE_TXT": "Delete \"%s\"? This cannot be undone.",
   "ADM_DELETE_CAT_TXT": "Delete \"%s\"? Its packages stay in the shop.",
-
   "PF_EDIT": "Edit package",
   "PF_NAME": "Name",
   "PF_ID": "ID",
@@ -316,7 +304,6 @@
   "DF_VALUE": "Value if bought separately",
   "DF_SAVING": "Players save",
   "DF_ITEMS": "Packages (%s / %s)",
-
   "TH_COLORS": "Colors",
   "TH_ACCENT": "Accent",
   "TH_DANGER": "Danger",
@@ -333,7 +320,6 @@
   "TH_SAVE": "Save appearance",
   "TH_RESET": "Reset to default",
   "TH_RESET_TXT": "Put every color and image back to the default look?",
-
   "ERR_GENERIC": "Something went wrong, try again",
   "ERR_UNKNOWN": "Unknown request",
   "ERR_NOT_READY": "The shop is still starting, try again in a moment",
@@ -373,7 +359,6 @@
   "ERR_CODE_EXISTS": "That code already exists",
   "ERR_ALREADY_REFUNDED": "Already refunded",
   "ERR_CONFIRM": "Type the confirmation word",
-
   "N_COINS_NOW": "Your coin balance is now %s",
   "N_ADMIN_BALANCE": "%s now has %s coins",
   "N_PLAYTIME": "+%s %s for playing",
@@ -386,12 +371,10 @@
   "N_VEHICLE_SPAWN_FAILED": "Could not spawn it here, find it in your garage. Plate: %s",
   "N_TD_ENDED": "Test drive over",
   "N_TD_LEFT": "Test drive ended",
-
   "USAGE_ADDCODE": "Usage: coinshop_addcode <order> <coins>",
   "USAGE_GIVE": "Usage: /givecoins [id] [amount]",
   "USAGE_SET": "Usage: /setcoins [id] [amount]",
   "USAGE_REMOVE": "Usage: /removecoins [id] [amount]",
-
   "LOG_PURCHASE": "Package purchased",
   "LOG_GIFT": "Package gifted",
   "LOG_DEAL": "Deal purchased",
@@ -419,5 +402,9 @@
   "LOG_PROMO_DELETED": "Promo code deleted",
   "LOG_CLEAR": "Catalogue cleared",
   "LOG_SETTINGS": "Appearance saved",
-  "LOG_SETTINGS_RESET": "Appearance reset"
+  "LOG_SETTINGS_RESET": "Appearance reset",
+  "UI_ADD_COINS": "Add coins",
+  "UI_VIEW": "View",
+  "UI_ESC_HINT": "Press ESC to close",
+  "UI_SECURE": "Purchases are logged and refundable by staff"
 }

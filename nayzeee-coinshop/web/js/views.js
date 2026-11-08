@@ -16,7 +16,7 @@ function shell() {
   return `<div class="stage dim"><div class="frame win"><div class="shell">${bg}
     ${bar()}
     <div class="body">${sidebar()}<div class="main">${view}</div></div>
-    <div class="statusbar"><span><span class="key">ESC</span>${esc(t('UI_CLOSE'))}</span><span><i class="fas fa-circle-info"></i>${esc(t('UI_STATUS_HINT'))}</span></div>
+    <div class="foot"><span><i class="fas fa-keyboard"></i>${esc(t('UI_ESC_HINT'))}</span><span><i class="fas fa-bolt"></i>${esc(t('UI_STATUS_HINT'))}</span><span class="foot-r"><i class="fas fa-shield-halved"></i>${esc(t('UI_SECURE'))}</span></div>
     ${m}
   </div></div></div>`;
 }
@@ -24,9 +24,9 @@ function shell() {
 function bar() {
   const me = S.me;
   return `<div class="bar">
-    <div class="bar-brand"><div class="mark"></div><div class="bar-title"><b>${esc(t('APP_TITLE'))}</b><span>${esc(t('APP_SUB'))}</span></div></div>
+    <div class="bar-brand"><div class="mark">${coin()}</div><div class="bar-title"><b>${esc(t('APP_TITLE'))}</b><span>${esc(t('APP_SUB'))}</span></div></div>
     <div class="bar-mid">${me ? `<div class="gsearch"><i class="fas fa-magnifying-glass"></i><input id="gsearch" placeholder="${esc(t('UI_SEARCH_ALL'))}" value="${esc(S.q)}" data-f="q" data-live="globalSearch" autocomplete="off"></div>` : ''}</div>
-    ${me ? `<div class="wallet" title="${esc(t('UI_BALANCE'))}">${coin()}<b>${num(me.coins)}</b><button data-a="redeem" title="${esc(t('UI_REDEEM'))}"><i class="fas fa-plus"></i></button></div>` : ''}
+    ${me ? `<div class="wallet" title="${esc(t('UI_BALANCE'))}"><span class="wallet-lbl">${esc(t('UI_BALANCE'))}</span>${coin()}<b>${num(me.coins)}</b><button data-a="redeem" title="${esc(t('UI_REDEEM'))}"><i class="fas fa-plus"></i>${esc(t('UI_ADD_COINS'))}</button></div>` : ''}
     <span class="ver">v${esc(S.cfg ? S.cfg.version : '1.0.0')}</span>
     <button class="pill-close" data-a="close">${esc(t('UI_CLOSE'))}</button>
   </div>`;
@@ -51,7 +51,7 @@ function sidebar() {
   const cats = S.cats.map(c => nav('browse', c.id, catIcon(c.icon, CAT_ICON[c.type] || 'fa-tag'), c.name, catItems(c.id).length)).join('');
   const sale = SHOP().filter(i => i.sale).length;
   return `<div class="side"><div class="side-scroll" data-keep="side">
-    <div class="who">${avatar(me)}<div class="who-txt"><b>${esc(me.name)}</b><span>${esc(t('UI_WHO_SUB', me.serverId, num(me.spent)))}</span></div></div>
+    <div class="who">${avatar(me)}<div class="who-txt"><b>${esc(me.name)}</b><span>${esc(t('UI_WHO_SUB', me.serverId, num(me.spent)))}</span></div><span class="who-dot"></span></div>
     <div class="grp">${esc(t('UI_SHOP'))}</div>
     ${nav('home', undefined, '<i class="fas fa-house"></i>', t('NAV_HOME'))}
     ${nav('browse', 'all', '<i class="fas fa-grip"></i>', t('NAV_ALL'), SHOP().length)}
@@ -91,11 +91,13 @@ function meta(it) {
 }
 
 function card(it) {
+  const stockBar = it.stock != null && !soldOut(it) ? `<div class="stock"><i style="width:${Math.max(6, Math.min(100, it.stock / Math.max(it.stock, 25) * 100))}%"></i></div>` : '';
   return `<div class="card ${soldOut(it) ? 'out' : ''}" data-a="item" data-v="${esc(it.id)}">
     <div class="card-img">${img(it.images[0], CAT_ICON[it.category])}<div class="badges">${badges(it)}</div>
-      <button class="fav ${S.favs.has(it.id) ? 'on' : ''}" data-a="fav" data-v="${esc(it.id)}" data-stop title="${esc(t('UI_FAVORITE'))}"><i class="fas fa-heart"></i></button></div>
-    <div class="card-b"><b>${esc(it.name)}</b><div class="card-meta">${meta(it)}</div>
-      <div class="price">${coin()}<b>${num(it.price)}</b>${it.sale ? `<span class="strike">${num(it.basePrice)}</span>` : ''}<span class="go"><i class="fas fa-arrow-right"></i></span></div></div>
+      <button class="fav ${S.favs.has(it.id) ? 'on' : ''}" data-a="fav" data-v="${esc(it.id)}" data-stop title="${esc(t('UI_FAVORITE'))}"><i class="fas fa-heart"></i></button>
+      <span class="card-view">${esc(t('UI_VIEW'))}<i class="fas fa-arrow-right"></i></span></div>
+    <div class="card-b"><div class="card-meta">${meta(it)}</div><b>${esc(it.name)}</b>${stockBar}
+      <div class="price">${coin()}<b>${num(it.price)}</b>${it.sale ? `<span class="strike">${num(it.basePrice)}</span>` : ''}<span class="go"><i class="fas fa-cart-shopping"></i></span></div></div>
   </div>`;
 }
 
@@ -133,17 +135,19 @@ VIEWS.home = () => {
       <div class="hero-img">${img(d.image || (d.items[0] && d.items[0].image), 'fa-gift')}</div>
       ${S.deals.length > 1 ? `<div class="dots">${S.deals.map((_, i) => `<button class="${i === S.heroIdx ? 'on' : ''}" data-a="hero" data-v="${i}"></button>`).join('')}</div>` : ''}
     </div>` : '';
-  const trending = SHOP().filter(i => i.trending && !soldOut(i)).slice(0, 8);
-  const sale = SHOP().filter(i => i.sale).slice(0, 4);
-  const popular = SHOP().slice().filter(i => i.sold > 0).sort((a, b) => b.sold - a.sold).slice(0, 4);
-  const fresh = SHOP().filter(i => i.isNew).slice(0, 4);
-  const sec = (title, sub, list, go) => list.length ? `<div class="sec"><h2>${esc(title)}</h2><span>${esc(sub)}</span><div class="rule"></div>${go ? `<button data-a="go" data-v="${go}">${esc(t('UI_SEE_ALL'))}</button>` : ''}</div><div class="cards">${list.map(card).join('')}</div>` : '';
+  const PER = 5;   // one row per section (5 columns)
+  const trending = SHOP().filter(i => i.trending && !soldOut(i)).slice(0, PER);
+  const sale = SHOP().filter(i => i.sale).slice(0, PER);
+  const fresh = SHOP().filter(i => i.isNew && !trending.includes(i)).slice(0, PER);
+  const popular = SHOP().slice().filter(i => i.sold > 0 && !trending.includes(i)).sort((a, b) => b.sold - a.sold).slice(0, PER);
+  const sec = (title, sub, list, go) => list.length ? `<div class="sec"><h2>${esc(title)}</h2><span>${esc(sub)}</span><div class="rule"></div>${go ? `<button data-a="go" data-v="${go}">${esc(t('UI_SEE_ALL'))}<i class="fas fa-arrow-right"></i></button>` : ''}</div><div class="cards">${list.map(card).join('')}</div>` : '';
   const body = hero + sec(t('HOME_TRENDING'), t('HOME_TRENDING_SUB'), trending, 'browse:all')
     + sec(t('HOME_SALE'), t('HOME_SALE_SUB'), sale, 'browse:sale')
-    + sec(t('HOME_POPULAR'), t('HOME_POPULAR_SUB'), popular)
-    + sec(t('HOME_NEW'), t('HOME_NEW_SUB'), fresh);
+    + sec(t('HOME_NEW'), t('HOME_NEW_SUB'), fresh, 'browse:all')
+    + sec(t('HOME_POPULAR'), t('HOME_POPULAR_SUB'), popular, 'browse:all');
   return `<div class="scroll" data-keep="home">
-    <div class="head"><div class="head-txt"><h1>${esc(t('HOME_TITLE', S.me.name.split(' ')[0]))}</h1><p>${esc(t('HOME_SUB'))}</p></div></div>
+    <div class="head"><div class="head-txt"><h1>${esc(t('HOME_TITLE', S.me.name.split(' ')[0]))}</h1><p>${esc(t('HOME_SUB'))}</p></div>
+      <div class="head-stats"><div class="hs"><span>${esc(t('NAV_ALL'))}</span><b>${num(SHOP().length)}</b></div><div class="hs"><span>${esc(t('NAV_DEALS'))}</span><b>${num(S.deals.length)}</b></div><div class="hs"><span>${esc(t('NAV_SALE'))}</span><b>${num(SHOP().filter(i => i.sale).length)}</b></div></div></div>
     ${body || `<div class="empty"><i class="fas fa-store"></i><b>${esc(t('UI_EMPTY_SHOP'))}</b></div>`}
   </div>`;
 };
