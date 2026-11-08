@@ -491,9 +491,9 @@ local SETTINGS = {
 
   -- Hotwiring
   { id = 'hotwire.style', tab = 'hotwiring', type = 'enum', path = 'hotwiring.style', options = { 'profile', 'wires' },
-    label = 'Hotwiring', description = 'Each profile\'s method, or splicing wires (players whose client cannot show the minigame get the profile\'s method).' },
+    label = 'Hotwiring', description = 'Each profile\'s method, or splicing wires (players whose client cannot show the minigame get the profile\'s method, but still need the reader / kit).' },
   { id = 'hotwire.kitRequired', tab = 'hotwiring', type = 'bool', path = 'hotwiring.kitRequired',
-    label = 'Wires need a hotwire kit', description = 'Splicing wires needs the hotwire_kit item.' },
+    label = 'Wires need a hotwire kit', description = 'Splicing wires needs the hotwire_kit item (also when the client falls back to another minigame).' },
   { id = 'hotwire.readerClasses', tab = 'hotwiring', type = 'classes', path = 'hotwiring.readerClasses',
     label = 'Classes that need the reader', description = 'Only with Hotwiring = wires: these classes are started with the signal reader.' },
   { id = 'hotwire.readerModels', tab = 'hotwiring', type = 'models', path = 'hotwiring.readerModels',

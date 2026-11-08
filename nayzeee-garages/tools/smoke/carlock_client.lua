@@ -133,6 +133,9 @@ function NetworkDoesNetworkIdExist(net) for _, v in pairs(vehicles) do if v.net 
 function NetworkGetEntityFromNetworkId(net) for h, v in pairs(vehicles) do if v.net == net then return h end end return 0 end
 local sounds, alarmsOn = 0, 0
 function PlaySoundFromEntity() sounds = sounds + 1 end
+local beeps, fobAnims = 0, 0
+function PlaySoundFrontend() beeps = beeps + 1 end
+function TaskPlayAnim() fobAnims = fobAnims + 1 end
 function StartVehicleAlarm() alarmsOn = alarmsOn + 1 end
 function IsPauseMenuActive() return false end
 function IsNuiFocused() return false end
@@ -339,6 +342,23 @@ CarLock.onLockpickEvent = function(advanced) picked = advanced end
 TriggerEvent('lockpicks:UseLockpick', true)
 advance(100)
 check(picked == true, 'lockpicks:UseLockpick forwarded to NZ.CarLock.onLockpickEvent')
+
+-- fob feedback: the click animation always plays; the fob beep follows the player's fobBeep
+do
+  local savedSeat = seated
+  seated = nil
+  local b0, a0 = beeps, fobAnims
+  TriggerEvent('nz:client:carlock:used', { plate = 'ABC123', locked = true, kind = 'fob' })
+  advance(1200)
+  check(beeps == b0 + 1 and fobAnims == a0 + 1, 'fob used: click animation + fob beep')
+  TriggerEvent('nz:client:carlock:settings', { fobBeep = false })
+  b0, a0 = beeps, fobAnims
+  TriggerEvent('nz:client:carlock:used', { plate = 'ABC123', locked = false, kind = 'fob' })
+  advance(1200)
+  check(beeps == b0 and fobAnims == a0 + 1, 'fobBeep off: no beep, the click animation still plays')
+  TriggerEvent('nz:client:carlock:settings', { fobBeep = true })
+  seated = savedSeat
+end
 
 -- the server's decision about other key resources wins over local detection
 GlobalState = { nzCarLockOther = 'qb-vehiclekeys' }

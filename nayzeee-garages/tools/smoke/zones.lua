@@ -445,14 +445,13 @@ do
   NZ.State.locations[1].interaction = nil
   NZ.Target.available = function() return false end
 
-  -- impound / for-sale zones: the server checks those at the open point, so the zone offers
-  -- nothing (no store either): the open point keeps its prompt
+  -- impound / for-sale zones: opened anywhere inside the zone (the server accepts the zone too)
   NZ.State.locations[1].kind = 'impound'
   zonesMade, pointsMade = {}, {}
   Points.rebuild()
   local impoundOpen = 0
   for _, p in ipairs(pointsMade) do if p.rec and p.rec.open and p.rec.openAction == 'impound' then impoundOpen = impoundOpen + 1 end end
-  check(#zonesMade == 0 and impoundOpen == 1, 'impound zone: no zone prompt, open point kept (' .. #zonesMade .. ', ' .. impoundOpen .. ')')
+  check(#zonesMade == 1, 'impound zone: the zone opens the impound (' .. #zonesMade .. ', ' .. impoundOpen .. ')')
   NZ.State.locations[1].kind = 'garage'
 
   -- point-based location: unchanged (store circle at the open point, no poly zone)

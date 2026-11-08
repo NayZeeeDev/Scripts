@@ -20,6 +20,7 @@ export function DetailsTab({
   profiles,
   gtaName,
   setGtaName,
+  setSlots,
   onSubmit,
   autoFocusName,
   goTo,
@@ -53,6 +54,9 @@ export function DetailsTab({
       ...(entry ? { entry, gtaInteriorId: null } : {}),
     });
     if (entry) setGtaName(null);
+    // preset vehicle positions of the profile (only into an empty layout)
+    const presets = res.data?.slots;
+    if (Array.isArray(presets) && presets.length && draft.slots.length === 0) setSlots(presets);
   };
 
   const chooseProfile = (key: string) => {

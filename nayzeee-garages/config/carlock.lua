@@ -80,6 +80,7 @@ Config.CarLock = {
   -- 'pins' = the five-pin lock of the NUI (pins, snapChance % per overset, alarmOnSnap).
   -- The NUI minigames are only used when the player's client says it can play them; until
   -- then the server falls back to skill checks (lockpick) / the profile's method (hotwire).
+  -- The fallback only changes the minigame: the signal reader / hotwire kit stays required.
   lockpicking = { style = 'skillcheck', pins = 5, snapChance = 35, alarmOnSnap = true },
 
   -- Hotwiring (NUI minigames, docs/CARLOCK.md §8). style 'profile' = each security profile's
@@ -217,6 +218,8 @@ Config.CarLock = {
     enabled = true,
     lock = { name = 'Remote_Control_Close', set = 'PI_Menu_Sounds' },
     unlock = { name = 'Remote_Control_Open', set = 'PI_Menu_Sounds' },
+    -- the beep only the player who pressed the fob hears (their 'Fob beep' setting); check in game
+    fob = { name = 'Remote_Control_Fob', set = 'PI_Menu_Sounds' },
     flashLights = true,
     hornChirp = true,
   },

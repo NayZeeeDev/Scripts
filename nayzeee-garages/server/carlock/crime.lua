@@ -805,21 +805,23 @@ local function hotwireStart(src, payload)
   local _, profile = CarLock.profileOfEntity(entity)
   local hotwire = type(profile.hotwire) == 'table' and profile.hotwire or {}
   local game = CarLock.hotwireMethodOf(GetEntityModel(entity), CarLock.classOf(entity), profile)
+  -- the item a reader / wires vehicle needs is enforced whatever the client can play: the
+  -- skill-check fallback (no `minigames` in the payload) only changes the minigame, never the item gate
+  local need = nil
+  if game == 'reader' then
+    need = CarLock.itemName('signalReader')
+  elseif game == 'wires' and section('hotwiring').kitRequired == true then
+    need = CarLock.itemName('hotwireKit')
+  end
+  if need and not NZ.Inventory.hasItem(src, need) then
+    return Utils.fail(game == 'reader' and L('You need a signal reader to start this vehicle') or L('You need a hotwire kit'))
+  end
   if (game == 'wires' or game == 'reader') and canPlay(payload, game) then
     -- the NUI minigames (G.7): wires (hotwiring.kitRequired: items.hotwireKit) or the signal reader
-    local need = nil
-    if game == 'reader' then
-      need = CarLock.itemName('signalReader')
-    elseif section('hotwiring').kitRequired == true then
-      need = CarLock.itemName('hotwireKit')
-    end
-    if need and not NZ.Inventory.hasItem(src, need) then
-      return Utils.fail(game == 'reader' and L('You need a signal reader to start this vehicle') or L('You need a hotwire kit'))
-    end
     local puzzle = game == 'reader' and readerPuzzle() or wiresPuzzle()
     local street, label = displayInfo(payload)
     local session = openSession(src, { action = 'hotwire', entity = entity, netId = netIdOf(entity), plate = plate,
-      hotwire = hotwire, method = game, puzzle = puzzle, street = street, label = label },
+      hotwire = hotwire, method = game, puzzle = puzzle, requires = need, street = street, label = label },
       (game == 'reader' and READER_MIN_MS or WIRES_MIN_MS) - GRACE_MS, MINIGAME_MAX_MS)
     return Utils.ok({ id = session.id, method = game, puzzle = puzzle, item = need })
   end
@@ -833,7 +835,8 @@ local function hotwireStart(src, payload)
   end
   local street, label = displayInfo(payload)
   local data = { action = 'hotwire', entity = entity, netId = netIdOf(entity), plate = plate, hotwire = hotwire,
-    method = method, item = item, slot = item and slotOf(src, item, payload.slot) or nil, street = street, label = label }
+    method = method, item = item, slot = item and slotOf(src, item, payload.slot) or nil, requires = need,
+    street = street, label = label }
   if method == 'progress' then
     local duration = math.floor(Utils.clamp(tonumber(hotwire.duration) or 6000, 1000, 60000))
     local session = openSession(src, data, progressWindow(duration))
@@ -850,6 +853,8 @@ local function hotwireFinish(src, session, success, payload)
   local ped = pedOf(src)
   if success and (not ped or GetPedInVehicleSeat(entity, -1) ~= ped) then success = false end
   if success and session.item and not NZ.Inventory.hasItem(src, session.item) then success = false end
+  -- the signal reader / hotwire kit of a reader / wires vehicle must still be on the player at the end
+  if success and session.requires and not NZ.Inventory.hasItem(src, session.requires) then success = false end
   if success and session.puzzle and not solved(session.method, session.puzzle, type(payload) == 'table' and payload.answer or nil) then
     success = false
   end

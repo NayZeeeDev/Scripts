@@ -24,7 +24,8 @@
     client's camera nor another player near it with a line of sight). A truck that stops beside
     the vehicle carries on to the spot, one that stops the wrong way round drives past the
     vehicle to the spot on its other side or is turned while nobody watches; when neither works
-    and the vehicle is near the bed it loads from where it stands (bedPlan's side / lift path).
+    and the vehicle is beside or behind the bed it loads from where it stands (bedPlan's side
+    path, at ground level); one in line ahead of the cab is left to a new truck.
     Parked in line but a few metres short, it backs up to the vehicle. The driver steps out,
     walks to the bed controls (left side, near the rear) and works them while the vehicle
     slides up onto the bed (lerped attach offsets, tilted up the ramp); the driver gets back in
@@ -101,6 +102,9 @@ local NODE_TRIES = 4             -- spawn nodes proposed (the server refuses a t
 local LOAD_MAX_SECONDS = 20      -- Config.Tow.loadSeconds is clamped to 1..this (both sides)
 local MAX_FADE = 8               -- entities per fade event
 local LATERAL_REACH = 6.0        -- metres beside the truck a vehicle may stand and still be loaded (bedPlan)
+local GROUND_FREE = 3.0          -- metres slid along the ground within the normal loading time ...
+local GROUND_PER_SECOND = 3.0    -- ... every further this many metres add a second to the pull ...
+local GROUND_EXTRA_MAX_MS = 6000 -- ... up to this (the server allows loadSeconds + 25 s)
 local CLOSE_GAP = 4.0            -- parked with the vehicle farther than this behind the bed: backs up ...
 local CLOSE_TO = 2.0             -- ... to this gap
 local REVERSE_SPEED = 2.0        -- m/s while backing up to the vehicle
@@ -873,13 +877,18 @@ local function realign(job, spot, other)
 end
 
 --- Close enough to load from where the truck stopped although it is not in line with the
---- vehicle (wrong way round, at an angle, beside it): bedPlan brings a vehicle beside or ahead
---- of the bed on along a path that never goes through the truck.
+--- vehicle (wrong way round, at an angle, beside it): bedPlan brings a vehicle beside the truck
+--- on at ground level along its side, never through or over it. In line ahead of the cab: no.
 local function closeEnough(job)
   if rearGap(job) > GOOD_GAP + 4.0 then return false end
   local at = GetEntityCoords(job.target)
   local here = Utils.v3(GetOffsetFromEntityGivenWorldCoords(job.truck, at.x, at.y, at.z))
   if not here then return false end
+  -- in line ahead of the bed (nose to nose, ahead of the cab): only a lift over the cab would
+  -- bring it on, never shown; this truck cannot load it ('heading': a new one comes)
+  if math.abs(here.x) <= job.truckSize.max.x + job.targetSize.width / 2 and here.y > job.truckSize.min.y + 1.0 then
+    return false
+  end
   return math.abs(here.x) <= job.truckSize.max.x + LATERAL_REACH
 end
 
@@ -1012,7 +1021,7 @@ local function approach(job)
         end
         turns = turns + 1
         if turns > MAX_TURNS then
-          -- out of tries: load from here when the vehicle is near the bed (side / lift path)
+          -- out of tries: load from here when the vehicle is beside / behind the bed (side path)
           if closeEnough(job) then return true end
           return false, 'heading'
         end
@@ -1027,7 +1036,7 @@ local function approach(job)
           if turned then return active(job) end
           if not nextSpot then
             -- on screen and the other side is taken: load from here when the vehicle is near
-            -- the bed (bedPlan's side / lift path), else this truck cannot load it
+            -- the bed (bedPlan's side path), else this truck cannot load it
             if closeEnough(job) then
               Utils.debug(('tow %d: not in line, loads from where it stands'):format(job.id))
               return true
@@ -1073,9 +1082,11 @@ end
 
 --- How the vehicle gets onto the bed, as poses relative to the truck bone: from where it stands
 --- (`current`) along `path` to `final` (centred on the bed, wheels on the deck; its size
---- decides where it sits). Normally lined up behind the bed, then up the ramp; already hanging
---- on the truck (handed-over job): straight on; not behind the bed (the truck stopped beside
---- or ahead of it): lifted over the truck, never dragged through it.
+--- decides where it sits). Normally lined up behind the bed, then up the ramp; beside the truck:
+--- back along its side at ground level first, then the same way; already hanging on the truck
+--- (handed-over job): straight on; only in line ahead of the cab (never loaded so by the tow
+--- scene, see closeEnough): lifted over the truck, never dragged through it. `extraMs`: time
+--- added to the pull for a long slide along the ground.
 local function bedPlan(truck, target)
   local bed = type(config().bed) == 'table' and config().bed or {}
   local bone = GetEntityBoneIndexByName(truck, type(bed.bone) == 'string' and bed.bone or 'bodyshell')
@@ -1108,10 +1119,12 @@ local function bedPlan(truck, target)
   local here = Utils.v3(GetOffsetFromEntityGivenWorldCoords(truck, at.x, at.y, at.z)) or { x = 0.0, y = 0.0, z = 0.0 }
   local current = { x = here.x - boneLocal.x, y = here.y - boneLocal.y, z = here.z - boneLocal.z, h = relative }
 
+  -- wider apart than this (centre to centre, sideways): the vehicle passes beside the truck
+  local clear = (truckSize.max.x - truckSize.min.x) / 2 + size.width / 2 - 0.2
   local path
   if truthy(IsEntityAttachedToEntity(target, truck)) then
     path = { { pose = final, share = 1.0 } }
-  elseif current.y > ramp.y + size.length then
+  elseif current.y > ramp.y + size.length and math.abs(current.x) <= clear then
     local lift = truckSize.max.z - boneLocal.z + 0.5 - size.min.z
     path = {
       { pose = { x = current.x, y = current.y, z = math.max(lift, current.z), h = current.h }, share = 0.3 },
@@ -1124,15 +1137,25 @@ local function bedPlan(truck, target)
       -- up the ramp: the end that climbs first (the nose when it loads nose first) tilts up
       { pose = final, share = 1.0 - RAMP_SHARE, climb = true, pitch = dir * pitch },
     }
-    -- beside the bed (the truck stopped next to it): straight back along the truck's side
-    -- first, then across behind the bed, never diagonally through its rear corner
-    local clear = (truckSize.max.x - truckSize.min.x) / 2 + size.width / 2 - 0.2
+    -- beside the bed (the truck stopped next to it, or ahead of the bed beside the cab):
+    -- straight back along the truck's side first, then across behind the bed, never
+    -- diagonally through its rear corner nor over the truck
     if math.abs(current.x) > clear and current.y + size.length / 2 > rear then
       path[1].share = RAMP_SHARE - SIDE_SHARE
       table.insert(path, 1, { pose = { x = current.x, y = ramp.y, z = ramp.z, h = current.h }, share = SIDE_SHARE })
     end
   end
-  return { bone = bone, current = current, final = final, path = path }
+  -- metres slid along the ground before the ramp: a long slide gets more time (bounded)
+  local slide, from = 0.0, current
+  for _, leg in ipairs(path) do
+    if leg.climb then break end
+    slide = slide + dist2d(from, leg.pose)
+    from = leg.pose
+  end
+  if not path[#path].climb then slide = 0.0 end -- straight on / lifted: no ground slide
+  local extraMs = math.floor(math.min(GROUND_EXTRA_MAX_MS,
+    math.max(0.0, (slide - GROUND_FREE) / GROUND_PER_SECOND * 1000.0)))
+  return { bone = bone, current = current, final = final, path = path, extraMs = extraMs }
 end
 
 local function smooth(t)
@@ -1186,7 +1209,7 @@ end
 local function pullOntoBed(target, truck, seconds, ended)
   if not exists(target) or not exists(truck) or not owns(target) then return false end
   local plan = bedPlan(truck, target)
-  local duration = math.floor(loadSeconds(seconds) * 1000)
+  local duration = math.floor(loadSeconds(seconds) * 1000) + plan.extraMs
   local direct = Utils.dist(plan.current, plan.final) < 1.0 -- already on the bed (handed-over job)
   local started = GetGameTimer()
   while not direct do
@@ -1201,6 +1224,16 @@ local function pullOntoBed(target, truck, seconds, ended)
   return truthy(IsEntityAttachedToEntity(target, truck))
 end
 
+--- A pull that was cut short (the job ended or moved meanwhile) leaves the vehicle attached
+--- part way up the ramp, tilted: put it onto the deck so nothing hangs off the truck while it
+--- stands at the scene. Only on the client that owns the vehicle; never attaches a loose one.
+local function snapOnBed(target, truck)
+  if not target or not exists(target) or not exists(truck) or not owns(target) then return end
+  if not truthy(IsEntityAttachedToEntity(target, truck)) then return end
+  local plan = bedPlan(truck, target)
+  attachAt(target, truck, plan.bone, plan.final, true)
+end
+
 --- The driver walks to the bed controls (left side, near the rear) and works them.
 local function toControls(job)
   local driver, truck = job.driver, job.truck
@@ -1211,6 +1244,7 @@ local function toControls(job)
     if GetGameTimer() > untilAt then
       TaskLeaveVehicle(driver, truck, 16) -- out at once
       Wait(500)
+      if not active(job) then return false end -- dismissed meanwhile: back to the wheel
       break
     end
   end
@@ -1261,6 +1295,14 @@ end
 --- Load the vehicle: this client pulls it on ('self') or waits for its owner ('remote').
 local function load(job, attacher, seconds)
   local started = GetGameTimer()
+  -- the time a long slide along the ground adds to the pull (pullOntoBed): the driver works the
+  -- controls that much longer while another client pulls the vehicle on
+  local extraMs = 0
+  if attacher ~= 'self' and exists(job.target) and exists(job.truck)
+    and not truthy(IsEntityAttachedToEntity(job.target, job.truck)) then
+    local success, plan = pcall(bedPlan, job.truck, job.target)
+    if success and type(plan) == 'table' then extraMs = plan.extraMs or 0 end
+  end
   local attached
   if attacher == 'self' then
     attached = pullOntoBed(job.target, job.truck, seconds, function() return not active(job) end)
@@ -1270,11 +1312,11 @@ local function load(job, attacher, seconds)
       attached = waitAttached(job, seconds * 1000 + ATTACH_EXTRA_MS)
     end
   else
-    attached = waitAttached(job, seconds * 1000 + ATTACH_EXTRA_MS)
+    attached = waitAttached(job, seconds * 1000 + extraMs + ATTACH_EXTRA_MS)
   end
   -- the driver keeps working the controls for the whole loading time (another client's pull
   -- started a moment after ours: give it that moment to reach the bed)
-  local left = seconds * 1000 - (GetGameTimer() - started) + (attacher == 'self' and 0 or REMOTE_MARGIN_MS)
+  local left = seconds * 1000 + extraMs - (GetGameTimer() - started) + (attacher == 'self' and 0 or REMOTE_MARGIN_MS)
   if attached and left > 0 and not sleep(job, left) then return false end
   if attached and active(job) and not owns(job.target) and control(job.target, CONTROL_WAIT_MS) then
     -- on the bed: from here the vehicle stays with the client that drives the truck
@@ -1583,7 +1625,8 @@ end
 --- warps after DISMISS_ENTER_MS) and drives the empty truck off, so the spot at the vehicle is
 --- free for the next truck and nothing stands around in front of the officer. A truck with the
 --- vehicle on its bed never leaves: the driver only waits at the wheel (the server removes both
---- once nobody is near). Runs on the client that simulates the driver, with or without a local
+--- once nobody is near); a pull cut short is put onto the deck first, never left hanging off
+--- the ramp. Runs on the client that simulates the driver, with or without a local
 --- job (`job`: this client's job for that truck, if any). Never throws.
 local function dismiss(truck, driver, target, job)
   if stopping or not exists(truck) or not exists(driver) or dismissing[driver] then return end
@@ -1621,6 +1664,8 @@ local function dismiss(truck, driver, target, job)
           Wait(300)
         end
       end
+      -- a pull cut short leaves the vehicle hanging half way up the ramp: onto the deck
+      if not stopping then snapOnBed(target, truck) end
       if not stopping and wanderOff(truck, driver, target) then
         if job then job.sentAway = true end
       elseif exists(driver) and owns(driver) then
@@ -1697,6 +1742,10 @@ RegisterNetEvent('nz:client:tow:attach', function(data)
     end)
     if not success then warnOnce('attach', tostring(attached)) end
     if attaching[id] == token then attaching[id] = nil end
+    if token.cancelled and not stopping then
+      local snapped, err = pcall(snapOnBed, entityOf(data.netId), entityOf(data.truck))
+      if not snapped then warnOnce('snap', tostring(err)) end
+    end
     if token.cancelled or stopping then return end
     report({ id = id }, 'attached', { ok = success and attached == true })
   end)

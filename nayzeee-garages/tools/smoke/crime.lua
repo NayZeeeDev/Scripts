@@ -861,6 +861,31 @@ check(res.ok and res.data.method == 'wires' and type(res.data.puzzle) == 'table'
   'wires set and the client can play them: the wires puzzle')
 advance(1500)
 cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = false })
+-- the skill-check fallback never skips the item gate: a reader vehicle needs the signal reader
+local readerModels = C.hotwiring.readerModels
+C.hotwiring.readerModels = { 'sultan' }
+res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
+check(not res.ok and res.error == 'You need a signal reader to start this vehicle',
+  'reader vehicle, no minigames field, no reader: refused')
+give(1, 'signal_reader')
+res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
+check(res.ok and res.data.method == 'skillcheck' and res.data.puzzle == nil, 'reader vehicle with the reader, no minigames: skill checks')
+ox.RemoveItem(1, 'signal_reader', 1)
+advance(1500)
+fin = cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = true })
+check(fin.ok and fin.data.success == false and not hasKey(1, 'NPC100'), 'reader dropped before the finish: the fallback fails')
+give(1, 'signal_reader')
+res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet, minigames = { reader = true } })
+check(res.ok and res.data.method == 'reader' and res.data.item == 'signal_reader', 'reader vehicle, client can play: the reader puzzle')
+advance(5000)
+cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = false })
+ox.RemoveItem(1, 'signal_reader', 1)
+-- wires with kitRequired: the fallback also needs the kit
+C.hotwiring.readerModels = readerModels
+C.hotwiring.kitRequired = true
+res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
+check(not res.ok and res.error == 'You need a hotwire kit', 'wires + kitRequired, no minigames, no kit: refused')
+C.hotwiring.kitRequired = false
 C.hotwiring.style = hwStyle
 res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
 advance(1500)

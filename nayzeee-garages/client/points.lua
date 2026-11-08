@@ -50,7 +50,7 @@ local ZONE_GROUND_RETRY = 2000      -- ms: re-query corner ground heights that h
 -- server (nz:impound:open, nz:forSale:info / buy / tour) still check the open point only, so
 -- those keep the open point until they use NZ.Access.nearLocation; add 'impound' / 'forSale'
 -- here at that point.
-local ZONE_OPEN_ACTIONS = { garage = true, inside = true }
+local ZONE_OPEN_ACTIONS = { garage = true, inside = true, impound = true, forSale = true }
 local NEXT_TO_VEHICLE = 6.0        -- metres: "next to a vehicle" for the store option
 local CANDIDATE_TTL = 400          -- ms: cache of the vehicle a store option would park
 

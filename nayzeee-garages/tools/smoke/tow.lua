@@ -17,9 +17,12 @@
   (`entityRemoved`), tow state bags cleared by a cheating owner, a player taking the truck, the
   vehicle coming off the leaving truck (held + pulled back on), long vehicles on the bed, the
   truck stopping beside the vehicle and pulls from beside the bed, a wrong-way stop on screen
-  with the other side taken (loads from where it stands), backing up to the vehicle, the tilt up
-  the ramp, trucks the server gives up on (dismissed: driven off empty), the failure notice,
-  the leaving truck let go far from the runner, never moved in front of another player.
+  with the other side taken (loads from where it stands, along the truck's side, never lifted
+  over it), a nose-to-nose stop on screen (never lifted over the cab: a new truck comes),
+  backing up to the vehicle, the tilt up the ramp, trucks the server gives up on (dismissed:
+  driven off empty; mid-load: the vehicle is put onto the deck, the driver back at the wheel),
+  the failure notice, the leaving truck let go far from the runner, never moved in front of
+  another player.
 
   Invariants checked across the scenarios: a towed vehicle never vanishes near a player before
   it is on the bed, a tow truck never vanishes near a player, a truck never drives off without
@@ -605,8 +608,11 @@ local function makeEnv(side, src)
       if e and owns(e) then ent(e).noMigrate = not can end
     end
     env.TaskVehicleDriveWander = function(ped, veh, speed)
+      if owns(ped) then W.pedTask[ped] = 'wander' end
       if owns(ped) and ent(veh) then ent(veh).drive = { wander = true, speed = speed } end
     end
+    -- the driver's latest task (enter / warp / wander / clear)
+    env.ClearPedTasks = function(ped) if owns(ped) then W.pedTask[ped] = 'clear' end end
     env.IsEntityDead = function() return false end
     env.TaskLeaveVehicle = function(ped, veh)
       local en = ent(ped)
@@ -617,8 +623,14 @@ local function makeEnv(side, src)
     end
     env.IsPedInVehicle = function(ped, veh) local en = ent(ped) return en ~= nil and en.vehicle == veh end
     env.TaskGoStraightToCoord = function(ped, x, y, z) if owns(ped) then local en = ent(ped) en.x, en.y, en.z = x, y, z end end
-    env.TaskEnterVehicle = function(ped, veh) if owns(ped) and ent(veh) then local en = ent(ped) en.vehicle, en.seat = veh, -1 end end
-    env.TaskWarpPedIntoVehicle = function(ped, veh) if owns(ped) and ent(veh) then local en = ent(ped) en.vehicle, en.seat = veh, -1 end end
+    env.TaskEnterVehicle = function(ped, veh)
+      if owns(ped) then W.pedTask[ped] = 'enter' end
+      if owns(ped) and ent(veh) then local en = ent(ped) en.vehicle, en.seat = veh, -1 end
+    end
+    env.TaskWarpPedIntoVehicle = function(ped, veh)
+      if owns(ped) then W.pedTask[ped] = 'warp' end
+      if owns(ped) and ent(veh) then local en = ent(ped) en.vehicle, en.seat = veh, -1 end
+    end
     env.SetEntityCoords = function(e, x, y, z) if owns(e) then local en = ent(e) en.x, en.y, en.z = x, y, z end end
     env.SetEntityHeading = function(e, h) if owns(e) then ent(e).h = h end end
     env.GetEntityBoneIndexByName = function() return 5 end
@@ -669,7 +681,7 @@ local function scenario(name, players)
   W = {
     entities = {}, byNet = {}, deleted = {}, nextId = 100, players = {}, callbacks = {}, sent = {}, notified = {},
     exports = {}, logs = {}, warnings = {}, errors = printedErrors, reports = {}, blocked = {}, sight = 100.0, rate = {}, rows = {},
-    created = {}, faded = {}, attachLog = {}, cull = 424.0,
+    created = {}, faded = {}, attachLog = {}, cull = 424.0, pedTask = {},
     nearDeletes = {}, leftBehind = {}, loadedBy = {}, tempActions = {}, controlRequests = {}, longrange = {},
   }
   local server = makeEnv('server', nil)
@@ -1185,8 +1197,12 @@ do -- 14. stuck, but out of sight: skips ahead and completes
   local reversed = false
   for _, t in ipairs(W.tempActions) do if t.action == 3 then reversed = true end end
   check(reversed, 'reversed out before skipping ahead')
+  -- the careful style is the approach style (steers around what blocks it) + stop at red lights;
+  -- the normal driving style already stops at lights, so the exact value is checked
+  local carefulStyle = math.tointeger(W.players[1].env.Config.Tow.approachStyle) | 128
+  check((math.tointeger(W.players[1].env.Config.Tow.approachStyle) & 128) == 0, 'approach style alone runs red lights')
   local careful = false
-  for _, c in ipairs(W.longrange) do if c.speed <= 8.0 and (c.style & 128) ~= 0 then careful = true end end
+  for _, c in ipairs(W.longrange) do if c.speed <= 8.0 and c.style == carefulStyle then careful = true end end
   check(careful, 'after a recovery: slower and still stops at red lights')
   W.blocked[truck] = nil
   check(runUntil(finished, 90000), 'finished')
@@ -2142,6 +2158,17 @@ do -- 48. everything on screen: the truck stops beside the vehicle the wrong way
   local worst = groundOverlap(poses)
   check(worst == nil, 'never through the truck at ground level' ..
     (worst and (' (%.2f m at %.2f, %.2f)'):format(worst.depth, worst.p.x, worst.p.y) or ''))
+  -- the side path: along the truck's side at ground level, behind the bed, up the ramp; never
+  -- lifted over the truck
+  local top = -math.huge
+  for _, p in ipairs(poses) do top = math.max(top, p.z) end
+  check(final and top <= final.z + 0.3, ('never lifted over the truck (highest z %.2f, on the bed %.2f)'):format(top,
+    final and final.z or 0))
+  check(poses[1] and math.abs(poses[1].x - 3.5) < 0.05, ('starts where it stands (x=%.2f)'):format(poses[1] and poses[1].x or 0))
+  -- about 12 m along the ground: about 3 s more than the configured loading time (one pose a tick)
+  local seconds = W.players[1].env.Config.Tow.loadSeconds
+  check(#poses >= (seconds * 1000 + 2500) / 50 and #poses <= (seconds * 1000 + 6500) / 50,
+    ('the long slide gets more time (%d poses)'):format(#poses))
   check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
   noNpcs('wrong way, other side taken')
   nothingVanished('wrong way, other side taken')
@@ -2229,6 +2256,84 @@ do -- 51. stuck out of the runner's sight, but another player watches the truck:
   leaveScene()
   noNpcs('stuck, watched')
   nothingVanished('stuck, watched')
+  trace()
+end
+
+do -- 52. everything on screen: the truck stops nose to nose with the vehicle (in line ahead of the
+   -- cab) and the other side is taken: never lifted over the cab; this truck drives off empty and
+   -- a new one loads it from behind the bed
+  local NZ = scenario('nose to nose, on screen', { { src = 1, x = 0.0, y = -30.0 } })
+  W.screenRealistic, W.sight = true, 1000.0
+  local target = car('sultan', 5.0, 0.0, 1)
+  local parked = car('sultan', 5.0, -9.8, nil) -- parked on the spot behind the vehicle
+  check(NZ.Tow.start(target, 1), 'tow started')
+  local first
+  check(runUntil(function()
+    first = find('flatbed')
+    local d = first and ent(first).drive
+    return d ~= nil and not d.wander and d.speed == 5.0
+  end, 90000), 'final approach')
+  local en = ent(first)
+  -- facing the vehicle's nose, 1.5 m apart: the rear of the bed about 12 m from it
+  en.x, en.y, en.h, en.drive = 5.0, 2.3 + 1.5 + MODELS.flatbed.max.y, 180.0, nil
+  W.blocked[first] = true
+  check(runUntil(function() return trucks() == 2 end, 40000), 'a new truck comes')
+  W.blocked[first] = nil
+  check(#(W.attachLog[target] or {}) == 0 and W.loadedBy[first] == nil, 'the first truck never touched the vehicle')
+  check(runUntil(function() local d = ent(first) and ent(first).drive return d ~= nil and d.wander == true end, 15000),
+    'the first truck drives off empty')
+  -- the parked car leaves meanwhile: the second truck may use either spot
+  ent(parked).x = 600.0
+  check(runUntil(function() return sawStage('loaded', 1) end, 120000), 'loaded by the second truck')
+  local poses = W.attachLog[target] or {}
+  local final = poses[#poses]
+  local top = -math.huge
+  for _, p in ipairs(poses) do top = math.max(top, p.z) end
+  check(final and top <= final.z + 0.3, ('never lifted over a truck (highest z %.2f)'):format(top))
+  check(W.loadedBy[first] == nil, 'only the second truck carries it')
+  checkPull(target, 'nose to nose')
+  check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  leaveScene()
+  noNpcs('nose to nose, on screen')
+  nothingVanished('nose to nose, on screen')
+  trace()
+end
+
+do -- 53. the server gives up on the truck while the vehicle is half way up the ramp (self pull):
+   -- the driver goes back to the wheel and stays there (stopWorking leaves him alone), the
+   -- vehicle is put onto the deck instead of hanging off the ramp
+  scenario('dismissed mid-load', { { src = 1, x = 0.0, y = -6.0 } })
+  local NZ = W.server.NZ
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('load', 1) end, 60000), 'loading')
+  run(2000)
+  local truck, driver = find('flatbed'), find('s_m_m_trucker_01')
+  local half = ent(target).attached
+  check(half ~= nil and half.parent == truck and (half.y < -3.0 or half.z < 0.5), 'half way onto the bed')
+  check(ent(driver).vehicle == nil, 'the driver works the controls')
+  local id
+  for _, ev in ipairs(W.sent) do
+    if ev.name == 'nz:client:tow:start' and ev.target == 1 then id = ev.args[1].id end
+  end
+  for _, fn in ipairs(W.players[1].env.handlers['nz:client:tow:stop'] or {}) do
+    fn({ id = id, dismiss = true, truck = ent(truck).netId, driver = ent(driver).netId, netId = ent(target).netId })
+  end
+  -- the dismiss thread may run before the scene notices (any order in game)
+  table.insert(threads, 1, table.remove(threads))
+  run(1500)
+  check(W.pedTask[driver] == 'enter' or W.pedTask[driver] == 'warp' or W.pedTask[driver] == 'wander',
+    'the driver is sent back to the wheel, not cleared (' .. tostring(W.pedTask[driver]) .. ')')
+  check(ent(driver).vehicle == truck, 'the driver sits at the wheel')
+  local poses = W.attachLog[target] or {}
+  local last = poses[#poses]
+  check(last and math.abs(last.x) < 0.01 and math.abs(last.y + 2.35) < 0.01 and (last.p or 0) == 0,
+    'the vehicle is put onto the deck, level')
+  check(ent(target).attached and ent(target).attached.parent == truck, 'still on the truck')
+  check(not (ent(truck).drive and ent(truck).drive.wander), 'the truck does not drive off with it')
+  check(runUntil(finished, 120000), 'finished')
+  leaveScene()
+  noNpcs('dismissed mid-load')
   trace()
 end
 

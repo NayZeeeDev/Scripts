@@ -280,7 +280,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
     if (draft.kind !== 'impound') {
       zoneNotes.push(t('While the zone is set, vehicles are parked anywhere inside it: the store interactions are not used.'));
     } else {
-      zoneNotes.push(t('Players still open the impound at its open interactions.'));
+      zoneNotes.push(t('Players open the impound anywhere inside the zone.'));
     }
     if (effectiveMode === 'target') {
       zoneNotes.push(t('Target mode: players open the menu at the open interaction (or its NPC); drivers still park anywhere in the zone.'));

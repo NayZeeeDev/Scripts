@@ -282,7 +282,17 @@ local function feedback(data)
   local plate = Utils.plate(data.plate)
   if plate then store(plate, true, data.kind) end
   local mine = type(CarLock.playerSettings) == 'function' and CarLock.playerSettings() or {}
-  if mine.fobBeep ~= false then CarLock.playFob() end
+  CarLock.playFob()
+  -- the fob beep only the acting player hears (player setting fobBeep); the vehicle chirp of
+  -- 'nz:client:carlock:fx' stays under the admin sound config
+  if mine.fobBeep ~= false then
+    local sound = CarLock.cfg().sound
+    local beep = type(sound) == 'table' and type(sound.fob) == 'table' and sound.fob or {}
+    if not (type(sound) == 'table' and sound.enabled == false) then
+      PlaySoundFrontend(-1, type(beep.name) == 'string' and beep.name or 'Remote_Control_Fob',
+        type(beep.set) == 'string' and beep.set or 'PI_Menu_Sounds', true)
+    end
+  end
   if CarLock.cfg().lockNotify ~= false and mine.alertLock ~= false then
     if data.locked then
       notify('info', L('Vehicle locked'))

@@ -430,7 +430,7 @@ local function doStore(location, vehicle)
   local timeout = GetGameTimer() + 1500
   while DoesEntityExist(vehicle) and GetGameTimer() < timeout do Wait(50) end
   if DoesEntityExist(vehicle) and NZ.Utils.plate(GetVehicleNumberPlateText(vehicle)) == plate then
-    pcall(NZ.Veh.delete, vehicle)
+    pcall(NZ.Veh.delete, vehicle, true) -- true: leave a refused trailer unhitched instead of deleting it
   end
   NZ.NUI.notify('success', L('Vehicle stored'))
 

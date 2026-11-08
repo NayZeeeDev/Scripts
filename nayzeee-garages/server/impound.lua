@@ -448,7 +448,7 @@ local function retrievalCheck(row, info, location, staff, isOwner, now)
   if vehicleTypeOf(row) ~= (location.vehicleType or 'car') then
     return false, L('This vehicle cannot be taken out at this impound')
   end
-  if type(row.finance) == 'table' and row.finance.overdue then return false, L('Finance payment overdue') end
+  if NZ.Finance and NZ.Finance.blocks and NZ.Finance.blocks(row) then return false, L('Finance payment overdue') end
   if staff then return true, nil end
   if not isOwner then return false, L('You do not have access to this vehicle') end
   if info.retrievable == false then return false, L('Contact the authorities to release this vehicle') end
@@ -658,7 +658,7 @@ register('nz:impound:open', function(src, payload)
   local location = impoundLocation(payload.locationId)
   if not location then return fail(L('Impound not found')) end
   if not identifierOf(src) then return fail(L('Your character is not loaded')) end
-  if not NZ.Access.isNear(src, location.openPoints or {}, maxDistance()) then
+  if not NZ.Access.nearLocation(src, location, maxDistance()) then
     return fail(L('You are too far from the impound'))
   end
   local session = NZ.Access.openSession(src, Utils.key.location(location.id), location, { impound = true })

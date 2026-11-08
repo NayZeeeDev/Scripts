@@ -1290,7 +1290,7 @@ register('nz:forSale:tour', 'forSale:tour', 3000, function(src, payload)
   if type(location) ~= 'table' or location.kind ~= 'private' or location.enabled == false or not location.purchasable then
     return fail(L('This garage is not for sale'))
   end
-  if not NZ.Access.isNear(src, location.openPoints, maxDistance()) then
+  if not NZ.Access.nearLocation(src, location, maxDistance()) then
     return fail(L('You are too far from the garage'))
   end
   if inVehicle(src) then return fail(L('Leave your vehicle first')) end
