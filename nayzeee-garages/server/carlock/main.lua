@@ -676,6 +676,7 @@ end)
 
 local adminValues = {}           -- stored overrides { [id] = value }
 local settingsReady = false      -- the stored values were loaded (or the load gave up)
+local settingsLoaded = false     -- the stored values really loaded (no database error, no timeout)
 local settingsHooks = {}         -- functions run after every apply (sections further down)
 
 local function publishSettings()
@@ -747,6 +748,9 @@ CreateThread(function()
       end
     end
     adminValues = clean
+    settingsLoaded = true
+  else
+    lib.print.warn('[nayzeee-garages] carlock: the admin key settings could not be loaded, the config values are used')
   end
   publishSettings()
   settingsReady = true
@@ -1380,11 +1384,19 @@ local function landFlight(id)
   local f = flights[id]
   if not f or f.landing then return end
   f.landing = true -- the inventory / DB calls below may yield: land once
-  -- missed: at the catcher's feet (else where it was thrown from)
-  local ped = validSrc(f.to) and pedOf(f.to) or nil
-  local from = validSrc(f.from) and pedOf(f.from) or nil
-  local base = (ped and GetEntityCoords(ped)) or (from and GetEntityCoords(from)) or f.origin
-  local towards = from and GetEntityCoords(from) or base
+  -- missed: at the catcher's feet, else the thrower's, else where it was thrown from; a player
+  -- only counts while in the throw's bucket and near the throw (no key landing across the map)
+  local reach = Utils.clamp(tonumber(groundCfg().throwRange) or 8.0, 2.0, 20.0) + 2.0
+  local function near(src)
+    local p = validSrc(src) and pedOf(src) or nil
+    if not p or GetPlayerRoutingBucket(tostring(src)) ~= (f.bucket or 0) then return nil end
+    local c = GetEntityCoords(p)
+    if #(c - f.origin) > reach then return nil end
+    return c
+  end
+  local caught, thrower = near(f.to), near(f.from)
+  local base = caught or thrower or f.origin
+  local towards = thrower or base
   local dir = towards - base
   local len = #dir
   local spot = len > 0.01 and (base + dir * (0.5 / len)) or base
@@ -1447,7 +1459,10 @@ lib.callback.register('nz:carlock:ground:catch', Utils.safe(function(source, pay
   local ped = pedOf(src)
   local range = Utils.clamp(tonumber(groundCfg().throwRange) or 8.0, 2.0, 20.0) + 2.0
   local okHp, hp = pcall(GetEntityHealth, ped or 0)
-  if not ped or (okHp and tonumber(hp) and tonumber(hp) <= 0) or GetPlayerRoutingBucket(tostring(src)) ~= (f.bucket or 0)
+  -- GTA peds are dead at 100 health or less; framework downed states (state bag isDead) too
+  local okState, dead = pcall(function() return Player(src).state.isDead end)
+  if not ped or (okHp and tonumber(hp) and tonumber(hp) <= 100) or (okState and dead == true)
+    or GetPlayerRoutingBucket(tostring(src)) ~= (f.bucket or 0)
     or #(GetEntityCoords(ped) - f.origin) > range then
     landFlight(payload.id)
     return Utils.fail(L('You missed the key'))
@@ -1568,8 +1583,15 @@ end))
 
 local function groundTick()
   local t = os.time()
-  for id, rec in pairs(grounds) do
-    if rec.expiresAt and rec.expiresAt <= t then
+  -- snapshot the ids: the DB / prop calls below yield, and a key dropped meanwhile must not
+  -- change the table under the traversal
+  local ids = {}
+  for id in pairs(grounds) do ids[#ids + 1] = id end
+  for _, id in ipairs(ids) do
+    local rec = grounds[id]
+    if not rec then
+      -- picked up / removed during an earlier yield of this tick
+    elseif rec.expiresAt and rec.expiresAt <= t then
       groundRemove(id, 'expired')
     elseif rec.heldUntil and rec.heldUntil <= t then
       rec.heldBy, rec.heldUntil = nil, nil
@@ -1585,9 +1607,11 @@ local function groundTick()
       end
     end
   end
+  local due = {}
   for id, f in pairs(flights) do
-    if GetGameTimer() > f.expires + 2000 then landFlight(id) end
+    if GetGameTimer() > f.expires + 2000 then due[#due + 1] = id end
   end
+  for _, id in ipairs(due) do landFlight(id) end
 end
 
 local function restoreGround(list, source)
@@ -1620,7 +1644,12 @@ settingsHooks[#settingsHooks + 1] = function()
   local now = persistOn()
   if persistWas ~= nil and now ~= persistWas and NZ.DB.groundKeys then
     if now then
-      for _, rec in pairs(grounds) do rec.persisted = persistRecord(rec) end
+      local ids = {}
+      for id in pairs(grounds) do ids[#ids + 1] = id end
+      for _, id in ipairs(ids) do
+        local rec = grounds[id]
+        if rec then rec.persisted = persistRecord(rec) end
+      end
     else
       for _, rec in pairs(grounds) do rec.persisted = false end
       if type(NZ.DB.groundKeys.clear) == 'function' then pcall(NZ.DB.groundKeys.clear) end
@@ -1642,7 +1671,11 @@ CreateThread(function()
       restoreGround(data.keys, 'kvp')
     end
   end
-  if persistOn() and NZ.DB.groundKeys then
+  if not settingsLoaded then
+    -- the admin settings did not load (database error / timeout): persistence is unknown, so
+    -- neither restore nor wipe the stored keys
+    lib.print.warn('[nayzeee-garages] carlock: admin key settings not loaded, stored ground keys left untouched')
+  elseif persistOn() and NZ.DB.groundKeys then
     local ok, list = pcall(NZ.DB.groundKeys.all)
     if ok and type(list) == 'table' then restoreGround(list, 'db') end
   elseif NZ.DB.groundKeys and type(NZ.DB.groundKeys.clear) == 'function' then
