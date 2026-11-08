@@ -14,6 +14,14 @@
                                                             vehicle's owner (sale, transfer).
     SetVehicleLocked(netId|entity, locked) -> boolean
     IsVehicleLocked(netId|entity) -> boolean
+    GetKeyMode() -> 'flexible'|'limited'|'virtual', 'physical'|'virtual'   policy, storage in use
+    GetImmobiliser(plate) -> 'none'|'standard'|'ghost', pinSet
+    SetImmobiliser(plate, level) -> boolean, error?        registered vehicles; clears the Ghost PIN
+                                                            unless it stays 'ghost'
+    GetKeyCustody(plate) -> { { id, plate, version, current, kind, origin?, custody, holder?, slot? } }
+    GetPlayerKeySettings(src) -> PlayerKeySettings
+    GetKeySettings() -> { [settingId] = value }            the admin's values (docs/CARLOCK.md §15)
+    SetKeySettings(values, reset?) -> boolean, error?      store + apply (live), like the admin UI
     SendDispatch(src|nil, alert) -> boolean                police alert through the configured
                                                             dispatch system (NZ.Dispatch.alert,
                                                             docs/CARLOCK.md §6); src = offender
@@ -94,7 +102,8 @@ end))
 exports('GiveKeyItem', safe('GiveKeyItem', function(src, plate)
   plate = plateArg(src, plate)
   if not plate then return false, L('Invalid plate') end
-  return CarLock.giveKeyItem(src, plate, { reason = 'export' })
+  local ok, err = CarLock.giveKeyItem(src, plate, { reason = 'export' })
+  return ok, err
 end))
 
 exports('GetKeyVersion', safe('GetKeyVersion', function(plate)
@@ -126,4 +135,38 @@ exports('SendDispatch', safe('SendDispatch', function(src, alert)
   if type(src) == 'table' and alert == nil then src, alert = nil, src end
   if type(alert) ~= 'table' or type(NZ.Dispatch.alert) ~= 'function' then return false end
   return NZ.Dispatch.alert(src, alert) == true
+end))
+
+exports('GetKeyMode', safe('GetKeyMode', function()
+  return CarLock.keyMode(), CarLock.mode()
+end))
+
+exports('GetImmobiliser', safe('GetImmobiliser', function(plate)
+  plate = Utils.plate(plate)
+  if not plate or #plate > 16 then return 'none', false end
+  return CarLock.immobiliserOf(plate)
+end))
+
+exports('SetImmobiliser', safe('SetImmobiliser', function(plate, level)
+  plate = Utils.plate(plate)
+  if not plate or #plate > 16 then return false, L('Invalid plate') end
+  return CarLock.setImmobiliser(plate, level, nil)
+end))
+
+exports('GetKeyCustody', safe('GetKeyCustody', function(plate)
+  plate = Utils.plate(plate)
+  if not plate or #plate > 16 then return {} end
+  return CarLock.keyCustody(plate)
+end))
+
+exports('GetPlayerKeySettings', safe('GetPlayerKeySettings', function(src)
+  return CarLock.playerSettings(src)
+end))
+
+exports('GetKeySettings', safe('GetKeySettings', function()
+  return CarLock.adminSettings()
+end))
+
+exports('SetKeySettings', safe('SetKeySettings', function(values, reset)
+  return CarLock.saveAdminSettings(values, reset, nil)
 end))

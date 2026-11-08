@@ -147,6 +147,12 @@ vmeta.__sub = function(a, b) return setmetatable({ x = a.x - b.x, y = a.y - b.y,
 vmeta.__len = function(a) return math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z) end
 local function vec3(x, y, z) return setmetatable({ x = x or 0.0, y = y or 0.0, z = z or 0.0 }, vmeta) end
 vector3 = vec3
+-- like CfxLua: type(vector3(...)) is 'vector3', not 'table'
+local rawtype = type
+type = function(v)
+  if rawtype(v) == 'table' and getmetatable(v) == vmeta then return 'vector3' end
+  return rawtype(v)
+end
 function vector4(x, y, z, w) return { x = x or 0.0, y = y or 0.0, z = z or 0.0, w = w or 0.0 } end
 vec4 = vector4
 
@@ -490,7 +496,8 @@ chances(standard.accessTools[1], { breakChance = 0, alarmChance = 0, alertChance
 chances(standard.hotwire, { alertChance = 0, alarmChance = 0 })
 chances(highend.hotwire, { alertChance = 0, alarmChance = 0, breakChance = 0 })
 chances(C.search, { alertChance = 0 })
-chances(C.npc, { alertChance = 0, resistChance = 0, fightChance = 0, cooldown = 0 })
+chances(C.npc, { alertChance = 0, cooldown = 0 })
+C.npc.reactions = { handover = 100, drop = 0, fight = 0, flee = 0 }
 C.alarm.alertChance = 0
 C.dispatch.cooldown = 30
 
@@ -966,16 +973,39 @@ check(fin.data.success and has and kind == 'temp' and step.payload.step == 'rele
   'comply: temporary key, unlocked, the driver gets out and flees')
 CarLock.revokeTemp(1, 'NPC300')
 
-C.npc.resistChance, C.npc.fightChance = 100, 0
+C.npc.reactions = { handover = 0, drop = 0, fight = 0, flee = 100 }
 res = cb('nz:carlock:npcRob', 1, { step = 'start', netId = taxiNet, pedNetId = driverNet })
 step = lastClient('nz:client:carlock:npc')
 check(res.ok and res.data.outcome == 'flee' and res.data.id == nil and step.payload.step == 'flee' and not hasKey(1, 'NPC300'),
   'resist + flee: no key, drives off')
-C.npc.fightChance = 100
+C.npc.reactions = { handover = 0, drop = 0, fight = 100, flee = 0 }
 res = cb('nz:carlock:npcRob', 1, { step = 'start', netId = taxiNet, pedNetId = driverNet })
 step = lastClient('nz:client:carlock:npc')
 check(res.data.outcome == 'fight' and step.payload.step == 'fight' and step.payload.weapon == 'WEAPON_PISTOL', 'resist + fight: armed driver')
-C.npc.resistChance, C.npc.fightChance = 0, 0
+
+-- drop and run: the key lands on the ground next to the vehicle, whoever picks it up gets a temporary key
+C.npc.reactions = { handover = 0, drop = 100, fight = 0, flee = 0 }
+CarLock.setLocked(taxi, true)
+res = cb('nz:carlock:npcRob', 1, { step = 'start', netId = taxiNet, pedNetId = driverNet })
+step = lastClient('nz:client:carlock:npc')
+check(res.ok and res.data.outcome == 'drop' and res.data.id == nil and step.payload.step == 'drop' and not CarLock.isLocked(taxi),
+  'drop and run: no session, the driver gets out (step drop), the doors are unlocked')
+advance(3000)
+local dropped = CarLock.groundKeys('NPC300')
+check(#dropped == 1 and dropped[1].kind == 'temp' and not hasKey(1, 'NPC300'), 'drop and run: a temporary-key ground key, nobody has the key yet')
+if dropped[1] then
+  res = cb('nz:carlock:ground:pickup', 1, { id = dropped[1].id })
+  has, kind = hasKey(1, 'NPC300')
+  check(res.ok and has and kind == 'temp' and #CarLock.groundKeys('NPC300') == 0, 'picking the dropped key up gives a temporary key')
+  CarLock.revokeTemp(1, 'NPC300')
+end
+
+-- police requirement
+C.npc.reactions = { handover = 100, drop = 0, fight = 0, flee = 0 }
+C.npc.policeRequired = 50
+res = cb('nz:carlock:npcRob', 1, { step = 'start', netId = taxiNet, pedNetId = driverNet })
+check(not res.ok and res.error == 'There are not enough police officers around', 'npc.policeRequired: not enough officers on duty')
+C.npc.policeRequired = 0
 
 C.npc.cooldown = 60
 res = cb('nz:carlock:npcRob', 1, { step = 'start', netId = taxiNet, pedNetId = driverNet })

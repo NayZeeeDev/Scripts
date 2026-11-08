@@ -48,10 +48,15 @@ local BLOCKED = {
 local MOVEMENT = { 30, 31, 32, 33, 34, 35, 21, 36 }
 -- Additionally disabled by the point manager (E / X are its keys).
 local MANAGER_KEYS = { 38, 51, 73 }
+-- Vehicle controls (accelerate / brake / steer / handbrake / horn): disabled while zoning, in
+-- case the admin ends up in a vehicle (the editor refuses to start the tool in one).
+local VEHICLE_KEYS = { 59, 60, 61, 62, 63, 64, 71, 72, 76, 86 }
 
 local ghosts = {}             -- [entity] = true, every ghost created by this module
 local toolActive = false      -- vehicle() / point() running
 local managing = false        -- manage() running
+local zoning = false          -- zone() running
+local zoneCam = nil           -- fly camera of the zone tool
 
 ---------------------------------------------------------------------------------------
 -- Generic helpers
@@ -145,7 +150,8 @@ local function newProbe()
   return { handle = nil, hit = nil }
 end
 
-local function updateProbe(probe, ignore)
+--- `from` / `rot` / `distance`: cast from another camera (fly camera of the zone tool).
+local function updateProbe(probe, ignore, from, rot, distance)
   if probe.handle then
     local status, hit, endCoords = GetShapeTestResult(probe.handle)
     if status == 2 then
@@ -154,19 +160,22 @@ local function updateProbe(probe, ignore)
       local c = didHit and Utils.v3(endCoords) or nil
       if c and (c.x ~= 0.0 or c.y ~= 0.0 or c.z ~= 0.0) then
         probe.hit = c
+        probe.missed = false
       else
         probe.hit = probe.endPoint
+        probe.missed = true
       end
     elseif status ~= 1 then
       probe.handle = nil
     end
     return probe.hit
   end
-  local from = Utils.v3(GetGameplayCamCoord())
-  local rot = Utils.v3(GetGameplayCamRot(2))
+  from = from or Utils.v3(GetGameplayCamCoord())
+  rot = rot or Utils.v3(GetGameplayCamRot(2))
   if not from or not rot then return probe.hit end
   local dx, dy, dz = rotationToDirection(rot)
-  local tx, ty, tz = from.x + dx * RAY_DISTANCE, from.y + dy * RAY_DISTANCE, from.z + dz * RAY_DISTANCE
+  local reach = distance or RAY_DISTANCE
+  local tx, ty, tz = from.x + dx * reach, from.y + dy * reach, from.z + dz * reach
   probe.endPoint = { x = tx, y = ty, z = tz }
   probe.handle = StartShapeTestLosProbe(from.x, from.y, from.z, tx, ty, tz, 1 | 16, ignore or PlayerPedId(), 7)
   return probe.hit
@@ -484,7 +493,7 @@ end
 --- Whether any placement tool (or the point manager) is running.
 ---@return boolean
 function Placement.isActive()
-  return toolActive or managing
+  return toolActive or managing or zoning
 end
 
 ---------------------------------------------------------------------------------------
@@ -704,6 +713,748 @@ function Placement.manage(opts)
 end
 
 ---------------------------------------------------------------------------------------
+-- Garage zone tool (polygon drawn in the world)
+---------------------------------------------------------------------------------------
+
+-- Same limits as server/locations.lua (ZONE): the server decides, this only warns early.
+local ZONE = {
+  minPoints = 3,
+  maxPoints = 40,
+  minEdge = 0.5,
+  minArea = 10.0,
+  maxArea = 40000.0,
+  maxSpan = 250.0,
+  minHeight = 2.0,
+  maxHeight = 100.0,
+  openGap = 30.0,
+}
+local ZONE_AIM = 60.0             -- metres: crosshair reach on foot
+local ZONE_AIM_FLY = 150.0        -- ... and from the fly camera (zones are drawn from above)
+local TELEPORT_JUMP = 40.0        -- metres between two frames: the player was teleported, the tool stops
+local TELEPORT_SPEED = 90.0       -- m/s: over a long frame (hitch) the jump must also beat this
+                                  -- speed, well above freefall or vehicle speed (tune in game)
+local ZONE_SNAP = 1.5             -- metres: aiming this close to corner #1 closes the shape
+local ZONE_FLOOR_BELOW = 1.0      -- default floor: under the lowest corner
+local ZONE_CEILING_ABOVE = 5.0    -- default ceiling: over the highest corner (vans, trucks)
+local HEIGHT_STEP = 0.25
+local HEIGHT_STEP_FAST = 1.0
+local FLY_SPEED = 0.18            -- metres per frame at 60 fps
+local FLY_FAST = 5.0
+local FLY_RANGE = 150.0           -- the camera never goes farther than this from the player
+local LOOK_SPEED = 7.0            -- degrees per unit of mouse movement
+local REFERENCE_DISTANCE = 80.0   -- open / spawn point markers drawn within this range
+local WARN = { 229, 72, 77 }      -- --red of the interface
+local GHOST = { 200, 205, 210 }   -- the zone being replaced
+
+-- E (two control ids), X, G, Ctrl: read as disabled controls by the zone tool.
+local ZONE_KEYS = { 38, 51, 73, 47, 36 }
+local ZK_ADD = { 38, 51 }
+local ZK_UNDO = 73
+local ZK_FLY = 47
+local ZK_CTRL = 36
+local ZK_ESC = 200
+local ZK_BACK = 194
+local FLY_LOOK = { 1, 2 }
+
+local function cross2(ax, ay, bx, by, cx, cy)
+  return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+end
+
+local EPS = 1e-9
+
+local function sgn(v)
+  if v > EPS then return 1 elseif v < -EPS then return -1 end
+  return 0
+end
+
+local function onSeg(a, b, c)
+  return c.x >= math.min(a.x, b.x) - EPS and c.x <= math.max(a.x, b.x) + EPS
+    and c.y >= math.min(a.y, b.y) - EPS and c.y <= math.max(a.y, b.y) + EPS
+end
+
+--- Segments a-b and c-d touch or cross (collinear overlaps count).
+local function segmentsIntersect(a, b, c, d)
+  local d1 = sgn(cross2(c.x, c.y, d.x, d.y, a.x, a.y))
+  local d2 = sgn(cross2(c.x, c.y, d.x, d.y, b.x, b.y))
+  local d3 = sgn(cross2(a.x, a.y, b.x, b.y, c.x, c.y))
+  local d4 = sgn(cross2(a.x, a.y, b.x, b.y, d.x, d.y))
+  if d1 * d2 < 0 and d3 * d4 < 0 then return true end
+  if d1 == 0 and onSeg(c, d, a) then return true end
+  if d2 == 0 and onSeg(c, d, b) then return true end
+  if d3 == 0 and onSeg(a, b, c) then return true end
+  if d4 == 0 and onSeg(a, b, d) then return true end
+  return false
+end
+
+local function signedArea2(points)
+  local n = #points
+  if n < 3 then return 0.0 end
+  local ox, oy = points[1].x, points[1].y
+  local sum = 0.0
+  for i = 1, n do
+    local a, b = points[i], points[i % n + 1]
+    sum = sum + (a.x - ox) * (b.y - oy) - (b.x - ox) * (a.y - oy)
+  end
+  return sum
+end
+
+local function area(points)
+  return math.abs(signedArea2(points)) / 2.0
+end
+
+--- Two edges of the closed polygon that share no corner touch or cross.
+local function selfIntersects(points)
+  local n = #points
+  if n < 4 then return false end
+  for i = 1, n do
+    local a, b = points[i], points[i % n + 1]
+    for j = i + 2, n do
+      if not (i == 1 and j == n) and segmentsIntersect(a, b, points[j], points[j % n + 1]) then return true end
+    end
+  end
+  return false
+end
+
+--- The new edge (last point -> `p`) would cross an earlier edge of the open chain. The closing
+--- edge is not checked here: the next corner replaces it (U / C shapes cross it on the way);
+--- closeShape() checks the finished shape.
+local function wouldCross(points, p)
+  local n = #points
+  if n < 2 then return false end
+  local last = points[n]
+  for i = 1, n - 2 do
+    if segmentsIntersect(points[i], points[i + 1], last, p) then return true end
+  end
+  return false
+end
+
+--- Closing the shape right after `p` (p -> corner #1) would cross an edge between 2 and n.
+--- Only a hint for the preview line, never a reason to refuse the point.
+local function closingCrosses(points, p)
+  local n = #points
+  if n < 2 then return false end
+  for i = 2, n - 1 do
+    if segmentsIntersect(points[i], points[i + 1], p, points[1]) then return true end
+  end
+  return false
+end
+
+local function dist2d(a, b)
+  local dx, dy = a.x - b.x, a.y - b.y
+  return math.sqrt(dx * dx + dy * dy)
+end
+
+local function distToSegment(px, py, a, b)
+  local dx, dy = b.x - a.x, b.y - a.y
+  local len2 = dx * dx + dy * dy
+  local t = 0.0
+  if len2 > 0 then t = Utils.clamp(((px - a.x) * dx + (py - a.y) * dy) / len2, 0.0, 1.0) end
+  local cx, cy = a.x + dx * t - px, a.y + dy * t - py
+  return math.sqrt(cx * cx + cy * cy)
+end
+
+local function pointInPolygon(points, x, y)
+  local inside = false
+  local n = #points
+  local j = n
+  for i = 1, n do
+    local a, b = points[i], points[j]
+    if (a.y > y) ~= (b.y > y) then
+      local xi = (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x
+      if x < xi then inside = not inside end
+    end
+    j = i
+  end
+  return inside
+end
+
+local function zoneDistance(points, x, y)
+  if pointInPolygon(points, x, y) then return 0.0 end
+  local best = math.huge
+  for i = 1, #points do
+    local d = distToSegment(x, y, points[i], points[i % #points + 1])
+    if d < best then best = d end
+  end
+  return best
+end
+
+local function inTriangle(p, a, b, c)
+  local d1 = cross2(a.x, a.y, b.x, b.y, p.x, p.y)
+  local d2 = cross2(b.x, b.y, c.x, c.y, p.x, p.y)
+  local d3 = cross2(c.x, c.y, a.x, a.y, p.x, p.y)
+  local neg = d1 < -EPS or d2 < -EPS or d3 < -EPS
+  local pos = d1 > EPS or d2 > EPS or d3 > EPS
+  return not (neg and pos)
+end
+
+--- Ear clipping: triangles { i, j, k } of a simple polygon (for the translucent fill).
+local function triangulate(points)
+  local n = #points
+  local tris = {}
+  if n < 3 then return tris end
+  local idx = {}
+  for i = 1, n do idx[i] = i end
+  local ccw = signedArea2(points) > 0
+  local guard = 0
+  while #idx > 3 and guard < n * n do
+    guard = guard + 1
+    local m = #idx
+    local clipped = false
+    for i = 1, m do
+      local ia, ib, ic = idx[(i - 2) % m + 1], idx[i], idx[i % m + 1]
+      local a, b, c = points[ia], points[ib], points[ic]
+      local cr = cross2(a.x, a.y, b.x, b.y, c.x, c.y)
+      if (ccw and cr > EPS) or (not ccw and cr < -EPS) then
+        local ear = true
+        for j = 1, m do
+          local ij = idx[j]
+          if ij ~= ia and ij ~= ib and ij ~= ic and inTriangle(points[ij], a, b, c) then
+            ear = false
+            break
+          end
+        end
+        if ear then
+          tris[#tris + 1] = { ia, ib, ic }
+          table.remove(idx, i)
+          clipped = true
+          break
+        end
+      end
+    end
+    if not clipped then break end   -- degenerate (collinear) rest: partial fill only
+  end
+  if #idx == 3 then tris[#tris + 1] = { idx[1], idx[2], idx[3] } end
+  return tris
+end
+
+--- The first problem of a closed shape (translated, the server's wording), or nil.
+local function shapeProblem(points, openPoints)
+  local n = #points
+  if n < ZONE.minPoints then return L('A garage zone needs at least 3 points') end
+  if n > ZONE.maxPoints then return L('A garage zone can have at most {count} points', { count = ZONE.maxPoints }) end
+  if selfIntersects(points) then return L('The edges of the garage zone cross each other') end
+  local a = area(points)
+  if a < ZONE.minArea then return L('The garage zone is too small') end
+  if a > ZONE.maxArea then
+    return L('The garage zone is too large (at most {size} m², it is {area} m²)', {
+      size = math.floor(ZONE.maxArea), area = math.floor(a),
+    })
+  end
+  if type(openPoints) == 'table' and #openPoints > 0 then
+    local near = false
+    for _, p in ipairs(openPoints) do
+      if zoneDistance(points, p.x, p.y) <= ZONE.openGap then
+        near = true
+        break
+      end
+    end
+    if not near then
+      return L('The garage zone must be at most {distance} m from an open interaction', { distance = math.floor(ZONE.openGap) })
+    end
+  end
+  return nil
+end
+
+--- Points of an existing zone ({ points, minZ, maxZ }) or nil.
+local function readZone(raw)
+  if type(raw) ~= 'table' or type(raw.points) ~= 'table' then return nil end
+  local points = {}
+  for _, p in ipairs(raw.points) do
+    local x, y = type(p) == 'table' and tonumber(p.x), type(p) == 'table' and tonumber(p.y)
+    if x and y then points[#points + 1] = { x = x, y = y } end
+    if #points >= ZONE.maxPoints then break end
+  end
+  local minZ, maxZ = tonumber(raw.minZ), tonumber(raw.maxZ)
+  if #points < 3 or not minZ or not maxZ or maxZ <= minZ then return nil end
+  return { points = points, minZ = minZ, maxZ = maxZ }
+end
+
+--- Ground height under each corner of `zone` (searching down from its ceiling).
+local function groundUnder(zone)
+  local fallback = zone.minZ + ZONE_FLOOR_BELOW
+  for _, p in ipairs(zone.points) do
+    local g = groundAt(p.x, p.y, zone.maxZ, false)
+    p.z = (g and g >= zone.minZ - 2.0 and g <= zone.maxZ + 1.0) and g or fallback
+  end
+end
+
+local function line(a, az, b, bz, col, alpha)
+  DrawLine(a.x + 0.0, a.y + 0.0, az + 0.0, b.x + 0.0, b.y + 0.0, bz + 0.0, col[1], col[2], col[3], alpha)
+end
+
+--- A triangle seen from both sides.
+local function tri(a, az, b, bz, c, cz, col, alpha)
+  DrawPoly(a.x + 0.0, a.y + 0.0, az + 0.0, b.x + 0.0, b.y + 0.0, bz + 0.0, c.x + 0.0, c.y + 0.0, cz + 0.0, col[1], col[2], col[3], alpha)
+  DrawPoly(c.x + 0.0, c.y + 0.0, cz + 0.0, b.x + 0.0, b.y + 0.0, bz + 0.0, a.x + 0.0, a.y + 0.0, az + 0.0, col[1], col[2], col[3], alpha)
+end
+
+local function corner(p, col, size)
+  local s = size or 0.22
+  DrawMarker(28, p.x + 0.0, p.y + 0.0, p.z + 0.12, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, s, s, s,
+    col[1], col[2], col[3], 220, false, false, 2, false, nil, nil, false)
+end
+
+---------------------------------------------------------------------------------------
+-- Fly camera
+---------------------------------------------------------------------------------------
+
+local function flyStart(st)
+  local from = Utils.v3(GetGameplayCamCoord()) or (function()
+    local x, y, z = pedPosition()
+    return { x = x, y = y, z = z + 2.0 }
+  end)()
+  local rot = Utils.v3(GetGameplayCamRot(2)) or { x = -20.0, y = 0.0, z = 0.0 }
+  local cam = CreateCam('DEFAULT_SCRIPTED_CAMERA', true)
+  SetCamCoord(cam, from.x + 0.0, from.y + 0.0, from.z + 0.0)
+  SetCamRot(cam, rot.x + 0.0, 0.0, rot.z + 0.0, 2)
+  SetCamFov(cam, (tonumber(GetGameplayCamFov()) or 50.0) + 0.0)
+  RenderScriptCams(true, true, 350, true, true)
+  zoneCam = cam
+  st.cam = cam
+  st.camPos = { x = from.x, y = from.y, z = from.z }
+  st.camRot = { x = Utils.clamp(rot.x, -89.0, 89.0), y = 0.0, z = rot.z }
+end
+
+local function flyStop(st)
+  if st.cam then
+    -- instant switch: destroying the rendering cam during an ease cuts the blend anyway
+    RenderScriptCams(false, false, 0, true, true)
+    DestroyCam(st.cam, false)
+  end
+  if zoneCam == st.cam then zoneCam = nil end
+  st.cam = nil
+  ClearFocus()
+end
+
+local function flyUpdate(st)
+  disableAll(MOVEMENT)
+  disableAll(FLY_LOOK)
+  local scale = frameScale()
+  local rot = st.camRot
+  rot.z = normalizeHeading(rot.z - (tonumber(GetDisabledControlNormal(0, 1)) or 0.0) * LOOK_SPEED)
+  rot.x = Utils.clamp(rot.x - (tonumber(GetDisabledControlNormal(0, 2)) or 0.0) * LOOK_SPEED, -89.0, 89.0)
+
+  local fwd, right, up = 0.0, 0.0, 0.0
+  if IsDisabledControlPressed(0, C.W) then fwd = fwd + 1.0 end
+  if IsDisabledControlPressed(0, C.S) then fwd = fwd - 1.0 end
+  if IsDisabledControlPressed(0, C.D) then right = right + 1.0 end
+  if IsDisabledControlPressed(0, C.A) then right = right - 1.0 end
+  if anyPressed(C.UP) then up = up + 1.0 end
+  if anyPressed(C.DOWN) then up = up - 1.0 end
+  local step = FLY_SPEED * scale * (IsDisabledControlPressed(0, C.SHIFT) and FLY_FAST or 1.0)
+  local dx, dy, dz = rotationToDirection(rot)
+  local h = math.rad(rot.z)
+  local p = st.camPos
+  p.x = p.x + (dx * fwd + math.cos(h) * right) * step
+  p.y = p.y + (dy * fwd + math.sin(h) * right) * step
+  p.z = p.z + (dz * fwd + up) * step
+
+  -- stay near the player (streaming, and the server checks admins by their ped anyway)
+  local px, py, pz = pedPosition()
+  local ox, oy, oz = p.x - px, p.y - py, p.z - pz
+  local d = math.sqrt(ox * ox + oy * oy + oz * oz)
+  if d > FLY_RANGE then
+    local k = FLY_RANGE / d
+    p.x, p.y, p.z = px + ox * k, py + oy * k, pz + oz * k
+  end
+
+  SetCamCoord(st.cam, p.x + 0.0, p.y + 0.0, p.z + 0.0)
+  SetCamRot(st.cam, rot.x + 0.0, 0.0, rot.z + 0.0, 2)
+  -- stream the world (collision for the raycast) around the camera, not only the player
+  SetFocusPosAndVel(p.x + 0.0, p.y + 0.0, p.z + 0.0, 0.0, 0.0, 0.0)
+end
+
+---------------------------------------------------------------------------------------
+-- Zone tool loop
+---------------------------------------------------------------------------------------
+
+local function zoneHint(st)
+  local n = #st.points
+  local parts = { L('Garage zone'), L('{count} points', { count = n }) }
+  if n >= 3 then parts[#parts + 1] = ('%s m²'):format(math.floor(area(st.points) + 0.5)) end
+  if st.phase == 'height' then
+    parts[#parts + 1] = L('{height} m high', { height = ('%.1f'):format(st.maxZ - st.minZ) })
+    return {
+      title = table.concat(parts, ' · '),
+      keys = {
+        { keys = { 'Scroll' }, label = L('Ceiling') },
+        { keys = { 'Ctrl', 'Scroll' }, label = L('Floor') },
+        { keys = { 'Shift' }, label = L('Faster') },
+        { keys = { 'Enter' }, label = L('Save') },
+        { keys = { 'Backspace' }, label = L('Edit points') },
+        { keys = { 'Esc' }, label = L('Cancel') },
+      },
+    }
+  end
+  local keys = {
+    { keys = { 'E' }, label = L('Add point') },
+    { keys = { 'X' }, label = L('Undo') },
+    { keys = { 'Enter' }, label = L('Close shape') },
+    { keys = { 'G' }, label = st.fly and L('Walk') or L('Fly') },
+  }
+  if st.fly then
+    keys[#keys + 1] = { keys = { 'W', 'A', 'S', 'D' }, label = L('Move') }
+    keys[#keys + 1] = { keys = { 'R', 'F' }, label = L('Up / down') }
+  end
+  keys[#keys + 1] = { keys = { 'Esc' }, label = L('Cancel') }
+  return { title = table.concat(parts, ' · '), keys = keys }
+end
+
+--- Start the height step: a floor under the lowest corner and a ceiling over the highest one,
+--- or the replaced zone's range when it still covers every corner.
+local function enterHeight(st)
+  local lo, hi = math.huge, -math.huge
+  for _, p in ipairs(st.points) do
+    lo, hi = math.min(lo, p.z), math.max(hi, p.z)
+  end
+  local old = st.old
+  if old and old.minZ <= lo - 0.5 and old.maxZ >= hi + ZONE.minHeight and old.maxZ - old.minZ <= ZONE.maxHeight then
+    st.minZ, st.maxZ = old.minZ, old.maxZ
+  else
+    st.minZ, st.maxZ = lo - ZONE_FLOOR_BELOW, hi + ZONE_CEILING_ABOVE
+    if st.maxZ - st.minZ > ZONE.maxHeight then st.maxZ = st.minZ + ZONE.maxHeight end
+  end
+  st.phase = 'height'
+end
+
+--- Close the shape: the height step when it is valid, else a warning.
+local function closeShape(st, openPoints)
+  local problem = shapeProblem(st.points, openPoints)
+  if problem then
+    sound('ERROR')
+    NZ.NUI.notify('warning', problem)
+    return
+  end
+  sound('SELECT')
+  enterHeight(st)
+end
+
+--- Try to add `p` ({x, y, z} with z = ground) after the last point.
+local function addPoint(st, p)
+  local n = #st.points
+  if n >= ZONE.maxPoints then
+    sound('ERROR')
+    NZ.NUI.notify('warning', L('A garage zone can have at most {count} points', { count = ZONE.maxPoints }))
+    return
+  end
+  if n > 0 and dist2d(st.points[n], p) < ZONE.minEdge then
+    sound('ERROR')
+    return
+  end
+  for i = 1, n do
+    if dist2d(st.points[i], p) > ZONE.maxSpan then
+      sound('ERROR')
+      NZ.NUI.notify('warning', L('The garage zone is too large (at most {size} m across)', { size = math.floor(ZONE.maxSpan) }))
+      return
+    end
+  end
+  if wouldCross(st.points, p) then
+    sound('ERROR')
+    NZ.NUI.notify('warning', L('This edge would cross another edge of the zone'))
+    return
+  end
+  st.points[n + 1] = { x = p.x, y = p.y, z = p.z }
+  st.rev = st.rev + 1
+  sound('SELECT')
+end
+
+local function drawReferences(opts, px, py, pz)
+  local maxSq = REFERENCE_DISTANCE * REFERENCE_DISTANCE
+  for i, p in ipairs(opts.openPoints) do
+    local dx, dy, dz = p.x - px, p.y - py, p.z - pz
+    if dx * dx + dy * dy + dz * dz < maxSq then
+      drawPointMarker(p.x, p.y, p.ground, nil, 0.6, 90)
+      Placement.drawText3D(p.x, p.y, p.ground + 1.45, ('%s %d'):format(L('Open'), i), 0.35)
+    end
+  end
+  for i, p in ipairs(opts.spawnPoints) do
+    local dx, dy, dz = p.x - px, p.y - py, p.z - pz
+    if dx * dx + dy * dy + dz * dz < maxSq then
+      local h = math.rad(p.w)
+      local fx, fy = -math.sin(h), math.cos(h)
+      DrawLine(p.x, p.y, p.z, p.x + fx * 2.0, p.y + fy * 2.0, p.z, 255, 255, 255, 140)
+      Placement.drawText3D(p.x, p.y, p.z + 0.8, ('%s %d'):format(L('Spawn'), i), 0.32)
+    end
+  end
+end
+
+local function drawOld(old)
+  local n = #old.points
+  for i = 1, n do
+    local a, b = old.points[i], old.points[i % n + 1]
+    line(a, a.z + 0.05, b, b.z + 0.05, GHOST, 110)
+  end
+end
+
+--- Fill + outline of the placed corners (closed when `closed`).
+local function drawShape(st, closed, col)
+  local pts = st.points
+  local n = #pts
+  if closed and n >= 3 then
+    if st.trisRev ~= st.rev then
+      st.tris = triangulate(pts)
+      st.trisRev = st.rev
+    end
+    for _, t in ipairs(st.tris) do
+      local a, b, c = pts[t[1]], pts[t[2]], pts[t[3]]
+      tri(a, a.z + 0.04, b, b.z + 0.04, c, c.z + 0.04, col, 34)
+    end
+  end
+  for i = 1, n do
+    local a = pts[i]
+    if i < n or (closed and n >= 3) then
+      local b = pts[i % n + 1]
+      line(a, a.z + 0.06, b, b.z + 0.06, col, 230)
+    end
+    line(a, a.z, a, a.z + 1.2, col, 200)
+    corner(a, col)
+  end
+end
+
+local function drawWalls(st)
+  local pts = st.points
+  local n = #pts
+  local lo, hi = st.minZ, st.maxZ
+  for i = 1, n do
+    local a, b = pts[i], pts[i % n + 1]
+    tri(a, lo, b, lo, b, hi, OUTLINE, 38)
+    tri(a, lo, b, hi, a, hi, OUTLINE, 38)
+    line(a, hi, b, hi, OUTLINE, 230)
+    line(a, lo, b, lo, OUTLINE, 160)
+    line(a, lo, a, hi, OUTLINE, 160)
+  end
+end
+
+local function drawLabels(st, px, py, pz)
+  local maxSq = LABEL_DISTANCE * LABEL_DISTANCE
+  for i, p in ipairs(st.points) do
+    local dx, dy, dz = p.x - px, p.y - py, p.z - pz
+    if dx * dx + dy * dy + dz * dz < maxSq then
+      Placement.drawText3D(p.x, p.y, p.z + 1.45, tostring(i), 0.45)
+    end
+  end
+  if st.phase == 'height' then
+    local sx, sy = 0.0, 0.0
+    for _, p in ipairs(st.points) do sx, sy = sx + p.x, sy + p.y end
+    local n = #st.points
+    Placement.drawText3D(sx / n, sy / n, st.maxZ + 0.4,
+      L('Ceiling {z}', { z = ('%.1f'):format(st.maxZ) }), 0.42)
+    Placement.drawText3D(sx / n, sy / n, st.minZ - 0.2,
+      L('Floor {z}', { z = ('%.1f'):format(st.minZ) }), 0.42)
+  end
+end
+
+local function exportZone(st)
+  local points = {}
+  for i, p in ipairs(st.points) do
+    points[i] = { x = Utils.round(p.x, 2), y = Utils.round(p.y, 2) }
+  end
+  return { points = points, minZ = Utils.round(st.minZ, 2), maxZ = Utils.round(st.maxZ, 2) }
+end
+
+local function runZone(opts)
+  local st = { points = {}, phase = 'draw', fly = false, probe = newProbe(), rev = 0, old = opts.old }
+  local graceUntil = GetGameTimer() + GRACE_MS
+  local hintKey = nil
+
+  local function cancel()
+    sound('BACK')
+    return nil
+  end
+  local lastX, lastY, lastZ = pedPosition()
+  local lastT = GetGameTimer()
+
+  while true do
+    -- death / downed / cuffed or a teleport ends the tool (Placement.zone cleans up the camera).
+    -- The jump limit grows with the frame time so one long hitch (streaming a big lot, a
+    -- falling or ragdolling ped) does not cancel a half-drawn zone.
+    local ped = PlayerPedId()
+    local qx, qy, qz = pedPosition()
+    local now = GetGameTimer()
+    local jx, jy, jz = qx - lastX, qy - lastY, qz - lastZ
+    local limit = math.max(TELEPORT_JUMP, TELEPORT_SPEED * (now - lastT) / 1000.0)
+    lastX, lastY, lastZ, lastT = qx, qy, qz, now
+    if IsEntityDead(ped) or (NZ.Points.incapacitated and NZ.Points.incapacitated())
+      or jx * jx + jy * jy + jz * jz > limit * limit then
+      NZ.NUI.notify('warning', L('Zone drawing cancelled'))
+      return cancel()
+    end
+
+    disableAll(BLOCKED)
+    disableAll(ZONE_KEYS)
+    disableAll(VEHICLE_KEYS)
+    if st.fly then flyUpdate(st) end
+
+    local key = table.concat({ st.phase, #st.points, tostring(st.fly),
+      st.phase == 'height' and ('%.2f/%.2f'):format(st.minZ, st.maxZ) or '' }, '|')
+    if key ~= hintKey then
+      hintKey = key
+      NZ.NUI.hint(zoneHint(st))
+    end
+
+    local px, py, pz = pedPosition()
+    drawReferences(opts, px, py, pz)
+    local ready = GetGameTimer() >= graceUntil
+    local escape = ready and IsDisabledControlJustReleased(0, ZK_ESC)
+    local back = ready and not escape and IsDisabledControlJustReleased(0, ZK_BACK)
+    local confirm = ready and anyJustReleased(C.CONFIRM)
+
+    if st.phase == 'draw' then
+      if st.old then drawOld(st.old) end
+      local hit = updateProbe(st.probe, PlayerPedId(), st.fly and st.camPos or nil, st.fly and st.camRot or nil,
+        st.fly and ZONE_AIM_FLY or ZONE_AIM)
+      local aim = (hit and not st.probe.missed) and { x = hit.x, y = hit.y, z = hit.z } or nil
+      local n = #st.points
+      local snap = aim and n >= ZONE.minPoints and dist2d(aim, st.points[1]) <= ZONE_SNAP
+
+      drawShape(st, false, OUTLINE)
+      if aim then
+        local bad = n > 0 and not snap and (wouldCross(st.points, aim) or n >= ZONE.maxPoints)
+        local col = bad and WARN or OUTLINE
+        if n > 0 then
+          local last = st.points[n]
+          line(last, last.z + 0.06, aim, aim.z + 0.06, col, 230)
+          if n >= 2 and not snap then
+            -- hint only: closing right here would cross (the next corner usually fixes it)
+            local closeCol = (bad or closingCrosses(st.points, aim)) and WARN or OUTLINE
+            line(aim, aim.z + 0.06, st.points[1], st.points[1].z + 0.06, closeCol, 90)
+          end
+        end
+        if snap then
+          corner(st.points[1], { 255, 255, 255 }, 0.45)
+        else
+          DrawMarker(25, aim.x + 0.0, aim.y + 0.0, aim.z + 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6, 0.6, 1.0,
+            col[1], col[2], col[3], 200, false, false, 2, false, nil, nil, false)
+          line(aim, aim.z, aim, aim.z + 1.2, col, 200)
+        end
+      end
+      drawLabels(st, px, py, pz)
+
+      if ready and IsDisabledControlJustReleased(0, ZK_FLY) then
+        st.fly = not st.fly
+        if st.fly then flyStart(st) else flyStop(st) end
+        st.probe = newProbe()
+      elseif ready and anyJustReleased(ZK_ADD) then
+        if snap then
+          closeShape(st, opts.openPoints)
+        else
+          local p = aim
+          if not p and not st.fly then
+            local g = groundAt(px, py, pz, false)
+            p = { x = px, y = py, z = g or (pz - 1.0) }
+          end
+          if p then
+            addPoint(st, p)
+          else
+            sound('ERROR')
+            NZ.NUI.notify('warning', L('Aim at the ground to place a point'))
+          end
+        end
+      elseif ready and (IsDisabledControlJustReleased(0, ZK_UNDO) or back) then
+        if n > 0 then
+          st.points[n] = nil
+          st.rev = st.rev + 1
+          sound('BACK')
+        end
+      elseif confirm then
+        closeShape(st, opts.openPoints)
+      elseif escape then
+        return cancel()
+      end
+    else
+      drawShape(st, true, OUTLINE)
+      drawWalls(st)
+      drawLabels(st, px, py, pz)
+
+      local up = anyJustPressed(C.SCROLL_UP)
+      local down = not up and anyJustPressed(C.SCROLL_DOWN)
+      if up or down then
+        local step = (IsDisabledControlPressed(0, C.SHIFT) and HEIGHT_STEP_FAST or HEIGHT_STEP) * (up and 1.0 or -1.0)
+        if IsDisabledControlPressed(0, ZK_CTRL) then
+          st.minZ = Utils.clamp(st.minZ + step, st.maxZ - ZONE.maxHeight, st.maxZ - ZONE.minHeight)
+        else
+          st.maxZ = Utils.clamp(st.maxZ + step, st.minZ + ZONE.minHeight, st.minZ + ZONE.maxHeight)
+        end
+      end
+
+      if confirm then
+        sound('SELECT')
+        return exportZone(st)
+      elseif back then
+        sound('BACK')
+        st.phase = 'draw'
+        graceUntil = GetGameTimer() + GRACE_MS
+      elseif escape then
+        return cancel()
+      end
+    end
+    Wait(0)
+  end
+end
+
+--- Normalize the reference points handed to the zone tool (open / spawn markers).
+local function referencePoints(openPoints, spawnPoints)
+  local open, spawn = {}, {}
+  if type(openPoints) == 'table' then
+    for _, p in ipairs(openPoints) do
+      local c = type(p) == 'table' and Utils.v3(p.coords or p) or nil
+      if c and #open < 16 then
+        local g = groundAt(c.x, c.y, c.z, false)
+        open[#open + 1] = { x = c.x, y = c.y, z = c.z, ground = (g and math.abs(g - c.z) < 3.0) and g or (c.z - 1.0) }
+      end
+    end
+  end
+  if type(spawnPoints) == 'table' then
+    for _, p in ipairs(spawnPoints) do
+      local v = Utils.v4(p)
+      if v and #spawn < 64 then spawn[#spawn + 1] = v end
+    end
+  end
+  return open, spawn
+end
+
+--- In-world tool for the garage zone of a location (a polygon). Blocking; call from a thread.
+--- Walk (crosshair aims at the ground) or fly (G: free camera, W/A/S/D, R/F, mouse). E adds a
+--- corner at the crosshair (on foot without a hit: at the player's feet), X / Backspace undo,
+--- Enter (or E on corner #1) closes the shape; then Scroll / Ctrl + Scroll set the ceiling /
+--- floor, Enter saves, Backspace goes back to the corners, Esc cancels. The zone being replaced
+--- is drawn grey; open and spawn points of the location are shown for reference. Garage
+--- interaction points are paused meanwhile.
+--- opts = { zone = { points, minZ, maxZ } | nil, openPoints = { { coords } }, spawnPoints = Vec4[] }
+--- Returns { points = { {x, y} }, minZ, maxZ } or nil when cancelled.
+---@param opts table|nil
+---@return table|nil
+function Placement.zone(opts)
+  opts = type(opts) == 'table' and opts or {}
+  if zoning or managing or toolActive then return nil end
+  zoning = true
+
+  local old = readZone(opts.zone)
+  if old then groundUnder(old) end
+  local open, spawn = referencePoints(opts.openPoints, opts.spawnPoints)
+  local paused = suspendWorldPoints()
+  NZ.NUI.prompt(nil)
+
+  local ok, res = pcall(runZone, { old = old, openPoints = open, spawnPoints = spawn })
+
+  -- the fly camera never outlives the tool
+  if zoneCam then
+    RenderScriptCams(false, false, 0, true, true)
+    DestroyCam(zoneCam, false)
+    zoneCam = nil
+    ClearFocus()
+  end
+  NZ.NUI.hint(nil)
+  if paused then resumeWorldPoints() end
+  zoning = false
+  if not ok then
+    lib.print.error(('[nayzeee-garages] zone tool failed: %s'):format(res))
+    return nil
+  end
+  return res
+end
+
+---------------------------------------------------------------------------------------
 -- Cleanup
 ---------------------------------------------------------------------------------------
 
@@ -717,5 +1468,11 @@ AddEventHandler('onResourceStop', function(resource)
     end
   end
   ghosts = {}
-  if toolActive or managing then NZ.NUI.hint(nil) end
+  if zoneCam then
+    RenderScriptCams(false, false, 0, true, true)
+    DestroyCam(zoneCam, false)
+    zoneCam = nil
+    ClearFocus()
+  end
+  if toolActive or managing or zoning then NZ.NUI.hint(nil) end
 end)

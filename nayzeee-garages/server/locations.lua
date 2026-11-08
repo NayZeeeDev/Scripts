@@ -45,6 +45,23 @@ local BLIP_SPRITES = { car = 357, sea = 356, air = 359 }
 local BLIP_COLOURS = { garage = 3, job = 38, private = 5, impound = 1 }
 local IMPOUND_SPRITE = 68
 
+-- Garage zones (polygon drawn by an admin, §4.2 `zone`). The client tool (client/placement.lua)
+-- applies the same limits so the admin sees a problem before saving.
+local ZONE = {
+  minPoints = 3,
+  maxPoints = 40,
+  minEdge = 0.5,          -- metres: closer points are merged (double clicks, jitter)
+  minArea = 10.0,         -- m²: smaller than a parking space is a drawing mistake
+  maxArea = 40000.0,      -- m²: 200 m × 200 m
+  maxSpan = 250.0,        -- metres between the two farthest points
+  minHeight = 2.0,        -- maxZ - minZ
+  maxHeight = 100.0,
+  defaultBelow = 2.0,     -- missing height range: open point z - 2 ... + 6
+  defaultAbove = 6.0,
+  openGap = 30.0,         -- an open point must be inside the zone or this close to its edge
+  openZGap = 10.0,        -- ... and at most this far above / below the height range
+}
+
 ---------------------------------------------------------------------------------------
 -- Sanitizers
 ---------------------------------------------------------------------------------------
@@ -389,12 +406,256 @@ local function releaseRestartImpound(id, src)
 end
 
 ---------------------------------------------------------------------------------------
+-- Garage zones: polygon geometry (horizontal plane, metres)
+---------------------------------------------------------------------------------------
+
+--- Twice the signed area (shoelace), relative to the first point for precision.
+local function signedArea2(points)
+  local n = #points
+  if n < 3 then return 0.0 end
+  local ox, oy = points[1].x, points[1].y
+  local sum = 0.0
+  for i = 1, n do
+    local a, b = points[i], points[i % n + 1]
+    sum = sum + (a.x - ox) * (b.y - oy) - (b.x - ox) * (a.y - oy)
+  end
+  return sum
+end
+
+local function cross(ax, ay, bx, by, cx, cy)
+  return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
+end
+
+local EPS = 1e-9
+
+--- c lies on segment a-b (already known to be collinear).
+local function onSegment(a, b, c)
+  return c.x >= math.min(a.x, b.x) - EPS and c.x <= math.max(a.x, b.x) + EPS
+    and c.y >= math.min(a.y, b.y) - EPS and c.y <= math.max(a.y, b.y) + EPS
+end
+
+local function sign(v)
+  if v > EPS then return 1 elseif v < -EPS then return -1 end
+  return 0
+end
+
+--- Segments a-b and c-d touch or cross (collinear overlaps count).
+local function segmentsIntersect(a, b, c, d)
+  local d1 = sign(cross(c.x, c.y, d.x, d.y, a.x, a.y))
+  local d2 = sign(cross(c.x, c.y, d.x, d.y, b.x, b.y))
+  local d3 = sign(cross(a.x, a.y, b.x, b.y, c.x, c.y))
+  local d4 = sign(cross(a.x, a.y, b.x, b.y, d.x, d.y))
+  if d1 * d2 < 0 and d3 * d4 < 0 then return true end
+  if d1 == 0 and onSegment(c, d, a) then return true end
+  if d2 == 0 and onSegment(c, d, b) then return true end
+  if d3 == 0 and onSegment(a, b, c) then return true end
+  if d4 == 0 and onSegment(a, b, d) then return true end
+  return false
+end
+
+--- Whether two edges of the closed polygon that do not share a corner touch or cross.
+local function selfIntersects(points)
+  local n = #points
+  if n < 4 then return false end
+  for i = 1, n do
+    local a, b = points[i], points[i % n + 1]
+    for j = i + 2, n do
+      -- the last edge (n -> 1) shares the first point with edge 1
+      if not (i == 1 and j == n) then
+        if segmentsIntersect(a, b, points[j], points[j % n + 1]) then return true end
+      end
+    end
+  end
+  return false
+end
+
+local function distToSegment(px, py, a, b)
+  local dx, dy = b.x - a.x, b.y - a.y
+  local len2 = dx * dx + dy * dy
+  local t = 0.0
+  if len2 > 0 then t = Utils.clamp(((px - a.x) * dx + (py - a.y) * dy) / len2, 0.0, 1.0) end
+  local cx, cy = a.x + dx * t - px, a.y + dy * t - py
+  return math.sqrt(cx * cx + cy * cy)
+end
+
+--- Even-odd crossing test.
+local function pointInPolygon(points, x, y)
+  local inside = false
+  local n = #points
+  local j = n
+  for i = 1, n do
+    local a, b = points[i], points[j]
+    if (a.y > y) ~= (b.y > y) then
+      local xi = (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x
+      if x < xi then inside = not inside end
+    end
+    j = i
+  end
+  return inside
+end
+
+--- Horizontal distance from (x, y) to the zone: 0 inside, else to the nearest edge.
+local function zoneDistance(points, x, y)
+  if pointInPolygon(points, x, y) then return 0.0 end
+  local best = math.huge
+  local n = #points
+  for i = 1, n do
+    local d = distToSegment(x, y, points[i], points[i % n + 1])
+    if d < best then best = d end
+  end
+  return best
+end
+
+--- Sanitized polygon points: { {x, y} } rounded to 2 decimals, consecutive points closer than
+--- ZONE.minEdge merged (also a last point repeating the first). Vectors and {x, y, z} accepted.
+local function zonePoints(list)
+  local out = {}
+  if type(list) ~= 'table' then return out end
+  local count = 0
+  for _, item in ipairs(list) do
+    count = count + 1
+    if count > ZONE.maxPoints * 2 then break end   -- never iterate a huge payload
+    local x, y
+    if type(item) == 'table' or isVector(item) then x, y = item.x, item.y end
+    if type(item) == 'table' and x == nil then x, y = item[1], item[2] end
+    x, y = tonumber(x), tonumber(y)
+    if x and y and coordOk(x, 20000) and coordOk(y, 20000) then
+      local p = { x = Utils.round(x, 2), y = Utils.round(y, 2) }
+      local last = out[#out]
+      if not last or math.sqrt((p.x - last.x) ^ 2 + (p.y - last.y) ^ 2) >= ZONE.minEdge then
+        out[#out + 1] = p
+      end
+    end
+  end
+  while #out > 1 do
+    local first, last = out[1], out[#out]
+    if math.sqrt((first.x - last.x) ^ 2 + (first.y - last.y) ^ 2) >= ZONE.minEdge then break end
+    out[#out] = nil
+  end
+  return out
+end
+
+--- Whether a raw zone value means "no zone" (nil, false, {} / [] or no points at all).
+local function zoneEmpty(raw)
+  if raw == nil or raw == false then return true end
+  if type(raw) ~= 'table' then return false end
+  if next(raw) == nil then return true end
+  return type(raw.points) ~= 'table' or next(raw.points) == nil
+end
+
+--- Validate a zone against the limits and the location's open points.
+---@param raw any untrusted zone { points = vec2[], minZ, maxZ }
+---@param openPoints table|nil sanitized open points of the location
+---@return table|nil zone, string|nil error (translated); nil, nil = no zone
+local function zoneConfig(raw, openPoints)
+  if zoneEmpty(raw) then return nil, nil end
+  if type(raw) ~= 'table' then return nil, L('Invalid garage zone') end
+  if type(raw.points) == 'table' and #raw.points > ZONE.maxPoints * 2 then
+    return nil, L('A garage zone can have at most {count} points', { count = ZONE.maxPoints })
+  end
+  local points = zonePoints(raw.points)
+  if #points < ZONE.minPoints then return nil, L('A garage zone needs at least 3 points') end
+  if #points > ZONE.maxPoints then
+    return nil, L('A garage zone can have at most {count} points', { count = ZONE.maxPoints })
+  end
+
+  local span = 0.0
+  for i = 1, #points do
+    for j = i + 1, #points do
+      local d = math.sqrt((points[i].x - points[j].x) ^ 2 + (points[i].y - points[j].y) ^ 2)
+      if d > span then span = d end
+    end
+  end
+  if span > ZONE.maxSpan then
+    return nil, L('The garage zone is too large (at most {size} m across)', { size = math.floor(ZONE.maxSpan) })
+  end
+  if selfIntersects(points) then return nil, L('The edges of the garage zone cross each other') end
+  local area = math.abs(signedArea2(points)) / 2.0
+  if area < ZONE.minArea then return nil, L('The garage zone is too small') end
+  if area > ZONE.maxArea then
+    return nil, L('The garage zone is too large (at most {size} m², it is {area} m²)', {
+      size = math.floor(ZONE.maxArea), area = math.floor(area),
+    })
+  end
+
+  local anchor = type(openPoints) == 'table' and openPoints[1] and openPoints[1].coords or nil
+  if not anchor then return nil, L('Place an open interaction before drawing the garage zone') end
+
+  local minZ = tonumber(raw.minZ)
+  local maxZ = tonumber(raw.maxZ)
+  if minZ ~= nil and not coordOk(minZ, 5000) then minZ = nil end
+  if maxZ ~= nil and not coordOk(maxZ, 5000) then maxZ = nil end
+  if minZ == nil then minZ = (maxZ and maxZ - ZONE.defaultBelow - ZONE.defaultAbove) or anchor.z - ZONE.defaultBelow end
+  if maxZ == nil then maxZ = minZ + ZONE.defaultBelow + ZONE.defaultAbove end
+  minZ, maxZ = Utils.round(minZ, 2), Utils.round(maxZ, 2)
+  local height = maxZ - minZ
+  if height < ZONE.minHeight then return nil, L('The garage zone must be at least {height} m high', { height = math.floor(ZONE.minHeight) }) end
+  if height > ZONE.maxHeight then return nil, L('The garage zone can be at most {height} m high', { height = math.floor(ZONE.maxHeight) }) end
+
+  -- The zone belongs to this garage: one open point inside it or right next to it.
+  local near = false
+  for _, p in ipairs(openPoints) do
+    local c = p.coords
+    if c and zoneDistance(points, c.x, c.y) <= ZONE.openGap
+        and c.z >= minZ - ZONE.openZGap and c.z <= maxZ + ZONE.openZGap then
+      near = true
+      break
+    end
+  end
+  if not near then
+    return nil, L('The garage zone must be at most {distance} m from an open interaction', { distance = math.floor(ZONE.openGap) })
+  end
+
+  return { points = points, minZ = minZ, maxZ = maxZ }
+end
+
+--- Validate a garage zone (see zoneConfig). Exposed for tests and the admin tools.
+---@param raw any
+---@param openPoints table|nil sanitized open points ({ coords, radius }[])
+---@return table|nil zone, string|nil error
+function Locations.validateZone(raw, openPoints)
+  return zoneConfig(raw, openPoints)
+end
+
+--- Whether `pos` ({x,y,z} / vector) is inside `zone`: within its height range (± zMargin) and
+--- inside the polygon or at most `margin` metres outside an edge.
+---@param zone table|nil { points, minZ, maxZ }
+---@param pos table|vector3
+---@param margin number|nil horizontal tolerance (default 0)
+---@param zMargin number|nil vertical tolerance (default 0)
+---@return boolean
+function Locations.zoneContains(zone, pos, margin, zMargin)
+  if type(zone) ~= 'table' or type(zone.points) ~= 'table' or #zone.points < 3 or pos == nil then return false end
+  local x, y, z = tonumber(pos.x), tonumber(pos.y), tonumber(pos.z)
+  if not x or not y or not z then return false end
+  zMargin = tonumber(zMargin) or 0.0
+  local minZ, maxZ = tonumber(zone.minZ), tonumber(zone.maxZ)
+  if not minZ or not maxZ or z < minZ - zMargin or z > maxZ + zMargin then return false end
+  return zoneDistance(zone.points, x, y) <= (tonumber(margin) or 0.0)
+end
+
+--- Area of a zone in m² (0 when invalid).
+---@param zone table|nil
+---@return number
+function Locations.zoneArea(zone)
+  if type(zone) ~= 'table' or type(zone.points) ~= 'table' then return 0.0 end
+  return math.abs(signedArea2(zone.points)) / 2.0
+end
+
+--- Zone limits (read-only copy).
+function Locations.zoneLimits()
+  return Utils.deepCopy(ZONE)
+end
+
+---------------------------------------------------------------------------------------
 -- Normalization
 ---------------------------------------------------------------------------------------
 
 --- Build a complete Location (every default of §4.2 filled, everything sanitized).
+--- An invalid garage zone is dropped from the location; its error is the third return value
+--- (Locations.save refuses it, Locations.load keeps the location without the zone).
 ---@param raw table untrusted location table
----@return table|nil location, string|nil error (translated)
+---@return table|nil location, string|nil error (translated), string|nil zoneError (translated)
 function Locations.normalize(raw)
   if type(raw) ~= 'table' then return nil, L('Invalid location data') end
   local kind = raw.kind
@@ -419,6 +680,9 @@ function Locations.normalize(raw)
   }
   -- Without dedicated store points, vehicles are stored at the open points.
   if not loc.useOpenForStore and #loc.storePoints == 0 then loc.useOpenForStore = true end
+  -- Optional polygon zone: inside it players open the garage and store anywhere.
+  local zone, zoneError = zoneConfig(raw.zone, loc.openPoints)
+  loc.zone = zone
 
   if kind == 'garage' then
     loc.source = enum(raw.source, GARAGE_SOURCES, 'personal')
@@ -449,7 +713,7 @@ function Locations.normalize(raw)
     loc.defaultFee = num(raw.defaultFee, 0, MAX_MONEY, num(NZ.Settings.get('impound.defaultFee'), 0, MAX_MONEY, 500, true), true)
     loc.defaultHours = Utils.round(num(raw.defaultHours, 0, 720, num(NZ.Settings.get('impound.defaultHours'), 0, 720, 0)), 2)
   end
-  return loc
+  return loc, nil, zoneError
 end
 
 ---------------------------------------------------------------------------------------
@@ -469,10 +733,13 @@ function Locations.load()
       end
       if type(raw) ~= 'table' then raw = {} end
       raw.id, raw.kind, raw.name, raw.enabled = row.id, row.kind, row.name, row.enabled
-      local loc, err = Locations.normalize(raw)
+      local loc, err, zoneError = Locations.normalize(raw)
       if loc and loc.id then
         fresh[loc.id] = loc
         loaded = loaded + 1
+        if zoneError then
+          lib.print.warn(('locations: location #%s (%s): garage zone ignored: %s'):format(tostring(row.id), tostring(row.name), zoneError))
+        end
       else
         skipped = skipped + 1
         lib.print.warn(('locations: skipped location #%s (%s): %s'):format(tostring(row.id), tostring(row.name), tostring(err or 'invalid id')))
@@ -509,8 +776,9 @@ end
 ---@return table|nil location copy of the stored location, string|nil error (translated)
 function Locations.save(location, src)
   if type(location) ~= 'table' then return nil, L('Invalid location data') end
-  local loc, err = Locations.normalize(location)
+  local loc, err, zoneError = Locations.normalize(location)
   if not loc then return nil, err end
+  if zoneError then return nil, zoneError end
 
   -- An id that is present but not a valid database id never creates a new row.
   if location.id ~= nil and not loc.id then return nil, L('Location not found') end
@@ -548,6 +816,7 @@ function Locations.save(location, src)
   cache[loc.id] = loc
   log(existing and 'admin.location.update' or 'admin.location.create', src, {
     id = loc.id, name = loc.name, kind = loc.kind, vehicleType = loc.vehicleType, enabled = loc.enabled,
+    zone = loc.zone and #loc.zone.points or nil,
   })
   if existing and existing.kind == 'impound' and loc.kind ~= 'impound' then
     releaseRestartImpound(loc.id, src)
@@ -671,6 +940,7 @@ function Locations.clientView(location)
     access = copy(location.access),
     source = location.source,
     interaction = copy(location.interaction),
+    zone = copy(location.zone),
   }
   if kind == 'garage' then
     local r = location.restriction or {}

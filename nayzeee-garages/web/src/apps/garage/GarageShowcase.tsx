@@ -20,9 +20,11 @@ import {
   FinanceBlock,
   ImpoundBlock,
   PerformanceBlock,
+  SectionsProvider,
   StripCell,
   UpgradesBlock,
   useAvailability,
+  useSections,
 } from './showroom/blocks';
 
 /* ── shared layout ───────────────────────────────────────────────────── */
@@ -41,11 +43,15 @@ export function ShowcaseFrame({
   /** Re-keys the scroll area so it starts at the top for each vehicle. */
   id: string;
 }) {
+  // Accordion state lives here, not in the re-keyed Sections: no flicker between vehicles.
+  const acc = useSections();
   return (
     <div className="nz-garage__show">
       {stage}
       {strip && <div className="nz-garage__strip">{strip}</div>}
-      <Sections key={id}>{children}</Sections>
+      <Sections key={id} acc={acc}>
+        {children}
+      </Sections>
       {dock && <div className="nz-garage__dock">{dock}</div>}
     </div>
   );
@@ -59,7 +65,7 @@ const MORE_BAR = 26;
  * the blocks below the fold ("Upgrades · Details ↓", click scrolls down) and turns into
  * "Back to top ↑" at the end, so it never covers a value and the layout does not jump.
  */
-function Sections({ children }: { children?: ReactNode }) {
+function Sections({ children, acc }: { children?: ReactNode; acc: ReturnType<typeof useSections> }) {
   const ref = useRef<HTMLDivElement>(null);
   const [below, setBelow] = useState<string[] | null>(null);
   const shown = useRef(false);
@@ -119,8 +125,17 @@ function Sections({ children }: { children?: ReactNode }) {
   const end = below !== null && below.length === 0;
   return (
     <div className="nz-garage__secwrap">
+      {acc.ids.length > 1 && (
+        <div className="nz-garage__secbar">
+          <span className="nz-garage__secbar-label">{t('Vehicle details')}</span>
+          <button type="button" className="nz-garage__secbar-btn" aria-expanded={acc.allOpen} onClick={() => acc.setAll(!acc.allOpen)}>
+            <Icon name={acc.allOpen ? 'chevronUp' : 'chevronDown'} size={12} strokeWidth={2.2} />
+            {acc.allOpen ? t('Collapse all') : t('Expand all')}
+          </button>
+        </div>
+      )}
       <div ref={ref} className="nz-garage__sections">
-        {children}
+        <SectionsProvider api={acc.api}>{children}</SectionsProvider>
       </div>
       {below !== null && (
         <button
@@ -246,6 +261,11 @@ function sharingCell(v: GarageVehicle, garage: GarageSummary): { label: string; 
   return { label: t('Sharing'), value: t('Private'), sub: t('Only you'), icon: 'lock' };
 }
 
+/** The vehicle is not physically here: drawn as a ghost image, never as a 3D preview. */
+export function isGhost(v: GarageVehicle): boolean {
+  return !v.canDrive && ghostNote(v) !== null;
+}
+
 function ghostNote(v: GarageVehicle): string | null {
   if (v.state === 'out') return t('Out in the city');
   if (v.state === 'impounded') return t('At {place}', { place: v.impound?.locationName ?? t('the impound') });
@@ -351,7 +371,7 @@ export function VehicleShowcase(props: VehicleShowcaseProps) {
       {v.stats && <PerformanceBlock stats={v.stats} />}
       <UpgradesBlock mods={v.mods} />
       {/* Only what the stage, strip and dock do not show already (make, plate, owner are there). */}
-      <Block title={t('Details')} icon="info" wide={!v.stats}>
+      <Block title={t('Details')} icon="info" wide={!v.stats} collapse="details">
         <div className={cx('nz-garage__facts', !v.stats && 'is-cols')}>
           <Fact label={t('Model')} mono>
             {v.model}
@@ -588,7 +608,7 @@ export function SpawnerShowcase({
       {s.stats ? (
         <PerformanceBlock stats={s.stats} hideSeats />
       ) : (
-        <Block title={t('Performance')} icon="gauge">
+        <Block title={t('Performance')} icon="gauge" collapse="performance">
           <p className="nz-garage__nodata">
             <Icon name="info" size={13} strokeWidth={1.8} />
             {t('No performance data for this model.')}
@@ -596,7 +616,7 @@ export function SpawnerShowcase({
         </Block>
       )}
       {/* Make, plate format and seats are on the stage / strip; the dock says to bring it back. */}
-      <Block title={t('Details')} icon="info">
+      <Block title={t('Details')} icon="info" collapse="details">
         <div className="nz-garage__facts">
           <Fact label={t('Model')} mono>
             {s.model}

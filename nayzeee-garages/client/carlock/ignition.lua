@@ -8,6 +8,11 @@
   command toggles it (turning it on asks 'nz:carlock:engine'). keepEngineRunning: the engine
   keeps running when you get out; hold the exit key to switch it off.
 
+  Ghost immobiliser (docs/CARLOCK.md §17): the server answers `pin` instead of `ignition`; the
+  PIN is asked (CarLock.pinPrompt, replaced by the UI's keypad) and sent ('nz:carlock:pin').
+  Player settings: engineOnEnter starts the engine when the key check passes; keepEngineRunning
+  (with the admin's ignition.keepEngineRunning) keeps it running on exit.
+
   Idle cost: nothing while on foot; a 500 ms loop while driving (100 ms while the engine is
   blocked or the exit key is watched). Other modules read NZ.CarLock.driverState() and listen
   to the local event 'nz:client:carlock:driver' ({ vehicle, netId, plate, allowed } | nil).
@@ -27,6 +32,8 @@ local state = {
   allowed = nil,       -- true / false / nil (unknown)
   recheckAt = nil,
   manualOff = false,
+  pin = nil,           -- Ghost immobiliser: { required, cooldown, plate } while the PIN is missing
+  pinAsked = false,    -- the PIN was asked for during this entry
 }
 
 local function now() return GetGameTimer() end
@@ -76,7 +83,9 @@ local function resolve(vehicle)
   local data = CarLock.queryKey(vehicle)
   if type(data) ~= 'table' then return nil end
   if data.plate then state.plate = data.plate end
+  state.pin = type(data.pin) == 'table' and data.pin or nil
   if data.ignition == true then return true end
+  if state.pin then return false end
   if CarLock.cachedKey(state.plate) == true then
     -- a garage key on its way (CarLock.expectKey): drive now, confirm in a moment
     state.recheckAt = now() + RECHECK_EXPECTED_MS
@@ -87,6 +96,55 @@ end
 
 local function block(vehicle)
   if GetIsVehicleEngineRunning(vehicle) then SetVehicleEngineOn(vehicle, false, true, true) end
+end
+
+local function mySettings()
+  return type(CarLock.playerSettings) == 'function' and CarLock.playerSettings() or {}
+end
+
+--- Ask the player for a Ghost PIN (yields): the PIN text or nil. The UI wave replaces
+--- CarLock.pinPrompt with the owner's keypad; this fallback uses ox_lib's input dialog.
+---@param info table { plate, cooldown, attemptsLeft? }
+---@return string|nil
+function CarLock.pinPrompt(info)
+  local ok, input = pcall(lib.inputDialog, L('Ghost immobiliser · {plate}', { plate = tostring(info.plate or '') }), {
+    { type = 'input', label = L('PIN'), password = true, required = true, min = 4, max = 4 },
+  })
+  if not ok or type(input) ~= 'table' then return nil end
+  local pin = tostring(input[1] or '')
+  return pin:match('^%d%d%d%d$') and pin or nil
+end
+
+--- Enter the Ghost PIN of the vehicle we drive (yields). Returns true when it was accepted.
+---@param vehicle number
+---@param info table|nil the server's pin info
+---@return boolean
+function CarLock.enterPin(vehicle, info)
+  info = type(info) == 'table' and info or state.pin or {}
+  if (tonumber(info.cooldown) or 0) > 0 then
+    notify('error', L('Too many wrong PINs: wait {seconds} s', { seconds = math.floor(info.cooldown) }))
+    return false
+  end
+  local pin = CarLock.pinPrompt(info)
+  if not pin or not DoesEntityExist(vehicle) then return false end
+  local ok, res = pcall(lib.callback.await, 'nz:carlock:pin', false, {
+    netId = NetworkGetNetworkIdFromEntity(vehicle), pin = pin,
+  })
+  if not ok or type(res) ~= 'table' then return false end
+  if not res.ok then
+    notify('error', res.error)
+    return false
+  end
+  local data = type(res.data) == 'table' and res.data or {}
+  if data.success then
+    notify('success', L('PIN accepted'))
+    state.pin = nil
+    if state.vehicle == vehicle then state.recheckAt = 0 end
+    return true
+  end
+  notify('error', data.error or L('Wrong PIN'))
+  if state.pin then state.pin.cooldown = tonumber(data.cooldown) or 0 end
+  return false
 end
 
 local function check(vehicle, generation, firstCheck)
@@ -105,7 +163,18 @@ local function check(vehicle, generation, firstCheck)
   state.allowed = allowed
   if allowed == false then
     block(vehicle)
-    if firstCheck or before ~= false then notify('error', L('You do not have the keys of this vehicle')) end
+    if state.pin then
+      -- Ghost immobiliser: the keys are fine, the PIN is missing (asked once per entry; the
+      -- engine key asks again)
+      if not state.pinAsked then
+        state.pinAsked = true
+        CreateThread(function() CarLock.enterPin(vehicle, state.pin) end)
+      end
+    elseif firstCheck or before ~= false then
+      notify('error', L('You do not have the keys of this vehicle'))
+    end
+  elseif allowed == true and firstCheck and mySettings().engineOnEnter == true and not GetIsVehicleEngineRunning(vehicle) then
+    SetVehicleEngineOn(vehicle, true, false, true)
   end
   if before ~= allowed or firstCheck then publish() end
 end
@@ -113,7 +182,8 @@ end
 --- Watch the driver seat of `vehicle` until we leave it.
 local function watch(vehicle, generation)
   local ignition = ignitionCfg()
-  local keepRunning = ignition.keepEngineRunning ~= false
+  -- the server allows it (admin setting), the player wants it (their setting)
+  local keepRunning = ignition.keepEngineRunning ~= false and mySettings().keepEngineRunning ~= false
   SetVehicleNeedsToBeHotwired(vehicle, false)
   SetVehicleKeepEngineOnWhenAbandoned(vehicle, keepRunning)
 
@@ -123,6 +193,7 @@ local function watch(vehicle, generation)
   state.allowed = nil
   state.recheckAt = nil
   state.manualOff = false
+  state.pin, state.pinAsked = nil, false
   check(vehicle, generation, true)
 
   local exitHeldSince = nil
@@ -210,6 +281,16 @@ function CarLock.toggleEngine()
     if not res.ok then
       notify('error', res.error)
       return false
+    end
+    -- Ghost immobiliser: PIN first, then the engine
+    if type(res.data) == 'table' and type(res.data.pin) == 'table' then
+      if not CarLock.enterPin(vehicle, res.data.pin) then return false end
+      local ok2, res2 = pcall(lib.callback.await, 'nz:carlock:engine', false, {
+        netId = NetworkGetNetworkIdFromEntity(vehicle), on = true, class = GetVehicleClass(vehicle),
+      })
+      if not ok2 or type(res2) ~= 'table' or not res2.ok or type(res2.data) ~= 'table' or res2.data.on ~= true then
+        return false
+      end
     end
   end
   if state.vehicle == vehicle then

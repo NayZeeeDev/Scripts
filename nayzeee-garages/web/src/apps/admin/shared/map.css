@@ -107,6 +107,71 @@
   pointer-events: none;
 }
 
+/* garage zone outlines (MapView ZoneOutline): under the pins, never catch the mouse */
+.nz-admin-map__zones {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nz-admin-map__zone { --zone: var(--teal-hi); --zone-rgb: var(--teal-rgb); }
+.nz-admin-map__zone.is-sea { --zone: var(--blue); --zone-rgb: var(--blue-rgb); }
+.nz-admin-map__zone.is-air { --zone: var(--amber); --zone-rgb: var(--amber-rgb); }
+/* --ink-3 as a triple (same as .nz-tone--neutral; no --ink-3-rgb token yet) */
+.nz-admin-map__zone.is-off { --zone: var(--ink-3); --zone-rgb: 99, 105, 109; }
+
+.nz-admin-map__zone-shape {
+  fill: rgba(var(--zone-rgb), .2);
+  stroke: var(--zone);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+.nz-admin-map__zone.is-hover .nz-admin-map__zone-shape {
+  fill: rgba(var(--zone-rgb), .1);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 3;
+}
+
+.nz-admin-map__zone-ring {
+  fill: none;
+  stroke: var(--zone);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+  opacity: .8;
+}
+
+.nz-admin-map__zone-corner {
+  fill: var(--base);
+  stroke: var(--zone);
+  stroke-width: 1.4;
+}
+
+/* magnified zone beside the selected pin */
+.nz-admin-map__lens-frame {
+  fill: var(--hud);
+  stroke: rgba(var(--zone-rgb), .45);
+  stroke-width: 1;
+}
+
+.nz-admin-map__lens-lead {
+  stroke: rgba(var(--zone-rgb), .55);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.nz-admin-map__lens-label {
+  font-family: var(--font);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  fill: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
 .nz-admin-map__pin,
 .nz-admin-map__cluster,
 .nz-admin-map__swatch {

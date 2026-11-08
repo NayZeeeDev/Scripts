@@ -9,7 +9,8 @@
  *
  * Sections: vehicle source (garage/job), general, locations (in-world point manager via
  * requestPoints → admin:points: the whole admin UI is hidden by CSS while it runs and this
- * modal stays mounted, so the draft, scroll position and focus survive), interaction (mode
+ * modal stays mounted, so the draft, scroll position and focus survive), garage zone (the
+ * in-world polygon tool, admin:points kind 'zone', see ZoneSection / zone.ts), interaction (mode
  * override + garage NPC, see InteractionFields), spawner vehicles + vehicle rules, parking
  * capacity, garage access, access restriction (garage), sale & copies (private), impound
  * settings, map blip. Saved private locations get two tabs: Settings and Owners & copies
@@ -67,6 +68,8 @@ import { defaultBlipSprite, newLocation, normalizeLocation, pedDefaults } from '
 import { SpawnerEditor } from './SpawnerEditor';
 import { OwnersSection } from './OwnersSection';
 import { InteractionFields } from './InteractionFields';
+import { ZoneSection } from './ZoneSection';
+import { zoneProblem } from './zone';
 
 export interface LocationEditorProps {
   open: boolean;
@@ -77,8 +80,8 @@ export interface LocationEditorProps {
   onSaved: (location: Location) => void;
 }
 
-type PointKind = 'spawn' | 'open' | 'store';
-type Errors = Partial<Record<'name' | 'spawn' | 'open' | 'store' | 'jobs' | 'spawner' | 'interior' | 'restriction', string>>;
+type PointKind = 'spawn' | 'open' | 'store' | 'zone';
+type Errors = Partial<Record<'name' | 'spawn' | 'open' | 'store' | 'zone' | 'jobs' | 'spawner' | 'interior' | 'restriction', string>>;
 
 const KIND_ICON: Record<LocationPageKind, IconName> = { garage: 'garage', job: 'briefcase', private: 'users', impound: 'impound' };
 
@@ -98,8 +101,9 @@ const BLIP_COLOURS: Record<number, string> = {
 const plural = (n: number, one: string, many: string) => t(n === 1 ? one : many, { count: n });
 
 type EditorTab = 'settings' | 'owners';
-/** Dev harness only (src/dev/mocks/admin.ts): open the editor of __devEdit on __devTab. */
-type DevTab = { __devEdit?: number | 'new'; __devTab?: EditorTab };
+/** Dev harness only (src/dev/mocks/admin.ts): open the editor of __devEdit on __devTab
+ *  (__devSection 'zone': scrolled to the garage zone). */
+type DevTab = { __devEdit?: number | 'new'; __devTab?: EditorTab; __devSection?: 'zone' };
 
 export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: LocationEditorProps) {
   const settings = useSettings();
@@ -139,8 +143,12 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
     if (!draft.name.trim()) e.name = t('Give this location a name');
     if (!draft.openPoints.length) e.open = t('Place at least one open interaction');
     if (!draft.spawnPoints.length) e.spawn = t('Place at least one spawn point');
-    if (draft.kind !== 'impound' && !draft.useOpenForStore && !draft.storePoints.length) {
+    if (draft.kind !== 'impound' && !draft.useOpenForStore && !draft.storePoints.length && !draft.zone) {
       e.store = t('Place a store interaction, or store at the open interactions');
+    }
+    if (draft.zone) {
+      const problem = zoneProblem(draft.zone, draft.openPoints);
+      if (problem) e.zone = problem;
     }
     if (draft.kind === 'job' && !draft.jobs.length) {
       e.jobs = draft.owner === 'gang' ? t('Add the gang that may use this garage') : t('Add at least one job');
@@ -192,7 +200,35 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
     onSaved(res.data ?? location);
   };
 
-  const managePoints = async (which: PointKind) => {
+  // In-world zone tool: the current zone is shown grey while a new one is drawn.
+  const drawZone = async () => {
+    if (pointsBusy) return;
+    setPointsBusy('zone');
+    const res = await requestPoints({
+      kind: 'zone',
+      vehicleType: draft.vehicleType,
+      zone: draft.zone ?? null,
+      openPoints: draft.openPoints,
+      spawnPoints: draft.spawnPoints,
+    });
+    setPointsBusy(null);
+    // null = the admin cancelled the tool: keep the current zone.
+    if (!res.ok || !res.data || Array.isArray(res.data)) return;
+    set({ zone: res.data });
+    setUpdated('zone');
+  };
+
+  // Dev harness: open scrolled to the zone section.
+  useEffect(() => {
+    if (!isBrowser || (data as AdminOpenData & DevTab).__devSection !== 'zone') return;
+    const id = window.setTimeout(() => {
+      formRef.current?.querySelector('.nz-admin-zone')?.scrollIntoView({ block: 'center' });
+    }, 350);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const managePoints = async (which: Exclude<PointKind, 'zone'>) => {
     if (pointsBusy) return;
     const key = which === 'spawn' ? 'spawnPoints' : which === 'open' ? 'openPoints' : 'storePoints';
     const points = draft[key] as Vec4[] | InteractionPoint[];
@@ -235,6 +271,24 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
       return { ...d, vehicleType: vt, blip } as Location;
     });
   };
+
+  /* ── garage zone notes ── */
+  const globalMode = data.settings?.interface?.interaction ?? 'prompt';
+  const effectiveMode = draft.interaction?.mode && draft.interaction.mode !== 'default' ? draft.interaction.mode : globalMode;
+  const zoneNotes: string[] = [];
+  if (draft.zone) {
+    if (draft.kind !== 'impound') {
+      zoneNotes.push(t('While the zone is set, vehicles are parked anywhere inside it: the store interactions are not used.'));
+    } else {
+      zoneNotes.push(t('Players still open the impound at its open interactions.'));
+    }
+    if (effectiveMode === 'target') {
+      zoneNotes.push(t('Target mode: players open the menu at the open interaction (or its NPC); drivers still park anywhere in the zone.'));
+    }
+    if (draft.spawnPoints.length) {
+      zoneNotes.push(t('Vehicles still come out at the spawn points: spread them over the zone on a large lot.'));
+    }
+  }
 
   /* ── per-kind helpers ── */
   const hasCapacity = draft.kind === 'garage' || draft.kind === 'job' || draft.kind === 'private';
@@ -458,8 +512,13 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                   <Toggle
                     checked={draft.useOpenForStore}
                     onChange={(useOpenForStore) => set({ useOpenForStore })}
+                    disabled={!!draft.zone}
                     label={t('Use open interactions for storing vehicles')}
-                    description={t('Players park at the same spots where they open the menu.')}
+                    description={
+                      draft.zone
+                        ? t('Not used while the garage zone is set: vehicles are parked anywhere inside it.')
+                        : t('Players park at the same spots where they open the menu.')
+                    }
                   />
                   {!draft.useOpenForStore && (
                     <PointsRow
@@ -472,7 +531,7 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                       action={t('Manage locations')}
                       busy={pointsBusy === 'store'}
                       flash={updated === 'store'}
-                      disabled={pointsBusy !== null}
+                      disabled={pointsBusy !== null || !!draft.zone}
                       error={shown.store}
                       onManage={() => void managePoints('store')}
                     />
@@ -489,6 +548,22 @@ export function LocationEditor({ open, kind, seed, data, onClose, onSaved }: Loc
                 </>
               )}
             </div>
+          </Section>
+
+          {/* ── garage zone ── */}
+          <Section title={draft.kind === 'impound' ? t('Impound zone') : t('Garage zone')}>
+            <ZoneSection
+              zone={draft.zone ?? null}
+              openPoints={draft.openPoints}
+              spawnPoints={draft.spawnPoints}
+              busy={pointsBusy === 'zone'}
+              disabled={pointsBusy !== null}
+              flash={updated === 'zone'}
+              error={shown.zone ?? (draft.zone ? errors.zone : undefined)}
+              notes={zoneNotes}
+              onDraw={() => void drawZone()}
+              onClear={() => set({ zone: null })}
+            />
           </Section>
 
           {/* ── interaction ── */}

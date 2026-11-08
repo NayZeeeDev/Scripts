@@ -21,6 +21,15 @@ export type ApiResult<T = unknown> = { ok: true; data: T } | { ok: false; error:
 /* ───────────────────────── locations ───────────────────────── */
 
 export interface InteractionPoint { coords: Vec3; radius: number }
+/** Horizontal point of a garage zone (world x / y). */
+export interface ZonePoint { x: number; y: number }
+/**
+ * Garage zone: a polygon (3–40 corners, edges never cross) and a height range, drawn in the
+ * world by an admin. Inside it players open the garage and store the vehicle they drive
+ * anywhere (no store circle). Validated by the server: area 10–40 000 m², at most 250 m
+ * across, 2–100 m high, at most 30 m from an open interaction.
+ */
+export interface LocationZone { points: ZonePoint[]; minZ: number; maxZ: number }
 export interface JobRule { name: string; minGrade: number }
 export interface BlipConfig { enabled: boolean; sprite: number; color: number; scale: number }
 export interface CapacityConfig { mode: 'unlimited' | 'limited'; appliesTo: 'player' | 'total'; spaces: number }
@@ -61,6 +70,8 @@ export interface LocationBase {
   blip: BlipConfig;
   /** Per-location interaction override and optional NPC (target mode). Absent = defaults. */
   interaction?: LocationInteraction;
+  /** Optional garage zone (absent / null = point-based location). */
+  zone?: LocationZone | null;
 }
 
 export interface LocationInteraction {
@@ -125,6 +136,10 @@ export interface Finance {
   intervalHours: number | null;
   nextPaymentHours: number | null;
   overdue: boolean;
+  /** unix seconds the next payment is due (wall clock) */
+  nextPaymentAt?: number | null;
+  /** payments missed so far on this plan */
+  missed?: number;
 }
 
 export interface ImpoundInfo {
@@ -288,7 +303,18 @@ export interface GarageOpenData {
   vehicles: GarageVehicle[];
   spawner: SpawnerVehicleView[];
   options: GarageOptions;
+  /** Bumped by Lua ('update') when the 3D preview ended on its own (death, …): show the image. */
+  previewStopped?: number;
 }
+
+/* ── 3D vehicle preview (client/preview.lua) ── */
+
+/** Stage box the preview car is framed in: CSS px of a vw × vh viewport. */
+export interface PreviewRect { x: number; y: number; w: number; h: number; vw: number; vh: number; dpr: number }
+/** Owned / impounded vehicle by plate, spawner vehicle by index; neither = stop the preview. */
+export interface PreviewRequest { app: 'garage' | 'impound'; plate?: string; index?: number; rect?: PreviewRect }
+/** shown: the car is on screen (stage goes transparent); disabled: preview turned off; stale: superseded. */
+export interface PreviewResult { shown: boolean; disabled?: boolean; stale?: boolean }
 
 export interface PlayerOption { serverId: number; name: string }
 
@@ -337,6 +363,8 @@ export interface ImpoundOpenData {
   /** Staff take vehicles out without paying (settings.impound.staffBypassFee). */
   feeWaived?: boolean;
   vehicles: ImpoundedVehicle[];
+  /** See GarageOpenData.previewStopped. */
+  previewStopped?: number;
 }
 
 export interface ImpoundFormData {
@@ -361,7 +389,13 @@ export interface HudVehicle extends VehicleLabel {
   body: number;
   ownerName?: string;
   canDrive?: boolean;
+  /** Interior, on foot next to a display vehicle: draw the vehicle card floating above the car
+   *  at this screen point (x / y = 0-1 of the viewport, scale = 0.82-1, smaller further away)
+   *  instead of the seated stats HUD. Lua re-sends it while the car moves on screen. */
+  anchor?: HudAnchor | null;
 }
+
+export interface HudAnchor { x: number; y: number; scale: number }
 
 export interface InteriorPanelData {
   garageName: string;
@@ -374,11 +408,49 @@ export interface InteriorPanelData {
   canInvite: boolean;
 }
 
+export type SetupModId = 'engine' | 'brakes' | 'transmission' | 'suspension' | 'armour' | 'turbo';
+/** A performance mod as fitted: level 0 = stock, max = levels the model offers (turbo: 0/1). */
+export interface SetupMod { id: SetupModId; level: number; max: number }
+/** Orbit camera presets of the setup menu ('reset' = the opening view). */
+export type SetupView = 'reset' | 'front' | 'rear' | 'side' | 'top';
+
 export interface SetupData {
   label: string;
   liveries: { index: number; label: string }[];
   livery: number;
   extras: { id: number; enabled: boolean }[];
+  /* Detail (all optional, read on the client when the menu opens). */
+  /** Spawn name, e.g. 'police3'. */
+  model?: string;
+  /** Plate on the vehicle. */
+  plate?: string;
+  /** Spawner plate template ('#' digit, '@' letter, '*' either); '' = random plate. */
+  plateTemplate?: string;
+  /** Garage the vehicle came from. */
+  garage?: string;
+  /** 'livery' = livery natives, 'mod' = livery mod kit (index -1 = default), null = none. */
+  liveryMode?: 'livery' | 'mod' | null;
+  /** The spawner fitted max performance mods. */
+  maxMods?: boolean;
+  mods?: SetupMod[];
+  /** The orbit camera is running (false while another camera is in use). */
+  camera?: boolean;
+}
+
+/**
+ * Orbit camera input of the setup menu. Deltas are added to the camera target (Lua clamps
+ * them): yaw / pitch in degrees, zoom in wheel steps (+ = farther). `hold` is the state of the
+ * held keys (-1 | 0 | 1 each); Lua drops it when it is not re-sent within a second.
+ * `frame` is the menu's top edge as a fraction of the screen height (sent on open / resize):
+ * Lua aims the camera so the vehicle sits in the middle of the free space above the menu.
+ */
+export interface SetupCameraInput {
+  yaw?: number;
+  pitch?: number;
+  zoom?: number;
+  hold?: { yaw: number; pitch: number; zoom: number };
+  view?: SetupView;
+  frame?: number;
 }
 
 export interface PromptData { key: string; label: string }
@@ -471,6 +543,8 @@ export interface InterfaceSettings {
   accent: string;
   /** 'both': prompt and target zones together. */
   interaction: 'prompt' | 'target' | 'both';
+  /** 3D preview of the selected vehicle in the garage / impound stage (client/preview.lua); default on. */
+  vehiclePreview?: boolean;
 }
 
 export interface Settings {
@@ -826,6 +900,233 @@ export interface LocksmithOpenData {
   vehicles: LocksmithVehicle[];
 }
 
+/* ───────────── car lock v2 (docs/CARLOCK.md §15-§19): data of the server callbacks ─────────────
+ * Server callbacks (lib.callback, { ok, data, error }) the coming screens forward to; the
+ * Lua names are given on each type. Nothing here is a NuiCallbacks entry yet (the UI wave adds
+ * the NUI names together with their client handlers). */
+
+/** Key policy (Config.CarLock.keyMode / admin setting keys.mode). */
+export type KeyMode = 'flexible' | 'limited' | 'virtual';
+/** Immobiliser of a vehicle: standard blocks hotwiring, ghost also asks for a 4-digit PIN. */
+export type ImmobiliserLevel = 'none' | 'standard' | 'ghost';
+
+/** nz:carlock:immobiliser { plate } / nz:carlock:setPin { plate, pin, oldPin? } */
+export interface ImmobiliserInfo {
+  plate: string;
+  level: ImmobiliserLevel;
+  /** a Ghost PIN is set (no PIN yet: the Ghost acts like a standard immobiliser) */
+  pinSet: boolean;
+  /** this player still has to enter the PIN before the engine starts */
+  pinRequired: boolean;
+  /** seconds left of the wrong-PIN cooldown (0 = none) */
+  cooldown: number;
+  /** false with a Ghost immobiliser */
+  remoteStart: boolean;
+}
+
+/** nz:carlock:pin { netId, pin } (driver seat) */
+export interface PinResult {
+  success: boolean;
+  error?: string;
+  attemptsLeft?: number;
+  /** seconds of the cooldown after too many wrong PINs */
+  cooldown?: number;
+  /** the alarm went off */
+  alarm?: boolean;
+}
+
+/** Server pin info in nz:carlock:hasKey / nz:carlock:engine answers (Ghost PIN missing). */
+export interface PinRequest { required: true; cooldown: number; plate: string }
+
+/** Per-player key settings (nz:carlock:playerSettings {} / nz:carlock:savePlayerSettings
+ *  { settings: Partial<PlayerKeySettings> }). */
+export interface PlayerKeySettings {
+  keylessUnlock: boolean;
+  keylessLock: boolean;
+  /** metres, within PlayerKeySettingsData.limits */
+  keylessDistance: number;
+  engineOnEnter: boolean;
+  keepEngineRunning: boolean;
+  fobBeep: boolean;
+  hints: boolean;
+  /** fob HUD: share of the screen (0-1) and scale (0.5-2) */
+  fobPosition: { x: number; y: number; scale: number };
+  keyOrder: 'recent' | 'name' | 'plate' | 'distance';
+  combinedKeyring: boolean;
+  groundPrompts: boolean;
+  units: 'metric' | 'imperial';
+  alertLock: boolean;
+  alertEngine: boolean;
+  alertShare: boolean;
+  shareRecall: boolean;
+}
+
+export interface PlayerKeySettingsData {
+  settings: PlayerKeySettings;
+  defaults: PlayerKeySettings;
+  limits: { keylessMin: number; keylessMax: number };
+  /** what the server allows (admin settings) */
+  server: { keyless: boolean; keepEngineRunning: boolean; ground: boolean };
+}
+
+export type KeySettingsTab = 'keys' | 'ground' | 'vehicles' | 'lockpicking' | 'hotwiring' | 'npc' | 'jobs' | 'security';
+export type KeySettingType = 'bool' | 'number' | 'enum' | 'color' | 'classes' | 'models' | 'strings';
+export type KeySettingValue = boolean | number | string | number[] | string[];
+
+/** One admin key setting (schema: shared/carlock.lua; labels translated by the server). */
+export interface KeySetting {
+  /** e.g. 'keys.mode', 'ground.removeAfter', 'npc.drop' */
+  id: string;
+  tab: KeySettingsTab;
+  type: KeySettingType;
+  label: string;
+  description: string;
+  /** the value in use (admin value, else the config file's) */
+  value: KeySettingValue;
+  /** the config file's value */
+  default: KeySettingValue;
+  /** an admin value is stored */
+  overridden: boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+  integer?: boolean;
+}
+
+/** nz:carlock:admin:settings {} and nz:carlock:admin:saveSettings
+ *  { values: Record<id, value>, reset?: id[] } (admin only; all or nothing). */
+export interface KeySettings {
+  tabs: { id: KeySettingsTab; label: string }[];
+  settings: KeySetting[];
+}
+
+/** nz:carlock:ground:list {} (keys on the ground in the player's routing bucket); also pushed
+ *  to clients as 'nz:client:carlock:ground' { add } | { remove }. */
+export interface GroundKey {
+  id: string;
+  keyKind: 'key' | 'fob';
+  x: number;
+  y: number;
+  z: number;
+  /** network id of the prop when it exists */
+  netId?: number | null;
+}
+
+/** nz:carlock:ground:inspect { id } (held for the inspector for 20 s; keep with
+ *  nz:carlock:ground:pickup { id }, return with nz:carlock:ground:release { id }). */
+export interface GroundKeyInfo {
+  id: string;
+  plate: string;
+  keyKind: 'key' | 'fob';
+  /** 'item' = a key item; 'temp' = a robbed NPC's key (picking it up gives a temporary key) */
+  kind: 'item' | 'temp';
+  label: string;
+  model: string | null;
+  /** os.time() when it was dropped */
+  droppedAt: number;
+}
+
+/** nz:carlock:inspect { slot } | { keyId, plate } (a key the player carries). */
+export interface CarriedKeyInfo {
+  plate: string;
+  keyKind: 'key' | 'fob';
+  label: string;
+  model: string | null;
+  /** fits the current locks */
+  valid: boolean;
+  reason?: 'invalid' | 'plate' | 'version' | 'error' | null;
+  /** crime origin ('locksmith' | 'search'), null for a registered key */
+  origin: string | null;
+  slot: number | null;
+  keyId: string | null;
+}
+
+/** Where a key is (admin key manager). */
+export interface KeyCustody {
+  kind: 'inventory' | 'stash' | 'ground' | 'server' | 'unknown' | 'lost' | 'flight';
+  slot?: number | null;
+  /** 'glovebox:PLATE' | 'trunk:PLATE' | '<type>:<id>' (ox_inventory reports these) */
+  stash?: string | null;
+  groundId?: string | null;
+}
+
+export interface KeyAdminPlayer {
+  identifier: string;
+  name: string;
+  online: boolean;
+  serverId?: number | null;
+  matchedPlates: string[];
+}
+
+/** One key of a player in the admin key manager (nz:carlock:admin:player { identifier }). */
+export interface KeyAdminRow {
+  /** 'owner:PLATE' | 'share:PLATE' | 'virtual:PLATE' | 'temp:PLATE' | 'item:PLATE:KEYID' |
+   *  'ground:ID'; delete with nz:carlock:admin:delete { identifier, id } */
+  id: string;
+  plate: string;
+  model?: string | null;
+  type: 'key' | 'fob' | 'virtual' | 'temp' | 'owner';
+  /** 'owner' | 'share' | 'virtual' | a temporary key reason | a key item origin | 'key' */
+  origin: string;
+  custody: KeyCustody;
+  spawned: boolean;
+  netId?: number | null;
+  /** metres from the player (online), null when unknown */
+  distance?: number | null;
+  /** temporary keys: os.time() when it ends */
+  expires?: number | null;
+  /** key items: cut for the current locks */
+  current?: boolean;
+  shared?: 'in' | 'out';
+  deletable: boolean;
+}
+
+export interface KeyAdminTotals { keys: number; vehicles: number; sharedIn: number; sharedOut: number }
+
+/** nz:carlock:admin:player, :give { identifier, plate, type: 'item'|'temp'|'virtual',
+ *  keyKind?, hours? } and :delete answer with this. */
+export interface KeyAdminPlayerData {
+  player: Omit<KeyAdminPlayer, 'matchedPlates'>;
+  keys: KeyAdminRow[];
+  totals: KeyAdminTotals;
+}
+
+/** nz:carlock:admin:search { query } (name, citizen id, plate or server id). */
+export interface KeyAdminSearch { rows: KeyAdminPlayer[] }
+
+/** nz:carlock:admin:plate { plate }: every key of one vehicle. */
+export interface KeyAdminPlateData {
+  plate: string;
+  owned: boolean;
+  owner: string | null;
+  ownerName: string | null;
+  model: string | null;
+  /** current key version (nil: database unreadable) */
+  version: number | null;
+  /** copies of the current locks that exist somewhere (limited mode) */
+  live: number | null;
+  immobiliser: { level: ImmobiliserLevel; pinSet: boolean };
+  spawned: boolean;
+  netId: number | null;
+  distance: number | null;
+  custody: { id: string; type: 'key' | 'fob'; origin: string; current: boolean; custody: KeyCustody; holder?: string | null; holderName?: string | null }[];
+  holders: { identifier: string; name: string; type: 'virtual' | 'temp'; origin?: string | null; expires?: number | null }[];
+  ground: { id: string; plate: string; kind: 'item' | 'temp'; keyKind: 'key' | 'fob'; coords: { x: number; y: number; z: number }; bucket: number; droppedBy?: string | null; createdAt: number; expiresAt?: number | null }[];
+}
+
+/** nz:carlock:admin:track { plate } */
+export interface KeyAdminTrack { plate: string; spawned: boolean; bucket?: number; coords?: { x: number; y: number; z: number }; distance?: number | null }
+
+/** nz:carlock:remote { netId? | plate?, action, on? } (fob only; Ghost: no remote start). */
+export interface RemoteResult { action: 'engine' | 'windows'; on: boolean; netId: number; plate: string }
+
+/** Lockpick / hotwire minigame puzzles (nz:carlock:lockpick / hotwire start answers);
+ *  finish with { id, success, answer, snapped? }. */
+export interface PinsPuzzle { pins: number; order: number[]; heights: number[] }
+export interface WiresPuzzle { left: string[]; right: string[] }
+export interface ReaderPuzzle { frequency: number; phase: number; tolerance: { frequency: number; phase: number } }
+
 export interface ContractVehicle extends VehicleLabel {
   plate: string;
   model: string;
@@ -992,6 +1293,8 @@ export interface NuiCallbacks {
   'garage:memberRemove': Cb<{ identifier: string }, MemberData>;
   'garage:sellGarage': Cb<Record<string, never>, null>;
   'garage:switchGroup': Cb<{ groupId: number }, GarageOpenData>;
+  'garage:preview': Cb<PreviewRequest, PreviewResult>;
+  'garage:previewRect': Cb<PreviewRect, null>;
 
   'forSale:tour': Cb<{ locationId: number }, null>;
   'forSale:buy': Cb<{ locationId: number }, null>;
@@ -1012,6 +1315,7 @@ export interface NuiCallbacks {
   'setup:livery': Cb<{ index: number }, null>;
   'setup:extra': Cb<{ id: number; enabled: boolean }, null>;
   'setup:drive': Cb<Record<string, never>, null>;
+  'setup:camera': Cb<SetupCameraInput, null>;
 
   'interior:page': Cb<{ page: number }, null>;
   'interior:invite': Cb<{ serverId: number }, null>;
@@ -1020,7 +1324,8 @@ export interface NuiCallbacks {
   'interior:leave': Cb<Record<string, never>, null>;
 
   'creator:pickEntry': Cb<Record<string, never>, { entry: Vec4; gtaInteriorId: number | null; gtaInteriorName: string | null }>;
-  'creator:applyProfile': Cb<{ profile: string | null; options: Record<string, string> }, { entry: Vec4 | null }>;
+  /** `slots`: the profile's preset vehicle positions, sent when the draft had none yet. */
+  'creator:applyProfile': Cb<{ profile: string | null; options: Record<string, string> }, { entry: Vec4 | null; slots?: Vec4[] | null }>;
   'creator:addCameraPoint': Cb<Record<string, never>, CameraPoint>;
   'creator:previewCutscene': Cb<{ cutscene: Cutscene }, null>;
   'creator:placeSlot': Cb<{ index: number | null; slot: Vec4 | null }, Vec4 | null>;
@@ -1037,9 +1342,11 @@ export interface NuiCallbacks {
   'admin:location:toggle': Cb<{ id: number; enabled: boolean }, null>;
   'admin:location:teleport': Cb<{ coords: Vec3 | Vec4 }, null>;
   'admin:location:import': Cb<{ source: string; json?: string }, { imported: number; skipped: number }>;
+  /** kind 'zone': the in-world zone tool (null = cancelled; the server validates on save). */
   'admin:points': Cb<
-    { kind: 'spawn' | 'open' | 'store'; vehicleType: VehicleType; points: Vec4[] | InteractionPoint[]; model?: string },
-    Vec4[] | InteractionPoint[] | null
+    | { kind: 'spawn' | 'open' | 'store'; vehicleType: VehicleType; points: Vec4[] | InteractionPoint[]; model?: string }
+    | { kind: 'zone'; vehicleType: VehicleType; zone: LocationZone | null; openPoints: InteractionPoint[]; spawnPoints: Vec4[] },
+    Vec4[] | InteractionPoint[] | LocationZone | null
   >;
   'admin:pickPosition': Cb<Record<string, never>, Vec4>;
   'admin:groups': Cb<{ locationId: number }, GroupInfo[]>;

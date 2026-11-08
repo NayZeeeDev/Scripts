@@ -101,12 +101,86 @@ registerMock({
 });
 
 registerMock({
+  id: 'hud-interior-seated',
+  group: 'Interior',
+  label: 'Seated: stats HUD + drive-out prompt',
+  messages: [
+    { action: 'hud', data: hudNeon },
+    { action: 'prompt', data: { key: 'W', label: 'Accelerate to leave the garage' } },
+  ],
+});
+
+registerMock({
+  id: 'hud-interior-tag',
+  group: 'Interior',
+  label: 'On foot: vehicle card above the car',
+  messages: [{ action: 'hud', data: { ...hudNeon, anchor: { x: 0.5, y: 0.44, scale: 1 } } }],
+});
+
+registerMock({
+  id: 'hud-interior-tag-far',
+  group: 'Interior',
+  label: 'On foot: card further away (smaller), display only',
+  messages: [{ action: 'hud', data: { ...hudWorn, anchor: { x: 0.36, y: 0.5, scale: 0.84 } } }],
+});
+
+registerMock({
+  id: 'hud-interior-tag-edge',
+  group: 'Interior',
+  label: 'On foot: car at the screen edge (card slides in, stem stays on the car)',
+  messages: [{ action: 'hud', data: { ...hudNeon, ownerName: undefined, anchor: { x: 0.985, y: 0.3, scale: 0.9 } } }],
+});
+
+registerMock({
+  id: 'hud-interior-tag-follow',
+  group: 'Interior',
+  label: 'On foot: card following a car (walking past it)',
+  messages: [{ action: 'hud', data: { ...hudNeon, anchor: { x: 0.3, y: 0.46, scale: 0.9 } } }],
+});
+
+/** Lua re-sends the anchor while the car moves on screen: simulate walking past it. */
+let followTimer = 0;
+const startFollow = () => {
+  window.clearInterval(followTimer);
+  const t0 = performance.now();
+  followTimer = window.setInterval(() => {
+    const hud = useUi.getState().hud;
+    if (!hud?.anchor || hud.plate !== hudNeon.plate) {
+      window.clearInterval(followTimer);
+      return;
+    }
+    const t = (performance.now() - t0) / 1000;
+    const x = 0.5 + Math.sin(t * 0.6) * 0.28;
+    const scale = 0.91 + Math.cos(t * 0.6) * 0.08;
+    emitNuiMessage({ action: 'hud', data: { ...hudNeon, anchor: { x, y: 0.46 + Math.cos(t * 0.6) * 0.04, scale } } });
+  }, 33);
+};
+if (new URLSearchParams(window.location.search).get('mock') === 'hud-interior-tag-follow') {
+  window.setTimeout(startFollow, 200);
+}
+
+registerMock({
   id: 'interior-panel',
   group: 'Interior',
   label: 'Control panel (owner with guests)',
   messages: [
     { action: 'hud', data: hudNeon },
     { action: 'open', data: { app: 'interior', data: ownerPanel } },
+  ],
+});
+
+registerMock({
+  id: 'interior-panel-solo',
+  group: 'Interior',
+  label: 'Control panel (per-player copy, default)',
+  messages: [
+    {
+      action: 'open',
+      data: {
+        app: 'interior',
+        data: { ...ownerPanel, page: 1, pages: 2, canInvite: false, members: [{ serverId: 12, name: 'Kai Moreno', role: 'owner', you: true }] },
+      },
+    },
   ],
 });
 

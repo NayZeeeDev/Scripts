@@ -361,6 +361,70 @@ export('IsVehicleOut', function(plate)
 end)
 
 ---------------------------------------------------------------------------------------
+-- Finance (dealership scripts). Logic and events: NZ.Finance in server/actions.lua.
+---------------------------------------------------------------------------------------
+
+local function financeModule()
+  local finance = NZ.Finance
+  if type(finance) ~= 'table' or type(finance.set) ~= 'function' then return nil end
+  return finance
+end
+
+--- A plan given as a table or as its JSON string.
+local function financeData(value)
+  if type(value) == 'string' then
+    local ok, decoded = pcall(json.decode, value)
+    value = ok and decoded or nil
+  end
+  return type(value) == 'table' and value or nil
+end
+
+--- SetFinance(plate, { balance, payment, paymentsTotal, intervalHours, nextPaymentAt?, paymentsLeft? })
+--- -> true, Finance | false, error. Creates or replaces the plan of an owned vehicle.
+export('SetFinance', function(plate, data)
+  if notReady() then return false, L('Garages are still loading') end
+  local finance = financeModule()
+  if not finance then return false, L('Vehicle finance is not available on this server') end
+  local p = plateArg(plate)
+  if not p then return false, L('Invalid plate') end
+  data = financeData(data)
+  if not data then return false, L('Invalid finance data') end
+  return finance.set(p, data, GetInvokingResource())
+end)
+
+--- ClearFinance(plate, reason?) -> true | false, error. Nothing owed is not an error.
+export('ClearFinance', function(plate, reason)
+  if notReady() then return false, L('Garages are still loading') end
+  local finance = financeModule()
+  if not finance then return false, L('Vehicle finance is not available on this server') end
+  local p = plateArg(plate)
+  if not p then return false, L('Invalid plate') end
+  if reason ~= nil then reason = safeText(reason, 64) end
+  return finance.clear(p, reason, GetInvokingResource())
+end)
+
+--- GetFinance(plate) -> Finance | nil (nothing owed / unknown vehicle).
+export('GetFinance', function(plate)
+  local finance = financeModule()
+  local p = plateArg(plate)
+  if not finance or not p then return nil end
+  return finance.get(p)
+end)
+
+--- RecordFinancePayment(plate, amount, src?) -> true, Finance | true, nil (paid off) | false, error.
+--- For payments another script collected; no money is taken here.
+export('RecordFinancePayment', function(plate, amount, src)
+  if notReady() then return false, L('Garages are still loading') end
+  local finance = financeModule()
+  if not finance then return false, L('Vehicle finance is not available on this server') end
+  local p = plateArg(plate)
+  if not p then return false, L('Invalid plate') end
+  local value = num(amount, 0, MAX_MONEY, nil, false)
+  if not value or value ~= math.floor(value) or value < 1 then return false, L('Invalid amount') end
+  return finance.recordPayment(p, value, positiveId(src), GetInvokingResource())
+end)
+
+---------------------------------------------------------------------------------------
 -- Locations & houses
 ---------------------------------------------------------------------------------------
 

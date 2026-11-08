@@ -218,9 +218,10 @@ local function deleteEntity(entity)
 end
 
 --- Take an impounded vehicle out of the world. With `tow` (impound form) an NPC flatbed
---- collects it when Config.Tow allows (NZ.Tow locks it at once and deletes it after the tow or
---- on any failure); otherwise, or when the tow cannot run (disabled, boat / aircraft, somebody
---- inside, nobody nearby ...), it is deleted at once. Never yields.
+--- collects it when Config.Tow allows (NZ.Tow locks it at once and removes it after the tow;
+--- once a truck is on its way it never vanishes in front of players: a failed tow leaves it
+--- locked until nobody is near); otherwise, or when the tow cannot run (disabled, boat /
+--- aircraft, somebody inside, nobody nearby ...), it is deleted at once. Never yields.
 ---@return boolean removed, boolean towed
 local function removeEntity(entity, tow, src)
   if not isVehicleEntity(entity) then return false, false end

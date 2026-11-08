@@ -1,9 +1,10 @@
 --[[
   nayzeee-garages — interior creator, client side (NZ.Creator).
   Runs the in-world editor behind the NUI app 'creator': picks the entry / exit, loads IPL
-  profiles, records camera points and previews the cutscene, places vehicle slots with the
-  ghost tool (numbered ghosts stay visible), walk mode, save / cancel. Every 'creator:*'
-  NUI callback of docs/ARCHITECTURE.md §8.2 is handled here.
+  profiles (a new interior, or one without vehicle positions, gets the profile's preset
+  positions: NZ.Interior.profileSlots), records camera points and previews the arrival
+  ride, places vehicle slots with the ghost tool (numbered ghosts stay visible), walk mode,
+  save / cancel. Every 'creator:*' NUI callback of docs/ARCHITECTURE.md §8.2 is handled here.
 ]]
 
 local Creator = NZ.Creator
@@ -74,6 +75,26 @@ local function setEditorFocus(focus)
   else
     SetNuiFocus(focus, focus)
   end
+end
+
+--- Preset positions of a profile for an editor without positions. With `moveEntry`, derived
+--- positions (presetsFrom) also bring a derived arrival point, and the admin is taken
+--- there. Blocking.
+---@return table|nil slots, table|nil entry
+local function presetsFor(s, key, moveEntry)
+  if type(NZ.Interior.profileSlots) ~= 'function' then return nil, nil end
+  local ok, slots, entry, derived = pcall(NZ.Interior.profileSlots, key)
+  if not ok then
+    lib.print.error(('[nayzeee-garages] preset positions of "%s" failed: %s'):format(tostring(key), tostring(slots)))
+    return nil, nil
+  end
+  if type(slots) ~= 'table' or #slots == 0 then return nil, nil end
+  if derived then
+    NZ.NUI.notify('info', L('Vehicle positions were copied from the same garage in another building. Check them before saving.'))
+  end
+  if not (derived and entry and moveEntry) then return slots, nil end
+  if active == s then NZ.Interior.teleport(entry) end
+  return slots, entry
 end
 
 local function emptyObject(t)
@@ -233,6 +254,18 @@ function Creator.start(creatorData, opts)
   if opts.teleport then NZ.Interior.teleport(interior.entry) end
   if active ~= s then return false end
 
+  -- An interior from a profile without vehicle positions (new, or saved before presets
+  -- existed) starts with the profile's positions.
+  if interior.profile and #interior.slots == 0 then
+    local slots, entry = presetsFor(s, interior.profile, data.mode == 'create')
+    if active ~= s then return false end
+    if slots then interior.slots = slots end
+    if entry then
+      interior.entry = roundV4(entry)
+      setMarker(s, interior.entry)
+    end
+  end
+
   ensureKeybind()
   syncGhosts(s, normalizeSlots(interior.slots))
   startLabelLoop(s)
@@ -313,8 +346,15 @@ handler('creator:applyProfile', function(s, data)
   NZ.Interior.teleport(coords)
   -- Entity sets refresh once the interior is streamed in around the player.
   NZ.Interior.loadProfile(key, options, coords)
+  -- No positions placed yet: start from the profile's presets (the interface puts them in
+  -- the draft and shows their ghosts through creator:showSlots).
+  local slots, entry = nil, nil
+  if #s.slots == 0 then
+    slots, entry = presetsFor(s, key, true)
+    if entry then setMarker(s, entry) end
+  end
   s.busy = false
-  return { entry = roundV4(coords) }
+  return { entry = roundV4(entry or coords), slots = slots }
 end)
 
 handler('creator:addCameraPoint', function()
@@ -329,11 +369,13 @@ handler('creator:previewCutscene', function(s, data)
   s.busy = true
   s.walking = false
   setEditorFocus(false)
-  NZ.NUI.hint({ title = L('Cutscene preview'), keys = { { keys = { 'Esc' }, label = L('Stop preview') } } })
+  -- (the ride shows its own "any key to skip" prompt)
+  NZ.NUI.hint(nil)
   local ped = PlayerPedId()
   FreezeEntityPosition(ped, true)
-  local ok, err = pcall(NZ.Camera.playPath, cut.points, tonumber(cut.transition) or 3000, {
-    returnTime = tonumber(cut.returnTime) or 1000,
+  -- Same ride players get on arrival (it ends behind the admin's character).
+  local ok, err = pcall(NZ.Camera.cinematic, {
+    cutscene = { enabled = true, points = cut.points, transition = cut.transition, returnTime = cut.returnTime },
     skippable = true,
   })
   FreezeEntityPosition(ped, false)

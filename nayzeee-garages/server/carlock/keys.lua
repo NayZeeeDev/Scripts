@@ -10,6 +10,12 @@
     3. a virtual shared key (virtual mode, table nz_keys),
     4. owner / garage share / job or gang fleet access (Config.CarLock.ownerHasKey).
 
+  Key modes (Config.CarLock.keyMode, docs/CARLOCK.md §1): flexible (key items; retrieval reuses
+  a carried / glovebox key, else cuts one; sharing copies), limited (a fixed set per vehicle,
+  sharing hands yours over, no free copies while one exists), virtual (no items). Every key item
+  the server makes or sees is recorded with its custody (nz_key_items). Immobilisers / Ghost
+  PINs per plate (nz_key_security).
+
   Plates are always the real plate (NZ.CarLock.realPlate): the identity the server recorded
   for the entity (garage vehicles, fake plates), else the plate text. A plate text copied
   onto another entity than the tracked garage vehicle is never trusted.
@@ -567,6 +573,11 @@ function CarLock.mode()
   return mode
 end
 
+--- Forget the cached key mode (admin settings changed).
+function CarLock.resetModeCache()
+  modeCache.value, modeCache.at = nil, -1e9
+end
+
 --- Owner identity of a vehicle row / key state (owner, job, gang), hashed: stored with the key
 --- version (nz_key_owner) so an ownership change made by ANY script retires the old keys.
 local function ownerMarkOf(t)
@@ -743,6 +754,13 @@ function CarLock.keyItemsOf(src, plate)
       end
     end
   end
+  -- custody: these items are in this pocket (written only when it changed)
+  local id = #out > 0 and identifierOf(src) or nil
+  if id then
+    for _, e in ipairs(out) do
+      if CarLock.moveKeyItem then CarLock.moveKeyItem(e.metadata, 'player', id, e.slot) end
+    end
+  end
   return out
 end
 
@@ -769,9 +787,159 @@ function CarLock.giveKeyItem(src, plate, opts)
   if not NZ.Inventory.addItem(src, item, 1, md) then
     return false, L('You cannot carry the key')
   end
+  CarLock.recordKeyItem(md, 'player', identifierOf(src), nil, identifierOf(src))
   push(src, plate)
   log('vehicle.keyItem', src, { plate = plate, kind = md.kind, version = md.version, reason = opts.reason, origin = md.origin })
   return true, nil
+end
+
+---------------------------------------------------------------------------------------
+-- Key custody (nz_key_items): where every key / fob item is. Recorded when the server makes
+-- or moves a key (cut, hand-over, copy, ground), when a player's inventory is read (the key
+-- ring, key checks of every key) and when the inventory reports a move (ox_inventory: stash /
+-- glovebox / trunk / drop, bridge/server/inventory.lua). 'limited' mode counts the copies of
+-- the current locks that exist somewhere; the admin key manager shows the custody.
+---------------------------------------------------------------------------------------
+
+local custodySeen = {}         -- [ref] = 'custody|holder|slot' last written (no repeated writes)
+local custodyCount = 0
+local reconcileAt = {}         -- [identifier] = os.time() of the last pocket reconcile
+local RECONCILE_S = 60
+
+--- Registry key of a key item: plate:id (ids are random per item, plates make them unique).
+---@param md table key item metadata
+---@return string|nil
+function CarLock.keyRef(md)
+  if type(md) ~= 'table' then return nil end
+  local plate = normPlate(md.plate)
+  local id = type(md.id) == 'string' and md.id:match('^[%w]+$') and md.id or nil
+  if not plate or not id or #id > 15 then return nil end
+  return plate .. ':' .. id
+end
+
+local function custodyMark(custody, holder, slot)
+  return ('%s|%s|%s'):format(custody, tostring(holder), tostring(slot))
+end
+
+local function rememberCustody(ref, mark)
+  if not custodySeen[ref] then
+    custodyCount = custodyCount + 1
+    if custodyCount > 20000 then custodySeen, custodyCount = {}, 1 end
+  end
+  custodySeen[ref] = mark
+end
+
+--- Record a key item made by the server (or one never seen before) with its custody.
+--- custody: 'player' (holder = identifier) | 'stash' (holder = stash id) | 'ground'
+--- (holder = 'ground:<id>') | 'unknown' | 'lost'.
+---@param md table key item metadata
+---@param custody string
+---@param holder string|nil
+---@param slot number|nil
+---@param createdBy string|nil
+---@return boolean
+function CarLock.recordKeyItem(md, custody, holder, slot, createdBy)
+  local ref = CarLock.keyRef(md)
+  if not ref or not (NZ.DB.keyItems and type(NZ.DB.keyItems.upsert) == 'function') then return false end
+  local ok, res = pcall(NZ.DB.keyItems.upsert, {
+    id = ref, plate = md.plate, version = tonumber(md.version) or 0, kind = md.kind, origin = md.origin,
+    custody = custody, holder = holder, slot = slot, createdBy = createdBy,
+  })
+  if ok and res then rememberCustody(ref, custodyMark(custody, holder, slot)) end
+  return ok and res == true
+end
+
+--- A key item moved (inventory report, hand-over, ground). Unknown items are recorded.
+---@param md table key item metadata
+---@param custody string
+---@param holder string|nil
+---@param slot number|nil
+---@return boolean
+function CarLock.moveKeyItem(md, custody, holder, slot)
+  local ref = CarLock.keyRef(md)
+  if not ref or not NZ.DB.keyItems then return false end
+  local mark = custodyMark(custody, holder, slot)
+  if custodySeen[ref] == mark then return true end
+  local ok, changed = pcall(NZ.DB.keyItems.move, ref, custody, holder, slot)
+  if ok and changed then
+    rememberCustody(ref, mark)
+    return true
+  end
+  -- never recorded (a key cut before custody existed, another script's item): record it now
+  return CarLock.recordKeyItem(md, custody, holder, slot, nil)
+end
+
+--- Key items a player carries were read: their custody is that pocket. Once a minute per
+--- character, recorded keys that should be in that pocket but are not are marked 'unknown'.
+---@param src number
+---@param entries table[] { { item, slot, metadata } } of every valid key item carried
+local function noteCarried(src, entries)
+  local id = identifierOf(src)
+  if not id then return end
+  local here = {}
+  for _, e in ipairs(entries) do
+    local ref = CarLock.keyRef(e.metadata)
+    if ref then
+      here[ref] = true
+      CarLock.moveKeyItem(e.metadata, 'player', id, e.slot)
+    end
+  end
+  local t = os.time()
+  if (reconcileAt[id] or 0) + RECONCILE_S > t or not NZ.DB.keyItems then return end
+  reconcileAt[id] = t
+  local ok, rows = pcall(NZ.DB.keyItems.forHolder, id)
+  for _, row in ipairs(ok and type(rows) == 'table' and rows or {}) do
+    if row.custody == 'player' and not here[row.id] then
+      pcall(NZ.DB.keyItems.move, row.id, 'unknown', id, nil)
+      custodySeen[row.id] = nil
+    end
+  end
+end
+CarLock.noteCarried = noteCarried
+
+-- Moves the inventory reports (ox_inventory: into a glovebox / trunk / stash / drop, to a player)
+if CarLock.enabled() and type(NZ.Inventory.watchMoves) == 'function' then
+  local names = {}
+  for _, name in pairs(CarLock.keyItems()) do names[#names + 1] = name end
+  NZ.Inventory.watchMoves(names, function(move)
+    if type(move) ~= 'table' or not CarLock.keyRef(move.metadata) then return end
+    if move.custody == 'player' then
+      local src = validSrc(move.holder)
+      CarLock.moveKeyItem(move.metadata, src and 'player' or 'unknown', src and identifierOf(src) or nil, move.slot)
+    else
+      CarLock.moveKeyItem(move.metadata, 'stash', type(move.holder) == 'string' and move.holder:sub(1, 64) or nil, move.slot)
+    end
+  end)
+end
+
+--- Copies of the current locks of `plate` that exist somewhere (recorded key items of the
+--- current key version that are not lost). nil when it cannot be read.
+---@param plate string
+---@return integer|nil
+function CarLock.liveKeyCount(plate)
+  plate = normPlate(plate)
+  if not plate or not NZ.DB.keyItems then return nil end
+  local version = CarLock.keyVersion(plate)
+  if version == nil then return nil end
+  local ok, n = pcall(NZ.DB.keyItems.countLive, plate, version)
+  return ok and n or nil
+end
+
+--- Recorded key items of a plate: { { id, plate, version, current, kind, origin?, custody,
+--- holder?, slot? } } (current = cut for the current locks).
+---@param plate string
+---@return table[]
+function CarLock.keyCustody(plate)
+  plate = normPlate(plate)
+  if not plate or not NZ.DB.keyItems then return {} end
+  local version = CarLock.keyVersion(plate)
+  local ok, rows = pcall(NZ.DB.keyItems.forPlate, plate)
+  local out = {}
+  for _, row in ipairs(ok and type(rows) == 'table' and rows or {}) do
+    row.current = version ~= nil and row.version == version
+    out[#out + 1] = row
+  end
+  return out
 end
 
 ---------------------------------------------------------------------------------------
@@ -823,6 +991,51 @@ function CarLock.grantTemp(src, plate, reason, hours, access)
   }
   push(src, plate)
   Utils.debug(('carlock: temporary key %s -> %s (%s)'):format(plate, holder, tostring(reason)))
+  return true
+end
+
+--- The temporary key of a player for `plate`: { reason, expires, at } or nil.
+---@param src number
+---@param plate string
+---@return table|nil
+function CarLock.tempKeyOf(src, plate)
+  src, plate = validSrc(src), normPlate(plate)
+  if not src or not plate then return nil end
+  local entry = tempEntry(holderOf(src), plate)
+  if not entry then return nil end
+  return { reason = entry.reason, expires = entry.expires, at = entry.at }
+end
+
+--- Temporary keys of a character (identifier): { [plate] = { reason, expires, at } }.
+---@param identifier string
+---@return table
+function CarLock.tempKeysOfHolder(identifier)
+  local out = {}
+  if type(identifier) ~= 'string' then return out end
+  for plate in pairs(temp[identifier] or {}) do
+    local entry = tempEntry(identifier, plate)
+    if entry then out[plate] = { reason = entry.reason, expires = entry.expires, at = entry.at } end
+  end
+  return out
+end
+
+--- Give a character (identifier, online or not) a temporary key (admin key manager).
+---@param identifier string
+---@param plate string
+---@param reason string|nil
+---@param hours number|nil
+---@return boolean
+function CarLock.grantTempTo(identifier, plate, reason, hours)
+  plate = normPlate(plate)
+  if type(identifier) ~= 'string' or identifier == '' or #identifier > 64 or not plate then return false end
+  local src = sourceOfIdentifier(identifier)
+  if src then return CarLock.grantTemp(src, plate, reason, hours) end
+  hours = tonumber(hours) or CarLock.tempHours()
+  if hours ~= hours or hours <= 0 then hours = CarLock.tempHours() end
+  CarLock.keyVersion(plate)
+  temp[identifier] = temp[identifier] or {}
+  temp[identifier][plate] = { expires = os.time() + math.max(math.floor(math.min(hours, 720) * 3600), 60),
+    reason = type(reason) == 'string' and reason:sub(1, 24) or 'admin', at = os.time() }
   return true
 end
 
@@ -1016,14 +1229,17 @@ function CarLock.keysOf(src)
   local mode = CarLock.mode()
   local id = identifierOf(src)
   if mode == 'physical' then
+    local carried = {}
     for _, item in pairs(CarLock.keyItems()) do
       for _, entry in ipairs(NZ.Inventory.find(src, item)) do
         local md = entry.metadata
         if CarLock.verifyKeyItem(md) then
-          add(md.plate, 'item', { label = md.label, model = md.model, keyKind = md.kind })
+          carried[#carried + 1] = { item = item, slot = entry.slot, metadata = md }
+          add(md.plate, 'item', { label = md.label, model = md.model, keyKind = md.kind, keyId = md.id, slot = entry.slot })
         end
       end
     end
+    noteCarried(src, carried)
   elseif id then
     for plate in pairs(virtualSet(id)) do add(plate, 'virtual') end
   end
@@ -1086,6 +1302,8 @@ afterRekey = function(plate, keepIdentifier, newVersion, reason)
   rowCache[plate], accessCache[plate] = nil, nil
   local row = rowOf(plate)
   if row and row.owner then pushIdentifier(row.owner, plate) end
+  -- a new owner does not know the Ghost PIN: it is cleared (the immobiliser stays)
+  if reason == 'owner' and type(CarLock.clearPin) == 'function' then CarLock.clearPin(plate) end
   if reason ~= 'first' then
     log('vehicle.rekey', nil, { plate = plate, version = newVersion, reason = reason, resource = GetInvokingResource() })
   end
@@ -1113,6 +1331,9 @@ function CarLock.rekey(plate, keepIdentifier)
   local newVersion, entry
   if type(st) == 'table' then
     local mark = st.markSupported and ownerMarkOf(st) or nil
+    if mark and st.mark ~= nil and st.mark ~= mark and type(CarLock.clearPin) == 'function' then
+      CarLock.clearPin(plate) -- the owner changed (sale / transfer reported through Rekey)
+    end
     local okBump, res = pcall(NZ.DB.keys.bumpVersion, plate, mark, initialVersion())
     newVersion = okBump and math.tointeger(tonumber(res)) or nil
     if not newVersion then
@@ -1254,6 +1475,207 @@ function CarLock.stopAlarm(entity)
   if isVehicle(entity) and (bagWritten.nzAlarm[entity] or Entity(entity).state.nzAlarm) then
     writeBag(entity, 'nzAlarm', false)
   end
+end
+
+---------------------------------------------------------------------------------------
+-- Immobilisers and Ghost PINs (nz_key_security; docs/CARLOCK.md §17)
+--   none      nothing extra
+--   standard  the vehicle cannot be hotwired (server/carlock/crime.lua)
+--   ghost     standard + a four-digit PIN before the engine starts, even with the keys; no
+--             remote start. The PIN is stored as an HMAC with the key secret. A correct PIN
+--             is valid for that character and vehicle for immobiliser.pinSession seconds;
+--             immobiliser.pinAttempts wrong PINs in a row sound the alarm and block PIN
+--             attempts on that vehicle for immobiliser.pinCooldown seconds.
+-- Vehicles nobody owns use their security profile's `immobiliser` ('none' when not set).
+---------------------------------------------------------------------------------------
+
+local IMMO_TTL = 30000         -- ms: cached immobiliser of an owned plate
+local LEVELS = { none = true, standard = true, ghost = true }
+local immoCache = {}           -- [plate] = { level, pinHash, at }
+local pinTries = {}            -- [plate] = { wrong, blockedUntil (os.time) }
+local pinPassed = {}           -- [plate] = { [holder] = expires (os.time) }
+
+local function immoCfg()
+  local c = cfg().immobiliser
+  return type(c) == 'table' and c or {}
+end
+
+--- Are immobilisers on (Config.CarLock.immobiliser.enabled)?
+---@return boolean
+function CarLock.immobiliserEnabled()
+  return immoCfg().enabled ~= false
+end
+
+local function immoEntry(plate)
+  local hit = immoCache[plate]
+  if hit and now() - hit.at < IMMO_TTL then return hit end
+  local entry = nil
+  if rowOf(plate) and NZ.DB.keySecurity and type(NZ.DB.keySecurity.get) == 'function' then
+    local ok, res = pcall(NZ.DB.keySecurity.get, plate)
+    if ok and type(res) == 'table' then
+      entry = { level = LEVELS[res.immobiliser] and res.immobiliser or 'none', pinHash = res.pinHash }
+    elseif hit then
+      return hit -- database error: keep the last known state
+    end
+  end
+  if not entry then
+    local _, profile = CarLock.profileOfPlate(plate)
+    local level = type(profile) == 'table' and profile.immobiliser or nil
+    entry = { level = LEVELS[level] and level or 'none' }
+  end
+  entry.at = now()
+  immoCache[plate] = entry
+  return entry
+end
+
+--- Immobiliser of a plate: level ('none'|'standard'|'ghost'), pinSet. 'none' while
+--- immobilisers are switched off.
+---@param plate string
+---@return string level, boolean pinSet
+function CarLock.immobiliserOf(plate)
+  plate = normPlate(plate)
+  if not plate or not CarLock.immobiliserEnabled() then return 'none', false end
+  local entry = immoEntry(plate)
+  return entry.level, entry.pinHash ~= nil
+end
+
+local function pinHashOf(plate, pin)
+  return hex(hmac(keySecret(), ('nzpin|%s|%s'):format(plate, pin)))
+end
+
+--- Install / change / remove the immobiliser of an OWNED plate (the caller checks who may).
+--- Changing the level clears the Ghost PIN unless the level stays 'ghost'.
+---@param plate string
+---@param level 'none'|'standard'|'ghost'
+---@param by number|nil source for the log
+---@return boolean ok, string|nil error (translated)
+function CarLock.setImmobiliser(plate, level, by)
+  plate = normPlate(plate)
+  if not plate or not LEVELS[level] then return false, L('Invalid request') end
+  if not rowOf(plate) then return false, L('Only registered vehicles can have an immobiliser') end
+  if not (NZ.DB.keySecurity and type(NZ.DB.keySecurity.set) == 'function') then return false, L('Something went wrong') end
+  local current = immoEntry(plate)
+  local keepPin = current.level == 'ghost' and level == 'ghost'
+  local pinArg = nil              -- nil keeps the stored PIN, false clears it
+  if not keepPin then pinArg = false end
+  if not NZ.DB.keySecurity.set(plate, level, pinArg) then return false, L('Something went wrong') end
+  immoCache[plate] = nil
+  if not keepPin then pinPassed[plate], pinTries[plate] = nil, nil end
+  log('vehicle.immobiliser', by, { plate = plate, level = level, previous = current.level })
+  return true, nil
+end
+
+--- Set or change the Ghost PIN of a plate (owner; an admin may skip the old PIN).
+---@param src number
+---@param plate string
+---@param pin string four digits
+---@param oldPin string|nil the current PIN (required when one is set)
+---@return boolean ok, string|nil error (translated)
+function CarLock.setPin(src, plate, pin, oldPin)
+  src, plate = validSrc(src), normPlate(plate)
+  if not src or not plate then return false, L('Invalid request') end
+  if type(pin) ~= 'string' or not pin:match('^%d%d%d%d$') then return false, L('The PIN must be four digits') end
+  local admin = type(CarLock.isAdmin) == 'function' and CarLock.isAdmin(src)
+  if not CarLock.isOwner(src, plate) and not admin then return false, L('Only the owner can change the PIN') end
+  local entry = immoEntry(plate)
+  if entry.level ~= 'ghost' then return false, L('This vehicle has no Ghost immobiliser') end
+  if entry.pinHash and not admin then
+    if type(oldPin) ~= 'string' or not oldPin:match('^%d%d%d%d$') or pinHashOf(plate, oldPin) ~= entry.pinHash then
+      return false, L('The current PIN is wrong')
+    end
+  end
+  if not NZ.DB.keySecurity.set(plate, 'ghost', pinHashOf(plate, pin)) then return false, L('Something went wrong') end
+  immoCache[plate], pinPassed[plate], pinTries[plate] = nil, nil, nil
+  log('vehicle.pin', src, { plate = plate, admin = admin and not CarLock.isOwner(src, plate) or nil })
+  return true, nil
+end
+
+--- Forget the Ghost PIN of a plate (new owner); the immobiliser stays installed.
+---@param plate string
+function CarLock.clearPin(plate)
+  plate = normPlate(plate)
+  if not plate then return end
+  local entry = immoEntry(plate)
+  if entry.pinHash and NZ.DB.keySecurity then pcall(NZ.DB.keySecurity.set, plate, entry.level, false) end
+  immoCache[plate], pinPassed[plate], pinTries[plate] = nil, nil, nil
+end
+
+--- Seconds of the PIN cooldown left on a plate (0 = none).
+---@param plate string
+---@return integer
+function CarLock.pinCooldown(plate)
+  local t = pinTries[normPlate(plate) or '']
+  if not t or not t.blockedUntil then return 0 end
+  return math.max(t.blockedUntil - os.time(), 0)
+end
+
+--- Does `src` still have to enter the Ghost PIN of `plate` before the engine starts?
+---@param src number
+---@param plate string
+---@return boolean
+function CarLock.pinRequired(src, plate)
+  src, plate = validSrc(src), normPlate(plate)
+  if not src or not plate then return false end
+  local level, pinSet = CarLock.immobiliserOf(plate)
+  if level ~= 'ghost' or not pinSet then return false end
+  local passed = pinPassed[plate]
+  local expires = passed and passed[holderOf(src)]
+  return not (expires and expires > os.time())
+end
+
+--- Enter the Ghost PIN of a vehicle. Returns ok, error (translated), { attemptsLeft?, cooldown? }.
+---@param src number
+---@param entity number the vehicle (alarm on too many wrong PINs)
+---@param plate string
+---@param pin string
+---@return boolean ok, string|nil error, table info
+function CarLock.enterPin(src, entity, plate, pin)
+  src, plate = validSrc(src), normPlate(plate)
+  if not src or not plate then return false, L('Invalid request'), {} end
+  local entry = immoEntry(plate)
+  if entry.level ~= 'ghost' or not entry.pinHash or not CarLock.immobiliserEnabled() then return true, nil, {} end
+  local c = immoCfg()
+  local attempts = math.floor(Utils.clamp(tonumber(c.pinAttempts) or 3, 1, 10))
+  local t = pinTries[plate] or { wrong = 0 }
+  pinTries[plate] = t
+  local wait = t.blockedUntil and t.blockedUntil - os.time() or 0
+  if wait > 0 then
+    return false, L('Too many wrong PINs: wait {seconds} s', { seconds = wait }), { cooldown = wait, attemptsLeft = 0 }
+  end
+  if t.blockedUntil then t.blockedUntil, t.wrong = nil, 0 end
+  if type(pin) == 'string' and pin:match('^%d%d%d%d$') and pinHashOf(plate, pin) == entry.pinHash then
+    pinTries[plate] = nil
+    pinPassed[plate] = pinPassed[plate] or {}
+    pinPassed[plate][holderOf(src)] = os.time() + math.floor(Utils.clamp(tonumber(c.pinSession) or 600, 30, 86400))
+    return true, nil, {}
+  end
+  t.wrong = t.wrong + 1
+  log('security.pin', src, { plate = plate, wrong = t.wrong })
+  if t.wrong >= attempts then
+    local cooldown = math.floor(Utils.clamp(tonumber(c.pinCooldown) or 120, 10, 3600))
+    t.blockedUntil = os.time() + cooldown
+    if isVehicle(entity) then CarLock.alarm(entity) end
+    return false, L('Wrong PIN: the alarm went off'), { cooldown = cooldown, attemptsLeft = 0, alarm = true }
+  end
+  return false, L('Wrong PIN'), { attemptsLeft = attempts - t.wrong }
+end
+
+--- What the key ring / track modal shows about the immobiliser of a plate:
+--- { level, pinSet, pinRequired, cooldown, remoteStart }.
+---@param src number|nil
+---@param plate string
+---@return table
+function CarLock.immobiliserInfo(src, plate)
+  local level, pinSet = CarLock.immobiliserOf(plate)
+  local pinRequired
+  if src ~= nil then pinRequired = CarLock.pinRequired(src, plate) == true else pinRequired = level == 'ghost' and pinSet == true end
+  return {
+    level = level,
+    pinSet = pinSet,
+    pinRequired = pinRequired,
+    cooldown = CarLock.pinCooldown(plate),
+    remoteStart = level ~= 'ghost',
+  }
 end
 
 ---------------------------------------------------------------------------------------
@@ -1426,10 +1848,74 @@ function CarLock.handOverKeyItem(src, target, plate)
     end
     return false, L('They cannot carry the key')
   end
+  CarLock.moveKeyItem(md, 'player', identifierOf(target), nil)
   push(src, plate)
   push(target, plate)
   log('vehicle.keyHandOver', src, { plate = plate, target = identifierOf(target), kind = md.kind })
   return true, nil
+end
+
+--- Flexible mode: give `target` a COPY of a key item of `plate` that `src` carries (new item
+--- id, same locks, same origin); `src` keeps theirs. At most sharing.maxKeys copies of the
+--- current locks may exist.
+---@param src number
+---@param target number
+---@param plate string
+---@return boolean ok, string|nil error (translated)
+function CarLock.copyKeyItem(src, target, plate)
+  src, target, plate = validSrc(src), validSrc(target), normPlate(plate)
+  if not src or not target or not plate or src == target then return false, L('Invalid request') end
+  local entry = CarLock.keyItemsOf(src, plate)[1]
+  if not entry then return false, L('You do not have a key item for this vehicle') end
+  local sharing = type(cfg().sharing) == 'table' and cfg().sharing or {}
+  local max = math.floor(Utils.clamp(tonumber(sharing.maxKeys) or 10, 1, 50))
+  local live = CarLock.liveKeyCount(plate)
+  if live and live >= max then
+    return false, L('This vehicle already has {count} keys', { count = max })
+  end
+  local src_md = entry.metadata
+  local md = CarLock.keyMetadata(plate, { kind = src_md.kind, model = src_md.model, origin = src_md.origin })
+  if not md then return false, L('Something went wrong') end
+  md.origin = src_md.origin
+  if not NZ.Inventory.addItem(target, entry.item, 1, md) then return false, L('They cannot carry the key') end
+  CarLock.recordKeyItem(md, 'player', identifierOf(target), nil, identifierOf(src))
+  push(target, plate)
+  log('vehicle.keyCopy', src, { plate = plate, target = identifierOf(target), kind = md.kind, origin = md.origin })
+  return true, nil
+end
+
+--- Share a key with a nearby player following the key mode (the caller checks the distance):
+---   flexible  a copy of your key item, you keep yours (CarLock.copyKeyItem)
+---   limited   your key item is handed over (CarLock.handOverKeyItem)
+---   virtual   access for them, you keep yours: a persistent virtual key (owner only), or a
+---             temporary key of sharing.hours when that is set
+--- Returns ok, error (translated), how ('copy'|'handover'|'virtual'|'temp').
+---@param src number
+---@param target number
+---@param plate string
+---@return boolean ok, string|nil error, string|nil how
+function CarLock.shareKey(src, target, plate)
+  src, target, plate = validSrc(src), validSrc(target), normPlate(plate)
+  if not src or not target or not plate then return false, L('Invalid request') end
+  if src == target then return false, L('You already have this key') end
+  if CarLock.mode() == 'virtual' then
+    local sharing = type(cfg().sharing) == 'table' and cfg().sharing or {}
+    local hours = tonumber(sharing.hours) or 0
+    if hours > 0 then
+      if not CarLock.isOwner(src, plate) then return false, L('Only the owner can share this key') end
+      if not CarLock.grantTemp(target, plate, 'share', hours) then return false, L('Something went wrong') end
+      log('vehicle.keyShare', src, { plate = plate, target = identifierOf(target), hours = hours })
+      return true, nil, 'temp'
+    end
+    local ok, err = CarLock.shareVirtual(src, target, plate)
+    return ok, err, ok and 'virtual' or nil
+  end
+  if CarLock.keyMode() == 'limited' then
+    local ok, err = CarLock.handOverKeyItem(src, target, plate)
+    return ok, err, ok and 'handover' or nil
+  end
+  local ok, err = CarLock.copyKeyItem(src, target, plate)
+  return ok, err, ok and 'copy' or nil
 end
 
 ---------------------------------------------------------------------------------------
@@ -1453,7 +1939,11 @@ function CarLock.onVehicleOut(src, entity, plate, opts)
   local out = type(NZ.Vehicles.out) == 'table' and NZ.Vehicles.out[plate] or nil
   local spawner = (type(opts) == 'table' and opts.spawner == true) or (type(out) == 'table' and out.spawner == true)
   accessOut[entity] = nil
-  if spawner then return CarLock.grantTemp(src, plate, 'spawner') end
+  if spawner then
+    local jv = cfg().jobVehicles
+    local hours = type(jv) == 'table' and tonumber(jv.keyHours) or nil
+    return CarLock.grantTemp(src, plate, 'spawner', hours and hours > 0 and hours or nil)
+  end
 
   local has, kind = CarLock.hasKey(src, plate)
   local row = rowOf(plate)
@@ -1464,10 +1954,43 @@ function CarLock.onVehicleOut(src, entity, plate, opts)
   accessOut[entity] = viaAccess and id or nil
   if CarLock.mode() == 'physical' then
     if has and kind ~= 'temp' then return true end
-    if cfg().giveKeyOnRetrieve ~= false and row and id and row.owner == id then
-      local given = CarLock.giveKeyItem(src, plate, { model = row.model, reason = 'garage' })
-      if given then return true end
-      NZ.Bridge.notify(src, L('You cannot carry the key: you got a temporary key instead'), 'warning')
+    if row and id and row.owner == id then
+      local keyMode = CarLock.keyMode()
+      if keyMode == 'limited' then
+        -- a fixed set per vehicle: issued again only when no copy of the current locks is left
+        local live = CarLock.liveKeyCount(plate)
+        if live and live > 0 then
+          NZ.Bridge.notify(src, L('Your keys of {plate} are somewhere else ({count})', { plate = plate, count = live }), 'warning')
+          return has
+        elseif live == 0 then
+          local count = math.floor(Utils.clamp(tonumber(cfg().limitedKeys) or 2, 1, 10))
+          local given = 0
+          for _ = 1, count do
+            if CarLock.giveKeyItem(src, plate, { model = row.model, reason = 'limited' }) then given = given + 1 end
+          end
+          if given > 0 then
+            log('vehicle.keySet', src, { plate = plate, count = given })
+            return true
+          end
+          NZ.Bridge.notify(src, L('You cannot carry the key: you got a temporary key instead'), 'warning')
+        end
+        -- database not readable: a temporary key below, never a free set
+      else
+        -- flexible: a key kept in this vehicle (glovebox / trunk) is reused
+        for _, entry in ipairs(CarLock.keyCustody(plate)) do
+          if entry.current and entry.custody == 'stash'
+            and (entry.holder == 'glovebox:' .. plate or entry.holder == 'trunk:' .. plate) then
+            NZ.Bridge.notify(src, entry.holder:sub(1, 5) == 'trunk' and L('Your key is in the trunk')
+              or L('Your key is in the glovebox'), 'info')
+            return true
+          end
+        end
+        if cfg().giveKeyOnRetrieve ~= false then
+          local given = CarLock.giveKeyItem(src, plate, { model = row.model, reason = 'garage' })
+          if given then return true end
+          NZ.Bridge.notify(src, L('You cannot carry the key: you got a temporary key instead'), 'warning')
+        end
+      end
     end
   end
   if has then return true end

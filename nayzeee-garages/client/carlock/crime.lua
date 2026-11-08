@@ -500,6 +500,7 @@ local function holdUp(target, vehicle)
   robbedFrom[target] = vehicle
   if data.outcome == 'flee' then return notify('error', L('The driver floors it!')) end
   if data.outcome == 'fight' then return notify('error', L('The driver fights back!')) end
+  if data.outcome == 'drop' then return notify('info', L('The driver threw the keys down and ran!')) end
   if not data.id then return end
   local watching = true
   CreateThread(function()
@@ -712,6 +713,21 @@ STEPS.release = function(ped, vehicle, threat)
   StopAnimTask(ped, ANIMS.holdup.dict, ANIMS.holdup.clip, 1.0)
   leaveVehicle(ped, vehicle, 256)
   PlayPain(ped, 7, 0)
+  fleeOnFoot(ped, threat)
+end
+
+-- 'drop' reaction: out of the car, the keys go on the ground (the server puts them there),
+-- then away on foot
+STEPS.drop = function(ped, vehicle, threat)
+  StopAnimTask(ped, ANIMS.holdup.dict, ANIMS.holdup.clip, 1.0)
+  PlayPain(ped, 7, 0)
+  leaveVehicle(ped, vehicle, 256)
+  local dict, clip = 'pickup_object', 'putdown_low'
+  if pcall(lib.requestAnimDict, dict, 1000) then
+    TaskPlayAnim(ped, dict, clip, 8.0, -8.0, 900, 0, 0, false, false, false)
+    Wait(900)
+    RemoveAnimDict(dict)
+  end
   fleeOnFoot(ped, threat)
 end
 

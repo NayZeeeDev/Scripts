@@ -1,8 +1,10 @@
 --[[
   nayzeee-garages — multiplayer garage interiors, client side (NZ.Interior, §7.7).
   Loads the interior (IPL profile + entity sets), teleports in, shows the garage's vehicles
-  as local display copies, stats HUD while seated, "accelerate to drive out", the exit
-  marker, the control panel (NUI app 'interior'), invites, kicks and member syncs.
+  as local display copies, plays the arrival camera ride (NZ.Camera.cinematic), floats a
+  vehicle card above the display vehicle the player walks up to (NUI 'hud' with an
+  `anchor`), stats HUD + "Accelerate to leave the garage" prompt while seated, drive out,
+  the exit marker, the control panel (NUI app 'interior'), invites, kicks and member syncs.
   Also hosts the shared IPL / teleport helpers used by the creator and the admin client.
 ]]
 
@@ -27,6 +29,16 @@ local RESCUE_MAX_AGE = 30 * 24 * 3600
 local ACCELERATE = 71
 local UNARMED = joaat('WEAPON_UNARMED')
 local MELEE_FLAG = 122          -- CPED_CONFIG_FLAG_DisableMelee
+local ACCELERATE_KEY = 'W'      -- fallback label of INPUT_VEH_ACCELERATE (keyboard)
+local ACCELERATE_PAD = 'RT'     -- ... on a gamepad
+local TAG_RANGE = 5.0           -- vehicle card: metres from the vehicle (Config.InteriorOptions.vehicleTag)
+local TAG_KEEP = 1.0            -- ... the card already shown stays up to this much further
+local TAG_SWITCH = 0.75         -- another vehicle must be this much closer to take the card
+local TAG_LIFT = 0.35           -- card anchor above the vehicle's roof (m)
+local TAG_LOS_MS = 150          -- occlusion test interval
+local TAG_MOVE = 0.0015         -- screen fraction (~3 px at 1920) before a new position is sent
+local RIDE_ABORT_DISTANCE = 15.0 -- arrival ride ends when the character is moved this far (m)
+local TAG_SEND_MS = 30          -- ... and at most one position update per this many ms (CEF cost)
 local ROLES = { owner = true, member = true, guest = true }
 local ROLE_ORDER = { owner = 1, member = 2, guest = 3 }
 
@@ -160,6 +172,20 @@ local function keyLabel(keybind, fallback)
     if ok and type(key) == 'string' and key ~= '' then return key end
   end
   return fallback
+end
+
+--- Key bound to "accelerate", for the drive-out prompt: the keyboard key's name, else
+--- the pad trigger when a gamepad is in use (instructional buttons of pads and mouse
+--- bindings are icons 'b_...' with no readable name).
+local function accelerateKey()
+  local ok, button = pcall(GetControlInstructionalButton, 0, ACCELERATE, true)
+  if ok and type(button) == 'string' then
+    local key = button:match('^t_(.+)$')
+    if key and #key <= 12 then return key end
+  end
+  local okPad, keyboard = pcall(IsUsingKeyboard, 0)
+  if okPad and keyboard == false then return ACCELERATE_PAD end
+  return ACCELERATE_KEY
 end
 
 local function cleanName(s, fallback)
@@ -372,6 +398,118 @@ function Interior.profileViews()
   end
   table.sort(out, function(a, b) return a.label < b.label end)
   return out
+end
+
+---------------------------------------------------------------------------------------
+-- Preset vehicle positions of IPL profiles (Config.IplProfiles[key].presets / presetsFrom)
+---------------------------------------------------------------------------------------
+
+local FRAME_WAIT_MS = 3000      -- loading a reference interior for presetsFrom
+local FRAME_TOLERANCE = 3.0     -- interior origin vs. its profile's interiorCoords (m)
+
+local function round4(v)
+  return { x = Utils.round(v.x, 3), y = Utils.round(v.y, 3), z = Utils.round(v.z, 3), w = Utils.round((v.w or 0.0) % 360.0, 2) }
+end
+
+--- World frame of a loaded interior: origin and its local x / y / z axes in world space.
+local function interiorFrame(profile)
+  local at = Utils.v3(profile.interiorCoords) or Utils.v3(profile.coords)
+  if not at then return nil end
+  local id = math.tointeger(tonumber(GetInteriorAtCoords(at.x + 0.0, at.y + 0.0, at.z + 0.0))) or 0
+  if id == 0 then return nil end
+  local function offset(x, y, z) return Utils.v3(GetOffsetFromInteriorInWorldCoords(id, x, y, z)) end
+  local o, px, py, pz = offset(0.0, 0.0, 0.0), offset(1.0, 0.0, 0.0), offset(0.0, 1.0, 0.0), offset(0.0, 0.0, 1.0)
+  if not (o and px and py and pz) then return nil end
+  local function axis(p)
+    local v = { x = p.x - o.x, y = p.y - o.y, z = p.z - o.z }
+    return v, math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+  end
+  local ax, lx = axis(px)
+  local ay, ly = axis(py)
+  local az, lz = axis(pz)
+  -- Sanity: unit axes, origin where the profile says the interior is.
+  if math.abs(lx - 1) > 0.05 or math.abs(ly - 1) > 0.05 or math.abs(lz - 1) > 0.05 then return nil end
+  if Utils.dist(o, at) > FRAME_TOLERANCE then return nil end
+  return { id = id, o = o, x = ax, y = ay, z = az }
+end
+
+--- Move world positions of one interior (`from` frame) into another placement of the same
+--- interior model (`to` frame). Pure: frames are { o, x, y, z } (origin + world axes).
+---@param list table Vec4[]
+---@return table Vec4[]
+function Interior.transformSlots(list, from, to)
+  local out = {}
+  local yaw = math.deg(math.atan(to.x.y, to.x.x) - math.atan(from.x.y, from.x.x))
+  for i = 1, #list do
+    local p = Utils.v4(list[i])
+    if p then
+      local d = { x = p.x - from.o.x, y = p.y - from.o.y, z = p.z - from.o.z }
+      local lx = d.x * from.x.x + d.y * from.x.y + d.z * from.x.z
+      local ly = d.x * from.y.x + d.y * from.y.y + d.z * from.y.z
+      local lz = d.x * from.z.x + d.y * from.z.y + d.z * from.z.z
+      out[#out + 1] = round4({
+        x = to.o.x + to.x.x * lx + to.y.x * ly + to.z.x * lz,
+        y = to.o.y + to.x.y * lx + to.y.y * ly + to.z.y * lz,
+        z = to.o.z + to.x.z * lx + to.y.z * ly + to.z.z * lz,
+        w = p.w + yaw,
+      })
+    end
+  end
+  return out
+end
+
+--- Preset vehicle positions (and arrival point) of a profile. `presets` are returned as
+--- they are; `presetsFrom` positions are derived in game from the reference profile: its
+--- interior is loaded for a moment (when it is not already), both interiors' placements are
+--- read and the reference positions are moved over. The target profile must be loaded.
+--- Blocking; call from a thread.
+---@param key string
+---@return table|nil slots Vec4[], table|nil entry Vec4, boolean derived
+function Interior.profileSlots(key)
+  local profiles = type(Config.IplProfiles) == 'table' and Config.IplProfiles or {}
+  local profile = type(key) == 'string' and profiles[key] or nil
+  if type(profile) ~= 'table' then return nil, nil, false end
+
+  if type(profile.presets) == 'table' and #profile.presets > 0 then
+    local list = {}
+    for i = 1, #profile.presets do
+      local v = Utils.v4(profile.presets[i])
+      if v then list[#list + 1] = round4(v) end
+    end
+    return list, Utils.v4(profile.coords), false
+  end
+
+  local ref = type(profile.presetsFrom) == 'string' and profiles[profile.presetsFrom] or nil
+  if type(ref) ~= 'table' or type(ref.presets) ~= 'table' or #ref.presets == 0 then return nil, nil, false end
+
+  local target = interiorFrame(profile)
+  if not target then
+    Utils.debug(('presets of "%s": its interior is not loaded'):format(key))
+    return nil, nil, false
+  end
+  local added = {}
+  for _, name in ipairs(type(ref.ipls) == 'table' and ref.ipls or {}) do
+    if type(name) == 'string' and not IsIplActive(name) then
+      RequestIpl(name)
+      added[#added + 1] = name
+    end
+  end
+  local frame = interiorFrame(ref)
+  local deadline = GetGameTimer() + FRAME_WAIT_MS
+  while not frame and GetGameTimer() < deadline do
+    Wait(100)
+    frame = interiorFrame(ref)
+  end
+  for i = 1, #added do RemoveIpl(added[i]) end
+  if not frame then
+    Utils.debug(('presets of "%s": reference "%s" could not be read'):format(key, profile.presetsFrom))
+    return nil, nil, false
+  end
+
+  local slots = Interior.transformSlots(ref.presets, frame, target)
+  local entry = Utils.v4(ref.coords)
+  entry = entry and Interior.transformSlots({ entry }, frame, target)[1] or nil
+  return slots, entry, true
 end
 
 ---------------------------------------------------------------------------------------
@@ -631,6 +769,8 @@ local function reconcile(s)
           end
           rec.info = want.info
           rec.hudDirty = true
+          rec.version = (rec.version or 0) + 1
+          rec.hudBase = nil
           applyDisplayState(entity, want.info)
         end
       end
@@ -677,6 +817,141 @@ local function hudData(info)
     ownerName = type(info.ownerName) == 'string' and info.ownerName or nil,
     canDrive = info.canDrive == true,
   }
+end
+
+---------------------------------------------------------------------------------------
+-- Stats HUD (seated) and the floating vehicle card (on foot, next to a display vehicle).
+-- Both use the NUI 'hud' message: the card carries `anchor` = the screen point above the
+-- vehicle (0-1 of the viewport) and `scale` (smaller further away).
+---------------------------------------------------------------------------------------
+
+local function tagSettings()
+  local opts = type(Config.InteriorOptions) == 'table' and type(Config.InteriorOptions.vehicleTag) == 'table'
+    and Config.InteriorOptions.vehicleTag or {}
+  return opts.enabled ~= false, Utils.clamp(tonumber(opts.distance) or TAG_RANGE, 1.5, 15.0)
+end
+
+--- HudVehicle of a display vehicle, built once per vehicle data version.
+local function hudBase(rec)
+  if not rec.hudBase then rec.hudBase = hudData(rec.info) end
+  return rec.hudBase
+end
+
+--- Roof height of a vehicle model above its origin (cached per display vehicle).
+local function roofOf(rec)
+  if not rec.roof then
+    local ok, _, maxDim = pcall(GetModelDimensions, GetEntityModel(rec.entity))
+    rec.roof = ok and maxDim and tonumber(maxDim.z) or 1.4
+  end
+  return rec.roof
+end
+
+--- Nothing between the camera and the card's anchor (walls, props, other vehicles).
+local function clearView(entity, point)
+  local cam = Utils.v3(GetFinalRenderedCamCoord())
+  if not cam then return true end
+  local ok, handle = pcall(StartExpensiveSynchronousShapeTestLosProbe, cam.x, cam.y, cam.z,
+    point.x, point.y, point.z, 1 | 2 | 16, entity, 7)
+  if not ok or not handle then return true end
+  local _, hit = GetShapeTestResult(handle)
+  return not (hit == true or hit == 1)
+end
+
+--- Display vehicle the card belongs to: the nearest within range; the current one keeps it
+--- a little further and unless another is clearly closer (no flicker between neighbours).
+---@return table|nil rec, number distance
+function Interior.pickTagVehicle(byEntity, pos, current, range)
+  local best, bestD, currentD = nil, math.huge, nil
+  for entity, rec in pairs(byEntity) do
+    if DoesEntityExist(entity) then
+      local d = Utils.dist(GetEntityCoords(entity), pos)
+      if rec == current then currentD = d end
+      if d <= range and d < bestD then best, bestD = rec, d end
+    end
+  end
+  if current and currentD and currentD <= range + TAG_KEEP and (not best or currentD - bestD < TAG_SWITCH) then
+    return current, currentD
+  end
+  return best, bestD
+end
+
+local function startHudLoop(s)
+  CreateThread(function()
+    local sent = nil      -- what the HUD shows: 'seat|plate|version' / 'tag|plate|version'
+    local last = nil      -- anchor last sent
+    local sentAt = 0      -- GetGameTimer() of the last anchor update
+    local target = nil    -- display vehicle of the card
+    local losAt, losClear = 0, true
+    local function hide(keepTarget)
+      if sent then
+        NZ.NUI.hud(nil)
+        sent, last = nil, nil
+      end
+      if not keepTarget then target = nil end
+    end
+
+    while alive(s) do
+      local ped = PlayerPedId()
+      local veh = GetVehiclePedIsIn(ped, false)
+      local seat = veh ~= 0 and s.byEntity[veh] or nil
+      if seat then
+        -- Seated: stats HUD (top right); the prompt bar says how to drive out.
+        target = nil
+        local id = ('seat|%s|%d'):format(seat.plate, seat.version or 0)
+        if sent ~= id then
+          NZ.NUI.hud(hudBase(seat))
+          sent, last = id, nil
+        end
+        Wait(100)
+      else
+        local enabled, range = tagSettings()
+        if not enabled or veh ~= 0 or not s.inside or s.busy or s.leaving or NZ.Camera.isPlaying()
+          or NZ.NUI.isOpen() or IsPauseMenuActive() then
+          hide(false)
+          Wait(200)
+        else
+          local pos = Utils.v3(GetEntityCoords(ped))
+          local rec, dist = Interior.pickTagVehicle(s.byEntity, pos, target, range)
+          if not rec then
+            hide(false)
+            Wait(150)
+          else
+            if rec ~= target then
+              target = rec
+              losAt = 0
+            end
+            local top = Utils.v3(GetOffsetFromEntityInWorldCoords(rec.entity, 0.0, 0.0, roofOf(rec) + TAG_LIFT))
+            local now = GetGameTimer()
+            if now >= losAt then
+              losAt = now + TAG_LOS_MS
+              losClear = top ~= nil and clearView(rec.entity, top)
+            end
+            local onScreen, sx, sy = false, nil, nil
+            if top then onScreen, sx, sy = GetScreenCoordFromWorldCoord(top.x, top.y, top.z) end
+            sx, sy = tonumber(sx), tonumber(sy)
+            if not onScreen or not losClear or not sx or not sy then
+              hide(true)
+            else
+              local scale = Utils.round(Utils.clamp(1.1 - dist * 0.05, 0.82, 1.0), 3)
+              local id = ('tag|%s|%d'):format(rec.plate, rec.version or 0)
+              -- A new vehicle is shown at once; moves of the same card are sent when they are
+              -- visible (TAG_MOVE) and at most every TAG_SEND_MS (about every 2nd frame).
+              if sent ~= id or not last or (now - sentAt >= TAG_SEND_MS
+                and (math.abs(last.x - sx) > TAG_MOVE or math.abs(last.y - sy) > TAG_MOVE
+                or math.abs(last.scale - scale) > 0.01)) then
+                local data = {}
+                for k, v in pairs(hudBase(rec)) do data[k] = v end
+                data.anchor = { x = Utils.round(sx, 4), y = Utils.round(sy, 4), scale = scale }
+                NZ.NUI.hud(data)
+                sent, last, sentAt = id, data.anchor, now
+              end
+            end
+            Wait(0)
+          end
+        end
+      end
+    end
+  end)
 end
 
 ---------------------------------------------------------------------------------------
@@ -825,7 +1100,7 @@ end
 local function driverLoop(s, vehicle, rec)
   local ped = PlayerPedId()
   s.needRelease = IsDisabledControlPressed(0, ACCELERATE)
-  setPrompt(s, 'drivePrompt', L('Drive out'), 'W')
+  setPrompt(s, 'drivePrompt', L('Accelerate to leave the garage'), accelerateKey())
   while alive(s) and s.inside and not s.busy and not rec.hudDirty and rec.info.canDrive == true
     and DoesEntityExist(vehicle) and GetVehiclePedIsIn(ped, false) == vehicle
     and GetPedInVehicleSeat(vehicle, -1) == ped do
@@ -850,16 +1125,12 @@ end
 
 local function startLoop(s)
   CreateThread(function()
-    local hudFor = nil
     while alive(s) do
       local ped = PlayerPedId()
       local veh = GetVehiclePedIsIn(ped, false)
       local rec = veh ~= 0 and s.byEntity[veh] or nil
-      if rec ~= hudFor or (rec and rec.hudDirty) then
-        hudFor = rec
-        if rec then rec.hudDirty = false end
-        NZ.NUI.hud(rec and hudData(rec.info) or nil)
-      end
+      -- (the HUD / vehicle card thread reads rec.version; this flag restarts driverLoop)
+      if rec and rec.hudDirty then rec.hudDirty = false end
       enforceUnarmed(ped)
 
       if s.inside and not s.busy and not s.leaving and GetGameTimer() >= s.farRetryAt then
@@ -998,18 +1269,45 @@ local function applySync(s, payload)
   updatePanel(s)
 end
 
+--- Vehicle positions the arrival ride passes: the ones holding a vehicle, else all.
+local function rideSlots(s)
+  local list = {}
+  for _, rec in pairs(s.byEntity) do
+    local slot = s.slotList[rec.slot]
+    if slot then list[#list + 1] = slot end
+  end
+  if #list == 0 then return s.slotList end
+  return list
+end
+
+--- Arrival camera ride (Config.InteriorOptions.cinematic): the creator's camera points, or
+--- an automatic ride past the parked vehicles, ending behind the character. Blocking.
 local function playCutscene(s)
-  local cut = type(s.interior.cutscene) == 'table' and s.interior.cutscene or nil
-  if not cut or cut.enabled ~= true or type(cut.points) ~= 'table' or #cut.points == 0 then return end
+  local opts = type(Config.InteriorOptions) == 'table' and type(Config.InteriorOptions.cinematic) == 'table'
+    and Config.InteriorOptions.cinematic or {}
+  if opts.enabled == false then return end
   local ped = PlayerPedId()
+  local entry = Utils.v3(GetEntityCoords(ped))
   s.busy = true
   transition.frozen = ped
   FreezeEntityPosition(ped, true)
-  NZ.Camera.playPath(cut.points, tonumber(cut.transition) or 3000, {
-    returnTime = tonumber(cut.returnTime) or 1000,
-    skippable = true,
+  local ok, err = pcall(NZ.Camera.cinematic, {
+    cutscene = s.interior.cutscene,
+    slots = rideSlots(s),
+    auto = opts.auto ~= false,
+    duration = tonumber(opts.duration) or 7500,
+    skippable = opts.skippable ~= false,
     onStart = function() DoScreenFadeIn(FADE_MS) end,
+    -- s.busy pauses startLoop's death / away checks during the ride: end the ride when the
+    -- player dies, is moved away (admin teleport) or the interior state is gone.
+    abort = function()
+      if not alive(s) or not s.inside then return true end
+      local p = PlayerPedId()
+      if IsEntityDead(p) then return true end
+      return entry ~= nil and Utils.dist(GetEntityCoords(p), entry) > RIDE_ABORT_DISTANCE
+    end,
   })
+  if not ok then lib.print.error(('[nayzeee-garages] interior camera ride failed: %s'):format(err)) end
   FreezeEntityPosition(ped, false)
   if transition.frozen == ped then transition.frozen = nil end
   s.busy = false
@@ -1053,6 +1351,7 @@ local function doEnter(data, entry)
   s.armedAt = GetGameTimer() + EXIT_ARM_MS
   createExitPoint(s)
   startLoop(s)
+  startHudLoop(s)
   s.busy = false
 
   playCutscene(s)

@@ -42,11 +42,17 @@
   Callbacks (lib.callback, { ok, data, error }):
     nz:carlock:locksmith:open    { id }                   -> LocksmithOpenData
     nz:carlock:locksmith:service { id, service, plate }   -> { message, data = LocksmithOpenData }
-  LocksmithOpenData = { id, name, illegal, account, mode, money, tempHours, range,
+    nz:carlock:locksmith:immobiliser { id, plate, level = 'standard'|'ghost' } -> { message, data }
+                                 install an immobiliser in the owner's vehicle parked there
+                                 (location services.immobiliser / services.ghost: enabled, price,
+                                 materials); Ghost: the owner sets the PIN afterwards
+                                 (nz:carlock:setPin; 'nz:client:carlock:pinSetup' is sent)
+  LocksmithOpenData = { id, name, illegal, account, mode, keyMode, money, tempHours, range,
+    immobilisers = { { level, enabled, price, materials } },
     services = { { id, enabled, offered, reason?, price, materials = { { item, label, count, have } } } },
     vehicles = { { plate, model?, hash?, vehicleType, nickname?, isOwner, hasKey, keyKind?, keyItems,
                    unregistered (every key item carried is a crime's), keyType, nearby, distance?,
-                   towing, blocked = { duplicate?, program?, rekey? } } } }
+                   towing, blocked = { duplicate?, program?, rekey? }, immobiliser? (owner's) } } }
 ]]
 
 local CarLock = NZ.CarLock
@@ -61,6 +67,9 @@ local SERVICE_SET = { duplicate = true, program = true, rekey = true }
 local RATE = { open = 800, service = 1500 }
 
 local busy = {}                 -- [src] = true while a service runs
+-- immobiliser installs (Config.CarLock.locksmiths[n].services.immobiliser / .ghost)
+local IMMO_LEVELS = { 'standard', 'ghost' }
+local IMMO_SERVICE = { standard = 'immobiliser', ghost = 'ghost' }
 
 ---------------------------------------------------------------------------------------
 -- Helpers
@@ -393,17 +402,31 @@ local function openData(src, loc, c, id)
       materials = materialsOf(src, loc, service),
     }
   end
+  local vehicles = vehicleList(src, ctx)
+  -- immobilisers (owner's vehicles only): the level each vehicle has now
+  local immobilisers = {}
+  if CarLock.immobiliserEnabled() then
+    for _, level in ipairs(IMMO_LEVELS) do
+      immobilisers[#immobilisers + 1] = { level = level, enabled = enabled(loc, IMMO_SERVICE[level]),
+        price = priceOf(loc, IMMO_SERVICE[level]), materials = materialsOf(src, loc, IMMO_SERVICE[level]) }
+    end
+    for _, v in ipairs(vehicles) do
+      if v.isOwner then v.immobiliser = CarLock.immobiliserOf(v.plate) end
+    end
+  end
   return {
     id = id,
     name = type(loc.name) == 'string' and loc.name or L('Locksmith'),
     illegal = loc.illegal == true,
     account = account(),
     mode = ctx.mode,
+    keyMode = CarLock.keyMode(),
     money = moneyOf(src),
     tempHours = CarLock.tempHours(),
     range = ctx.range,
     services = services,
-    vehicles = vehicleList(src, ctx),
+    immobilisers = immobilisers,
+    vehicles = vehicles,
   }
 end
 
@@ -495,16 +518,10 @@ local function kindWord(kind) return kind == 'fob' and L('fob') or L('key') end
 --- key) is cut from the core's signed metadata (NZ.CarLock.keyMetadata) with the origin
 --- written next to it; every other key goes through NZ.CarLock.giveKeyItem.
 local function giveKey(src, plate, opts)
-  if opts.origin == nil then return CarLock.giveKeyItem(src, plate, opts) end
-  if not NZ.Inventory.supportsMetadata() then return false, L('Your inventory cannot hold vehicle keys') end
-  if CarLock.mode() ~= 'physical' then return false, L('This server does not use key items') end
-  local md = CarLock.keyMetadata(plate, { kind = opts.kind, model = opts.model, origin = opts.origin })
-  if not md then return false, L('Something went wrong') end
-  md.origin = opts.origin
-  if not NZ.Inventory.addItem(src, CarLock.itemName(md.kind), 1, md) then return false, L('You cannot carry the key') end
-  -- the client's key cache (client/carlock/lock.lua) learns about the new key
-  TriggerClientEvent('nz:client:carlock:keys', src, { plate = plate })
-  return true, nil
+  -- NZ.CarLock.giveKeyItem writes the origin next to the signed metadata, records the key's
+  -- custody and tells the client's key cache (client/carlock/lock.lua)
+  local ok, err = CarLock.giveKeyItem(src, plate, opts)
+  return ok, err
 end
 
 --- Run the service itself (money and materials already taken). Returns ok, message.
@@ -627,6 +644,64 @@ lib.callback.register('nz:carlock:locksmith:service', Utils.safe(function(source
   if busy[src] then return Utils.fail(L('Please wait a moment')) end
   busy[src] = true
   local ok, res = pcall(perform, src, loc, c, id, service, plate)
+  busy[src] = nil
+  if not ok then
+    lib.print.error(('[nayzeee-garages] locksmith: %s'):format(tostring(res)))
+    return Utils.fail(L('Something went wrong'))
+  end
+  return res
+end))
+
+--- Install an immobiliser at a locksmith: the owner's vehicle parked within the location's
+--- range; money / materials as the other services (given back when it fails).
+local function installImmobiliser(src, loc, c, id, level, plate)
+  local service = IMMO_SERVICE[level]
+  if not CarLock.immobiliserEnabled() or not enabled(loc, service) then return Utils.fail(L('Not offered here')) end
+  if not CarLock.isOwner(src, plate) then return Utils.fail(L('Only the owner can do that')) end
+  local entity, dist = nearbyEntity(src, plate, loc, c)
+  if not entity or dist > rangeOf(loc) then return Utils.fail(L('Park the vehicle at the locksmith')) end
+  if towing(entity) then return Utils.fail(L('This vehicle is being towed')) end
+  local current = CarLock.immobiliserOf(plate)
+  if current == level then return Utils.fail(L('This vehicle already has this immobiliser')) end
+  local price = priceOf(loc, service)
+  local materials = materialsOf(src, loc, service)
+  for _, m in ipairs(materials) do
+    if m.have < m.count then return Utils.fail(L('Missing materials: {list}', { list = ('%dx %s'):format(m.count - m.have, m.label) })) end
+  end
+  if price > 0 and moneyOf(src) < price then return Utils.fail(L('You cannot afford this')) end
+  local taken = takeMaterials(src, materials)
+  if not taken then return Utils.fail(L('Missing materials')) end
+  local reasonText = ('locksmith %s %s'):format(service, plate)
+  if price > 0 and not NZ.Bridge.removeMoney(src, account(), price, reasonText) then
+    giveBack(src, taken)
+    return Utils.fail(L('You cannot afford this'))
+  end
+  local ok, err = CarLock.setImmobiliser(plate, level, src)
+  if not ok then
+    refund(src, price, taken, reasonText)
+    return Utils.fail(err or L('Something went wrong'))
+  end
+  log('vehicle.locksmith', src, { plate = plate, service = service, location = loc.name, price = price })
+  local message = level == 'ghost' and L('Ghost immobiliser installed in {plate}: set a PIN from your key ring', { plate = plate })
+    or L('Immobiliser installed in {plate}', { plate = plate })
+  if level == 'ghost' then TriggerClientEvent('nz:client:carlock:pinSetup', src, { plate = plate }) end
+  return Utils.ok({ message = message, data = openData(src, loc, c, id) })
+end
+
+-- nz:carlock:locksmith:immobiliser { id, plate, level = 'standard'|'ghost' } -> { message, data = LocksmithOpenData }
+lib.callback.register('nz:carlock:locksmith:immobiliser', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not CarLock.enabled() then return Utils.fail(L('Vehicle keys are handled by another script')) end
+  if limited(src, 'service') then return Utils.fail(L('Please wait a moment')) end
+  local loc, c, id = locationOf(payload.id)
+  local plate = normPlate(payload.plate)
+  local level = IMMO_SERVICE[payload.level] and payload.level or nil
+  if not loc or not plate or not level then return Utils.fail(L('Invalid request')) end
+  if not atCounter(src, c, loc) then return Utils.fail(L('You are too far from the locksmith')) end
+  if busy[src] then return Utils.fail(L('Please wait a moment')) end
+  busy[src] = true
+  local ok, res = pcall(installImmobiliser, src, loc, c, id, level, plate)
   busy[src] = nil
   if not ok then
     lib.print.error(('[nayzeee-garages] locksmith: %s'):format(tostring(res)))

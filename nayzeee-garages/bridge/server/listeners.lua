@@ -47,6 +47,8 @@ local USABLE = {
   { key = 'advancedLockpick', module = 'CarLock', fn = 'useAccessTool', shared = true },
   { key = 'screwdriver', module = 'CarLock', fn = 'useAccessTool', shared = true },
   { key = 'hackingDevice', module = 'CarLock', fn = 'useAccessTool', shared = true },
+  { key = 'immobiliser', module = 'CarLock', fn = 'useImmobiliserItem' },
+  { key = 'ghostImmobiliser', module = 'CarLock', fn = 'useImmobiliserItem' },
   { key = 'fakePlate', module = 'FakePlates', fn = 'useItem' },
   { key = 'contract', module = 'Contracts', fn = 'useItem' },
   { key = 'signedContract', module = 'Contracts', fn = 'useItem' },

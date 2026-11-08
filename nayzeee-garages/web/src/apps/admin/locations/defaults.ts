@@ -3,7 +3,8 @@
  *
  * API
  * - newLocation(kind, data)         a complete, unsaved Location (id null) of that kind.
- * - normalizeLocation(loc, data)    a deep copy of a Location from Lua with every field present:
+ * - normalizeLocation(loc, data)    a deep copy of a Location from Lua with every field present
+ *                                   (zone: a valid LocationZone or null):
  *                                   Lua drops nil fields (interiorId…) and may encode empty
  *                                   tables as {} or [] — the editor always works on full shapes.
  * - newSpawnerVehicle()             an empty SpawnerVehicle.
@@ -34,6 +35,7 @@ import type {
   VehicleType,
 } from '@/lib/types';
 import type { LocationPageKind } from '../shared/labels';
+import { normalizeZone } from './zone';
 
 export const OPEN_RADIUS = 2;
 export const STORE_RADIUS = 4;
@@ -133,6 +135,7 @@ function base(kind: LocationPageKind): Omit<LocationBase, 'kind'> {
     returnToEntrance: false,
     blip: defaultBlip(kind, 'car'),
     interaction: defaultInteraction(),
+    zone: null,
   };
 }
 
@@ -217,6 +220,7 @@ export function normalizeLocation(raw: Location, data: AdminOpenData): Location 
   out.storePoints = arr(src.storePoints);
   out.blip = obj(src.blip, defaults.blip);
   out.interaction = normalizeInteraction(src.interaction, pedDefaults(data).scenario);
+  out.zone = normalizeZone(src.zone);
   if (out.kind === 'garage' || out.kind === 'job' || out.kind === 'private') {
     const d = defaults as GarageLocation;
     const capacity = obj(src.capacity, d.capacity);

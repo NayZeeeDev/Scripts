@@ -1,9 +1,11 @@
 /**
- * Showcase building blocks: section block (uppercase heading), status strip cells,
+ * Showcase building blocks: section block (uppercase heading, optionally collapsible inside a
+ * SectionsProvider — the accordion of Condition / Performance / Upgrades / Details), status strip cells,
  * segmented 10-cell gauges, rating bars, upgrade level pips, callouts, fact rows — and the
  * detail sections built from them: Condition (gauges + damage glyph), Performance, Upgrades,
  * Finance, Impound and Details.
  */
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Badge, Button, Icon, Pips, cx } from '@/components/ui';
 import type { IconName } from '@/components/ui';
@@ -19,14 +21,96 @@ type Tone = 'teal' | 'amber' | 'red';
 const autoTone = (v: number): Tone => (v >= 50 ? 'teal' : v >= 25 ? 'amber' : 'red');
 const clampPct = (v: number) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
 
+/* ── accordion state ─────────────────────────────────────────────────── */
+
+/** Open state of the collapsible sections, shared by the garage and the impound. */
+const SECTIONS_KEY = 'nz-garage:sections';
+const DEFAULT_OPEN: Record<string, boolean> = { condition: true, performance: true, upgrades: false, details: false };
+
+function loadOpen(): Record<string, boolean> {
+  try {
+    const raw = window.localStorage.getItem(SECTIONS_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const out: Record<string, boolean> = { ...DEFAULT_OPEN };
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) if (typeof v === 'boolean') out[k] = v;
+      return out;
+    }
+  } catch {
+    /* storage blocked: defaults */
+  }
+  return { ...DEFAULT_OPEN };
+}
+
+function saveOpen(v: Record<string, boolean>) {
+  try {
+    window.localStorage.setItem(SECTIONS_KEY, JSON.stringify(v));
+  } catch {
+    /* storage blocked: the state only lives until the window closes */
+  }
+}
+
+interface SectionsApi {
+  isOpen: (id: string) => boolean;
+  toggle: (id: string) => void;
+  register: (id: string) => () => void;
+}
+
+const SectionsContext = createContext<SectionsApi | null>(null);
+
+/**
+ * Accordion state for the blocks rendered inside it (Block `collapse` ids). Returns the
+ * provider value plus what the "Expand all / Collapse all" control needs.
+ */
+export function useSections() {
+  const [open, setOpen] = useState(loadOpen);
+  const [ids, setIds] = useState<string[]>([]);
+  const isOpenIn = (map: Record<string, boolean>, id: string) => map[id] ?? DEFAULT_OPEN[id] ?? true;
+
+  const register = useCallback((id: string) => {
+    setIds((p) => (p.includes(id) ? p : [...p, id]));
+    return () => setIds((p) => p.filter((x) => x !== id));
+  }, []);
+  const toggle = useCallback((id: string) => {
+    setOpen((p) => {
+      const n = { ...p, [id]: !isOpenIn(p, id) };
+      saveOpen(n);
+      return n;
+    });
+  }, []);
+  const setAll = useCallback(
+    (value: boolean) => {
+      setOpen((p) => {
+        const n = { ...p };
+        for (const id of ids) n[id] = value;
+        saveOpen(n);
+        return n;
+      });
+    },
+    [ids],
+  );
+  const api = useMemo<SectionsApi>(() => ({ isOpen: (id) => isOpenIn(open, id), toggle, register }), [open, toggle, register]);
+  const allOpen = ids.length > 0 && ids.every((id) => isOpenIn(open, id));
+  return { api, ids, allOpen, setAll };
+}
+
+export function SectionsProvider({ api, children }: { api: SectionsApi; children: ReactNode }) {
+  return <SectionsContext.Provider value={api}>{children}</SectionsContext.Provider>;
+}
+
 /* ── primitives ──────────────────────────────────────────────────────── */
 
+/**
+ * Detail section: uppercase heading (+ aside) over a body. With `collapse` (an id) inside a
+ * SectionsProvider the heading toggles the body and a chevron shows the state.
+ */
 export function Block({
   title,
   icon,
   aside,
   tone,
   wide = false,
+  collapse,
   className,
   children,
 }: {
@@ -35,19 +119,57 @@ export function Block({
   aside?: ReactNode;
   tone?: 'red' | 'amber' | 'teal';
   wide?: boolean;
+  /** Accordion id ('condition', 'performance', 'upgrades', 'details'). */
+  collapse?: string;
   className?: string;
   children: ReactNode;
 }) {
+  const sections = useContext(SectionsContext);
+  const collapsible = !!collapse && !!sections;
+  const register = sections?.register;
+  useEffect(() => (collapsible && collapse && register ? register(collapse) : undefined), [collapsible, collapse, register]);
+  const open = !collapsible || sections!.isOpen(collapse!);
+  const bodyId = useId();
+  const toggle = () => {
+    if (collapsible) sections!.toggle(collapse!);
+  };
+  const heading = (
+    <>
+      {icon && <Icon name={icon} size={12} strokeWidth={2} />}
+      {title}
+    </>
+  );
   return (
-    <section className={cx('nz-garage__blk', wide && 'is-wide', tone && `is-${tone}`, className)}>
-      <header className="nz-garage__blk-head">
+    <section
+      className={cx('nz-garage__blk', wide && 'is-wide', tone && `is-${tone}`, collapsible && 'is-collapsible', !open && 'is-closed', className)}
+    >
+      <header className="nz-garage__blk-head" onClick={collapsible ? toggle : undefined}>
         <h4>
-          {icon && <Icon name={icon} size={12} strokeWidth={2} />}
-          {title}
+          {collapsible ? (
+            <button
+              type="button"
+              className="nz-garage__blk-toggle"
+              aria-expanded={open}
+              aria-controls={bodyId}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggle();
+              }}
+            >
+              {heading}
+            </button>
+          ) : (
+            heading
+          )}
         </h4>
         {aside && <div className="nz-garage__blk-aside">{aside}</div>}
+        {collapsible && <Icon name="chevronDown" size={13} strokeWidth={2.1} className="nz-garage__blk-chev" />}
       </header>
-      <div className="nz-garage__blk-body">{children}</div>
+      {open && (
+        <div id={bodyId} className="nz-garage__blk-body">
+          {children}
+        </div>
+      )}
     </section>
   );
 }
@@ -192,6 +314,7 @@ export function ConditionBlock({
     <Block
       title={t('Condition')}
       icon="wrench"
+      collapse="condition"
       aside={
         needsService ? (
           <Badge tone="amber" icon="wrench" size="sm">
@@ -221,7 +344,7 @@ export function PerformanceBlock({ stats, className, hideSeats = false }: { stat
   const unit = useSettings().distanceUnit;
   const top = speedIn(stats.topSpeed, unit);
   return (
-    <Block title={t('Performance')} icon="gauge" className={className}>
+    <Block title={t('Performance')} icon="gauge" collapse="performance" className={className}>
       <div className="nz-garage__perf">
         <div className="nz-garage__perf-top">
           <div className="nz-garage__perf-speed">
@@ -253,6 +376,7 @@ export function UpgradesBlock({ mods }: { mods: ModSummary | null }) {
     <Block
       title={t('Upgrades')}
       icon="sparkle"
+      collapse="upgrades"
       aside={
         mods ? (
           <span className={cx('nz-garage__turbo', mods.turbo && 'is-on')}>

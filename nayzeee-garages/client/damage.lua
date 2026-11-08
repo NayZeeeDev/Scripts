@@ -12,6 +12,12 @@ local FORMAT_VERSION = 1
 local DOOR_INDEXES = { 0, 1, 2, 3, 4, 5 }             -- front L/R, rear L/R, bonnet, boot
 local WINDOW_INDEXES = { 0, 1, 2, 3, 4, 5, 6, 7 }     -- side windows, windscreen, rear windscreen
 local TYRE_INDEXES = { 0, 1, 2, 3, 4, 5, 45, 47 }     -- 45/47: middle wheels of 6-wheelers
+-- Bone of each window index: a window the model does not have (trailers, bikes, open cars)
+-- reads as "not intact" and must not be saved as smashed.
+local WINDOW_BONES = {
+  [0] = 'window_lf', [1] = 'window_rf', [2] = 'window_lr', [3] = 'window_rr',
+  [4] = 'window_lm', [5] = 'window_rm', [6] = 'windscreen', [7] = 'windscreen_r',
+}
 
 local DEFORM_MIN = 0.05          -- sampled deformation below this magnitude is ignored
 local MAX_DEFORM_POINTS = 64     -- hard cap on restored points (stored data is never larger)
@@ -151,6 +157,12 @@ end
 -- Reading
 ---------------------------------------------------------------------------------------
 
+local function hasWindow(vehicle, index)
+  local bone = WINDOW_BONES[index]
+  if not bone then return true end
+  return GetEntityBoneIndexByName(vehicle, bone) ~= -1
+end
+
 local function readDoors(vehicle)
   local doors = {}
   for _, i in ipairs(DOOR_INDEXES) do
@@ -162,7 +174,7 @@ end
 local function readWindows(vehicle)
   local windows = {}
   for _, i in ipairs(WINDOW_INDEXES) do
-    local intact = IsVehicleWindowIntact(vehicle, i)
+    local intact = not hasWindow(vehicle, i) or IsVehicleWindowIntact(vehicle, i)
     if not intact then
       -- A rolled-down window reads as "not intact"; rolling it up tells both cases apart.
       RollUpWindow(vehicle, i)

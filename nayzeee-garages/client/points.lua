@@ -14,6 +14,14 @@
   (in or next to a vehicle). The global "Store vehicle" vehicle option (client/impound.lua)
   asks Points.canStoreVehicle / Points.storeVehicle, which only look at the store zones near
   the player (refreshed by the 200 ms loop).
+
+  Garage zones (location.zone = { points = vec2[], minZ, maxZ }): an ox_lib lib.zones.poly
+  per zone (no PolyZone). Inside it, on foot, the prompt opens the garage anywhere (modes
+  'prompt' / 'both'; in 'target' mode the open point / NPC keeps the target options) and a
+  driver stores the vehicle anywhere ("Store vehicle" prompt in every mode, the global vehicle
+  target option too): the zone replaces the store circles of that location. The outline is
+  drawn on the ground for drivers inside it. Locations without a zone are unchanged. The server
+  checks the same polygon with the server ped position (NZ.Access.inZone).
 ]]
 
 local Points = NZ.Points
@@ -33,6 +41,16 @@ local markerRGB = { 8, 175, 162 }
 
 local MODES = { prompt = true, target = true, both = true }
 local TARGET_REACH = 3.0           -- metres a player can target a vehicle from (store zones)
+local ZONE_Z_MARGIN = 1.0          -- metres above / below a zone's height range still inside
+-- lib.zones.poly thickness is generous (ox_lib's vertical test differs between versions):
+-- the height range itself is checked here (zoneHas) like on the server.
+local ZONE_THICKNESS_PAD = 8.0
+local ZONE_GROUND_RETRY = 2000      -- ms: re-query corner ground heights that had no hit yet
+-- Open actions a zone offers anywhere inside it. The impound and for-sale handlers on the
+-- server (nz:impound:open, nz:forSale:info / buy / tour) still check the open point only, so
+-- those keep the open point until they use NZ.Access.nearLocation; add 'impound' / 'forSale'
+-- here at that point.
+local ZONE_OPEN_ACTIONS = { garage = true, inside = true }
 local NEXT_TO_VEHICLE = 6.0        -- metres: "next to a vehicle" for the store option
 local CANDIDATE_TTL = 400          -- ms: cache of the vehicle a store option would park
 
@@ -310,6 +328,122 @@ local function groundZ(rec)
 end
 
 ---------------------------------------------------------------------------------------
+-- Garage zones (polygon geometry, the same rules as server/locations.lua)
+---------------------------------------------------------------------------------------
+
+local function pointInPolygon(points, x, y)
+  local inside = false
+  local n = #points
+  local j = n
+  for i = 1, n do
+    local a, b = points[i], points[j]
+    if (a.y > y) ~= (b.y > y) then
+      local xi = (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x
+      if x < xi then inside = not inside end
+    end
+    j = i
+  end
+  return inside
+end
+
+local function distToSegment(px, py, a, b)
+  local dx, dy = b.x - a.x, b.y - a.y
+  local len2 = dx * dx + dy * dy
+  local t = 0.0
+  if len2 > 0 then t = math.max(0.0, math.min(1.0, ((px - a.x) * dx + (py - a.y) * dy) / len2)) end
+  local cx, cy = a.x + dx * t - px, a.y + dy * t - py
+  return math.sqrt(cx * cx + cy * cy)
+end
+
+--- Horizontal distance to the zone: 0 inside, else to the nearest edge.
+local function zoneDistance(points, x, y)
+  if pointInPolygon(points, x, y) then return 0.0 end
+  local best = math.huge
+  local n = #points
+  for i = 1, n do
+    local d = distToSegment(x, y, points[i], points[i % n + 1])
+    if d < best then best = d end
+  end
+  return best
+end
+
+--- A usable zone from a client view: { points = {{x,y}}, minZ, maxZ } (3+ numeric points) or nil.
+local function zoneOf(loc)
+  local z = type(loc) == 'table' and loc.zone or nil
+  if type(z) ~= 'table' or type(z.points) ~= 'table' then return nil end
+  local minZ, maxZ = tonumber(z.minZ), tonumber(z.maxZ)
+  if not minZ or not maxZ or maxZ <= minZ then return nil end
+  local points = {}
+  for _, p in ipairs(z.points) do
+    local x, y = type(p) == 'table' and tonumber(p.x), type(p) == 'table' and tonumber(p.y)
+    if x and y then points[#points + 1] = { x = x, y = y } end
+  end
+  if #points < 3 then return nil end
+  return { points = points, minZ = minZ, maxZ = maxZ }
+end
+
+--- Whether `pos` is inside the zone (height range ± ZONE_Z_MARGIN, `margin` metres outside an edge).
+local function zoneHas(zone, pos, margin)
+  if not zone or not pos then return false end
+  local z = pos.z
+  if z < zone.minZ - ZONE_Z_MARGIN or z > zone.maxZ + ZONE_Z_MARGIN then return false end
+  return zoneDistance(zone.points, pos.x, pos.y) <= (margin or 0.0)
+end
+
+--- Whether `pos` ({x,y,z} / vector3) is inside the garage zone of `loc` (false without a zone).
+---@param loc table client view
+---@param pos table|vector3
+---@param margin number|nil metres outside an edge still counted (default 0)
+---@return boolean
+function Points.inZone(loc, pos, margin)
+  local zone = zoneOf(loc)
+  if not zone or pos == nil then return false end
+  local x, y, z = tonumber(pos.x), tonumber(pos.y), tonumber(pos.z)
+  if not x or not y or not z then return false end
+  return zoneHas(zone, { x = x, y = y, z = z }, tonumber(margin))
+end
+
+--- Centre (vertex average) of a zone, at the middle of its height range.
+local function zoneCentre(zone)
+  local sx, sy = 0.0, 0.0
+  for i = 1, #zone.points do
+    sx, sy = sx + zone.points[i].x, sy + zone.points[i].y
+  end
+  local n = #zone.points
+  return vector3(sx / n, sy / n, (zone.minZ + zone.maxZ) / 2.0)
+end
+
+--- Ground height under every corner (once per visit; collision is loaded around the player).
+--- Corners without a hit yet (collision not streamed at the far end of a big zone) use
+--- `fallback` and are asked again every ZONE_GROUND_RETRY ms while the player is inside.
+local function zoneGround(rec, fallback)
+  local list = rec.groundZs
+  local now = GetGameTimer()
+  if list and not (rec.groundMissing and now >= (rec.groundRetryAt or 0)) then return list end
+  local zone = rec.zone
+  local first = list == nil
+  list = list or {}
+  local missing = nil
+  for i, p in ipairs(zone.points) do
+    if first or (rec.groundMissing and rec.groundMissing[i]) then
+      local found, gz = GetGroundZFor_3dCoord(p.x + 0.0, p.y + 0.0, zone.maxZ + 0.5, false)
+      gz = tonumber(gz)
+      if found and gz and gz >= zone.minZ - 2.0 and gz <= zone.maxZ + 1.0 then
+        list[i] = gz
+      else
+        list[i] = fallback
+        missing = missing or {}
+        missing[i] = true
+      end
+    end
+  end
+  rec.groundZs = list
+  rec.groundMissing = missing
+  rec.groundRetryAt = missing and (now + ZONE_GROUND_RETRY) or nil
+  return list
+end
+
+---------------------------------------------------------------------------------------
 -- Store candidates (target "Store vehicle")
 ---------------------------------------------------------------------------------------
 
@@ -319,7 +453,11 @@ local function parkableAt(rec, vehicle, ped)
   if not isVehicleEntity(vehicle) then return false end
   local driver = GetPedInVehicleSeat(vehicle, -1)
   if driver ~= 0 and driver ~= ped then return false end
-  if #(GetEntityCoords(vehicle) - rec.coords) > rec.storeRadius then return false end
+  if rec.zone then
+    if not zoneHas(rec.zone, GetEntityCoords(vehicle), 0.0) then return false end
+  elseif #(GetEntityCoords(vehicle) - rec.coords) > rec.storeRadius then
+    return false
+  end
   local vt = rec.location.vehicleType
   return vt == nil or vt == categoryOf(vehicle)
 end
@@ -364,8 +502,15 @@ local function storeRecordFor(vehicle)
   local best, bestDist = nil, nil
   for i = 1, #nearStores do
     local rec = nearStores[i]
-    local dist = #(pos - rec.coords)
-    if dist <= rec.storeRadius and (bestDist == nil or dist < bestDist) then
+    local dist, within
+    if rec.zone then
+      within = zoneHas(rec.zone, pos, 0.0)
+      dist = 0.0
+    else
+      dist = #(pos - rec.coords)
+      within = dist <= rec.storeRadius
+    end
+    if within and (bestDist == nil or dist < bestDist) then
       local vt = rec.location.vehicleType
       if vt ~= nil and category == nil then category = categoryOf(vehicle) end
       if (vt == nil or vt == category) and Points.isVisible(rec.location) then
@@ -407,7 +552,19 @@ local function evaluate()
       local loc = rec.location
       local dist = #(pos - rec.coords)
       local action, label
-      if inVehicle then
+      if rec.zone then
+        -- anywhere inside the polygon (no circle): distance 0 wins over nearby points
+        local inside = zoneHas(rec.zone, pos, 0.0)
+        dist = inside and 0.0 or math.huge
+        if inVehicle then
+          if isDriver and rec.store and canStoreAt(loc) and (loc.vehicleType == nil or loc.vehicleType == category) then
+            rec.marker = 'zone'
+            if inside then action, label = 'store', L('Store vehicle') end
+          end
+        elseif inside and rec.open and rec.openAction and not rec.targeted then
+          action, label = rec.openAction, rec.openLabel
+        end
+      elseif inVehicle then
         if isDriver and rec.store and canStoreAt(loc) and (loc.vehicleType == nil or loc.vehicleType == category) then
           rec.marker = 'store'
           if dist <= rec.storeRadius then action, label = 'store', L('Store vehicle') end
@@ -450,6 +607,22 @@ local function startLoop()
   end)
 end
 
+--- Ground outline of a zone (drivers who can park here; every frame while inside).
+local function drawZone(self)
+  local rec = self.rec
+  if not rec or rec.marker ~= 'zone' then return end
+  local zone = rec.zone
+  local ground = zoneGround(rec, GetEntityCoords(cache.ped).z - 1.0)
+  local r, g, b = markerRGB[1], markerRGB[2], markerRGB[3]
+  local n = #zone.points
+  for i = 1, n do
+    local a, c = zone.points[i], zone.points[i % n + 1]
+    local az, cz = ground[i] + 0.06, ground[i % n + 1] + 0.06
+    DrawLine(a.x, a.y, az, c.x, c.y, cz, r, g, b, 210)
+    DrawLine(a.x, a.y, az, a.x, a.y, az + 0.9, r, g, b, 150)
+  end
+end
+
 local function drawNearby(self)
   local rec = self.rec
   if not rec or not rec.marker then return end
@@ -479,6 +652,7 @@ local function onExit(self)
   if not rec or not near[rec] then return end
   near[rec] = nil
   rec.marker = nil
+  rec.groundZs, rec.groundMissing, rec.groundRetryAt = nil, nil, nil
   nearCount = math.max(0, nearCount - 1)
   if active and active.rec == rec then setActive(nil) end
 end
@@ -742,6 +916,30 @@ local function addRecord(rec, drawMarkers)
   })
 end
 
+--- A zone record: an ox_lib poly zone; entering it starts the evaluation loop like a point.
+local function addZoneRecord(rec, drawMarkers)
+  local zone = rec.zone
+  local mid = (zone.minZ + zone.maxZ) / 2.0
+  local points = {}
+  for i = 1, #zone.points do
+    points[i] = vector3(zone.points[i].x, zone.points[i].y, mid)
+  end
+  local ok, obj = pcall(lib.zones.poly, {
+    points = points,
+    thickness = (zone.maxZ - zone.minZ) * 2.0 + ZONE_Z_MARGIN * 2.0 + ZONE_THICKNESS_PAD,
+    rec = rec,
+    onEnter = onEnter,
+    onExit = onExit,
+    inside = drawMarkers and drawZone or nil,
+  })
+  if not ok or not obj then
+    lib.print.warn(('[nayzeee-garages] garage zone of "%s" failed: %s'):format(tostring(rec.location.name), tostring(obj)))
+    return
+  end
+  records[#records + 1] = rec
+  pointObjs[#pointObjs + 1] = obj
+end
+
 --- ctx = { globalMode, targetOk, drawMarkers, peds = {} (NPC specs for NZ.Peds.sync) }
 local function addLocation(loc, ctx, showBlips)
   if not Points.isVisible(loc) then return end
@@ -754,7 +952,10 @@ local function addLocation(loc, ctx, showBlips)
   local ped = useTarget and pedConfig(loc) or nil
   local defaultOpen = tonumber(Config.Interaction.openRadius) or 2.0
   local defaultStore = tonumber(Config.Interaction.storeRadius) or 4.0
-  local useOpenForStore = loc.useOpenForStore ~= false
+  local zone = zoneOf(loc)
+  -- a zone replaces the store circles: drivers park anywhere inside it
+  local useOpenForStore = loc.useOpenForStore ~= false and not zone
+  local storeAtPoints = storable and not zone
 
   if type(loc.openPoints) == 'table' then
     for i, p in ipairs(loc.openPoints) do
@@ -768,7 +969,7 @@ local function addLocation(loc, ctx, showBlips)
           openAction = openAction,
           openLabel = openLabel,
           radius = radius,
-          store = storable and useOpenForStore,
+          store = storeAtPoints and useOpenForStore,
           storeRadius = math.max(radius, defaultStore),
         }
         rec.targetStore = useTarget and rec.store
@@ -800,7 +1001,7 @@ local function addLocation(loc, ctx, showBlips)
     end
   end
 
-  if storable and not useOpenForStore and type(loc.storePoints) == 'table' then
+  if storeAtPoints and not useOpenForStore and type(loc.storePoints) == 'table' then
     for i, p in ipairs(loc.storePoints) do
       local coords = type(p) == 'table' and NZ.Utils.toVec3(p.coords)
       if coords then
@@ -819,6 +1020,24 @@ local function addLocation(loc, ctx, showBlips)
         addRecord(rec, ctx.drawMarkers)
       end
     end
+  end
+
+  local zoneAction = openAction ~= nil and ZONE_OPEN_ACTIONS[openAction] == true
+  -- 'target': the open point / NPC carries the open options, no on-foot prompt in the zone
+  local zoneOpen = zoneAction and mode ~= 'target'
+  if zone and (zoneOpen or storable) then
+    addZoneRecord({
+      location = loc,
+      zone = zone,
+      coords = zoneCentre(zone),
+      open = zoneOpen,
+      openAction = openAction,
+      openLabel = openLabel,
+      radius = 0.0,
+      store = storable,
+      storeRadius = 0.0,
+      targetStore = useTarget and storable,
+    }, ctx.drawMarkers)
   end
 
   if showBlips and loc.kind ~= 'house' then addBlip(loc) end
@@ -901,7 +1120,13 @@ function Points.nearestLocation(filter, maxDist)
   local best, bestDist = nil, nil
   for i = 1, #records do
     local rec = records[i]
-    local dist = #(pos - rec.coords)
+    local dist
+    if rec.zone then
+      dist = (pos.z >= rec.zone.minZ - ZONE_Z_MARGIN and pos.z <= rec.zone.maxZ + ZONE_Z_MARGIN)
+        and zoneDistance(rec.zone.points, pos.x, pos.y) or math.huge
+    else
+      dist = #(pos - rec.coords)
+    end
     if dist <= maxDist and (bestDist == nil or dist < bestDist) and (not filter or filter(rec.location, rec)) then
       best, bestDist = rec.location, dist
     end

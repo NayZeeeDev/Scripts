@@ -9,34 +9,45 @@
     and vehicles nobody is near enough to run the scene for: the caller deletes them at once;
   - the vehicle is locked (SetVehicleDoorsLocked 2, the car lock's `nzLocked` and the
     replicated state bag `nzTowing = true`: every client refuses entering / driving it) and
-    never survives the tow: it is deleted at the end, or on any failure (also when somebody
-    forces their way in);
+    kept by the server (orphan mode 2: it never disappears with the client that simulates it);
   - one player client, the "runner" (the impounding officer when in range, else the nearest
     player in the vehicle's routing bucket), checks the vehicle fits on the bed and picks a
-    road node out of sight (`node`); the SERVER creates the flatbed + driver there
-    (CreateVehicleServerSetter / CreatePed: server-script entities, so the tow works with any
-    entity lockdown mode and no client ever tells the server which entities are "the truck"),
-    waits for a client to simulate them and gives the job to that client; it then plays the
-    scene and reports each step through the `nz:tow:progress` callback (node -> spawned ->
-    arrived -> load -> loaded -> leaving -> done, tick keep-alives, failed);
+    road node out of sight with a route to the vehicle (`node`); the SERVER creates the
+    flatbed + driver there (CreateVehicleServerSetter / CreatePed: server-script entities, so
+    the tow works with any entity lockdown mode and no client ever tells the server which
+    entities are "the truck"). The runner takes control of them (and later of the vehicle)
+    and keeps it (no migration while it runs the scene), plays the scene and reports each
+    step through the `nz:tow:progress` callback (node -> spawned -> arrived -> load -> loaded
+    -> leaving -> done, tick keep-alives, failed);
   - the vehicle is attached to the bed by the client that owns it (attachments are synced by
-    the attached entity's owner): `nz:client:tow:attach`;
+    the attached entity's owner; normally the runner): `nz:client:tow:attach`. The server
+    sees the attachment itself before the truck may leave, and while it leaves: a vehicle that
+    comes off the bed is pulled back on (the runner holds the truck meanwhile);
+  - once a truck has been sent (`spawned`), the vehicle never disappears in front of players
+    before it is on the bed: a failed attempt (stuck, wrong way round, the pull failed ...)
+    sends a new truck (Config.Tow.attempts), the old one is retired and dismissed (the client
+    that simulates its driver gets him back in and drives it off empty, never with the vehicle
+    on its bed); when nothing more can be tried, the vehicle stays where it is, locked, and the
+    officer is told the tow truck could not collect it. Retired entities are deleted once every
+    player of the bucket is farther than Config.Tow.despawnDistance from them, at the latest
+    after Config.Tow.cleanupSeconds (faded out on the client that simulates them first).
+    Failures before any truck was sent (a vehicle that does not fit, no road node, the NPCs
+    could not be created) delete it at once (faded), as without a tow;
   - a 1 s watchdog hands the job to another nearby player when the runner drops, leaves,
     changes bucket, loses the NPCs to another client or stops reporting (the new runner adopts
-    the NPCs when it already simulates them, else they are replaced), and falls back to
-    removing the vehicle (+ truck and driver) on Config.Tow.timeout or any failure; whatever
-    a client simulates fades out for a moment first (`nz:client:tow:fade`), so nothing pops
-    out of existence in front of the officer;
-  - after loading, the truck drives away and is removed once every player is farther than
-    Config.Tow.despawnDistance or after Config.Tow.despawnSeconds;
+    the NPCs when it already simulates them, else a new truck comes), and ends the job on
+    Config.Tow.timeout;
+  - after loading, the truck drives away and everything is removed once every player is
+    farther than Config.Tow.despawnDistance (the leaving stage lasts despawnSeconds at most,
+    then the entities are retired as above);
   - every entity is identified by server-side data only: handle + model, and the server's
     `entityRemoved` event marks it gone (a handle is recycled only after that event), so a
     recycled handle never matches and nothing else is ever deleted. The state bags
     (`nzTowing`, `nzTowTruck`, `nzTowDriver`) only drive the client guard: the owner of an
     entity can write them, so the server puts them back when anybody clears them;
-  - a player in the impounded vehicle or in the tow truck ends the tow at once (both deleted
-    under them, no fade);
-  - resource stop removes every vehicle, truck and driver still in a job at once.
+  - a player in the impounded vehicle or in the tow truck ends the tow: that entity is
+    deleted under them at once (no fade);
+  - resource stop removes every vehicle, truck and driver still in a job or retired at once.
 ]]
 
 local Tow = NZ.Tow
@@ -59,9 +70,18 @@ local NODE_PLAYER_MIN = 5.0         -- no player this close to the node (the tru
 local NODE_SEPARATION = 12.0        -- metres between the nodes / trucks of two tows
 local NODE_BUSY_MS = 20000          -- an accepted node stays taken this long (the truck is created there)
 local MAX_NODE_RETRIES = 3          -- refused nodes (another tow, a player) before falling back
-local LOAD_RANGE = 30.0             -- metres between truck and vehicle when loading starts
-local LEFT_BEHIND = 25.0            -- leaving truck this far from a vehicle not attached to it
+local LOAD_RANGE = 30.0             -- metres between truck and vehicle when loading starts / is retried
 local TARGET_GONE_GRACE_MS = 15000  -- vehicle deleted by someone else: time for the truck to leave
+local ATTACH_SEEN_MS = 3000         -- the server must see the vehicle on the bed this soon after `loaded`
+local DETACHED_LIMIT_MS = 20000     -- leaving: the vehicle off the bed this long -> give up (retired)
+local REATTACH_GAP_MS = 6000        -- leaving: between two requests to pull it back on
+local REATTACH_SECONDS = 2          -- ... and how long that pull takes
+local RETRY_MIN_LEFT_MS = 40000     -- less time than this left: no new truck
+-- `failed` reasons of a vehicle that cannot go on a flatbed at all (no new truck for those)
+local UNSUITABLE = {
+  class = true, type = true, size = true, attached = true, trailer = true, occupied = true,
+  model = true, target = true, moved = true,
+}
 local ATTACH_ATTEMPTS = 3
 local LOAD_MAX_SECONDS = 20         -- Config.Tow.loadSeconds is clamped to 1..this (both sides)
 local LOAD_EXTRA_MS = 25000         -- loading may take loadSeconds + this before falling back
@@ -84,9 +104,12 @@ local ROLE_TYPE = { target = 2, truck = 2, driver = 1 }
 local jobs = {}                     -- [id] = job
 local owned = {}                    -- [entity] = job (vehicle, truck and driver of every job)
 local fading = {}                   -- [entity] = item: fading out, deleted FADE_MS later
+local retired = {}                  -- [entity] = item: kept until no player is near (see retire)
+local leftovers = {}                -- { group }: retired entities of one job, deleted together
 local nextId = 0
 local watchdogRunning = false
 local stopping = false
+local hurry = false                 -- Tow.stopAll: finish() deletes at once
 local warned = {}
 
 ---------------------------------------------------------------------------------------
@@ -168,6 +191,10 @@ end
 
 local function loadSeconds()
   return number(config().loadSeconds, 6, 1, LOAD_MAX_SECONDS)
+end
+
+local function despawnRange()
+  return number(config().despawnDistance, 150.0, 30.0, 1000.0)
 end
 
 ---------------------------------------------------------------------------------------
@@ -346,6 +373,7 @@ end
 local function dispose(items, fade)
   local byOwner, later = {}, {}
   for _, item in ipairs(items) do
+    if retired[item.entity] then retired[item.entity] = nil end
     local pending = fading[item.entity]
     if not pending or item.instant then
       if pending then fading[item.entity] = nil end
@@ -377,6 +405,103 @@ local function dispose(items, fade)
   end)
 end
 
+--- No player of `bucket` within `range` of `pos`.
+local function nobodyNear(pos, bucket, range)
+  for _, id in ipairs(GetPlayers()) do
+    local src = tonumber(id)
+    local ped = src and playerPed(src) or nil
+    if ped and playerBucket(src) == bucket and Utils.dist(GetEntityCoords(ped), pos) <= range then return false end
+  end
+  return true
+end
+
+--- Check one group of retired entities (one job's): what a player sits in goes at once, what
+--- no player is near goes now (nobody sees it), the rest with a fade after
+--- Config.Tow.cleanupSeconds. A vehicle on a truck's bed goes together with that truck (the
+--- vehicle first: it never drops off a truck deleted before it). True once the group is empty.
+local function sweepGroup(group, now)
+  local live, gone, near = {}, {}, {}
+  local range = despawnRange()
+  local late = now - group.since >= number(config().cleanupSeconds, 300, 30, 3600) * 1000
+  for _, item in ipairs(group.items) do
+    if retired[item.entity] == item and sameEntity(item) then
+      if ROLE_TYPE[item.role] == 2 and playerInside(item.entity) then
+        item.instant = true
+        gone[#gone + 1] = item
+      else
+        live[#live + 1] = item
+        near[item.entity] = not stopping and not nobodyNear(GetEntityCoords(item.entity), group.bucket, range)
+      end
+    elseif retired[item.entity] == item then
+      retired[item.entity] = nil
+    end
+  end
+  -- the vehicle on the bed and the driver at the wheel share the truck's fate (deleting one of
+  -- them alone would drop the vehicle on the road or stop the truck at the edge of the range)
+  local links = {}
+  for _, item in ipairs(live) do
+    local success, parent
+    if ROLE_TYPE[item.role] == 1 then
+      success, parent = pcall(GetVehiclePedIsIn, item.entity, false)
+    else
+      success, parent = pcall(GetEntityAttachedTo, item.entity)
+    end
+    if success and parent and near[parent] ~= nil then links[#links + 1] = { item.entity, parent } end
+  end
+  for _ = 1, 2 do
+    for _, link in ipairs(links) do
+      if near[link[1]] or near[link[2]] then near[link[1]], near[link[2]] = true, true end
+    end
+  end
+  local keep = {}
+  for _, item in ipairs(live) do
+    if near[item.entity] then keep[#keep + 1] = item else gone[#gone + 1] = item end
+  end
+  if #gone > 0 then dispose(gone, false) end
+  if late and #keep > 0 then
+    dispose(keep, true)
+    keep = {}
+  end
+  group.items = keep
+  return #keep == 0
+end
+
+local function sweepLeftovers(now)
+  for i = #leftovers, 1, -1 do
+    local success, done = pcall(sweepGroup, leftovers[i], now)
+    if not success then
+      lib.print.error(('[nayzeee-garages] tow cleanup: %s'):format(tostring(done)))
+      dispose(leftovers[i].items, false)
+      done = true
+    end
+    if done then table.remove(leftovers, i) end
+  end
+end
+
+local ensureWatchdog -- defined with the watchdog below
+
+--- Keep entities of a job that a player may have seen until nobody is near them (see
+--- sweepGroup): a truck is never removed in front of players, the vehicle never before it is
+--- on the bed. `instant` items (a player sits in them) go at once.
+local function retire(items, bucket)
+  local group = { items = {}, bucket = bucket, since = GetGameTimer() }
+  local now = {}
+  for _, item in ipairs(items) do
+    if item.instant or stopping then
+      now[#now + 1] = item
+    elseif not retired[item.entity] and not fading[item.entity] then
+      retired[item.entity] = item
+      group.items[#group.items + 1] = item
+    end
+  end
+  if #now > 0 then dispose(now, false) end
+  if #group.items == 0 then return end
+  if not sweepGroup(group, GetGameTimer()) then
+    leftovers[#leftovers + 1] = group
+    ensureWatchdog()
+  end
+end
+
 local function npcItems(job)
   local items = {}
   if driverAlive(job) and not isPlayerPed(job.driver) then items[#items + 1] = itemOf(job, 'driver') end
@@ -392,27 +517,74 @@ local function forgetNpcs(job)
   job.gone.truck, job.gone.driver = nil, nil
 end
 
-local function removeNpcs(job, fade)
-  dispose(npcItems(job), fade)
-  forgetNpcs(job)
+--- The job gives up on its truck + driver while players may see them (a new truck comes, the
+--- job moves to another player without them, or it ends without the vehicle): the client that
+--- simulates the driver gets him back in and drives the empty truck off (`stop` + `dismiss`;
+--- never with the vehicle on its bed), so nothing stands at the vehicle working the controls
+--- with the hazards on, in the way of the next truck. Before forgetNpcs (it needs the net ids).
+---@return number|nil owner the client that was told
+local function dismissNpcs(job)
+  if not job.shown or stopping or hurry then return nil end
+  if not truckAlive(job) or not driverAlive(job) or not job.truckNet or not job.driverNet then return nil end
+  local owner = ownerOf(job.driver)
+  if not owner or not connected(owner) then return nil end
+  TriggerClientEvent('nz:client:tow:stop', owner, {
+    id = job.id, dismiss = true, truck = job.truckNet, driver = job.driverNet, netId = job.netId,
+  })
+  return owner
 end
 
---- End a job: the vehicle, truck and driver are removed whatever the outcome
---- ('done' = the scene played to the end, 'fallback' = something failed on the way).
+--- Remove the job's truck + driver: retired (kept until nobody is near) once players may have
+--- seen them, else faded out and deleted now.
+local function dropNpcs(job)
+  local items = npcItems(job)
+  forgetNpcs(job)
+  if job.shown then retire(items, job.bucket) else dispose(items, true) end
+end
+
+--- The vehicle hangs on the job's truck as the server sees it: true / false, nil = unknown
+--- (GetEntityAttachedTo missing on this server build).
+local function attachedTo(job)
+  if not targetAlive(job) or not truckAlive(job) then return false end
+  local success, parent = pcall(GetEntityAttachedTo, job.target)
+  if not success or parent == nil then
+    warnOnce('attachedTo', 'GetEntityAttachedTo is not available on this server build')
+    return nil
+  end
+  return parent == job.truck
+end
+
+--- End a job ('done' = the scene played to the end, 'fallback' = something failed on the
+--- way). The vehicle, truck and driver go: retired (deleted once nobody is near) when a truck
+--- was sent, else (nothing was shown yet) faded out and deleted at once, as without a tow.
+-- `finish` reasons after which the officer is not told the tow failed (the vehicle left the
+-- impound some other way, or the tow truck itself was impounded)
+local QUIET_REASONS = { released = true, truckImpounded = true }
+
 local function finish(job, outcome, reason)
   if jobs[job.id] ~= job then return end
   jobs[job.id] = nil
+  -- the truck leaves empty instead of standing at the vehicle
+  local dismissed = outcome ~= 'done' and dismissNpcs(job) or nil
   local items = npcItems(job)
   if targetAlive(job) then
-    -- somebody sits in it: gone at once, never driven away during a fade (already fading
-    -- out: dispose() leaves its timer alone)
+    -- somebody sits in it: gone at once, never driven away (already fading out: dispose()
+    -- leaves its timer alone)
     table.insert(items, 1, itemOf(job, 'target', playerInside(job.target)))
   end
   if owned[job.target] == job then owned[job.target] = nil end
   forgetNpcs(job)
-  dispose(items, true)
+  if stopping or hurry then
+    dispose(items, false)
+  elseif job.shown then
+    retire(items, job.bucket)
+  else
+    dispose(items, true)
+  end
   if not stopping then
-    if connected(job.runner) then TriggerClientEvent('nz:client:tow:stop', job.runner, { id = job.id }) end
+    if connected(job.runner) and job.runner ~= dismissed then
+      TriggerClientEvent('nz:client:tow:stop', job.runner, { id = job.id })
+    end
     if job.attacher and job.attacher ~= job.runner and connected(job.attacher) then
       TriggerClientEvent('nz:client:tow:stop', job.attacher, { id = job.id })
     end
@@ -423,11 +595,19 @@ local function finish(job, outcome, reason)
     reason = reason,
     runner = job.runner,
     handovers = job.handovers,
+    attempts = job.attempt,
+    retries = job.retries,     -- why earlier trucks were replaced
     stage = job.stage,
     seconds = math.floor((GetGameTimer() - job.startedAt) / 1000),
   })
   if outcome ~= 'done' then
     Utils.debug(('tow %d (%s) fell back: %s'):format(job.id, tostring(job.plate), tostring(reason)))
+    -- told "Tow truck dispatched" before: say it did not work (the vehicle stays, locked, until
+    -- nobody is near)
+    if job.notified and not job.released and not stopping and not hurry and not QUIET_REASONS[reason]
+      and connected(job.officer) then
+      notify(job.officer, 'error', L('The tow truck could not collect the vehicle'))
+    end
   end
 end
 
@@ -478,9 +658,33 @@ local function reassign(job, src)
   sendStart(job, true)
 end
 
+--- The vehicle may hang on the job's truck (attached, or the server cannot tell and loading
+--- has begun): no new truck can take it then.
+local function onBed(job)
+  local attached = attachedTo(job)
+  if attached == nil then return STAGES[job.stage] ~= nil and STAGES[job.stage] >= STAGES.load end
+  return attached
+end
+
+--- Reset the job to its first step: the runner picks a node for a new truck.
+local function restart(job, runner)
+  local now = GetGameTimer()
+  job.stage = 'start'
+  job.adoptPending = nil
+  job.node, job.nodeAt, job.nodeTries = nil, nil, 0
+  job.attacher, job.attachAttempts = nil, 0
+  job.targetGoneAt = nil
+  job.runner = runner
+  job.lastSeen, job.stageAt = now, now
+  job.ownerMismatchAt, job.droppedAt, job.runnerDropped = nil, nil, nil
+  sendStart(job, false)
+end
+
 --- Give the job to another player near the vehicle (the current runner is excluded when
---- `exclude`); the new runner adopts the truck + driver when it already owns both, otherwise
---- they are removed and it picks a node for a new truck. Falls back when nobody can take it.
+--- `exclude`). The new runner adopts the truck + driver when it simulates both, or when the
+--- old runner is still there to let them go (it walked away or changed bucket: it gets `stop`
+--- and lets the NPCs migrate; the new runner takes control of them); otherwise they are
+--- retired and a new truck comes. Falls back when nobody can take it.
 local function handover(job, reason, exclude)
   local now = GetGameTimer()
   local old = job.runner
@@ -497,23 +701,50 @@ local function handover(job, reason, exclude)
   local runner = pickRunner(targetCoords(job), job.bucket, preferred, job.excluded)
   if not runner then return finish(job, 'fallback', 'runner:' .. reason) end
 
-  local adopt = truckAlive(job) and driverAlive(job)
-    and ownerOf(job.truck) == runner and ownerOf(job.driver) == runner
+  local npcs = truckAlive(job) and driverAlive(job)
+  local simulates = npcs and ownerOf(job.truck) == runner and ownerOf(job.driver) == runner
+  local released = npcs and (reason == 'far' or reason == 'bucket') and connected(old)
+  local adopt = simulates or released
+  -- the vehicle hangs on the old truck: only that truck can take it away
+  if not adopt and npcs and onBed(job) then return finish(job, 'fallback', 'runner:' .. reason) end
   job.handovers = job.handovers + 1
   job.attacher, job.attachAttempts = nil, 0
   if adopt then
     reassign(job, runner)
   else
-    removeNpcs(job, true)
-    job.stage = 'start'
-    job.adoptPending = nil
-    job.node, job.nodeAt, job.nodeTries = nil, nil, 0
-    job.runner = runner
-    job.lastSeen, job.stageAt = now, now
-    job.ownerMismatchAt, job.droppedAt, job.runnerDropped = nil, nil, nil
-    sendStart(job, false)
+    dismissNpcs(job)
+    dropNpcs(job)
+    restart(job, runner)
   end
   Utils.debug(('tow %d handed to %d (%s, adopt=%s)'):format(job.id, runner, reason, tostring(adopt)))
+end
+
+--- A step of the scene failed on the runner (stuck, wrong way round, the pull failed ...):
+--- retire this truck and send a new one (Config.Tow.attempts trucks in all), else end the job
+--- (the vehicle stays, locked, until nobody is near).
+local function retry(job, reason)
+  if jobs[job.id] ~= job then return end
+  local now = GetGameTimer()
+  local attempts = math.floor(number(config().attempts, 2, 1, 5))
+  if job.attempt >= attempts or not targetAlive(job) or job.deadline - now < RETRY_MIN_LEFT_MS
+    or (truckAlive(job) and onBed(job)) then
+    return finish(job, 'fallback', reason)
+  end
+  local runner = pickRunner(targetCoords(job), job.bucket, job.runner, job.excluded)
+  if not runner then return finish(job, 'fallback', reason) end
+  local old = job.runner
+  if old ~= runner and connected(old) then TriggerClientEvent('nz:client:tow:stop', old, { id = job.id }) end
+  if job.attacher and job.attacher ~= runner and connected(job.attacher) then
+    TriggerClientEvent('nz:client:tow:stop', job.attacher, { id = job.id })
+  end
+  job.attempt = job.attempt + 1
+  job.retries = job.retries or {}
+  job.retries[#job.retries + 1] = reason
+  -- the old truck drives off empty (its client gets `dismiss` before the new `start`)
+  dismissNpcs(job)
+  dropNpcs(job)
+  restart(job, runner)
+  Utils.debug(('tow %d: %s, new truck (attempt %d)'):format(job.id, tostring(reason), job.attempt))
 end
 
 --- Why the runner can no longer run the job, or nil.
@@ -545,47 +776,56 @@ end
 
 --- Every player of the job's bucket is farther than despawnDistance from the truck.
 local function everyoneFar(job)
-  local range = number(config().despawnDistance, 150.0, 30.0, 1000.0)
-  local pos = GetEntityCoords(job.truck)
-  for _, id in ipairs(GetPlayers()) do
-    local src = tonumber(id)
-    local ped = src and playerPed(src) or nil
-    if ped and playerBucket(src) == job.bucket and Utils.dist(GetEntityCoords(ped), pos) <= range then
-      return false
-    end
-  end
+  return nobodyNear(GetEntityCoords(job.truck), job.bucket, despawnRange())
+end
+
+--- Ask the client that owns the vehicle to pull it onto the truck's bed (attachments are synced
+--- by the attached entity's owner). False when nobody in the job's bucket simulates it.
+local function requestAttach(job, seconds)
+  local owner = ownerOf(job.target)
+  if not owner or not connected(owner) or playerBucket(owner) ~= job.bucket then return false end
+  job.attacher = owner
+  TriggerClientEvent('nz:client:tow:attach', owner, {
+    id = job.id,
+    netId = job.netId,
+    truck = job.truckNet,
+    seconds = seconds or loadSeconds(),
+  })
   return true
 end
 
---- The vehicle is not on the leaving truck (attach failed or it fell off).
-local function leftBehind(job)
-  local success, parent = pcall(GetEntityAttachedTo, job.target)
-  if success and parent == job.truck then return false end
-  return Utils.dist(GetEntityCoords(job.target), GetEntityCoords(job.truck)) > LEFT_BEHIND
+--- Leaving: the truck never goes without the vehicle. Off the bed (fell off, a client cleared
+--- the attachment): the runner holds the truck and the vehicle's owner pulls it back on while
+--- the truck is near; after DETACHED_LIMIT_MS both are retired (deleted once nobody is near).
+local function checkLeaving(job, now)
+  if not truckAlive(job) then return finish(job, 'done', 'truckGone') end
+  if targetAlive(job) then
+    if playerInside(job.target) then return finish(job, 'fallback', 'occupied') end
+    if attachedTo(job) == false then
+      job.detachedAt = job.detachedAt or now
+      if now - job.detachedAt >= DETACHED_LIMIT_MS then return finish(job, 'fallback', 'detached') end
+      local near = Utils.dist(GetEntityCoords(job.truck), GetEntityCoords(job.target)) <= LOAD_RANGE
+      if near and (job.reattachTries or 0) < ATTACH_ATTEMPTS and now - (job.reattachAt or 0) >= REATTACH_GAP_MS then
+        job.reattachTries = (job.reattachTries or 0) + 1
+        job.reattachAt = now
+        requestAttach(job, REATTACH_SECONDS)
+      end
+      return -- never 'done' while the vehicle is not on the truck
+    end
+    job.detachedAt = nil
+  end
+  local despawnMs = number(config().despawnSeconds, 60, 10, 600) * 1000
+  if now - job.leavingAt >= despawnMs then return finish(job, 'done', 'time') end
+  if everyoneFar(job) then return finish(job, 'done', 'far') end
 end
 
 local function check(job, now)
   -- the `node` handler is creating the truck + driver (bounded wait): it settles the job itself
   if job.creating then return end
-  local cfg = config()
   -- a player took the tow truck (only the client guard keeps them out): end it now, the truck
   -- is deleted under them (finish -> npcItems)
   if truckAlive(job) and playerInside(job.truck) then return finish(job, 'fallback', 'truckOccupied') end
-  if job.stage == 'leaving' then
-    if not truckAlive(job) then return finish(job, 'done', 'truckGone') end
-    -- never leave the impounded vehicle behind or let anybody drive it away; disposed once
-    -- (a new fade every tick would keep postponing the deletion), at once when somebody is in it
-    if targetAlive(job) then
-      local inside = playerInside(job.target)
-      if inside or (fading[job.target] == nil and leftBehind(job)) then
-        dispose({ itemOf(job, 'target', inside) }, true)
-      end
-    end
-    local despawnMs = number(cfg.despawnSeconds, 60, 10, 600) * 1000
-    if now - job.leavingAt >= despawnMs then return finish(job, 'done', 'time') end
-    if everyoneFar(job) then return finish(job, 'done', 'far') end
-    return
-  end
+  if job.stage == 'leaving' then return checkLeaving(job, now) end
 
   if not targetAlive(job) then
     if job.stage == 'start' or not truckAlive(job) then return finish(job, 'fallback', 'targetGone') end
@@ -601,29 +841,25 @@ local function check(job, now)
   if now >= job.deadline then return finish(job, 'fallback', 'timeout') end
 
   if job.stage ~= 'start' and (not truckAlive(job) or not driverAlive(job)) then
-    if job.stage == 'loaded' then return finish(job, 'fallback', 'truckGone') end
     return handover(job, 'truckGone', false)
   end
 
   local problem = runnerProblem(job, now)
-  if problem then
-    if job.stage == 'loaded' then return finish(job, 'fallback', 'runner:' .. problem) end
-    return handover(job, problem, true)
-  end
+  if problem then return handover(job, problem, true) end
 
   if job.stage == 'load' and now - job.stageAt > loadSeconds() * 1000 + LOAD_EXTRA_MS then
-    return finish(job, 'fallback', 'attach')
+    return retry(job, 'attach')
   end
-  if job.stage == 'loaded' and now - job.stageAt > LOADED_STALL_MS then
+  if job.stage == 'loaded' and now - job.stageAt > LOADED_STALL_MS and attachedTo(job) ~= false then
     startLeaving(job)
   end
 end
 
-local function ensureWatchdog()
+function ensureWatchdog()
   if watchdogRunning then return end
   watchdogRunning = true
   CreateThread(function()
-    while next(jobs) ~= nil and not stopping do
+    while (next(jobs) ~= nil or #leftovers > 0) and not stopping do
       Wait(TICK_MS)
       local now = GetGameTimer()
       for _, job in ipairs(snapshot()) do
@@ -635,6 +871,7 @@ local function ensureWatchdog()
           end
         end
       end
+      sweepLeftovers(now)
     end
     watchdogRunning = false
   end)
@@ -757,12 +994,14 @@ local function createNpcs(job, src, x, y, z, heading)
   if jobs[job.id] ~= job then return fail(L('This tow is no longer active'), 'gone') end
   if not truckAlive(job) or not driverAlive(job) then return spawnFailed(job, 'npc') end
 
-  local owner = ownerOf(driver)
-  if owner == src then
+  -- the runner takes control of them when OneSync gave them to another client (the player
+  -- nearest to the node): one client simulates the whole scene and keeps it
+  if job.runner == src and canRun(job, src) then
     job.stage, job.stageAt, job.adoptPending = 'spawned', GetGameTimer(), true
     return ok({ truck = job.truckNet, driver = job.driverNet })
   end
-  -- another client simulates them (nearer to the node): it runs the scene from here
+  -- the runner left meanwhile: the client that simulates them runs the scene from here
+  local owner = ownerOf(driver)
   if owner and canRun(job, owner) then
     reassign(job, owner)
     return fail(L('This tow is no longer active'), 'moved')
@@ -786,13 +1025,24 @@ function Tow.start(entity, officerSrc)
   if not exists(entity, 2) then return false, 'entity' end
   -- already fading out at the end of a tow: it goes in a moment anyway
   if fading[entity] and sameEntity(fading[entity]) then return true, nil end
+  local leftover = retired[entity]
+  if leftover and sameEntity(leftover) then
+    -- a vehicle left after a tow (waiting for nobody to be near): it goes then anyway; a
+    -- retired tow truck is impounded like any vehicle (faded out now)
+    if leftover.role ~= 'target' then dispose({ leftover }, true) end
+    return true, nil
+  end
 
   local existing = owned[entity]
   if existing then
     -- impounded again while on its way: nothing to add
     if existing.target == entity and targetAlive(existing) then return true, nil end
-    -- the tow truck itself is impounded: end that tow (removes truck, driver and its vehicle)
+    -- the tow truck itself is impounded: it goes like any impounded vehicle (faded out with its
+    -- driver) and that tow ends (its vehicle stays, locked, until nobody is near)
     if (existing.truck == entity and truckAlive(existing)) or (existing.driver == entity and driverAlive(existing)) then
+      local npcs = npcItems(existing)
+      forgetNpcs(existing)
+      dispose(npcs, true)
       finish(existing, 'fallback', 'truckImpounded')
       return true, nil
     end
@@ -842,14 +1092,21 @@ function Tow.start(entity, officerSrc)
     stageAt = now,
     lastSeen = now,
     lastReport = 0,
-    deadline = now + math.floor(number(cfg.timeout, 150, 30, 900) * 1000),
+    deadline = now + math.floor(number(cfg.timeout, 240, 30, 900) * 1000),
     attachAttempts = 0,
+    attempt = 1,        -- trucks sent (Config.Tow.attempts)
+    shown = false,      -- a truck reached `spawned`: from here the vehicle never vanishes near players
     truckModel = truckModel,
     driverModel = driverModel,
   }
   jobs[job.id] = job
   owned[entity] = job
 
+  -- kept by the server whoever simulates it: OneSync would delete a client-created vehicle with
+  -- its owner (or once nobody is near), taking it from under the tow truck
+  if not pcall(SetEntityOrphanMode, entity, 2) then
+    warnOnce('orphan', 'SetEntityOrphanMode is not available on this server build')
+  end
   local locked = pcall(SetVehicleDoorsLocked, entity, 2)
   if not locked then warnOnce('lock', 'SetVehicleDoorsLocked is not available on this server build') end
   -- keep the built-in car lock's state bag in line (its clients apply `nzLocked`)
@@ -876,7 +1133,7 @@ end
 ---@param entity number
 ---@return boolean
 function Tow.isTowing(entity)
-  local item = fading[entity]
+  local item = fading[entity] or retired[entity]
   if item and sameEntity(item) then return true end
   local job = owned[entity]
   if not job then return false end
@@ -899,6 +1156,13 @@ function Tow.release(entity)
     end
     return true
   end
+  item = retired[entity]
+  if item and item.role == 'target' then
+    -- left after a tow, waiting for nobody to be near: the owner takes it out of the impound
+    retired[entity] = nil
+    if sameEntity(item) then DeleteEntity(entity) end
+    return true
+  end
   local job = owned[entity]
   if not job or job.target ~= entity or not targetAlive(job) then return false end
   DeleteEntity(entity)
@@ -906,6 +1170,7 @@ function Tow.release(entity)
   job.gone.target = true
   owned[entity] = nil
   job.targetGoneAt = job.targetGoneAt or GetGameTimer()
+  job.released = true -- its owner took it out of the impound: no failure notice for the officer
   -- no truck yet (or it is being created): nothing to drive away
   if job.stage == 'start' or not truckAlive(job) then finish(job, 'fallback', 'released') end
   return true
@@ -913,10 +1178,22 @@ end
 
 --- End every tow at once (vehicles, trucks and drivers are deleted).
 function Tow.stopAll(reason)
+  -- everything goes at once (no fade, no waiting for players to leave)
+  hurry = true
   for _, job in ipairs(snapshot()) do
     local success, err = pcall(finish, job, 'fallback', reason or 'stopAll')
     if not success then lib.print.warn(('[nayzeee-garages] tow %d cleanup failed: %s'):format(job.id, tostring(err))) end
   end
+  for i = #leftovers, 1, -1 do
+    local group = table.remove(leftovers, i)
+    for _, item in ipairs(group.items) do
+      if retired[item.entity] == item then
+        retired[item.entity] = nil
+        if sameEntity(item) then DeleteEntity(item.entity) end
+      end
+    end
+  end
+  hurry = false
 end
 
 ---------------------------------------------------------------------------------------
@@ -994,6 +1271,8 @@ function handlers.spawned(job, src, payload)
   if ownerOf(job.driver) ~= src then return fail(L('This tow is no longer active'), 'owner') end
   job.adoptPending = nil
   job.stageAt = GetGameTimer()
+  -- players may see the truck from here: the vehicle never vanishes in front of them any more
+  job.shown = true
   -- told once the truck really is on its way (a boat or an oversized vehicle never gets here)
   if not job.notified and job.officer and connected(job.officer) then
     job.notified = true
@@ -1013,27 +1292,27 @@ end
 function handlers.load(job, src)
   if job.stage ~= 'arrived' then return invalid() end
   if not targetAlive(job) or not truckAlive(job) or not driverAlive(job) then
-    finish(job, 'fallback', 'loadMissing')
+    retry(job, 'loadMissing')
     return fail(L('The tow truck could not load the vehicle'))
   end
+  -- the server's own positions: the truck really stands at the vehicle
   if Utils.dist(GetEntityCoords(job.truck), GetEntityCoords(job.target)) > LOAD_RANGE then
-    finish(job, 'fallback', 'loadDistance')
+    retry(job, 'loadDistance')
     return fail(L('The tow truck could not load the vehicle'))
   end
   job.stage = 'load'
   job.stageAt = GetGameTimer()
+  -- normally the runner itself (it takes control of the vehicle before loading)
   local owner = ownerOf(job.target)
   if owner == src then
     job.attacher = src
     return ok({ attacher = 'self' })
   end
-  if owner and connected(owner) and playerBucket(owner) == job.bucket then
-    job.attacher = owner
+  if requestAttach(job) then
     job.attachAttempts = 1
-    TriggerClientEvent('nz:client:tow:attach', owner, attachPayload(job))
     return ok({ attacher = 'remote' })
   end
-  finish(job, 'fallback', 'attachOwner')
+  retry(job, 'attachOwner')
   return fail(L('The tow truck could not load the vehicle'))
 end
 
@@ -1054,16 +1333,38 @@ function handlers.attached(job, src, payload)
   return ok(nil)
 end
 
+-- The runner sees the vehicle on the bed: so must the server (replicated by the vehicle's
+-- owner a moment later), else this truck never takes it.
 function handlers.loaded(job)
   if job.stage ~= 'load' then return invalid() end
+  if attachedTo(job) == false then
+    waitFor(job, function() return job.stage ~= 'load' or attachedTo(job) ~= false end, ATTACH_SEEN_MS)
+    if jobs[job.id] ~= job or job.stage ~= 'load' then return fail(L('This tow is no longer active'), 'gone') end
+    if attachedTo(job) == false then
+      retry(job, 'attachSync')
+      return fail(L('The tow truck could not load the vehicle'), 'attach')
+    end
+  end
   job.stage = 'loaded'
   job.stageAt = GetGameTimer()
   return ok(nil)
 end
 
--- { reason? } the truck drives away: loaded, or reason 'targetGone' (vehicle deleted meanwhile)
+-- { reason? } the truck drives away: loaded, or reason 'targetGone' (vehicle deleted meanwhile).
+-- Never without the vehicle on the bed: code 'attach' (its owner is asked to pull it back on;
+-- the runner holds the truck and asks again).
 function handlers.leaving(job, src, payload)
   if job.stage == 'loaded' then
+    if targetAlive(job) and attachedTo(job) == false then
+      if Utils.dist(GetEntityCoords(job.truck), GetEntityCoords(job.target)) <= LOAD_RANGE
+        and (job.reattachTries or 0) < ATTACH_ATTEMPTS then
+        job.reattachTries = (job.reattachTries or 0) + 1
+        requestAttach(job, REATTACH_SECONDS)
+        return fail(L('The tow truck could not load the vehicle'), 'attach')
+      end
+      retry(job, 'detached')
+      return fail(L('This tow is no longer active'), 'gone')
+    end
     startLeaving(job)
     return ok(nil)
   end
@@ -1087,15 +1388,25 @@ end
 -- (otherwise the watchdog ends it by distance or time as usual).
 function handlers.done(job)
   if job.stage ~= 'leaving' then return invalid() end
-  if not truckAlive(job) or everyoneFar(job) then finish(job, 'done', 'far') end
+  if not truckAlive(job) then
+    finish(job, 'done', 'truckGone')
+  elseif everyoneFar(job) and (not targetAlive(job) or attachedTo(job) ~= false) then
+    finish(job, 'done', 'far')
+  end
   return ok(nil)
 end
 
--- { reason } the runner gave up (no road, vehicle too big, stuck, ...): remove everything now
+-- { reason } the runner gave up: a vehicle that cannot go on a flatbed (class, size, boat,
+-- moved away ...) ends the job; anything else (no road node, stuck, wrong way round, the
+-- driver could not get in, the pull failed ...) sends a new truck while attempts are left.
 function handlers.failed(job, src, payload)
   if job.creating then return invalid() end
   local reason = type(payload.reason) == 'string' and payload.reason:gsub('[^%w:_%-]', ''):sub(1, 32) or 'client'
-  finish(job, 'fallback', 'client:' .. reason)
+  if UNSUITABLE[reason] then
+    finish(job, 'fallback', 'client:' .. reason)
+  else
+    retry(job, 'client:' .. reason)
+  end
   return ok(nil)
 end
 
@@ -1131,8 +1442,8 @@ end))
 ---------------------------------------------------------------------------------------
 
 -- exports['nayzeee-garages']:StartTow(netId, officerSrc?) -> boolean started, string|nil reason
--- An NPC flatbed collects the vehicle; it is deleted afterwards, or on any failure along the
--- way. false + reason ('disabled' | 'entity' | 'type' | 'occupied' | 'busy' | 'runner' |
+-- An NPC flatbed collects the vehicle; it is deleted afterwards once no player is near (also
+-- when the tow fails after the truck was sent; before that, at once). false + reason ('disabled' | 'entity' | 'type' | 'occupied' | 'busy' | 'runner' |
 -- 'config' | 'state' | 'error'): nothing happened, delete the vehicle yourself if it must go.
 -- Server code is trusted: no distance or job checks here (the calling script decides).
 exports('StartTow', function(netId, officerSrc)
@@ -1162,7 +1473,7 @@ end)
 -- The server removed an entity (deleted by anybody, culled, its owner left ...). Its handle can
 -- only be given to a new entity after this event, so from here on nothing of a job matches it.
 AddEventHandler('entityRemoved', function(entity)
-  if next(jobs) == nil and next(fading) == nil then return end
+  if next(jobs) == nil and next(fading) == nil and next(retired) == nil then return end
   for _, job in pairs(jobs) do
     for role in pairs(ROLE_BAG) do
       if job[role] == entity then job.gone[role] = true end
@@ -1173,6 +1484,11 @@ AddEventHandler('entityRemoved', function(entity)
   if item then
     item.gone = true
     fading[entity] = nil
+  end
+  item = retired[entity]
+  if item then
+    item.gone = true
+    retired[entity] = nil
   end
 end)
 
@@ -1191,13 +1507,13 @@ end
 local function bagTracked(entity, key)
   local job, role = roleOf(entity)
   if job and ROLE_BAG[role] == key then return job end
-  local item = fading[entity]
+  local item = fading[entity] or retired[entity]
   if item and item.bag == key and sameEntity(item) then return item.job or true end
   return nil
 end
 
 --- The owner of an entity can write its state bags (unless sv_stateBagStrictMode): a cleared
---- tow bag would lift every client's guard on it. The server never trusts the bags, and puts
+--- tow bag would lift every client's guard on it (also on what is retired after a tow). The server never trusts the bags, and puts
 --- them back right away (logged once per job and bag).
 local function onBagChange(key, bagName, value)
   if value == true or stopping or type(bagName) ~= 'string' then return end
@@ -1232,6 +1548,10 @@ AddEventHandler('onResourceStop', function(resource)
   -- what was fading out goes now (its timer dies with the resource)
   for entity, item in pairs(fading) do
     fading[entity] = nil
+    if sameEntity(item) then DeleteEntity(entity) end
+  end
+  for entity, item in pairs(retired) do
+    retired[entity] = nil
     if sameEntity(item) then DeleteEntity(entity) end
   end
 end)

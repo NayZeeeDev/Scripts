@@ -5,7 +5,7 @@
  * upgrades (mods) and damage, so the showroom can be judged with realistic data.
  * Scenario ids: garage-grid, garage-list, garage-empty, garage-full, garage-private,
  * garage-private-long, garage-spawner, garage-air, garage-sea, garage-damaged, garage-finance,
- * garage-house, garage-job, garage-rental, garage-big.
+ * garage-house, garage-job, garage-rental, garage-big. Add &preview=1 to see the 3D-preview stage.
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui, onNuiMessage } from '../../lib/nui';
@@ -1083,6 +1083,28 @@ mockNui('garage:switchGroup', async ({ groupId }) => {
   state.data = clone(next);
   return next;
 });
+
+/**
+ * 3D preview (client/preview.lua). In the browser there is no game render behind the page, so
+ * the preview is off unless the URL has ?preview=1: then Lua's answer is mimicked (shown after
+ * a short load) and the dev backdrop shows through the transparent stage.
+ */
+const previewOn = () => {
+  try {
+    return new URLSearchParams(window.location.search).get('preview') === '1';
+  } catch {
+    return false;
+  }
+};
+
+mockNui('garage:preview', async ({ plate, index }) => {
+  if (!previewOn()) return { shown: false, disabled: true };
+  if (!plate && index === undefined) return { shown: false };
+  await wait(350);
+  return { shown: true };
+});
+
+mockNui('garage:previewRect', () => null);
 
 /* ───────────────────────── scenarios ───────────────────────── */
 

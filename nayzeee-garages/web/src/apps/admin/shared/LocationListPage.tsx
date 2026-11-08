@@ -462,6 +462,7 @@ export function LocationListPage<L extends Location>({
             muted: !l.enabled,
             meta: l.enabled ? `${vehicleTypeLabel(l.vehicleType)} · ${kindLabel(l)}` : `${t('Disabled')} · ${kindLabel(l)}`,
             stat,
+            zone: l.zone?.points ?? null,
           },
         ];
       }),

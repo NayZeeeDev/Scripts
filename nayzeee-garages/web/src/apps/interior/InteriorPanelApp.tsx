@@ -130,6 +130,8 @@ export function InteriorPanelApp() {
     return a.name.localeCompare(b.name);
   });
   const canKick = (m: Member) => isOwner && !m.you && m.role !== 'owner';
+  // An owner or member who cannot invite is alone in a per-player copy of the garage.
+  const solo = data.role !== 'guest' && !data.canInvite && members.length <= 1;
 
   const startInvite = async () => {
     setInvite({ step: 'loading' });
@@ -249,43 +251,50 @@ export function InteriorPanelApp() {
           </p>
         )}
 
-        {/* people inside */}
-        <div className="nz-ipanel__section">
-          <div className="nz-ipanel__head">
-            <h4>{t('People here')}</h4>
-            <span className="nz-ipanel__count">{members.length}</span>
+        {/* per-player copy (Config.InteriorOptions.instances = 'player'): nobody else comes in */}
+        {solo ? (
+          <p className="nz-ipanel__solo">
+            <Icon name="eyeOff" size={13} strokeWidth={1.8} />
+            <span>{t('Private copy: other players cannot see this garage or your vehicles.')}</span>
+          </p>
+        ) : (
+          <div className="nz-ipanel__section">
+            <div className="nz-ipanel__head">
+              <h4>{t('People here')}</h4>
+              <span className="nz-ipanel__count">{members.length}</span>
+            </div>
+            {members.length === 0 ? (
+              <EmptyState compact icon="users" title={t('Nobody else is here')} />
+            ) : (
+              <ul className="nz-ipanel__members">
+                {members.map((m) => (
+                  <li key={m.serverId} className={cx('nz-ipanel__member', m.you && 'is-you')}>
+                    <Avatar name={m.name} size={28} />
+                    <div className="nz-ipanel__member-text">
+                      <b title={m.name}>{m.name}</b>
+                      {m.you && <span className="nz-ipanel__you">{t('You')}</span>}
+                    </div>
+                    <RoleBadge role={m.role} />
+                    {isOwner && (
+                      <span className="nz-ipanel__kick-slot">
+                        {canKick(m) && (
+                          <IconButton
+                            icon="close"
+                            size="sm"
+                            variant="ghost"
+                            label={t('Remove {name}', { name: m.name })}
+                            className="nz-ipanel__kick"
+                            onClick={() => setKickTarget(m)}
+                          />
+                        )}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {members.length === 0 ? (
-            <EmptyState compact icon="users" title={t('Nobody else is here')} />
-          ) : (
-            <ul className="nz-ipanel__members">
-              {members.map((m) => (
-                <li key={m.serverId} className={cx('nz-ipanel__member', m.you && 'is-you')}>
-                  <Avatar name={m.name} size={28} />
-                  <div className="nz-ipanel__member-text">
-                    <b title={m.name}>{m.name}</b>
-                    {m.you && <span className="nz-ipanel__you">{t('You')}</span>}
-                  </div>
-                  <RoleBadge role={m.role} />
-                  {isOwner && (
-                    <span className="nz-ipanel__kick-slot">
-                      {canKick(m) && (
-                        <IconButton
-                          icon="close"
-                          size="sm"
-                          variant="ghost"
-                          label={t('Remove {name}', { name: m.name })}
-                          className="nz-ipanel__kick"
-                          onClick={() => setKickTarget(m)}
-                        />
-                      )}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        )}
 
         {/* invite */}
         {data.canInvite && (

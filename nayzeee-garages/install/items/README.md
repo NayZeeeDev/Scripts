@@ -16,6 +16,10 @@ rename an item there, rename it in your inventory too.
 | `fake_plate` | `fakePlate` | yes | no | Fit a fake plate on a vehicle. |
 | `vehicle_contract` | `contract` | yes | yes | Blank sale contract: opens the contract draft. |
 | `signed_contract` | `signedContract` | yes | no (metadata) | Signed copy of a sale. |
+| `immobiliser` | `immobiliser` | yes | yes | Use it in / next to (3 m) your own vehicle: installs a standard immobiliser (no hotwiring). Consumed. |
+| `ghost_immobiliser` | `ghostImmobiliser` | yes | yes | Same, Ghost level: a four-digit PIN before the engine starts (set it from the key ring), no remote start. Consumed. |
+| `hotwire_kit` | `hotwireKit` | no | yes | Needed to splice wires when `Config.CarLock.hotwiring.kitRequired = true`. Not consumed. |
+| `signal_reader` | `signalReader` | no | yes | Needed to hotwire the classes / models of `hotwiring.readerClasses` / `readerModels` (when `hotwiring.style = 'wires'`, or for model overrides). Not consumed. |
 
 Lockpicking, hotwiring, fake plates and contracts are only active once their features are
 installed; an item whose feature is missing is simply not usable.
@@ -90,7 +94,8 @@ which moves the real item.
 `images/` holds simple original 100×100 PNG icons, named after the items
 (`vehicle_key.png`, `vehicle_fob.png`, `key_blank.png`, `lockpick.png`,
 `advancedlockpick.png`, `screwdriver.png`, `hacking_device.png`, `fake_plate.png`,
-`vehicle_contract.png`, `signed_contract.png`). Replace them with your own art freely; keep
+`vehicle_contract.png`, `signed_contract.png`, `immobiliser.png`, `ghost_immobiliser.png`,
+`hotwire_kit.png`, `signal_reader.png`). Replace them with your own art freely; keep
 the file names (or change `image` / `client.image` in the definitions).
 
 ## Key metadata
@@ -118,6 +123,13 @@ copied onto another plate never opens anything (set `Config.CarLock.trustUnsigne
 to accept keys without a signature — not recommended). The signing secret is created on the
 first start and stored in `nz_settings` (`carlock_secret`); servers sharing one database can
 set the same value with the convar `set nz_carlock_secret "<at least 16 characters>"`.
+
+**Custody.** Every key item the server makes is recorded in `nz_key_items` (plate, version,
+kind, origin, where it is: a player's pocket and slot, a stash, the ground). ox_inventory
+reports moves into a glovebox / trunk / stash / drop through its `swapItems` hook; other
+inventories are read when the server looks into a player's pockets (key ring, key checks).
+The `limited` key mode counts the copies of the current locks recorded there, and the admin
+key manager (`/vehiclekeysadmin`) shows them.
 
 The default ESX inventory has no metadata: the car lock then uses virtual keys (keys live on
 the server, given and managed in the Keys app) and never hands out key items. The same

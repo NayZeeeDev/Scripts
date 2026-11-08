@@ -135,6 +135,58 @@ local TABLES = {
     UNIQUE KEY `nz_keys_plate_identifier` (`plate`, `identifier`),
     KEY `nz_keys_identifier` (`identifier`)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+  -- Built-in car lock: where every key / fob item is (custody), for limited keys and the admin
+  -- key manager. custody: player | stash | ground | unknown | lost.
+  [[CREATE TABLE IF NOT EXISTS `nz_key_items` (
+    `key_id` VARCHAR(32) NOT NULL,
+    `plate` VARCHAR(16) NOT NULL,
+    `version` INT NOT NULL DEFAULT 0,
+    `kind` VARCHAR(8) NOT NULL DEFAULT 'key',
+    `origin` VARCHAR(16) NULL DEFAULT NULL,
+    `custody` VARCHAR(16) NOT NULL DEFAULT 'unknown',
+    `holder` VARCHAR(64) NULL DEFAULT NULL,
+    `slot` INT NULL DEFAULT NULL,
+    `created_by` VARCHAR(64) NULL DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`key_id`),
+    KEY `nz_key_items_plate` (`plate`),
+    KEY `nz_key_items_holder` (`holder`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+  -- Built-in car lock: immobiliser per plate (none | standard | ghost) and the Ghost PIN hash.
+  [[CREATE TABLE IF NOT EXISTS `nz_key_security` (
+    `plate` VARCHAR(16) NOT NULL,
+    `immobiliser` VARCHAR(8) NOT NULL DEFAULT 'none',
+    `pin_hash` VARCHAR(64) NULL DEFAULT NULL,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`plate`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+  -- Built-in car lock: per-player key settings (JSON), per character identifier.
+  [[CREATE TABLE IF NOT EXISTS `nz_key_players` (
+    `identifier` VARCHAR(64) NOT NULL,
+    `data` LONGTEXT NOT NULL,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`identifier`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
+
+  -- Built-in car lock: keys on the ground kept across a server restart (Config.CarLock.ground.persist).
+  [[CREATE TABLE IF NOT EXISTS `nz_ground_keys` (
+    `id` VARCHAR(32) NOT NULL,
+    `plate` VARCHAR(16) NOT NULL,
+    `data` LONGTEXT NOT NULL,
+    `x` DOUBLE NOT NULL,
+    `y` DOUBLE NOT NULL,
+    `z` DOUBLE NOT NULL,
+    `heading` DOUBLE NOT NULL DEFAULT 0,
+    `bucket` INT NOT NULL DEFAULT 0,
+    `expires_at` INT NULL DEFAULT NULL,
+    `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `nz_ground_keys_plate` (`plate`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]],
 }
 
 -- Extension columns of the framework vehicle table (see install/nayzeee-garages.sql).

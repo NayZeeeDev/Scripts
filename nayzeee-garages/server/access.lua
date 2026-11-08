@@ -13,6 +13,11 @@ local sessions = {}   -- [src] = session
 local limits = {}     -- [src] = { [bucket] = lastAllowedAt (ms) }
 local abuse = {}      -- [src] = { count, windowStart, loggedAt }
 
+-- Garage zones: the server ped position lags the client a little (OneSync sync rate, a car
+-- moving at speed), so a player on the edge of a zone is still inside within this tolerance.
+local ZONE_MARGIN = 3.0       -- metres outside an edge
+local ZONE_Z_MARGIN = 2.0     -- metres below minZ / above maxZ
+
 local ABUSE_WINDOW = 10000   -- ms
 local ABUSE_THRESHOLD = 15   -- denied calls inside the window before it is logged
 local ABUSE_LOG_EVERY = 60000
@@ -184,6 +189,35 @@ function Access.isNear(src, points, maxDist)
   return false
 end
 
+--- Is the player's ped (server position) inside the location's garage zone? false when the
+--- location has no zone.
+---@param src number
+---@param location table|nil
+---@param margin number|nil horizontal tolerance in metres (default ZONE_MARGIN)
+---@return boolean
+function Access.inZone(src, location, margin)
+  src = validSrc(src)
+  if not src or type(location) ~= 'table' or type(location.zone) ~= 'table' then return false end
+  if type(NZ.Locations.zoneContains) ~= 'function' then return false end
+  local ped = GetPlayerPed(src)
+  if not ped or ped == 0 then return false end
+  local pos = GetEntityCoords(ped)
+  if not pos then return false end
+  return NZ.Locations.zoneContains(location.zone, pos, tonumber(margin) or ZONE_MARGIN, ZONE_Z_MARGIN) == true
+end
+
+--- Is the player near the location's open points (within maxDist) or inside its garage zone?
+--- The check every "open this garage" action uses.
+---@param src number
+---@param location table|nil
+---@param maxDist number|nil default settings garages.maxDistance
+---@return boolean
+function Access.nearLocation(src, location, maxDist)
+  if type(location) ~= 'table' then return false end
+  if Access.isNear(src, location.openPoints or {}, maxDist) then return true end
+  return Access.inZone(src, location)
+end
+
 --- Admin permission (ace 'nayzeee-garages.admin' or ServerConfig.AdminGroups via the bridge).
 ---@param src number
 ---@return boolean
@@ -247,7 +281,8 @@ function Access.closeSession(src)
 end
 
 --- The player's session, only while the garage still exists / is enabled and the player is
---- near its open, store or spawn points (or inside an interior instance of that garage).
+--- near its open, store or spawn points, inside its garage zone (or inside an interior
+--- instance of that garage).
 --- Refreshes session.location from the cache so admin edits apply immediately.
 ---@param src number
 ---@param maxDist number|nil default settings garages.maxDistance
@@ -280,7 +315,8 @@ function Access.requireSession(src, maxDist)
   local loc = session.location
   if type(loc) == 'table' and (Access.isNear(src, loc.openPoints, maxDist)
       or Access.isNear(src, loc.storePoints, maxDist)
-      or Access.isNear(src, loc.spawnPoints, maxDist)) then
+      or Access.isNear(src, loc.spawnPoints, maxDist)
+      or Access.inZone(src, loc)) then
     return session
   end
   return nil, L('You are too far from the garage')

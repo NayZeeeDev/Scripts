@@ -400,15 +400,18 @@ local function deleteEntity(entity)
   return not DoesEntityExist(entity)
 end
 
---- Delete a vehicle and the trailer attached to it. Returns true when it is gone.
+--- Delete a vehicle and the trailer attached to it (unless `keepTrailer`: a trailer the
+--- server did not take, e.g. a registered vehicle of its own, is only unhitched). Returns true
+--- when the vehicle is gone.
 ---@param vehicle integer
+---@param keepTrailer boolean|nil
 ---@return boolean
-function Veh.delete(vehicle)
+function Veh.delete(vehicle, keepTrailer)
   if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return true end
   local hasTrailer, trailer = GetVehicleTrailerVehicle(vehicle)
   if hasTrailer and trailer and trailer ~= 0 and DoesEntityExist(trailer) then
     DetachVehicleFromTrailer(vehicle)
-    deleteEntity(trailer)
+    if keepTrailer ~= true then deleteEntity(trailer) end
   end
   if tracker.vehicle == vehicle then
     tracker.vehicle, tracker.pending = nil, 0.0
@@ -520,6 +523,15 @@ local function attachTrailer(vehicle, trailer)
   return false
 end
 
+--- World position (and heading) right behind `vehicle` for a trailer of model `hash`: the
+--- trailer's front TRAILER_GAP metres behind the vehicle's rear, same heading.
+local function behindVehicle(vehicle, hash)
+  local vehMin = GetModelDimensions(GetEntityModel(vehicle))
+  local _, trailerMax = GetModelDimensions(hash)
+  local offset = (vehMin and vehMin.y or -2.5) - (trailerMax and trailerMax.y or 2.5) - TRAILER_GAP
+  return GetOffsetFromEntityInWorldCoords(vehicle, 0.0, offset + 0.0, 0.0), GetEntityHeading(vehicle)
+end
+
 --- Spawn a saved trailer behind `vehicle`, restore it and hitch it.
 local function spawnTrailer(vehicle, data, networked)
   if type(data) ~= 'table' or not DoesEntityExist(vehicle) then return nil end
@@ -531,19 +543,23 @@ local function spawnTrailer(vehicle, data, networked)
   end
   rememberModel(data.model, hash)
 
-  local vehMin = GetModelDimensions(GetEntityModel(vehicle))
-  local _, trailerMax = GetModelDimensions(hash)
-  local offset = (vehMin and vehMin.y or -2.5) - (trailerMax and trailerMax.y or 2.5) - TRAILER_GAP
-  local pos = GetOffsetFromEntityInWorldCoords(vehicle, 0.0, offset + 0.0, 0.0)
-  local trailer = CreateVehicle(hash, pos.x, pos.y, pos.z, GetEntityHeading(vehicle), networked, false)
+  local pos, heading = behindVehicle(vehicle, hash)
+  local trailer = CreateVehicle(hash, pos.x, pos.y, pos.z, heading, networked, false)
   SetModelAsNoLongerNeeded(hash)
   if not trailer or trailer == 0 or not DoesEntityExist(trailer) then return nil end
 
   SetEntityAsMissionEntity(trailer, true, true)
-  SetVehicleOnGroundProperly(trailer)
-  if networked and waitNetworked(trailer, NETWORK_TIMEOUT) then
+  if networked then
+    if not waitNetworked(trailer, NETWORK_TIMEOUT) then
+      -- refused by the server (entity lockdown): a trailer only this client sees would be
+      -- lost on the next store; the saved one stays saved
+      lib.print.warn('[nayzeee-garages] the trailer never became networked (entity lockdown?)')
+      deleteEntity(trailer)
+      return nil
+    end
     SetNetworkIdCanMigrate(NetworkGetNetworkIdFromEntity(trailer), true)
   end
+  SetVehicleOnGroundProperly(trailer)
   if props then setProps(trailer, props) end
   local plate = plateText(data)
   if plate then SetVehicleNumberPlateText(trailer, plate) end
@@ -556,13 +572,22 @@ local function spawnTrailer(vehicle, data, networked)
   return trailer
 end
 
+local hitchServerTrailer -- defined below (needs the 'nzInit' claim helpers)
+
 --- Apply plate, props, fuel, health, damage, mileage and trailer to a vehicle we control.
+--- `data.isTrailer`: a server-created saved trailer (no fuel, mileage, plate bag or trailer).
 local function applyVehicleData(vehicle, data, networked)
   local props = type(data.props) == 'table' and data.props or nil
   if props then setProps(vehicle, props) end
 
   local plate = plateText(data)
   if plate then SetVehicleNumberPlateText(vehicle, plate) end
+
+  if data.isTrailer == true then
+    local damage = decodeTable(data.damage)
+    if damage then NZ.Damage.apply(vehicle, damage) end
+    return
+  end
 
   local fuel = tonumber(data.fuel) or (props and tonumber(props.fuelLevel)) or nil
   if fuel then call(NZ.Fuel.set, vehicle, Utils.clamp(fuel, 0, 100) + 0.0) end
@@ -590,7 +615,14 @@ local function applyVehicleData(vehicle, data, networked)
   end
 
   local trailer = decodeTable(data.trailer)
-  if trailer then spawnTrailer(vehicle, trailer, networked) end
+  if trailer then
+    if trailer.netId and networked then
+      -- server spawn: the server created the trailer too; hitch that one
+      hitchServerTrailer(vehicle, trailer)
+    else
+      spawnTrailer(vehicle, trailer, networked)
+    end
+  end
 end
 
 local function recentlyApplied(entity)
@@ -694,6 +726,36 @@ local function claimServerVehicle(vehicle, opts)
     NetworkRequestControlOfEntity(vehicle)
     Wait(100)
   end
+end
+
+--- Hitch the trailer the server created for a server-spawned vehicle (`info.netId`): take
+--- control, apply its own 'nzInit' (props, damage, plate) here, move it right behind the
+--- vehicle and attach it. Returns the trailer or nil.
+hitchServerTrailer = function(vehicle, info)
+  local netId = math.tointeger(tonumber(info.netId) or 0)
+  local trailer = netId and netId ~= 0 and entityFromNetId(netId, NET_TIMEOUT) or nil
+  if not trailer then
+    lib.print.warn('[nayzeee-garages] the trailer created by the server did not arrive')
+    return nil
+  end
+  if not takeControl(trailer, CLAIM_TIMEOUT) then
+    lib.print.warn('[nayzeee-garages] could not take control of the trailer to hitch it')
+    return trailer
+  end
+  if not busy[trailer] and not recentlyApplied(trailer) and decodeTable(Entity(trailer).state.nzInit) then
+    applyInit(trailer)
+  end
+  if not DoesEntityExist(vehicle) or not DoesEntityExist(trailer) then return trailer end
+  local pos, heading = behindVehicle(vehicle, GetEntityModel(trailer))
+  SetEntityCoordsNoOffset(trailer, pos.x, pos.y, pos.z, false, false, false)
+  SetEntityHeading(trailer, heading)
+  SetVehicleOnGroundProperly(trailer)
+  -- the server created it frozen (spawned 20 m back, no physics push before it is moved)
+  FreezeEntityPosition(trailer, false)
+  if not attachTrailer(vehicle, trailer) then
+    lib.print.warn('[nayzeee-garages] the trailer could not be attached')
+  end
+  return trailer
 end
 
 --- Adopt a vehicle the server created (opts.netId).

@@ -14,13 +14,26 @@
                    counts as a failure. Peds / vehicles a session holds are free again once it
                    expires (a stopped NPC is released by the server then).
   Callbacks (lib.callback, { ok, data, error }), payload { step, ... }:
-    nz:carlock:lockpick    start { netId, tool?, slot? } -> { id, method, difficulty, inputs, tool }
+    nz:carlock:lockpick    start { netId, tool?, slot? } -> { id, method = 'skillcheck', difficulty, inputs, tool }
+                                                         | { id, method = 'pins', puzzle = { pins, order, heights },
+                                                             snapChance, tool }   (lockpicking.style = 'pins')
     nz:carlock:hotwire     start { netId }               -> { id, method, difficulty, inputs, duration }
+                                                         | { id, method = 'wires', puzzle = { left, right }, item? }
+                                                         | { id, method = 'reader', puzzle = { frequency, phase,
+                                                             tolerance }, item }   (Config.CarLock.hotwiring)
+                           refused for vehicles with an immobiliser (standard or Ghost)
     nz:carlock:search      start { netId }               -> { id, duration }
-    nz:carlock:npcRob      start { netId, pedNetId }     -> { id?, outcome = 'comply'|'flee'|'fight', duration }
+    nz:carlock:npcRob      start { netId, pedNetId }     -> { id?, outcome = 'comply'|'drop'|'flee'|'fight', duration }
+                           npc.reactions weights (handover = 'comply' after robTime, drop = the key on
+                           the ground next to the driver door, fight, flee = drives away);
+                           npc.policeRequired on-duty officers; npc.dispatchDelay seconds before the alert
     nz:carlock:npcAssist   start { netId, pedNetId }     -> { id, duration }
     nz:carlock:deadDriver  start { netId, pedNetId }     -> { id, duration }
-    every one              finish { id, success }        -> { success, broke?, alarm?, found? }
+    every one              finish { id, success, answer?, snapped? } -> { success, broke?, alarm?, found? }
+                           answer: the minigame's solution (pins: the order the pins were set;
+                           wires: answer[i] = right position of left wire i; reader: { frequency,
+                           phase }); a wrong answer is a failure. snapped (pins): an overset pin
+                           breaks the pick at lockpicking.snapChance % (+ alarm with alarmOnSnap)
     (start may also carry `street` and `label`: display text for police alerts only.)
 
   Outcomes: lockpick unlocks the doors; hotwire / robbery / assist / dead driver give a
@@ -613,6 +626,78 @@ local function displayInfo(payload)
 end
 
 ---------------------------------------------------------------------------------------
+-- NUI minigames (pin lock, wires, signal reader): the server makes the puzzle, the client
+-- plays it and sends its answer with `finish`; a wrong answer is a failure.
+---------------------------------------------------------------------------------------
+
+local WIRE_COLOURS = { 'red', 'blue', 'yellow', 'green', 'white', 'orange' }
+local MINIGAME_MAX_MS = 90000
+local PIN_MIN_MS = 450          -- per pin: tension, find the binding pin, lift it
+local WIRES_MIN_MS = 2400       -- three splices
+local READER_MIN_MS = 2000      -- tune frequency and phase
+local READER_TOLERANCE = { frequency = 1.5, phase = 8 }
+
+local function shuffled(list)
+  local out = {}
+  for i, v in ipairs(list) do out[i] = v end
+  for i = #out, 2, -1 do
+    local j = math.random(1, i)
+    out[i], out[j] = out[j], out[i]
+  end
+  return out
+end
+
+local function pinsPuzzle(count)
+  local order = {}
+  for i = 1, count do order[i] = i end
+  order = shuffled(order)
+  local heights = {}
+  for i = 1, count do heights[i] = math.random(25, 90) / 100 end
+  -- the client is told the heights (to draw them) and the binding order (to make the pin it
+  -- has to lift bind first); the answer is the order the pins were set
+  return { pins = count, order = order, heights = heights }
+end
+
+local function wiresPuzzle()
+  local left = {}
+  local pool = shuffled(WIRE_COLOURS)
+  for i = 1, 3 do left[i] = pool[i] end
+  return { left = left, right = shuffled(left) }
+end
+
+local function readerPuzzle()
+  return { frequency = math.random(3000, 9000) / 10, phase = math.random(0, 359), tolerance = READER_TOLERANCE }
+end
+
+--- Is `answer` (client) the solution of `puzzle`?
+local function solved(method, puzzle, answer)
+  if type(puzzle) ~= 'table' then return true end
+  if type(answer) ~= 'table' then return false end
+  if method == 'pins' then
+    for i = 1, puzzle.pins do
+      if tonumber(answer[i]) ~= puzzle.order[i] then return false end
+    end
+    return #answer == puzzle.pins
+  elseif method == 'wires' then
+    -- answer[i] = the position on the right that left wire i was spliced to
+    if #answer ~= 3 then return false end
+    local used = {}
+    for i = 1, 3 do
+      local j = math.tointeger(tonumber(answer[i]))
+      if not j or j < 1 or j > 3 or used[j] or puzzle.right[j] ~= puzzle.left[i] then return false end
+      used[j] = true
+    end
+    return true
+  elseif method == 'reader' then
+    local f, ph = tonumber(answer.frequency), tonumber(answer.phase)
+    if not f or not ph then return false end
+    local dPhase = math.abs((ph - puzzle.phase + 180) % 360 - 180)
+    return math.abs(f - puzzle.frequency) <= READER_TOLERANCE.frequency and dPhase <= READER_TOLERANCE.phase
+  end
+  return true
+end
+
+---------------------------------------------------------------------------------------
 -- Lockpick
 ---------------------------------------------------------------------------------------
 
@@ -641,6 +726,18 @@ local function lockpickStart(src, payload)
   end
   local checks = checksOf(tool.difficulty)
   local street, label = displayInfo(payload)
+  local picking = section('lockpicking')
+  if picking.style == 'pins' then
+    -- the five-pin lock of the NUI (G.6): the server picks the binding order
+    local count = math.floor(Utils.clamp(tonumber(picking.pins) or 5, 3, 7))
+    local puzzle = pinsPuzzle(count)
+    local session = openSession(src, {
+      action = 'lockpick', entity = entity, netId = netIdOf(entity), plate = plate, tool = tool, item = item,
+      slot = slotOf(src, item, payload.slot), street = street, label = label, method = 'pins', puzzle = puzzle,
+    }, DOOR_TURN_MS + count * PIN_MIN_MS - GRACE_MS, MINIGAME_MAX_MS)
+    return Utils.ok({ id = session.id, method = 'pins', puzzle = puzzle, tool = tool.item, item = item,
+      snapChance = Utils.clamp(tonumber(picking.snapChance) or 35, 0, 100) })
+  end
   local session = openSession(src, {
     action = 'lockpick', entity = entity, netId = netIdOf(entity), plate = plate, tool = tool, item = item,
     slot = slotOf(src, item, payload.slot), street = street, label = label,
@@ -649,18 +746,28 @@ local function lockpickStart(src, payload)
     tool = tool.item, item = item })
 end
 
-local function lockpickFinish(src, session, success)
+local function lockpickFinish(src, session, success, payload)
   local entity = session.entity
   if not isVehicle(entity) then return Utils.fail(L('Vehicle not found')) end
   local ped = pedOf(src)
   if success and (not ped or distance(ped, entity) > accessRange(entity) + SLACK) then success = false end
   if success and not NZ.Inventory.hasItem(src, session.item) then success = false end
+  if success and session.method == 'pins' and not solved('pins', session.puzzle, type(payload) == 'table' and payload.answer or nil) then
+    success = false
+  end
   local result = { success = success }
   if success then
     CarLock.setLocked(entity, false)
   else
-    if roll(session.tool.breakChance) and breakItem(src, session.item, session.slot) then result.broke = true end
-    if roll(session.tool.alarmChance) and CarLock.alarm(entity) then result.alarm = true end
+    -- pin lock: an overset pin (the client says so) snaps the pick at snapChance %, else the tool's break chance
+    local picking = section('lockpicking')
+    local snapped = session.method == 'pins' and type(payload) == 'table' and payload.snapped == true
+    local breakChance = snapped and Utils.clamp(tonumber(picking.snapChance) or 35, 0, 100) or session.tool.breakChance
+    if roll(breakChance) and breakItem(src, session.item, session.slot) then result.broke = true end
+    if (snapped and result.broke and picking.alarmOnSnap ~= false and CarLock.alarm(entity))
+      or (not result.alarm and roll(session.tool.alarmChance) and CarLock.alarm(entity)) then
+      result.alarm = true
+    end
   end
   rollAlert(src, 'lockpick', entity, session.tool.alertChance, result.alarm, session)
   log('vehicle.lockpick', src, { plate = session.plate, tool = session.item, success = success, broke = result.broke })
@@ -679,8 +786,29 @@ local function hotwireStart(src, payload)
   local ped = pedOf(src)
   if not inside or GetPedInVehicleSeat(entity, -1) ~= ped then return Utils.fail(L('You are not in the driver seat')) end
   if CarLock.jobBypass(src, plate) then return Utils.fail(L('You can start this vehicle')) end
+  -- an immobiliser (standard or Ghost) cannot be hotwired
+  if CarLock.immobiliserOf(plate) ~= 'none' then return Utils.fail(L('An immobiliser stops you from hotwiring this vehicle')) end
   local _, profile = CarLock.profileOfEntity(entity)
   local hotwire = type(profile.hotwire) == 'table' and profile.hotwire or {}
+  local game = CarLock.hotwireMethodOf(GetEntityModel(entity), CarLock.classOf(entity), profile)
+  if game == 'wires' or game == 'reader' then
+    -- the NUI minigames (G.7): wires (hotwiring.kitRequired: items.hotwireKit) or the signal reader
+    local need = nil
+    if game == 'reader' then
+      need = CarLock.itemName('signalReader')
+    elseif section('hotwiring').kitRequired == true then
+      need = CarLock.itemName('hotwireKit')
+    end
+    if need and not NZ.Inventory.hasItem(src, need) then
+      return Utils.fail(game == 'reader' and L('You need a signal reader to start this vehicle') or L('You need a hotwire kit'))
+    end
+    local puzzle = game == 'reader' and readerPuzzle() or wiresPuzzle()
+    local street, label = displayInfo(payload)
+    local session = openSession(src, { action = 'hotwire', entity = entity, netId = netIdOf(entity), plate = plate,
+      hotwire = hotwire, method = game, puzzle = puzzle, street = street, label = label },
+      (game == 'reader' and READER_MIN_MS or WIRES_MIN_MS) - GRACE_MS, MINIGAME_MAX_MS)
+    return Utils.ok({ id = session.id, method = game, puzzle = puzzle, item = need })
+  end
   local method = METHODS[hotwire.method] and hotwire.method or 'skillcheck'
   local item = nil
   if method == 'hack' then
@@ -702,12 +830,15 @@ local function hotwireStart(src, payload)
   return Utils.ok({ id = session.id, method = method, difficulty = checks, inputs = inputsOf(hotwire.inputs), item = item })
 end
 
-local function hotwireFinish(src, session, success)
+local function hotwireFinish(src, session, success, payload)
   local entity = session.entity
   if not isVehicle(entity) then return Utils.fail(L('Vehicle not found')) end
   local ped = pedOf(src)
   if success and (not ped or GetPedInVehicleSeat(entity, -1) ~= ped) then success = false end
   if success and session.item and not NZ.Inventory.hasItem(src, session.item) then success = false end
+  if success and session.puzzle and not solved(session.method, session.puzzle, type(payload) == 'table' and payload.answer or nil) then
+    success = false
+  end
   local result = { success = success }
   if success then
     CarLock.grantTemp(src, session.plate, 'hotwire')
@@ -812,6 +943,54 @@ end
 
 local function robRange() return Utils.clamp(tonumber(section('npc').range) or 6.0, 2.0, 15.0) end
 
+local REACTIONS = { 'handover', 'drop', 'fight', 'flee' }
+
+--- How a held-up driver reacts (Config.CarLock.npc.reactions weights; older configs:
+--- resistChance / fightChance). 'drop' needs keys on the ground (else 'handover').
+local function pickReaction(npc)
+  local weights = type(npc.reactions) == 'table' and npc.reactions or nil
+  if not weights then
+    if not roll(npc.resistChance) then return 'handover' end
+    return roll(npc.fightChance) and 'fight' or 'flee'
+  end
+  local total = 0
+  for _, name in ipairs(REACTIONS) do total = total + math.max(tonumber(weights[name]) or 0, 0) end
+  if total <= 0 then return 'handover' end
+  local pick = math.random() * total
+  local reaction = 'handover'
+  for _, name in ipairs(REACTIONS) do
+    local w = math.max(tonumber(weights[name]) or 0, 0)
+    if w > 0 then
+      if pick < w then reaction = name break end
+      pick = pick - w
+    end
+  end
+  local ground = section('ground')
+  if reaction == 'drop' and (ground.enabled == false or type(CarLock.groundDropTemp) ~= 'function') then return 'handover' end
+  return reaction
+end
+
+--- On-duty officers (Config.CarLock.dispatch.jobs); nil when the dispatch bridge cannot tell.
+local function policeOnline()
+  local receivers = type(NZ.Dispatch) == 'table' and rawget(NZ.Dispatch, 'receivers') or nil
+  if type(receivers) ~= 'function' then return nil end
+  local jobs = section('dispatch').jobs
+  local ok, list = pcall(receivers, type(jobs) == 'table' and jobs or { 'police' })
+  return ok and type(list) == 'table' and #list or nil
+end
+
+--- The hold-up's police alert, after npc.dispatchDelay seconds.
+local function robberyAlert(src, entity, session)
+  local npc = section('npc')
+  local delay = math.floor(Utils.clamp(tonumber(npc.dispatchDelay) or 0, 0, 600))
+  if delay <= 0 then return rollAlert(src, 'robbery', entity, npc.alertChance, false, session) end
+  if not roll(npc.alertChance) then return false end
+  SetTimeout(delay * 1000, function()
+    if isVehicle(entity) then CarLock.crimeAlert(src, 'robbery', entity, session) end
+  end)
+  return true
+end
+
 local function robStart(src, payload)
   local npc = section('npc')
   if npc.robbery == false then return Utils.fail(L('You cannot do that')) end
@@ -824,6 +1003,11 @@ local function robStart(src, payload)
   if npc.ownedVehicles ~= true and ownedPlate(plate) then return Utils.fail(L('This driver will not give you the keys')) end
   if speedOf(entity) > (tonumber(npc.maxSpeed) or 8.0) + 1.0 then return Utils.fail(L('The vehicle is moving too fast')) end
   if not armed(pedOf(src)) then return Utils.fail(L('You need a weapon')) end
+  local needPolice = math.floor(tonumber(npc.policeRequired) or 0)
+  if needPolice > 0 then
+    local online = policeOnline()
+    if online ~= nil and online < needPolice then return Utils.fail(L('There are not enough police officers around')) end
+  end
 
   setCooldown(src, 'rob', npc.cooldown or 60)
   drivers[entity] = { ped = ped, at = now() }
@@ -831,14 +1015,41 @@ local function robStart(src, payload)
   local base = { action = 'rob', entity = entity, netId = netIdOf(entity), plate = plate, ped = ped,
     pedNetId = netIdOf(ped), street = street, label = label }
 
-  if roll(npc.resistChance) then
+  local reaction = pickReaction(npc)
+  if reaction == 'fight' or reaction == 'flee' then
     -- resists: no key; drives off or fights
-    local outcome = roll(npc.fightChance) and 'fight' or 'flee'
     base.src = src
-    npcStep(base, outcome, { weapon = outcome == 'fight' and fightWeapon() or nil })
-    rollAlert(src, 'robbery', entity, npc.alertChance, false, base)
-    log('vehicle.robbery', src, { plate = plate, outcome = outcome })
-    return Utils.ok({ outcome = outcome })
+    npcStep(base, reaction, { weapon = reaction == 'fight' and fightWeapon() or nil })
+    robberyAlert(src, entity, base)
+    log('vehicle.robbery', src, { plate = plate, outcome = reaction })
+    return Utils.ok({ outcome = reaction })
+  end
+  if reaction == 'drop' then
+    -- drops the key next to the driver door and runs: a key on the ground anyone can pick up
+    base.src = src
+    busyPeds[ped] = src
+    npcStep(base, 'drop', {})
+    CarLock.setLocked(entity, false)
+    local bucket = GetEntityRoutingBucket(entity)
+    local _, profile = CarLock.profileOfEntity(entity)
+    local keyKind = CarLock.keyKindOf(profile)
+    SetTimeout(2600, function()
+      if busyPeds[ped] == src then busyPeds[ped] = nil end
+      local spot = nil
+      -- at the driver's feet once out (z: ped origin ~1 m above the ground), else by the driver door
+      if isPed(ped) and isVehicle(entity) and GetVehiclePedIsIn(ped, false) ~= entity and distance(ped, entity) <= 6.0 then
+        local c = GetEntityCoords(ped)
+        spot = vector3(c.x, c.y, c.z - 0.9)
+      elseif isVehicle(entity) then
+        local h = math.rad(tonumber(GetEntityHeading(entity)) or 0.0)
+        local c = GetEntityCoords(entity)
+        spot = vector3(c.x - math.cos(h) * 1.4, c.y - math.sin(h) * 1.4, c.z - 0.3)
+      end
+      if spot then CarLock.groundDropTemp(plate, spot, bucket, 'robbery', keyKind) end
+    end)
+    robberyAlert(src, entity, base)
+    log('vehicle.robbery', src, { plate = plate, outcome = 'drop' })
+    return Utils.ok({ outcome = 'drop' })
   end
 
   local robTime = math.floor(Utils.clamp(tonumber(npc.robTime) or 3500, 500, 30000))
@@ -864,7 +1075,7 @@ local function robFinish(src, session, success)
     CarLock.grantTemp(src, session.plate, 'robbery')
     CarLock.setLocked(entity, false)
     npcStep(session, 'release')
-    rollAlert(src, 'robbery', entity, section('npc').alertChance, false, session)
+    robberyAlert(src, entity, session)
   elseif isPed(ped) and alive(ped) then
     npcStep(session, 'flee')
   end
@@ -1022,7 +1233,7 @@ local function handle(action, source, payload)
       success = false
     end
     if t > session.maxAt then success = false end
-    return impl.finish(src, session, success)
+    return impl.finish(src, session, success, payload)
   end
   return Utils.fail(L('Invalid request'))
 end

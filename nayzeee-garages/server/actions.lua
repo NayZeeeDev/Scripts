@@ -856,6 +856,329 @@ register('nz:garage:sellRespond', function(src, payload)
   return NZ.Vehicles.withLock(offer.plate, completeSale, src, offer)
 end)
 
+---------------------------------------------------------------------------------------
+-- Finance (NZ.Finance): API for dealership scripts (server/exports.lua), garage payments
+-- and the due-date check. Storage: server/db.lua (nz_finance record + framework columns).
+-- Events (server side, TriggerEvent; docs/INTEGRATIONS.md):
+--   'nayzeee-garages:finance:paid'    (plate, PaidInfo)
+--   'nayzeee-garages:finance:missed'  (plate, MissedInfo)
+--   'nayzeee-garages:finance:cleared' (plate, ClearedInfo)
+---------------------------------------------------------------------------------------
+
+NZ.Finance = NZ.Finance or {}
+local Finance = NZ.Finance
+
+local FINANCE_EVENT = 'nayzeee-garages:finance:'
+local MISSED_ACTIONS = { none = true, block = true, impound = true }
+local MAX_AHEAD = 5 * 366 * 86400   -- a first due date at most 5 years ahead
+local MAX_BEHIND = 366 * 86400      -- or one year in the past (imported plans)
+local LOCK_MARKER = {}
+
+local function financeConfig()
+  return type(Config.Finance) == 'table' and Config.Finance or {}
+end
+
+local function limit(key, default)
+  local n = tonumber(financeConfig()[key])
+  if not n or n ~= n or n <= 0 then return default end
+  return n
+end
+
+--- 'none' | 'block' | 'impound' (Config.Finance.missedAction, default 'block').
+---@return string
+function Finance.missedAction()
+  local action = financeConfig().missedAction
+  return MISSED_ACTIONS[action] and action or 'block'
+end
+
+--- Does an overdue payment keep this vehicle where it is (garage, impound, phone valet)?
+---@param row table NZVehicleRow
+---@return boolean
+function Finance.blocks(row)
+  local finance = type(row) == 'table' and row.finance or nil
+  return type(finance) == 'table' and finance.overdue == true and Finance.missedAction() ~= 'none'
+end
+
+local function intervalOf(finance)
+  local interval = tonumber(type(finance) == 'table' and finance.intervalHours or nil)
+  if not interval or interval ~= interval or interval <= 0 then interval = tonumber(NZ.DB.financeIntervalHours()) or 24 end
+  return interval
+end
+
+--- Public copy of a Finance table (§4.5 + API fields).
+local function view(finance)
+  if type(finance) ~= 'table' then return nil end
+  return {
+    balance = math.floor(tonumber(finance.balance) or 0),
+    payment = math.floor(tonumber(finance.payment) or 0),
+    paymentsLeft = math.floor(tonumber(finance.paymentsLeft) or 0),
+    paymentsTotal = toInt(finance.paymentsTotal),
+    intervalHours = tonumber(finance.intervalHours),
+    nextPaymentAt = toInt(finance.nextPaymentAt),
+    nextPaymentHours = tonumber(finance.nextPaymentHours),
+    overdue = finance.overdue == true,
+    missed = math.max(toInt(finance.missed) or 0, 0),
+    since = toInt(finance.since),
+  }
+end
+Finance.view = view
+
+--- Validate a plan given by another resource:
+--- { balance, payment, paymentsTotal, intervalHours, nextPaymentAt?, paymentsLeft? }.
+---@return table|nil plan, string|nil error
+function Finance.validate(data)
+  if type(data) ~= 'table' then return nil, L('Invalid finance data') end
+  local maxBalance = math.floor(limit('maxBalance', 100000000))
+  local maxPayments = math.floor(limit('maxPayments', 1000))
+  local maxInterval = limit('maxIntervalHours', 8760)
+  local balance = toInt(data.balance, 1, maxBalance)
+  local payment = toInt(data.payment, 1, maxBalance)
+  local total = toInt(data.paymentsTotal, 1, maxPayments)
+  local interval = tonumber(data.intervalHours)
+  if not balance then return nil, L('Invalid finance balance') end
+  if not payment then return nil, L('Invalid finance payment') end
+  if not total then return nil, L('Invalid number of payments') end
+  if not interval or interval ~= interval or interval < 1 / 60 or interval > maxInterval then
+    return nil, L('Invalid payment interval')
+  end
+  payment = math.min(payment, balance)
+
+  local left
+  if data.paymentsLeft ~= nil then
+    left = toInt(data.paymentsLeft, 1, total)
+    if not left then return nil, L('Invalid number of payments') end
+  else
+    left = math.min(total, math.ceil(balance / payment))
+  end
+
+  local now = os.time()
+  local nextAt
+  if data.nextPaymentAt ~= nil then
+    nextAt = toInt(data.nextPaymentAt, now - MAX_BEHIND, now + MAX_AHEAD)
+    if not nextAt then return nil, L('Invalid next payment date') end
+  else
+    nextAt = now + math.floor(interval * 3600 + 0.5)
+  end
+  return {
+    balance = balance,
+    payment = payment,
+    paymentsLeft = left,
+    paymentsTotal = total,
+    intervalHours = interval,
+    nextPaymentAt = nextAt,
+    missed = 0,
+    since = now,
+  }, nil
+end
+
+--- Apply a payment of `amount` (at least one instalment, at most the balance) to a Finance.
+--- Each whole instalment covered counts; the next payment is due `instalments × interval`
+--- from now (an overdue plan is never left overdue). Returns nil when paid off.
+---@return table|nil updated, integer instalments
+function Finance.applyPayment(finance, amount, now)
+  now = now or os.time()
+  local balance = math.max(math.floor(tonumber(finance.balance) or 0), 0)
+  amount = math.min(math.max(math.floor(tonumber(amount) or 0), 0), balance)
+  local payment = math.max(math.floor(tonumber(finance.payment) or 0), 0)
+  local newBalance = balance - amount
+  local instalments = payment > 0 and math.floor(amount / payment) or 1
+  if instalments < 1 then instalments = 1 end
+  if newBalance <= 0 then return nil, instalments end
+
+  local left = math.max(0, (toInt(finance.paymentsLeft) or 1) - instalments)
+  local nextPayment = payment
+  if left == 0 then
+    -- rounding left a remainder: one more payment of exactly what is owed
+    left, nextPayment = 1, newBalance
+  end
+  if nextPayment > newBalance or nextPayment <= 0 then nextPayment = newBalance end
+  local interval = intervalOf(finance)
+  return {
+    balance = newBalance,
+    payment = nextPayment,
+    paymentsLeft = left,
+    -- First payment through us records the plan length for the progress display.
+    paymentsTotal = toInt(finance.paymentsTotal) or toInt(finance.paymentsLeft),
+    intervalHours = interval,
+    nextPaymentAt = now + math.floor(instalments * interval * 3600 + 0.5),
+    nextPaymentHours = Utils.round(instalments * interval, 1),
+    overdue = false,
+    missed = math.max(toInt(finance.missed) or 0, 0),
+    since = toInt(finance.since),
+  }, instalments
+end
+
+local function fire(name, plate, data)
+  local okFire, err = pcall(TriggerEvent, FINANCE_EVENT .. name, plate, data)
+  if not okFire then lib.print.warn(('[nayzeee-garages] finance event %s failed: %s'):format(name, tostring(err))) end
+end
+
+--- Events are collected while the plate lock is held and fired once it is released, so a
+--- handler may call the finance exports for the same vehicle.
+local function fireAll(events)
+  for _, e in ipairs(events or {}) do fire(e[1], e[2], e[3]) end
+end
+
+local function ownerSource(row)
+  if not row.owner or type(NZ.Bridge.getSourceByIdentifier) ~= 'function' then return nil end
+  local okSrc, src = pcall(NZ.Bridge.getSourceByIdentifier, row.owner)
+  return okSrc and src or nil
+end
+
+local function tellOwner(row, kind, message)
+  if financeConfig().notifyOwner == false then return end
+  local src = ownerSource(row)
+  if src then notify(src, kind, message) end
+end
+
+--- Run fn(events) (returning values) under the vehicle's plate lock, then fire the events it
+--- queued; busy -> false, error.
+local function locked(plate, fn)
+  local events = {}
+  local res = NZ.Vehicles.withLock(plate, function()
+    return { marker = LOCK_MARKER, values = table.pack(fn(events)) }
+  end)
+  fireAll(events)
+  if type(res) == 'table' and res.marker == LOCK_MARKER then
+    return table.unpack(res.values, 1, res.values.n)
+  end
+  return false, (type(res) == 'table' and res.error) or L('This vehicle is busy, try again in a moment')
+end
+
+local function ensureStorage()
+  if NZ.DB.financeSupported() then return true end
+  if type(NZ.DB.ensureFinanceColumn) == 'function' then pcall(NZ.DB.ensureFinanceColumn) end
+  return NZ.DB.financeSupported() == true
+end
+
+--- Write a payment of `amount` already collected by the caller. Must run under the plate lock;
+--- the events go to `events` (fired after the lock). `info` = { src?, origin, resource? }.
+---@return boolean ok, table|string updated finance (nil = paid off) or error
+local function commitPayment(plate, row, amount, info, events)
+  local finance = row.finance
+  local updated, instalments = Finance.applyPayment(finance, amount)
+  if not NZ.DB.updateVehicle(plate, { finance = updated or false }) then return false, L('Something went wrong') end
+  local paidOff = updated == nil
+  local src = info.src
+  local identifier = src and NZ.Bridge.getIdentifier(src) or nil
+  log('vehicle.finance', src, {
+    plate = plate, action = 'paid', amount = amount, paidOff = paidOff, instalments = instalments,
+    balance = updated and updated.balance or 0, origin = info.origin, resource = info.resource,
+  })
+  events[#events + 1] = { 'paid', plate, {
+    amount = amount,
+    instalments = instalments,
+    balance = updated and updated.balance or 0,
+    paymentsLeft = updated and updated.paymentsLeft or 0,
+    paymentsTotal = (updated and updated.paymentsTotal) or toInt(finance.paymentsTotal),
+    nextPaymentAt = updated and updated.nextPaymentAt or nil,
+    paidOff = paidOff,
+    wasOverdue = finance.overdue == true,
+    owner = row.owner,
+    source = src,
+    identifier = identifier,
+    origin = info.origin,
+    resource = info.resource,
+  } }
+  if paidOff then
+    events[#events + 1] = { 'cleared', plate, {
+      reason = 'paid', balance = 0, owner = row.owner, source = src, origin = info.origin, resource = info.resource,
+    } }
+  end
+  return true, updated
+end
+
+--- Read the finance of a vehicle (nil = nothing owed / unknown vehicle).
+---@param plate string
+---@return table|nil
+function Finance.get(plate)
+  plate = readPlate(plate)
+  if not plate then return nil end
+  local row = NZ.DB.getVehicle(plate)
+  return row and view(row.finance) or nil
+end
+
+--- Set (create or replace) the finance plan of a vehicle (dealership scripts).
+---@param plate string
+---@param data table see Finance.validate
+---@param resource string|nil calling resource (logs, events)
+---@return boolean ok, table|string finance view or error
+function Finance.set(plate, data, resource)
+  plate = readPlate(plate)
+  if not plate then return false, L('Invalid plate') end
+  local plan, err = Finance.validate(data)
+  if not plan then return false, err end
+  if not ensureStorage() then return false, L('Vehicle finance is not available on this server') end
+  plan.by = resource
+  return locked(plate, function()
+    local row = NZ.DB.getVehicle(plate)
+    if not row then return false, L('Vehicle not found') end
+    if not NZ.DB.updateVehicle(plate, { finance = plan }) then return false, L('Something went wrong') end
+    log('vehicle.finance', nil, {
+      plate = plate, action = 'set', owner = row.owner, balance = plan.balance, payment = plan.payment,
+      paymentsLeft = plan.paymentsLeft, paymentsTotal = plan.paymentsTotal, intervalHours = plan.intervalHours,
+      nextPaymentAt = plan.nextPaymentAt, replaced = row.finance ~= nil, resource = resource,
+    })
+    local fresh = NZ.DB.getVehicle(plate)
+    return true, view(fresh and fresh.finance) or view(plan)
+  end)
+end
+
+--- Remove the finance of a vehicle (written off, refinanced elsewhere, sold back ...).
+---@param plate string
+---@param reason string|nil free text for logs / the event (default 'cleared')
+---@param resource string|nil calling resource
+---@return boolean ok, string|nil error
+function Finance.clear(plate, reason, resource)
+  plate = readPlate(plate)
+  if not plate then return false, L('Invalid plate') end
+  reason = Utils.cleanText(reason, 64) or 'cleared'
+  return locked(plate, function(events)
+    local row = NZ.DB.getVehicle(plate)
+    if not row then return false, L('Vehicle not found') end
+    if type(row.finance) ~= 'table' then return true, nil end
+    if not NZ.DB.updateVehicle(plate, { finance = false }) then return false, L('Something went wrong') end
+    log('vehicle.finance', nil, {
+      plate = plate, action = 'cleared', owner = row.owner, balance = row.finance.balance, reason = reason,
+      resource = resource,
+    })
+    events[#events + 1] = { 'cleared', plate, {
+      reason = reason, balance = math.floor(tonumber(row.finance.balance) or 0), owner = row.owner,
+      origin = 'export', resource = resource,
+    } }
+    return true, nil
+  end)
+end
+
+--- Record a payment another script collected (no money is taken here). `amount` must cover
+--- at least one instalment (or be the whole balance) and never exceed the balance.
+---@param plate string
+---@param amount number
+---@param src number|nil the player who paid (logs / event)
+---@param resource string|nil calling resource
+---@return boolean ok, table|string|nil finance after the payment (nil = paid off) or error
+function Finance.recordPayment(plate, amount, src, resource)
+  plate = readPlate(plate)
+  if not plate then return false, L('Invalid plate') end
+  amount = toInt(amount, 1, math.floor(limit('maxBalance', 100000000)))
+  if not amount then return false, L('Invalid amount') end
+  src = toInt(src, 1)
+  if src and not GetPlayerName(src) then src = nil end
+  return locked(plate, function(events)
+    local row = NZ.DB.getVehicle(plate)
+    if not row then return false, L('Vehicle not found') end
+    local finance = row.finance
+    local balance = type(finance) == 'table' and math.floor(tonumber(finance.balance) or 0) or 0
+    if balance <= 0 then return false, L('This vehicle has no outstanding finance') end
+    if amount > balance then return false, L('The amount is more than the balance ({amount})', { amount = money(balance) }) end
+    local minimum = math.min(math.max(math.floor(tonumber(finance.payment) or 0), 1), balance)
+    if amount < minimum then return false, L('The amount does not cover one payment ({amount})', { amount = money(minimum) }) end
+    local done, updated = commitPayment(plate, row, amount, { src = src, origin = 'export', resource = resource }, events)
+    if not done then return false, updated end
+    return true, view(updated)
+  end)
+end
+
 -- { plate, full } -> Finance|null (null once paid off)
 register('nz:garage:payFinance', function(src, payload)
   local ctx, err = begin(src, 'garage:payFinance', 1500)
@@ -864,7 +1187,8 @@ register('nz:garage:payFinance', function(src, payload)
   if not plate or (payload.full ~= nil and type(payload.full) ~= 'boolean') then return fail(L('Invalid request')) end
   local full = payload.full == true
 
-  return NZ.Vehicles.withLock(plate, function()
+  local events = {}
+  local result = NZ.Vehicles.withLock(plate, function()
     local row, rowErr = ownedRow(plate, ctx.identifier)
     if not row then return fail(rowErr) end
     local finance = row.finance
@@ -878,39 +1202,179 @@ register('nz:garage:payFinance', function(src, payload)
     local paid, account = charge(src, amount, 'nayzeee-garages:finance')
     if not paid then return fail(L('You cannot afford this ({amount})', { amount = money(amount) })) end
 
-    local updated = nil
-    if not payAll then
-      -- A paid instalment restarts the payment timer with the full interval, exactly like
-      -- qb-vehicleshop / qbx_vehicleshop do (their repossession check is financetime < 1).
-      -- Never reuse the time that was left: an overdue vehicle would stay overdue.
-      local interval = tonumber(finance.intervalHours)
-      if not interval or interval <= 0 then interval = tonumber(NZ.DB.financeIntervalHours()) or 24 end
-      local newBalance = balance - amount
-      local left = math.max(0, (toInt(finance.paymentsLeft) or 1) - 1)
-      local nextPayment = payment
-      if left == 0 and newBalance > 0 then
-        -- rounding left a remainder: one more payment of exactly what is owed
-        left, nextPayment = 1, newBalance
-      end
-      updated = {
-        balance = newBalance,
-        payment = nextPayment,
-        paymentsLeft = left,
-        -- First payment through us records the plan length for the progress display.
-        paymentsTotal = finance.paymentsTotal or toInt(finance.paymentsLeft),
-        intervalHours = interval,
-        nextPaymentHours = interval,
-        overdue = false,
-      }
-    end
-
-    if not NZ.DB.updateVehicle(plate, { finance = updated or false }) then
+    local done, updated = commitPayment(plate, row, amount, { src = src, origin = 'garage' }, events)
+    if not done then
       refund(src, amount, account, 'nayzeee-garages:finance-refund')
-      return fail(L('Something went wrong'))
+      return fail(updated)
     end
-    log('vehicle.finance', src, {
-      plate = plate, amount = amount, paidOff = updated == nil, balance = updated and updated.balance or 0,
-    })
-    return ok(updated)
+    return ok(view(updated))
   end)
+  fireAll(events)
+  return result
+end)
+
+---------------------------------------------------------------------------------------
+-- Due-date check (missed payments, Config.Finance.missedAction)
+---------------------------------------------------------------------------------------
+
+local reported = {}     -- ['<plate>:<due>'] = true: missed event already fired (write failed)
+local repossessWarned = {}
+
+--- Impound used for repossessions: Config.Finance.impound.locationId, garages.restartImpound,
+--- else the first enabled impound of the vehicle's category (any impound as a last resort).
+local function repossessImpound(row)
+  local cfg = type(financeConfig().impound) == 'table' and financeConfig().impound or {}
+  local configured = toInt(cfg.locationId, 1) or toInt(setting('garages.restartImpound', nil), 1)
+  if configured then
+    local location = NZ.Locations.get(configured)
+    if type(location) == 'table' and location.kind == 'impound' and location.enabled ~= false then return location end
+  end
+  local vtype = NZ.Vehicles.vehicleTypeOf and NZ.Vehicles.vehicleTypeOf(row) or 'car'
+  local fallback = nil
+  for _, location in ipairs(NZ.Locations.all('impound') or {}) do
+    if location.enabled ~= false then
+      if (location.vehicleType or 'car') == vtype then return location end
+      fallback = fallback or location
+    end
+  end
+  return fallback
+end
+
+local function occupied(entity)
+  for seat = -1, 14 do
+    local ped = GetPedInVehicleSeat(entity, seat)
+    if ped and ped ~= 0 then return true end
+  end
+  return false
+end
+
+--- Take an overdue vehicle to the impound (missedAction 'impound'). A vehicle that is being
+--- spawned or that somebody sits in is left for a later check.
+local function repossess(row)
+  if row.state == 'impounded' or not (NZ.Impound and NZ.Impound.impound) then return end
+  local out, entity = NZ.Vehicles.isOut(row.plate)
+  if out and not entity then return end
+  if entity and occupied(entity) then return end
+  local location = repossessImpound(row)
+  if not location then
+    if not repossessWarned[row.plate] then
+      repossessWarned[row.plate] = true
+      lib.print.warn(('[nayzeee-garages] finance: no impound to repossess %s'):format(row.plate))
+    end
+    return
+  end
+  local cfg = type(financeConfig().impound) == 'table' and financeConfig().impound or {}
+  local done, err, used = NZ.Impound.impound(row.plate, {
+    locationId = location.id,
+    reason = L('Missed finance payment'),
+    fee = math.max(toInt(cfg.fee) or 0, 0),
+    hours = math.max(tonumber(cfg.hours) or 0, 0),
+    retrievable = true,
+    byName = L('Finance company'),
+  }, nil)
+  if not done then
+    if not repossessWarned[row.plate] then
+      repossessWarned[row.plate] = true
+      lib.print.warn(('[nayzeee-garages] finance: could not repossess %s: %s'):format(row.plate, tostring(err)))
+    end
+    return
+  end
+  repossessWarned[row.plate] = nil
+  local where = type(used) == 'table' and used.name or location.name
+  log('vehicle.finance', nil, { plate = row.plate, action = 'repossessed', owner = row.owner, impound = where })
+  tellOwner(row, 'error', L('Your vehicle {plate} was repossessed to {impound}: a finance payment is overdue', {
+    plate = row.plate, impound = where,
+  }))
+end
+
+--- Record one missed payment (due date `due`) and fire the event, once per due date.
+local function markMissed(plate, due, reportKey)
+  local key = plate .. ':' .. tostring(reportKey or due)
+  if reported[key] then return false end
+  local fired = locked(plate, function(events)
+    local row = NZ.DB.getVehicle(plate)
+    local finance = row and row.finance
+    if type(finance) ~= 'table' or not finance.overdue then return false end
+    if finance.missedDue and finance.missedDue >= due then return false end
+    local record = {
+      balance = finance.balance, payment = finance.payment, paymentsLeft = finance.paymentsLeft,
+      paymentsTotal = finance.paymentsTotal, intervalHours = intervalOf(finance),
+      nextPaymentAt = math.min(tonumber(finance.nextPaymentAt) or due, due),
+      missed = (finance.missed or 0) + 1, missedDue = due, since = finance.since,
+    }
+    if not NZ.DB.updateVehicle(plate, { finance = record }) then
+      -- not stored: remember it here so the event is not repeated on every check
+      lib.print.warn(('[nayzeee-garages] finance: could not record the missed payment of %s'):format(plate))
+      reported[key] = true
+    end
+    local action = Finance.missedAction()
+    log('vehicle.finance', nil, {
+      plate = plate, action = 'missed', owner = row.owner, balance = finance.balance, payment = finance.payment,
+      missed = record.missed, dueAt = due, consequence = action,
+    })
+    events[#events + 1] = { 'missed', plate, {
+      dueAt = due,
+      balance = finance.balance,
+      payment = finance.payment,
+      paymentsLeft = finance.paymentsLeft,
+      paymentsTotal = finance.paymentsTotal,
+      missed = record.missed,
+      overdueSince = record.nextPaymentAt,
+      owner = row.owner,
+      state = row.state,
+      action = action,
+    } }
+    if action ~= 'impound' then
+      tellOwner(row, 'error', L('You missed a finance payment of {amount} for {plate}', {
+        amount = money(finance.payment), plate = plate,
+      }))
+    end
+    return true
+  end)
+  return fired == true
+end
+
+--- One pass over every financed vehicle: a payment counts as missed once when its due date
+--- passes, and once more for every further interval it stays unpaid.
+function Finance.check(now)
+  if type(NZ.DB.getFinanced) ~= 'function' then return 0 end
+  now = now or os.time()
+  local action = Finance.missedAction()
+  local missedCount = 0
+  for _, row in ipairs(NZ.DB.getFinanced() or {}) do
+    local finance = row.finance
+    if type(finance) == 'table' and finance.overdue and (tonumber(finance.balance) or 0) > 0 and row.plate then
+      local due = math.floor(tonumber(finance.nextPaymentAt) or now)
+      local last = tonumber(finance.missedDue)
+      local missedAt = nil
+      if not last or last < due then
+        missedAt = due
+      else
+        local following = math.floor(last + intervalOf(finance) * 3600)
+        if now >= following then missedAt = following end
+      end
+      -- a plan written by a vehicle shop has no stored due date until it is recorded here
+      local reportKey = finance.managed == false and 'shop' or missedAt
+      if missedAt and markMissed(row.plate, missedAt, reportKey) then missedCount = missedCount + 1 end
+      if action == 'impound' then
+        local okRepo, err = pcall(repossess, row)
+        if not okRepo then lib.print.warn(('[nayzeee-garages] finance: repossession of %s failed: %s'):format(row.plate, tostring(err))) end
+      end
+    end
+  end
+  return missedCount
+end
+
+CreateThread(function()
+  while not NZ.Ready do Wait(1000) end
+  if type(NZ.DB.ensureFinanceColumn) == 'function' then
+    local okCol, err = pcall(NZ.DB.ensureFinanceColumn)
+    if not okCol then lib.print.warn(('[nayzeee-garages] finance: %s'):format(tostring(err))) end
+  end
+  while true do
+    local okCheck, err = pcall(Finance.check)
+    if not okCheck then lib.print.error(('[nayzeee-garages] finance check failed: %s'):format(tostring(err))) end
+    local seconds = Utils.clamp(tonumber(financeConfig().checkInterval) or 60, 30, 3600)
+    Wait(math.floor(seconds * 1000))
+  end
 end)

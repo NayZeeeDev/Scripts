@@ -14,6 +14,13 @@
     'nzAlarm' (native or custom alarm); the lock feedback (sound, horn chirp, flashing lights)
     is the server event 'nz:client:carlock:fx' sent to the players near the vehicle.
   - Client exports: HasKey(plate|vehicle), ToggleLock(vehicle?), ToggleEngine(), GiveKey(vehicle).
+  - Per-player key settings (CarLock.playerSettings / loadPlayerSettings / savePlayerSettings).
+  - Keyless entry: entering a locked vehicle with its fob asks the server ('nz:carlock:keyless');
+    the server also does the auto-lock when the player walks away.
+  - Remote actions of a fob on the vehicle owner's client ('nz:client:carlock:remote').
+  - Keys on the ground: markers, pick-up prompt, catching a thrown key, and the API the key
+    ring / fob HUD use (dropKey, tossKey, throwKey, inspectGroundKey, keepGroundKey,
+    returnGroundKey, inspectKey, groundKeysNearby).
 ]]
 
 local CarLock = NZ.CarLock
@@ -275,7 +282,8 @@ local function feedback(data)
   local plate = Utils.plate(data.plate)
   if plate then store(plate, true, data.kind) end
   CarLock.playFob()
-  if CarLock.cfg().lockNotify ~= false then
+  local mine = type(CarLock.playerSettings) == 'function' and CarLock.playerSettings() or {}
+  if CarLock.cfg().lockNotify ~= false and mine.alertLock ~= false then
     if data.locked then
       notify('info', L('Vehicle locked'))
     else
@@ -514,4 +522,402 @@ exports('GiveKey', function(vehicle)
     if type(res) == 'table' and res.ok == false then Utils.debug(('carlock: GiveKey refused: %s'):format(tostring(res.error))) end
   end, { action = 'acquire', netId = netId, export = true })
   return true
+end)
+
+---------------------------------------------------------------------------------------
+-- Per-player key settings (docs/CARLOCK.md §16): read from the server, kept here for the
+-- ignition, keyless entry and ground key prompts. The settings screen (UI) saves through
+-- 'nz:carlock:savePlayerSettings'; the server pushes the result ('nz:client:carlock:settings').
+---------------------------------------------------------------------------------------
+
+local playerSettings = CarLock.normalizePlayerSettings(nil)
+local settingsLoaded = false
+
+--- The local player's key settings (PlayerKeySettings; defaults until the server answered).
+---@return table
+function CarLock.playerSettings()
+  return playerSettings
+end
+
+--- Ask the server for the player's key settings (yields). Returns PlayerKeySettingsData or nil.
+---@return table|nil
+function CarLock.loadPlayerSettings()
+  local ok, res = pcall(lib.callback.await, 'nz:carlock:playerSettings', false, {})
+  if not ok or type(res) ~= 'table' or not res.ok or type(res.data) ~= 'table' then return nil end
+  if type(res.data.settings) == 'table' then
+    playerSettings = CarLock.normalizePlayerSettings(res.data.settings)
+    settingsLoaded = true
+  end
+  return res.data
+end
+
+--- Save (merge) settings (yields). Returns ok, PlayerKeySettingsData | error.
+---@param partial table
+---@return boolean, table|string
+function CarLock.savePlayerSettings(partial)
+  local ok, res = pcall(lib.callback.await, 'nz:carlock:savePlayerSettings', false, { settings = partial })
+  if not ok or type(res) ~= 'table' then return false, L('Something went wrong') end
+  if not res.ok then return false, res.error end
+  if type(res.data) == 'table' and type(res.data.settings) == 'table' then
+    playerSettings = CarLock.normalizePlayerSettings(res.data.settings)
+  end
+  return true, res.data
+end
+
+RegisterNetEvent('nz:client:carlock:settings', function(settings)
+  if type(settings) == 'table' then
+    playerSettings = CarLock.normalizePlayerSettings(settings)
+    settingsLoaded = true
+    TriggerEvent('nz:client:carlock:playerSettings', playerSettings)
+  end
+end)
+
+AddEventHandler('nz:client:playerLoaded', function()
+  CreateThread(function() CarLock.loadPlayerSettings() end)
+end)
+
+---------------------------------------------------------------------------------------
+-- Keyless entry (fob keys): entering a locked vehicle asks the server, which checks the fob
+-- on you and unlocks it ('nz:carlock:keyless'); the ped then gets in. Auto-lock when you walk
+-- away runs on the server.
+---------------------------------------------------------------------------------------
+
+local KEYLESS_POLL_MS = 150
+local KEYLESS_RETRY_MS = 2500
+local keylessTried = {}       -- [vehicle] = time of the last request
+
+local function keylessOn()
+  local k = CarLock.cfg().keyless
+  return CarLock.enabled() and type(k) == 'table' and k.enabled ~= false and playerSettings.keylessUnlock ~= false
+end
+
+local function vehicleLocked(vehicle)
+  local bag = Entity(vehicle).state.nzLocked
+  if bag ~= nil then return bag == true end
+  return GetVehicleDoorLockStatus(vehicle) >= 2
+end
+
+local function keylessEnter(vehicle)
+  local netId = netIdOf(vehicle)
+  if not netId then return end
+  keylessTried[vehicle] = now()
+  local seat = GetSeatPedIsTryingToEnter(PlayerPedId())
+  local ok, res = pcall(lib.callback.await, 'nz:carlock:keyless', false, { netId = netId })
+  if not ok or type(res) ~= 'table' or not res.ok then return end
+  -- the bag replicates in a moment; unlock locally so the entry goes on, then get in
+  SetVehicleDoorsLocked(vehicle, 1)
+  local ped = PlayerPedId()
+  if GetVehiclePedIsIn(ped, false) == 0 and #(GetEntityCoords(ped) - GetEntityCoords(vehicle)) < 6.0 then
+    ClearPedTasks(ped)
+    TaskEnterVehicle(ped, vehicle, 5000, type(seat) == 'number' and seat or -1, 1.0, 1, 0)
+  end
+end
+
+CreateThread(function()
+  Wait(1500)
+  if not CarLock.enabled() then return end
+  if not settingsLoaded then CarLock.loadPlayerSettings() end
+  while true do
+    local wait = 500
+    if keylessOn() then
+      local ped = PlayerPedId()
+      if GetVehiclePedIsIn(ped, false) == 0 then
+        wait = KEYLESS_POLL_MS
+        local vehicle = GetVehiclePedIsTryingToEnter(ped)
+        if vehicle and vehicle ~= 0 and isVehicle(vehicle) and vehicleLocked(vehicle)
+          and now() - (keylessTried[vehicle] or -1e9) > KEYLESS_RETRY_MS then
+          keylessEnter(vehicle)
+        end
+      end
+    end
+    Wait(wait)
+  end
+end)
+
+---------------------------------------------------------------------------------------
+-- Remote actions (server 'nz:client:carlock:remote' to the vehicle's owner client)
+---------------------------------------------------------------------------------------
+
+RegisterNetEvent('nz:client:carlock:remote', function(data)
+  if type(data) ~= 'table' then return end
+  local netId = tonumber(data.netId)
+  if not netId or not NetworkDoesNetworkIdExist(netId) then return end
+  local vehicle = NetworkGetEntityFromNetworkId(netId)
+  if not isVehicle(vehicle) or not ownsEntity(vehicle) then return end
+  if data.action == 'engine' then
+    SetVehicleEngineOn(vehicle, data.on == true, false, true)
+    SetVehicleKeepEngineOnWhenAbandoned(vehicle, data.on == true)
+  elseif data.action == 'windows' then
+    if data.on == true then
+      RollDownWindows(vehicle)
+    else
+      for i = 0, 3 do RollUpWindow(vehicle, i) end
+    end
+  end
+end)
+
+---------------------------------------------------------------------------------------
+-- Keys on the ground (docs/CARLOCK.md §18): markers, the pick-up prompt and catching. The
+-- server owns every key (positions, props, who gets it); this client draws and asks.
+-- API for the key ring / fob HUD (all yield, return ok, data | error):
+--   CarLock.dropKey({ slot } | { keyId, plate })          drop at your feet
+--   CarLock.tossKey({ slot } | { keyId, plate })          out of the driver window
+--   CarLock.throwKey({ slot } | { keyId, plate }, serverId) to a player (they catch it)
+--   CarLock.inspectGroundKey(id) / CarLock.keepGroundKey(id) / CarLock.returnGroundKey(id)
+--   CarLock.inspectKey({ slot } | { keyId, plate })        a key you carry
+--   CarLock.groundKeysNearby(radius?) -> { { id, keyKind, coords, distance } }
+---------------------------------------------------------------------------------------
+
+local GROUND_SYNC_MS = 120000
+local GROUND_DRAW_RANGE = 25.0
+local MARKER_TYPES = { chevron = 20, ring = 25, dot = 28 }
+local groundList = {}         -- [id] = { id, keyKind, x, y, z, netId? }
+local groundNear = {}         -- ids within GROUND_DRAW_RANGE, refreshed twice a second
+local catching = nil          -- { id, deadline }
+
+local function groundCfg()
+  local g = CarLock.cfg().ground
+  return type(g) == 'table' and g or {}
+end
+
+local function hexRgb(hex)
+  if type(hex) ~= 'string' then return 45, 212, 191 end
+  local r, g, b = hex:match('^#(%x%x)(%x%x)(%x%x)$')
+  if not r then return 45, 212, 191 end
+  return tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
+end
+
+local function groundCoords(entry)
+  if entry.netId and NetworkDoesNetworkIdExist(entry.netId) then
+    local prop = NetworkGetEntityFromNetworkId(entry.netId)
+    if prop and prop ~= 0 and DoesEntityExist(prop) then return GetEntityCoords(prop) end
+  end
+  return vector3(entry.x, entry.y, entry.z)
+end
+
+local function syncGround()
+  local ok, res = pcall(lib.callback.await, 'nz:carlock:ground:list', false, {})
+  if not ok or type(res) ~= 'table' or not res.ok or type(res.data) ~= 'table' then return end
+  local list = {}
+  for _, v in ipairs(res.data) do
+    if type(v) == 'table' and type(v.id) == 'string' then list[v.id] = v end
+  end
+  groundList = list
+end
+
+RegisterNetEvent('nz:client:carlock:ground', function(data)
+  if type(data) ~= 'table' then return end
+  if type(data.add) == 'table' and type(data.add.id) == 'string' then groundList[data.add.id] = data.add end
+  if type(data.remove) == 'string' then groundList[data.remove] = nil end
+end)
+
+--- Ground keys near the player: { { id, keyKind, coords, distance } }, nearest first.
+---@param radius number|nil default the draw range
+---@return table[]
+function CarLock.groundKeysNearby(radius)
+  radius = tonumber(radius) or GROUND_DRAW_RANGE
+  local from = GetEntityCoords(PlayerPedId())
+  local out = {}
+  for id, entry in pairs(groundList) do
+    local c = groundCoords(entry)
+    local d = #(c - from)
+    if d <= radius then out[#out + 1] = { id = id, keyKind = entry.keyKind, coords = c, distance = d } end
+  end
+  table.sort(out, function(a, b) return a.distance < b.distance end)
+  return out
+end
+
+local function playAnim(dict, clip, ms, flag)
+  local ped = PlayerPedId()
+  if not pcall(lib.requestAnimDict, dict, 1000) then return end
+  TaskPlayAnim(ped, dict, clip, 8.0, -8.0, ms, flag or 48, 0, false, false, false)
+  SetTimeout(ms + 200, function() RemoveAnimDict(dict) end)
+end
+
+local function call(name, payload)
+  local ok, res = pcall(lib.callback.await, name, false, payload)
+  if not ok or type(res) ~= 'table' then return false, L('Something went wrong') end
+  if not res.ok then return false, res.error end
+  return true, res.data
+end
+
+local function keyPayload(key, extra)
+  local payload = {}
+  if type(key) == 'table' then
+    payload.slot, payload.keyId, payload.plate = key.slot, key.keyId, key.plate
+  else
+    payload.slot = key
+  end
+  for k, v in pairs(extra or {}) do payload[k] = v end
+  return payload
+end
+
+local function animated() return groundCfg().animateDrops ~= false end
+
+function CarLock.dropKey(key)
+  if animated() and not IsPedInAnyVehicle(PlayerPedId(), false) then
+    playAnim('pickup_object', 'putdown_low', 900, 0)
+    Wait(600)
+  end
+  local ok, data = call('nz:carlock:ground:drop', keyPayload(key))
+  if not ok then notify('error', data) end
+  return ok, data
+end
+
+function CarLock.tossKey(key)
+  local ok, data = call('nz:carlock:ground:drop', keyPayload(key, { toss = true }))
+  if not ok then notify('error', data) end
+  return ok, data
+end
+
+function CarLock.throwKey(key, target)
+  if animated() then playAnim('anim@heists@narcotics@trash', 'throw_b', 1200, 48) end
+  local ok, data = call('nz:carlock:ground:throw', keyPayload(key, { target = tonumber(target) }))
+  if not ok then notify('error', data) end
+  return ok, data
+end
+
+function CarLock.inspectGroundKey(id) return call('nz:carlock:ground:inspect', { id = id }) end
+
+function CarLock.keepGroundKey(id)
+  if animated() then
+    playAnim('pickup_object', 'pickup_low', 900, 0)
+    Wait(500)
+  end
+  local ok, data = call('nz:carlock:ground:pickup', { id = id })
+  if ok then
+    notify('success', L('You picked up the key of {plate}', { plate = tostring(data and data.plate or '') }))
+  else
+    notify('error', data)
+  end
+  return ok, data
+end
+
+function CarLock.returnGroundKey(id) return call('nz:carlock:ground:release', { id = id }) end
+
+function CarLock.inspectKey(key) return call('nz:carlock:inspect', keyPayload(key)) end
+
+-- someone threw us a key: E within the window catches it
+RegisterNetEvent('nz:client:carlock:catch', function(data)
+  if type(data) ~= 'table' or type(data.id) ~= 'string' then return end
+  local window = Utils.clamp(tonumber(data.window) or 1800, 300, 6000)
+  catching = { id = data.id, deadline = now() + window }
+  NZ.NUI.prompt(L('Catch the key'), 'E')
+  CreateThread(function()
+    local mine = catching
+    while catching == mine and now() < mine.deadline do
+      if IsControlJustPressed(0, 38) then
+        catching = nil
+        NZ.NUI.prompt(nil)
+        playAnim('mp_common', 'givetake1_b', 800, 48)
+        local ok, res = call('nz:carlock:ground:catch', { id = mine.id })
+        notify(ok and 'success' or 'error', ok and L('Caught!') or res)
+        return
+      end
+      Wait(0)
+    end
+    if catching == mine then
+      catching = nil
+      NZ.NUI.prompt(nil)
+      notify('error', L('You missed the key'))
+    end
+  end)
+end)
+
+RegisterNetEvent('nz:client:carlock:thrown', function() end)
+
+-- markers + the pick-up prompt
+CreateThread(function()
+  Wait(2000)
+  if not CarLock.enabled() then return end
+  syncGround()
+  local lastSync = now()
+  local prompted = nil
+  CreateThread(function()
+    while true do
+      if next(groundNear) == nil then
+        Wait(500)
+      else
+        local marker = type(groundCfg().marker) == 'table' and groundCfg().marker or {}
+        local mtype = MARKER_TYPES[marker.style]
+        if mtype then
+          local r, g, b = hexRgb(marker.color)
+          local size = Utils.clamp(tonumber(marker.size) or 0.25, 0.05, 2.0)
+          local height = Utils.clamp(tonumber(marker.height) or 0.35, 0.0, 2.0)
+          for id in pairs(groundNear) do
+            local entry = groundList[id]
+            if entry then
+              local c = groundCoords(entry)
+              DrawMarker(mtype, c.x, c.y, c.z + height, 0.0, 0.0, 0.0, mtype == 20 and 180.0 or 0.0, 0.0, 0.0,
+                size, size, size, r, g, b, 180, mtype == 20, false, 2, false, nil, nil, false)
+            end
+          end
+        end
+        Wait(0)
+      end
+    end
+  end)
+  while true do
+    Wait(500)
+    if now() - lastSync > GROUND_SYNC_MS then
+      lastSync = now()
+      syncGround()
+    end
+    local near = {}
+    local nearest = nil
+    local enabled = groundCfg().enabled ~= false
+    if enabled then
+      local pickup = Utils.clamp(tonumber(groundCfg().pickupRange) or 2.0, 0.5, 5.0)
+      for _, k in ipairs(CarLock.groundKeysNearby(GROUND_DRAW_RANGE)) do
+        near[k.id] = true
+        if not nearest and k.distance <= pickup then nearest = k end
+      end
+    end
+    groundNear = near
+    local ped = PlayerPedId()
+    local want = nearest and playerSettings.groundPrompts ~= false and not catching
+      and not IsPedInAnyVehicle(ped, false) and not IsEntityDead(ped) and nearest.id or nil
+    if want ~= prompted then
+      prompted = want
+      NZ.NUI.prompt(want and L('Pick up the key') or nil, want and 'E' or nil)
+      if want then
+        CreateThread(function()
+          while prompted == want do
+            if IsControlJustPressed(0, 38) and not IsNuiFocused() then
+              prompted = nil
+              NZ.NUI.prompt(nil)
+              CarLock.keepGroundKey(want)
+              break
+            end
+            Wait(0)
+          end
+        end)
+      end
+    end
+  end
+end)
+
+---------------------------------------------------------------------------------------
+-- Admin key manager / Ghost PIN set-up: the UI wave provides the screens
+-- (CarLock.openKeyAdmin(), CarLock.openPinSetup(plate)); until then the player is told.
+---------------------------------------------------------------------------------------
+
+--- Open the admin key manager (replaced by the key manager screen of the UI wave).
+function CarLock.openKeyAdmin()
+  notify('error', L('The key manager is not available'))
+end
+
+--- Ask the owner to set the Ghost PIN of `plate` (replaced by the UI's keypad).
+---@param plate string
+function CarLock.openPinSetup(plate)
+  notify('info', L('Set the PIN of {plate} from your key ring', { plate = plate }))
+end
+
+RegisterNetEvent('nz:client:carlock:keyAdmin', function()
+  CarLock.openKeyAdmin()
+end)
+
+RegisterNetEvent('nz:client:carlock:pinSetup', function(data)
+  local plate = type(data) == 'table' and Utils.plate(data.plate) or nil
+  if plate then CarLock.openPinSetup(plate) end
 end)

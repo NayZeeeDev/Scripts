@@ -557,7 +557,7 @@ register('nz:forSale:info', function(src, payload)
   if rateLimited(src, 'forSale:info', 750) then return fail(waitMessage()) end
   local location = saleLocation(payload.locationId)
   if not location then return fail(L('This garage is not for sale')) end
-  if not NZ.Access.isNear(src, location.openPoints or {}, maxDistance()) then
+  if not NZ.Access.nearLocation(src, location, maxDistance()) then
     return fail(L('You are too far from the garage'))
   end
 
@@ -592,7 +592,7 @@ register('nz:forSale:buy', function(src, payload)
   if not location then return fail(L('This garage is not for sale')) end
   local identifier = identifierOf(src)
   if not identifier then return fail(L('Your character is not loaded')) end
-  if not NZ.Access.isNear(src, location.openPoints or {}, maxDistance()) then
+  if not NZ.Access.nearLocation(src, location, maxDistance()) then
     return fail(L('You are too far from the garage'))
   end
 

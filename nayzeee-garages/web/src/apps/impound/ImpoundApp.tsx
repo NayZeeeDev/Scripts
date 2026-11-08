@@ -39,6 +39,7 @@ import { useShowroomKeys } from '../garage/showroom/keys';
 import { glyphShape } from '../garage/showroom/DamageGlyph';
 import { RailToolbar } from '../garage/GarageRail';
 import { EmptyShowcase, PrimaryLabel, ShowcaseFrame, Tool } from '../garage/GarageShowcase';
+import { PreviewContext, PreviewVeil, useVehiclePreview } from '../garage/showroom/preview';
 import '../garage/garage.css';
 import './impound.css';
 
@@ -122,6 +123,11 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
     if (i >= 0) lastIndex.current = i;
   }, [currentKey, flatKeys]);
   const sv = vehicles.find((v) => v.plate === currentKey) ?? null;
+
+  /* ── 3D preview of the selection ── */
+  const previewPlate = sv?.plate ?? null;
+  const previewTarget = useMemo(() => (previewPlate ? { plate: previewPlate } : null), [previewPlate]);
+  const preview = useVehiclePreview('impound', previewTarget, data.previewStopped);
 
   const retrieve = async (v: ImpoundedVehicle) => {
     if (retrieving) return;
@@ -249,9 +255,10 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
   const readyCount = vehicles.filter((v) => availabilityRank(v, now) === 0).length;
 
   return (
-    <>
+    <PreviewContext.Provider value={preview}>
+      <PreviewVeil state={preview} />
       <Window
-        className="nz-garage nz-impound"
+        className={cx('nz-garage nz-impound', preview.live && 'is-live')}
         bodyClassName="nz-garage__body"
         width="min(1240px, 94vw)"
         height="min(930px, 92vh)"
@@ -292,16 +299,17 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
               <b>{shown.length}</b>{' '}
               {shown.length === vehicles.length ? t('vehicle(s)') : t('of {total} vehicle(s)', { total: vehicles.length })}
             </span>
-            <span className="nz-garage__spacer" />
-            {shown.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
-            {primary && (
-              <KeyHint
-                keys={['Enter']}
-                label={primary === 'release' ? t('Release') : sv && feeFor(sv) > 0 ? t('Pay & drive') : t('Drive out')}
-              />
-            )}
-            {vehicles.length > 0 && <KeyHint keys={['/']} label={t('Search')} />}
-            <KeyHint keys={['Esc']} label={t('Close')} />
+            <span className="nz-garage__keybar">
+              {shown.length > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
+              {primary && (
+                <KeyHint
+                  keys={['Enter']}
+                  label={primary === 'release' ? t('Release') : sv && feeFor(sv) > 0 ? t('Pay & drive') : t('Drive out')}
+                />
+              )}
+              {vehicles.length > 0 && <KeyHint keys={['/']} label={t('Search')} />}
+              <KeyHint keys={['Esc']} label={t('Close')} />
+            </span>
           </>
         }
       >
@@ -367,7 +375,7 @@ function ImpoundWindow({ data, close }: { data: ImpoundOpenData; close: () => vo
         onConfirm={() => confirmVehicle && void release(confirmVehicle, 'garage')}
         onCancel={() => setConfirmGarage(null)}
       />
-    </>
+    </PreviewContext.Provider>
   );
 }
 

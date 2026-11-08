@@ -4,7 +4,7 @@
  * API
  *   <MapView pins selectedId? hoverId? onSelect?(id|null) onHover?(id|null) onActivate?(id)
  *            onMakeRoom?() focusTick? fitKey? bottomInset? distanceUnit? emptyText? className? />
- *   MapPin { id, x, y (world), label, type: VehicleType, muted?, meta?, stat? }
+ *   MapPin { id, x, y (world), label, type: VehicleType, muted?, meta?, stat?, zone? }
  *
  * - Built on the three calibrated images in web/public/maps (see mapGeo.ts). Style switcher
  *   (Satellite / Dark / Atlas) top-left, remembered per viewer; styles cross-fade.
@@ -34,12 +34,19 @@
  *   Without onMakeRoom the pins are fitted into the whole map height.
  * - The image edges melt into the sea colour (.nz-admin-map__edge); pins are clipped above
  *   the inset so nothing shows between the bottom overlays and the inspector.
+ * - Garage zones: a pin with `zone` (world x / y corners) shows its polygon outline under the
+ *   pins while it is selected (solid) or hovered (lighter), in the pin's type colour. A zone
+ *   smaller than a few screen pixels gets a dashed ring around it so it is still visible; its
+ *   corners are dotted once it is large enough on screen. While the selected zone is smaller
+ *   than ZONE_LENS_PX on screen (most zoom levels: a parking lot is a few image pixels), a
+ *   "lens" callout beside the pin (opposite its name label) shows the shape magnified with its
+ *   size in metres, linked to the spot by a leader line.
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Icon, IconButton, Segmented, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
-import type { VehicleType } from '@/lib/types';
+import type { VehicleType, ZonePoint } from '@/lib/types';
 import { MAP_H, MAP_STYLES, MAP_W, IMAGE_PX_PER_WORLD, formatCoord, imageToWorld, readMapStyle, scaleBar, worldToImage, writeMapStyle } from './mapGeo';
 import type { MapStyle } from './mapGeo';
 import { vehicleTypeIcon, vehicleTypeLabel } from './labels';
@@ -58,6 +65,8 @@ export interface MapPin {
   meta?: string;
   /** Tooltip third line, e.g. "46 parked · 9 out". */
   stat?: string;
+  /** Garage zone corners (world x / y): outline drawn while the pin is selected or hovered. */
+  zone?: ZonePoint[] | null;
 }
 
 export interface MapViewProps {
@@ -141,6 +150,131 @@ interface Cluster {
   ix: number;
   iy: number;
   members: PlacedPin[];
+}
+
+/** Screen size under which a zone gets a dashed ring, and over which its corners are dotted. */
+const ZONE_TINY_PX = 14;
+const ZONE_CORNERS_PX = 70;
+/** The selected zone gets a magnified lens while it is smaller than this on screen. */
+const ZONE_LENS_PX = 90;
+const LENS_W = 124;
+const LENS_H = 92;
+const LENS_PAD = 14;
+const LENS_GAP = 36;
+const LENS_CUT = 10;
+
+interface Box {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+const pathOf = (pts: { x: number; y: number }[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ' Z';
+
+/** Outline of one garage zone in screen space (the map's pin layer), plus the lens when asked. */
+function ZoneOutline({
+  pin,
+  toScreen,
+  state,
+  lens,
+  bounds,
+  avoid,
+}: {
+  pin: MapPin;
+  toScreen: (ix: number, iy: number) => { x: number; y: number };
+  state: 'selected' | 'hover';
+  /** Preferred side of the magnified lens (null = no lens). */
+  lens?: 'left' | 'right' | null;
+  /** Visible map area for the lens: width, bottom edge. */
+  bounds?: { w: number; bottom: number };
+  /** Screen boxes the lens should not cover (other pins, the name label). */
+  avoid?: Box[];
+}) {
+  const zone = pin.zone ?? [];
+  const pts = zone.map((p) => {
+    const i = worldToImage(p.x, p.y);
+    return toScreen(i.x, i.y);
+  });
+  if (pts.length < 3) return null;
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const cxs = xs.reduce((a, b) => a + b, 0) / pts.length;
+  const cys = ys.reduce((a, b) => a + b, 0) / pts.length;
+
+  let lensNode: ReactNode = null;
+  if (lens && bounds && size < ZONE_LENS_PX) {
+    const wx = zone.map((p) => p.x);
+    const wy = zone.map((p) => p.y);
+    const minX = Math.min(...wx);
+    const maxX = Math.max(...wx);
+    const minY = Math.min(...wy);
+    const maxY = Math.max(...wy);
+    const width = maxX - minX;
+    const depth = maxY - minY;
+    const innerH = LENS_H - LENS_PAD * 2 - 12;
+    const sc = Math.min((LENS_W - LENS_PAD * 2) / Math.max(width, 1), innerH / Math.max(depth, 1));
+    // the tile beside the spot (preferred side, other side, below, above), kept inside the
+    // visible map, on the spot covering the fewest other pins
+    const fit = (x: number, y: number) => ({
+      x: clamp(x, 8, Math.max(8, bounds.w - LENS_W - 8)),
+      y: clamp(y, 70, Math.max(70, bounds.bottom - LENS_H - 50)),
+    });
+    const sideX = (side: 'left' | 'right') => (side === 'left' ? cxs - LENS_GAP - LENS_W : cxs + LENS_GAP);
+    const other = lens === 'left' ? 'right' : 'left';
+    const spots = [
+      fit(sideX(lens), cys - LENS_H / 2 + 26),
+      fit(sideX(other), cys - LENS_H / 2 + 26),
+      fit(cxs - LENS_W / 2, cys + 26),
+      fit(cxs - LENS_W / 2, cys - 52 - LENS_H),
+    ];
+    const covered = (sx: number, sy: number) =>
+      (avoid ?? []).reduce(
+        (sum, b) => sum + Math.max(0, Math.min(b.x1, sx + LENS_W) - Math.max(b.x0, sx)) * Math.max(0, Math.min(b.y1, sy + LENS_H) - Math.max(b.y0, sy)),
+        // never over the spot itself
+        Math.max(0, Math.min(cxs + 6, sx + LENS_W) - Math.max(cxs - 6, sx)) * Math.max(0, Math.min(cys + 6, sy + LENS_H) - Math.max(cys - 46, sy)),
+      );
+    let best = spots[0];
+    let bestCover = covered(best.x, best.y);
+    for (const spot of spots.slice(1)) {
+      if (bestCover === 0) break;
+      const c = covered(spot.x, spot.y);
+      if (c < bestCover) {
+        best = spot;
+        bestCover = c;
+      }
+    }
+    const x0 = best.x;
+    const y0 = best.y;
+    const ox = x0 + (LENS_W - width * sc) / 2;
+    const oy = y0 + LENS_PAD + (innerH - depth * sc) / 2;
+    // north up: world y grows upwards
+    const big = zone.map((p) => ({ x: ox + (p.x - minX) * sc, y: oy + (maxY - p.y) * sc }));
+    const frame = `M${x0} ${y0} H${x0 + LENS_W} V${y0 + LENS_H - LENS_CUT} L${x0 + LENS_W - LENS_CUT} ${y0 + LENS_H} H${x0} Z`;
+    lensNode = (
+      <g className="nz-admin-map__lens">
+        <line className="nz-admin-map__lens-lead" x1={cxs} y1={cys} x2={clamp(cxs, x0, x0 + LENS_W)} y2={clamp(cys, y0, y0 + LENS_H)} />
+        <path className="nz-admin-map__lens-frame" d={frame} />
+        <path className="nz-admin-map__zone-shape" d={pathOf(big)} />
+        {big.map((p, i) => (
+          <circle key={i} className="nz-admin-map__zone-corner" cx={p.x} cy={p.y} r={2.2} />
+        ))}
+        <text className="nz-admin-map__lens-label" x={x0 + 9} y={y0 + LENS_H - 9}>
+          {t('Zone')} · {Math.round(width)} × {Math.round(depth)} {t('m')}
+        </text>
+      </g>
+    );
+  }
+
+  return (
+    <g className={cx('nz-admin-map__zone', `is-${pin.muted ? 'off' : pin.type}`, `is-${state}`)}>
+      {size < ZONE_TINY_PX && <circle className="nz-admin-map__zone-ring" cx={cxs} cy={cys} r={ZONE_TINY_PX} />}
+      <path className="nz-admin-map__zone-shape" d={pathOf(pts)} />
+      {size >= ZONE_CORNERS_PX && pts.map((p, i) => <circle key={i} className="nz-admin-map__zone-corner" cx={p.x} cy={p.y} r={2.5} />)}
+      {lensNode}
+    </g>
+  );
 }
 
 /** Pin contents: memoised, so a pan / zoom frame only moves the buttons. */
@@ -804,6 +938,24 @@ export function MapView({
   })();
 
   const hovered = hoverId !== null ? placed.find((p) => p.pin.id === hoverId) ?? null : null;
+  /** What the zone lens should not cover: other pin heads, clusters and the selected name label. */
+  const lensAvoid: Box[] = [];
+  if (selected && k) {
+    for (const p of clusters.singles) {
+      if (p.pin.id === selected.pin.id) continue;
+      const o = toScreen(p.ix, p.iy);
+      lensAvoid.push({ x0: o.x - 16, x1: o.x + 16, y0: o.y - 42, y1: o.y + 6 });
+    }
+    for (const o of clusterPos.values()) lensAvoid.push({ x0: o.x - 22, x1: o.x + 22, y0: o.y - 22, y1: o.y + 22 });
+    const s0 = toScreen(selected.ix, selected.iy);
+    const labelW = Math.min(220, 24 + selected.pin.label.length * 7);
+    lensAvoid.push(nameLeft ? { x0: s0.x - 22 - labelW, x1: s0.x - 20, y0: s0.y - 48, y1: s0.y - 14 } : { x0: s0.x + 20, x1: s0.x + 22 + labelW, y0: s0.y - 48, y1: s0.y - 14 });
+  }
+  /** Pins whose garage zone is outlined: the selected one, and the hovered one when different. */
+  const zonePins = {
+    selected: selected?.pin.zone && selected.pin.zone.length >= 3 ? selected.pin : null,
+    hover: hovered && hovered.pin.id !== selectedId && hovered.pin.zone && hovered.pin.zone.length >= 3 ? hovered.pin : null,
+  };
   const hoverPos = hovered ? toScreen(hovered.ix, hovered.iy) : null;
   /** Cards sit beside the pin head (right, or left near the right edge), kept inside the map. */
   const cardSpot = (sx: number, sy: number, lift: number) => ({
@@ -869,6 +1021,21 @@ export function MapView({
 
       {/* pins + clusters, clipped above the inset (nothing peeks out between the overlays and the inspector) */}
       <div className="nz-admin-map__pins">
+      {k > 0 && (zonePins.selected || zonePins.hover) && (
+        <svg className="nz-admin-map__zones" width={w} height={h} aria-hidden="true">
+          {zonePins.hover && <ZoneOutline pin={zonePins.hover} toScreen={toScreen} state="hover" />}
+          {zonePins.selected && (
+            <ZoneOutline
+              pin={zonePins.selected}
+              toScreen={toScreen}
+              state="selected"
+              lens={dragging ? null : nameLeft ? 'right' : 'left'}
+              bounds={{ w, bottom: h - bottomInset }}
+              avoid={lensAvoid}
+            />
+          )}
+        </svg>
+      )}
       {k > 0 &&
         clusters.groups.map((g) => {
           const s = clusterPos.get(g.key)!;

@@ -243,6 +243,23 @@ function Impound.setupTarget()
   end
 end
 
+--- Preview target of the impound menu ({ plate }): { key, hash, plate, callback } or nil
+--- (NZ.Preview, wired by the 'garage:preview' NUI callback in client/garage.lua).
+---@param data table
+---@return table|nil
+function Impound.previewTarget(data)
+  if not ctx or type(ctx.data) ~= 'table' or type(data) ~= 'table' then return nil end
+  local v = findByPlate(ctx.data.vehicles, data.plate)
+  if not v or not tonumber(v.hash) then return nil end
+  local plate = NZ.Utils.plate(v.plate)
+  return { key = 'i:' .. plate, plate = plate, hash = tonumber(v.hash), callback = 'nz:impound:preview' }
+end
+
+NZ.NUI.onClose('impound', function()
+  NZ.Preview.stop(false)
+  NZ.Preview.reset()
+end)
+
 ---------------------------------------------------------------------------------------
 -- NUI callbacks
 ---------------------------------------------------------------------------------------

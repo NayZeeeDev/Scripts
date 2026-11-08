@@ -168,26 +168,41 @@ NZ.NUI.register('admin:pickPosition', function()
   return pedV4()
 end)
 
+--- kind 'spawn' | 'open' | 'store': the point manager (NZ.Placement.manage).
+--- kind 'zone': the garage zone tool (NZ.Placement.zone) with { zone, openPoints, spawnPoints }
+--- of the location being edited; returns { points, minZ, maxZ } or null (cancelled). The server
+--- validates the zone again when the location is saved.
 NZ.NUI.register('admin:points', function(data)
   local kind = data.kind
-  if kind ~= 'spawn' and kind ~= 'open' and kind ~= 'store' then
+  if kind ~= 'spawn' and kind ~= 'open' and kind ~= 'store' and kind ~= 'zone' then
     return Utils.fail(L('Unknown point type'))
   end
   if NZ.Placement.isActive() then return Utils.fail(L('Finish the current action first')) end
+  if kind == 'zone' and NZ.Interior.isInside() then return Utils.fail(L('Leave the garage interior first')) end
+  if kind == 'zone' and IsPedInAnyVehicle(PlayerPedId(), false) then return Utils.fail(L('Leave the vehicle first')) end
   local vehicleType = Utils.vehicleTypes[data.vehicleType] and data.vehicleType or 'car'
 
   -- Keep the admin app mounted (so unsaved editor state survives): the NUI hides its window
   -- while this request is pending; we only release focus for the in-world manager.
   local hadAdmin = NZ.NUI.isOpen('admin')
   if hadAdmin then NZ.NUI.setFocus('admin', false) end
-  local ok, result = pcall(NZ.Placement.manage, {
-    kind = kind,
-    vehicleType = vehicleType,
-    points = type(data.points) == 'table' and data.points or {},
-    model = type(data.model) == 'string' and data.model or nil,
-  })
+  local ok, result
+  if kind == 'zone' then
+    ok, result = pcall(NZ.Placement.zone, {
+      zone = type(data.zone) == 'table' and data.zone or nil,
+      openPoints = type(data.openPoints) == 'table' and data.openPoints or {},
+      spawnPoints = type(data.spawnPoints) == 'table' and data.spawnPoints or {},
+    })
+  else
+    ok, result = pcall(NZ.Placement.manage, {
+      kind = kind,
+      vehicleType = vehicleType,
+      points = type(data.points) == 'table' and data.points or {},
+      model = type(data.model) == 'string' and data.model or nil,
+    })
+  end
   if not ok then
-    lib.print.error(('[nayzeee-garages] point manager failed: %s'):format(result))
+    lib.print.error(('[nayzeee-garages] %s failed: %s'):format(kind == 'zone' and 'zone tool' or 'point manager', result))
     result = nil
   end
   if hadAdmin and NZ.NUI.isOpen('admin') then

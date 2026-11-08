@@ -51,6 +51,7 @@ else
   NZ.Damage = {}
   NZ.Placement = {}
   NZ.Camera = {}
+  NZ.Preview = {}
   NZ.Interior = {}
   NZ.Creator = {}
   NZ.AdminClient = {}

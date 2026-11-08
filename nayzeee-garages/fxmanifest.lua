@@ -45,6 +45,7 @@ client_scripts {
   'client/vehicle.lua',
   'client/placement.lua',
   'client/camera.lua',
+  'client/preview.lua',
   'client/points.lua',
   'client/peds.lua',
   'client/garage.lua',

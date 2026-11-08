@@ -3,15 +3,27 @@
   and the hook in server/impound.lua. No FiveM needed.
 
   Runs the real server file and one real client file per player together against a small
-  simulated OneSync world (entities with owners and routing buckets, state bags, attachments
-  synced from the attached entity's owner, driving tasks, player drops with ownership
-  migration) on a shared fake clock, and checks the whole sequence and every failure path end
-  to end: full tow, remote attach, two impounds at once (one officer / two officers on the same
-  node), runner disconnect (handed over / no one left), runner walking away, silent runner,
-  boat, oversized truck, target deleted / moved / entered meanwhile, truck stuck, forged
-  reports, resource stop, the impound form hook, recycled handles (`entityRemoved`), tow state
-  bags cleared by a cheating owner, a player taking the truck, the vehicle falling off the
-  leaving truck, the truck stopping beside the vehicle and pulls from beside the bed.
+  simulated OneSync world (entities with owners and routing buckets, control requests and
+  SetNetworkIdCanMigrate, state bags, attachments synced from the attached entity's owner,
+  driving tasks, traffic lights, routes, player drops with ownership migration) on a shared
+  fake clock, and checks the whole sequence and every failure path end to end: full tow
+  (stops in front of the vehicle, in line; the runner keeps truck, driver and vehicle; drives
+  off with it on the bed), remote attach / the runner taking the vehicle, two impounds at once
+  (one officer / two officers on the same node), runner disconnect (handed over / no one left),
+  runner walking away (the same truck carries on), silent runner, boat, oversized truck, target
+  deleted / moved / entered meanwhile, stuck in sight (reverse, then a new truck) and out of
+  sight (skips ahead), red lights, spawn nodes without a route, forged reports (`loaded` with
+  nothing on the bed), resource stop, the impound form hook, recycled handles
+  (`entityRemoved`), tow state bags cleared by a cheating owner, a player taking the truck, the
+  vehicle coming off the leaving truck (held + pulled back on), long vehicles on the bed, the
+  truck stopping beside the vehicle and pulls from beside the bed, a wrong-way stop on screen
+  with the other side taken (loads from where it stands), backing up to the vehicle, the tilt up
+  the ramp, trucks the server gives up on (dismissed: driven off empty), the failure notice,
+  the leaving truck let go far from the runner, never moved in front of another player.
+
+  Invariants checked across the scenarios: a towed vehicle never vanishes near a player before
+  it is on the bed, a tow truck never vanishes near a player, a truck never drives off without
+  the vehicle it loaded; what is left after a failure goes once every player is far away.
 
   Usage (from the resource root):  lua5.4 tools/smoke/tow.lua [-v]
 ]]
@@ -100,6 +112,8 @@ local MODELS = {
   sultan = { class = 1, vtype = 'automobile', min = vec(-0.95, -2.3, -0.6), max = vec(0.95, 2.3, 0.9) },
   dinghy = { class = 14, vtype = 'boat', min = vec(-1.2, -3.0, -0.8), max = vec(1.2, 3.0, 1.2) },
   mule = { class = 20, vtype = 'automobile', min = vec(-1.3, -4.5, -1.0), max = vec(1.3, 4.5, 2.5) },
+  -- a long car within maxSize (6.8 m), its centre ahead of the model origin
+  longcar = { class = 1, vtype = 'automobile', min = vec(-1.1, -3.1, -0.6), max = vec(1.1, 3.7, 1.0) },
   s_m_m_trucker_01 = { ped = true },
   mp_m_freemode_01 = { ped = true },
 }
@@ -161,10 +175,30 @@ local function pedInSeat(veh, seat)
   return 0
 end
 
+local function nearestPlayerDist(x, y)
+  local best = math.huge
+  for _, p in pairs(W.players) do
+    if not p.dropped and ent(p.ped) then
+      local px, py = worldPos(p.ped)
+      best = math.min(best, math.sqrt((px - x) ^ 2 + (py - y) ^ 2))
+    end
+  end
+  return best
+end
+
 local function deleteWorld(e)
   local en = ent(e)
   if not en then return end
   local x, y, z = worldPos(e)
+  -- invariant: a towed vehicle never vanishes near a player before it is on a bed; a tow
+  -- truck never vanishes near a player (resource stop / instant deletions are excluded by the
+  -- scenarios that expect them)
+  local near = nearestPlayerDist(x, y)
+  if en.state.nzTowing == true and not en.attached and near < 150.0 then
+    W.nearDeletes[#W.nearDeletes + 1] = { what = 'vehicle', near = near, at = now }
+  elseif en.name == 'flatbed' and near < 150.0 then
+    W.nearDeletes[#W.nearDeletes + 1] = { what = 'truck', near = near, at = now }
+  end
   for id, other in pairs(W.entities) do
     if other.attached and other.attached.parent == e then
       other.x, other.y, other.z = worldPos(id)
@@ -220,6 +254,19 @@ end
 
 local function worldTick(dt)
   assignOwners()
+  -- invariant: a truck never drives off (wander) without the vehicle it loaded
+  for id, en in pairs(W.entities) do
+    if en.name == 'flatbed' and en.drive and en.drive.wander and W.loadedBy[id] then
+      local child = W.loadedBy[id]
+      if ent(child) and not (ent(child).attached and ent(child).attached.parent == id) then
+        local tx, ty = worldPos(id)
+        local cx, cy = worldPos(child)
+        if math.sqrt((tx - cx) ^ 2 + (ty - cy) ^ 2) > 3.0 then
+          W.leftBehind[#W.leftBehind + 1] = { truck = id, at = now }
+        end
+      end
+    end
+  end
   for id, en in pairs(W.entities) do
     if en.type == 2 and en.drive and not en.attached and not W.blocked[id] and pedInSeat(id, -1) ~= 0 then
       local d = en.drive
@@ -234,7 +281,8 @@ local function worldTick(dt)
         else
           local s = math.min(dist, d.speed * dt)
           en.x, en.y = en.x + dx / dist * s, en.y + dy / dist * s
-          en.h = math.deg(math.atan(-dx, dy)) % 360
+          -- backing up (DriveInReverse) keeps the heading
+          if not d.reverse then en.h = math.deg(math.atan(-dx, dy)) % 360 end
         end
       end
     end
@@ -497,7 +545,6 @@ local function makeEnv(side, src)
     end
     env.IsAnyVehicleNearPoint = function() return false end
     env.IsPointOnRoad = function() return true end
-    env.IsEntityDead = function() return false end
     env.IsVehicleStopped = function(e) local en = ent(e) return en ~= nil and (en.drive == nil or W.blocked[e] == true) end
     env.CreateVehicle = function(model, x, y, z, h, isNet)
       W.clientCreated = (W.clientCreated or 0) + 1
@@ -513,16 +560,54 @@ local function makeEnv(side, src)
     env.SetVehicleNumberPlateText = function(e, text) if owns(e) then ent(e).plate = text end end
     env.SetPedIntoVehicle = function(ped, veh, seat) if owns(ped) and ent(veh) then local en = ent(ped) en.vehicle, en.seat = veh, seat end end
     env.NetworkFadeOutEntity = function(e) if owns(e) then W.faded[e] = (W.faded[e] or 0) + 1 end end
-    env.TaskVehicleDriveToCoordLongrange = function(ped, veh, x, y, z, speed, _, stop)
+    env.TaskVehicleDriveToCoordLongrange = function(ped, veh, x, y, z, speed, style, stop)
+      W.longrange[#W.longrange + 1] = { speed = speed, style = math.tointeger(style) or 0, at = now }
       if owns(ped) and ent(veh) then ent(veh).drive = { x = x, y = y, speed = speed, stop = stop } end
     end
-    env.TaskVehicleDriveToCoord = function(ped, veh, x, y, z, speed, _, _, _, stop)
-      if owns(ped) and ent(veh) then ent(veh).drive = { x = x, y = y, speed = speed, stop = stop } end
+    env.TaskVehicleDriveToCoord = function(ped, veh, x, y, z, speed, _, _, style, stop)
+      local reverse = ((math.tointeger(style) or 0) & 1024) ~= 0
+      if owns(ped) and ent(veh) then ent(veh).drive = { x = x, y = y, speed = speed, stop = stop, reverse = reverse } end
     end
-    env.TaskVehicleTempAction = function(ped, veh) if owns(ped) and ent(veh) then ent(veh).drive = nil end end
+    -- line of sight from another player to an entity (the caller checks the distance)
+    env.HasEntityClearLosToEntity = function() return W.los == true end
+    env.TaskVehicleTempAction = function(ped, veh, action)
+      if owns(ped) and ent(veh) then
+        local en = ent(veh)
+        en.drive = nil
+        W.tempActions[#W.tempActions + 1] = { action = action, at = now }
+        if action == 3 and not W.blocked[veh] and not en.attached then
+          -- backs out a little
+          local fx, fy = rotate(0, 1, en.h)
+          en.x, en.y = en.x - fx * 2.0, en.y - fy * 2.0
+        end
+      end
+    end
+    env.GetEntitySpeed = function(e)
+      local en = ent(e)
+      if not en or not en.drive or W.blocked[e] or en.attached then return 0.0 end
+      return en.drive.speed or 0.0
+    end
+    env.IsVehicleStoppedAtTrafficLights = function(e) return W.redLight == e end
+    env.CalculateTravelDistanceBetweenPoints = function(x1, y1, z1, x2, y2, z2)
+      if W.route then return W.route(x1, y1, x2, y2) end
+      return math.sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2) * 1.3
+    end
+    -- OneSync control: granted unless the owner keeps the entity (SetNetworkIdCanMigrate false)
+    env.NetworkRequestControlOfEntity = function(e)
+      local en = ent(e)
+      W.controlRequests[#W.controlRequests + 1] = { src = src, e = e }
+      if not en or en.isPlayer or W.noControl or en.owner == src then return end
+      if en.noMigrate and connected(en.owner) then return end
+      en.owner, en.noMigrate = src, nil
+    end
+    env.SetNetworkIdCanMigrate = function(netId, can)
+      local e = W.byNet[netId]
+      if e and owns(e) then ent(e).noMigrate = not can end
+    end
     env.TaskVehicleDriveWander = function(ped, veh, speed)
       if owns(ped) and ent(veh) then ent(veh).drive = { wander = true, speed = speed } end
     end
+    env.IsEntityDead = function() return false end
     env.TaskLeaveVehicle = function(ped, veh)
       local en = ent(ped)
       if owns(ped) and en.vehicle == veh then
@@ -548,11 +633,12 @@ local function makeEnv(side, src)
       end
       return 2, false, vec(0, 0, 0), vec(0, 0, 0), 0
     end
-    env.AttachEntityToEntity = function(child, parent, _, x, y, z, _, _, rz)
+    env.AttachEntityToEntity = function(child, parent, _, x, y, z, rx, _, rz)
       if owns(child) and ent(parent) then
         ent(child).attached = { parent = parent, x = x, y = y, z = z, h = rz }
+        W.loadedBy[parent] = child
         W.attachLog[child] = W.attachLog[child] or {}
-        table.insert(W.attachLog[child], { x = x, y = y, z = z, h = rz, truckH = worldHeading(parent), targetH = ent(child).h })
+        table.insert(W.attachLog[child], { x = x, y = y, z = z, p = rx, h = rz, truckH = worldHeading(parent), targetH = ent(child).h })
       end
     end
     env.DeleteEntity = function(e) if owns(e) then deleteWorld(e) end end
@@ -584,6 +670,7 @@ local function scenario(name, players)
     entities = {}, byNet = {}, deleted = {}, nextId = 100, players = {}, callbacks = {}, sent = {}, notified = {},
     exports = {}, logs = {}, warnings = {}, errors = printedErrors, reports = {}, blocked = {}, sight = 100.0, rate = {}, rows = {},
     created = {}, faded = {}, attachLog = {}, cull = 424.0,
+    nearDeletes = {}, leftBehind = {}, loadedBy = {}, tempActions = {}, controlRequests = {}, longrange = {},
   }
   local server = makeEnv('server', nil)
   for _, f in ipairs(BASE) do loadInto(server, f) end
@@ -647,6 +734,7 @@ local function drop(src)
           if d < bestD then best, bestD = other, d end
         end
       end
+      en.noMigrate = nil
       if best then en.owner = best
       elseif en.orphan == 2 or en.persistent or en.serverCreated then en.owner = -1
       else deleteWorld(id) end
@@ -694,6 +782,51 @@ local function finished()
   return l ~= nil and now - l.at >= FADE_WAIT
 end
 
+--- Every player walks far away: what was retired near them goes (cleanup only far from players).
+local function leaveScene()
+  for _, p in pairs(W.players) do
+    if not p.dropped and ent(p.ped) then ent(p.ped).x = ent(p.ped).x + 5000.0 end
+  end
+  run(2500)
+end
+
+--- Invariants: no towed vehicle (not on a bed) and no tow truck vanished near a player, and no
+--- truck drove off without the vehicle it had loaded.
+local function nothingVanished(label)
+  local first = W.nearDeletes[1]
+  check(first == nil, ('%s: nothing vanished near a player%s'):format(label,
+    first and (' (%s %.0f m away at %d ms)'):format(first.what, first.near, first.at) or ''))
+  check(#W.leftBehind == 0, label .. ': no truck left without its vehicle')
+end
+
+local function find(name)
+  for id, en in pairs(W.entities) do if en.name == name then return id end end
+  return nil
+end
+
+local function trucks()
+  local n = 0
+  for _, c in ipairs(W.created) do if c.kind == 'vehicle' then n = n + 1 end end
+  return n
+end
+
+--- The `stop` + `dismiss` event the server sent (to `src` when given), or nil.
+local function dismissedTo(src)
+  for _, ev in ipairs(W.sent) do
+    local d = ev.args[1]
+    if ev.name == 'nz:client:tow:stop' and type(d) == 'table' and d.dismiss == true and (src == nil or ev.target == src) then
+      return d
+    end
+  end
+  return nil
+end
+
+local FAILED_TEXT = 'The tow truck could not collect the vehicle'
+local function notifiedOf(src, message)
+  for _, n in ipairs(W.notified) do if n.target == src and n.message == message then return true end end
+  return false
+end
+
 --- -v: the reports of the scenario and how its tows ended.
 local function trace()
   if not VERBOSE then return end
@@ -731,15 +864,24 @@ do -- 1. the whole sequence: officer runs it, owns the vehicle (attaches it hims
   local d = math.sqrt((tx - 5) ^ 2 + ty ^ 2)
   check(d >= 80 and d <= 150, ('truck spawned 80-150 m away (%.1f)'):format(d))
   check(ent(truck).orphan == 2 and ent(truck).state.nzTowTruck == true, 'server keeps the truck (orphan mode 2, nzTowTruck)')
+  check(ent(target).orphan == 2, 'server keeps the impounded vehicle (orphan mode 2)')
   check(ent(truck).serverCreated ~= nil, 'truck created by the server')
   check(runUntil(function() return sawStage('spawned') end, 5000), 'spawned reported')
+  check(ent(truck).owner == 1 and ent(truck).noMigrate == true, 'the runner simulates the truck and keeps it')
   check(ent(truck).plate == 'IMPOUND', 'truck plate')
   run(500)
   local told = false
   for _, n in ipairs(W.notified) do if n.target == 1 and n.message == 'Tow truck dispatched' then told = true end end
   check(told, 'officer told "Tow truck dispatched"')
   check(runUntil(function() return sawStage('arrived') end, 40000), 'truck arrived')
+  do
+    -- in front of the vehicle (heading 0 at 5,0), in line with it, the rear of the bed to its nose
+    local lx, ly = toLocal(target, worldPos(truck))
+    check(ly > 4.0 and math.abs(lx) < 1.5 and math.abs((worldHeading(truck) + 180) % 360 - 180) < 35,
+      ('stopped in front of the vehicle, in line (x=%.1f y=%.1f h=%.0f)'):format(lx, ly, worldHeading(truck)))
+  end
   check(runUntil(function() return sawStage('load') end, 20000), 'driver at the controls, loading')
+  check(ent(target).owner == 1 and ent(target).noMigrate == true, 'the runner keeps the vehicle while loading')
   local driver
   for id, en in pairs(W.entities) do if en.name == 's_m_m_trucker_01' then driver = id end end
   check(driver and ent(driver).vehicle == nil, 'driver stepped out to work the controls')
@@ -748,21 +890,35 @@ do -- 1. the whole sequence: officer runs it, owns the vehicle (attaches it hims
   local a = ent(target).attached
   check(a and a.parent == truck, 'vehicle attached to the truck')
   check(a and math.abs(a.y - (-2.35)) < 0.01 and math.abs(a.z - (0.6 + 0.6)) < 0.01, ('vehicle sits on the bed (y=%.2f z=%.2f)'):format(a and a.y or 0, a and a.z or 0))
+  do
+    -- tilted nose up (nose first: positive pitch) while it climbs, level on the bed
+    local poses, most = W.attachLog[target] or {}, 0.0
+    for _, p in ipairs(poses) do most = math.max(most, p.p or 0.0) end
+    check(most > 5.0 and most <= 10.01, ('tilted up the ramp (%.1f deg)'):format(most))
+    check(poses[#poses] and poses[#poses].p == 0.0, 'level on the bed')
+  end
   check(runUntil(function() return sawStage('leaving') end, 15000), 'leaving')
   check(driver and ent(driver) and ent(driver).vehicle == truck, 'driver back in the truck')
+  -- a few seconds into the drive: still on the bed
+  run(3000)
+  check(ent(target) and ent(target).attached and ent(target).attached.parent == truck, 'drives off with the vehicle on the bed')
   check(runUntil(finished, 70000), 'tow finished')
   local outcome, reason = towOutcome()
   check(outcome == 'done', 'outcome done (' .. tostring(outcome) .. '/' .. tostring(reason) .. ')')
   check(ent(target) == nil, 'impounded vehicle deleted')
   noNpcs('full')
+  nothingVanished('full')
+  check(ent(W.players[1].ped) ~= nil, 'runner still there')
   check(not NZ.Tow.isTowing(target), 'nothing tracked any more')
+  check(not notifiedOf(1, FAILED_TEXT) and dismissedTo() == nil, 'no failure notice, nothing dismissed')
   say('full: ' .. tostring(outcome) .. ' ' .. tostring(reason) .. ' at ' .. now .. ' ms')
   trace()
 end
 
-do -- 2. another player owns the vehicle: that client attaches it
+do -- 2. another player owns the vehicle and keeps it (control refused): that client attaches it
   local NZ = scenario('remote attach', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 12.0, y = -8.0 } })
   W.ownerOverride = 1 -- the officer simulates the truck (runs the tow), player 2 the vehicle
+  W.noControl = true
   local target = car('sultan', 5.0, 0.0, 2)
   check(NZ.Tow.start(target, 1), 'tow started')
   check(runUntil(function() return sawStage('load', 1) end, 60000), 'loading')
@@ -775,6 +931,25 @@ do -- 2. another player owns the vehicle: that client attaches it
   check(towOutcome() == 'done', 'outcome done')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('remote attach')
+  nothingVanished('remote attach')
+  trace()
+end
+
+do -- 2b. another player owns the vehicle: the runner takes control of it and pulls it on itself
+  local NZ = scenario('runner takes the vehicle', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 12.0, y = -8.0 } })
+  W.ownerOverride = 1
+  local target = car('sultan', 5.0, 0.0, 2)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('load', 1) end, 60000), 'loading')
+  local asked = false
+  for _, r in ipairs(W.controlRequests) do if r.src == 1 and r.e == target then asked = true end end
+  check(asked and ent(target).owner == 1 and ent(target).noMigrate == true, 'runner took control of the vehicle and keeps it')
+  local remote = false
+  for _, ev in ipairs(W.sent) do if ev.name == 'nz:client:tow:attach' then remote = true end end
+  check(not remote, 'no other client asked to attach')
+  check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  noNpcs('runner takes the vehicle')
+  nothingVanished('runner takes the vehicle')
   trace()
 end
 
@@ -800,6 +975,7 @@ do -- 3. two impounds at once by the same officer
   end
   check(ent(a) == nil and ent(b) == nil, 'both vehicles deleted')
   noNpcs('two at once')
+  nothingVanished('two at once')
   trace()
 end
 
@@ -821,6 +997,7 @@ do -- 4. the runner disconnects on the way: the nearby player adopts truck + dri
   check(towOutcome() == 'done', 'outcome done (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('handover')
+  nothingVanished('handover')
   trace()
 end
 
@@ -847,10 +1024,11 @@ do -- 6. the runner walks away: another player sends a new truck
   ent(W.players[1].ped).x = 900.0
   check(runUntil(function() return sawStage('spawned', 2) end, 15000), 'player 2 took over')
   run(FADE_WAIT)
-  check(count('flatbed') == 1, 'old truck removed, one new truck')
+  check(count('flatbed') == 1 and trucks() == 1, 'the same truck carries on (released by the old runner, taken by the new one)')
   check(runUntil(finished, 120000), 'finished')
   check(towOutcome() == 'done', 'outcome done')
   noNpcs('leaves')
+  nothingVanished('leaves')
   trace()
 end
 
@@ -902,10 +1080,12 @@ do -- 10. the vehicle is deleted by something else meanwhile: the empty truck le
   check(runUntil(function() return sawStage('spawned', 1) end, 6000), 'spawned')
   run(1500)
   deleteWorld(target)
+  W.nearDeletes = {} -- deleted by the test itself
   check(runUntil(function() return sawStage('leaving', 1) end, 5000), 'runner reported it gone')
   check(runUntil(finished, 80000), 'finished')
   check(towOutcome() == 'done', 'outcome done (' .. tostring(select(2, towOutcome())) .. ')')
   noNpcs('target deleted')
+  nothingVanished('target deleted')
   trace()
 end
 
@@ -922,8 +1102,11 @@ do -- 11. the vehicle is towed away by somebody else (moved far)
   check(runUntil(finished, 6000), 'finished')
   local outcome, reason = towOutcome()
   check(outcome == 'fallback' and reason == 'client:moved', 'fell back: ' .. tostring(reason))
-  check(ent(target) == nil, 'vehicle deleted')
+  check(ent(target) == nil, 'vehicle deleted (nobody near it)')
+  check(count('flatbed') == 1, 'the truck stays while the player is near')
+  leaveScene()
   noNpcs('moved')
+  nothingVanished('moved')
   trace()
 end
 
@@ -938,22 +1121,54 @@ do -- 12. somebody forces their way into the vehicle
   check(outcome == 'fallback' and reason == 'occupied', 'fell back: ' .. tostring(reason))
   check(ent(target) == nil and ent(W.players[2].ped).vehicle == nil, 'vehicle deleted under the player (no fade)')
   run(FADE_WAIT)
+  check(count('flatbed') == 1, 'the truck stays while players are near')
+  leaveScene()
   noNpcs('entered')
   trace()
 end
 
-do -- 13. the truck is stuck: re-paths, then falls back
+do -- 13. the truck is stuck in sight: re-paths, reverses, gives up; a new truck comes
   local NZ = scenario('stuck', { { src = 1, x = 0.0, y = -6.0 } })
   W.sight = 1000.0 -- everything is in sight: no unseen skip ahead possible
   local target = car('sultan', 5.0, 0.0, 1)
   check(NZ.Tow.start(target, 1), 'tow started')
   check(runUntil(function() return count('flatbed') == 1 end, 6000), 'spawned')
-  for id, en in pairs(W.entities) do if en.name == 'flatbed' then W.blocked[id] = true end end
-  check(runUntil(finished, 60000), 'finished')
+  local first = find('flatbed')
+  W.blocked[first] = true
+  check(runUntil(function() return trucks() == 2 end, 120000), 'gave up on the stuck truck, a new one comes')
+  local nudged = false
+  for _, t in ipairs(W.tempActions) do if t.action == 3 then nudged = true end end
+  check(nudged, 'reversed out before giving up')
+  local stuckReported = false
+  for _, r in ipairs(W.reports) do if r.stage == 'failed' then stuckReported = true end end
+  check(stuckReported and lastLog('impound.tow') == nil, 'reported stuck, the tow carries on')
+  check(ent(target) ~= nil and ent(target).state.nzTowing == true, 'the vehicle never vanished')
+  check(runUntil(finished, 150000), 'finished')
   local outcome, reason = towOutcome()
-  check(outcome == 'fallback' and reason == 'client:stuck', 'fell back: ' .. tostring(reason))
-  check(ent(target) == nil, 'vehicle deleted')
+  check(outcome == 'done', 'done with the second truck (' .. tostring(reason) .. ')')
+  check(lastLog('impound.tow').data.attempts == 2, 'two attempts logged')
+  check(ent(first) ~= nil, 'the stuck truck stays while the player is near')
+  leaveScene()
   noNpcs('stuck')
+  nothingVanished('stuck')
+  trace()
+  -- every attempt stuck: the vehicle stays (locked) until nobody is near
+  NZ = scenario('stuck twice', { { src = 1, x = 0.0, y = -6.0 } })
+  W.sight = 1000.0
+  W.server.Config.Tow.attempts = 1
+  target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return count('flatbed') == 1 end, 6000), 'spawned')
+  W.blocked[find('flatbed')] = true
+  check(runUntil(finished, 120000), 'finished')
+  outcome, reason = towOutcome()
+  check(outcome == 'fallback' and reason == 'client:stuck', 'fell back: ' .. tostring(reason))
+  check(notifiedOf(1, FAILED_TEXT), 'officer told the tow truck could not collect the vehicle')
+  check(ent(target) ~= nil and ent(target).locked == 2 and NZ.Tow.isTowing(target), 'the vehicle stays, locked')
+  leaveScene()
+  check(ent(target) == nil, 'removed once nobody is near')
+  noNpcs('stuck twice')
+  nothingVanished('stuck twice')
   trace()
 end
 
@@ -966,10 +1181,18 @@ do -- 14. stuck, but out of sight: skips ahead and completes
   local truck
   for id, en in pairs(W.entities) do if en.name == 'flatbed' then truck = id W.blocked[id] = true end end
   check(runUntil(function() return sawStage('arrived', 1) end, 60000), 'arrived after skipping ahead')
+  check(trucks() == 1, 'the same truck (moved unseen, not replaced)')
+  local reversed = false
+  for _, t in ipairs(W.tempActions) do if t.action == 3 then reversed = true end end
+  check(reversed, 'reversed out before skipping ahead')
+  local careful = false
+  for _, c in ipairs(W.longrange) do if c.speed <= 8.0 and (c.style & 128) ~= 0 then careful = true end end
+  check(careful, 'after a recovery: slower and still stops at red lights')
   W.blocked[truck] = nil
   check(runUntil(finished, 90000), 'finished')
   check(towOutcome() == 'done', 'outcome done (' .. tostring(select(2, towOutcome())) .. ')')
   noNpcs('stuck unseen')
+  nothingVanished('stuck unseen')
   trace()
 end
 
@@ -1126,6 +1349,7 @@ do -- 18. the impound form hook (owned and NPC vehicles; admin / export impounds
   run(FADE_WAIT)
   check(ent(owned) == nil and ent(npc) == nil, 'towed vehicles deleted')
   noNpcs('hook')
+  nothingVanished('hook')
   trace()
 end
 
@@ -1161,6 +1385,7 @@ do -- 19. entity lockdown (relaxed / strict): clients cannot create entities, th
   check((W.clientCreated or 0) == 0, 'no client created an entity')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('lockdown')
+  nothingVanished('lockdown')
   trace()
 end
 
@@ -1191,7 +1416,11 @@ do -- 20. an officer impounds the tow truck itself on its way
   run(FADE_WAIT)
   local outcome, reason = towOutcome()
   check(outcome == 'fallback' and reason == 'truckImpounded', 'that tow ended: ' .. tostring(reason))
-  check(ent(target) == nil, 'its vehicle deleted')
+  check(count('flatbed') == 0 and count('s_m_m_trucker_01') == 0, 'the impounded truck and its driver are gone')
+  check(ent(target) ~= nil and NZ.Tow.isTowing(target), 'its vehicle stays (locked) while the officer is near')
+  check(NZ.Tow.start(target, 1) == true and ent(target) ~= nil, 'impounding it again changes nothing')
+  leaveScene()
+  check(ent(target) == nil, 'its vehicle removed once nobody is near')
   noNpcs('truck impounded')
   trace()
 end
@@ -1210,6 +1439,7 @@ do -- 22. the StartTow export (another resource's impound): runs, or refuses wit
   check(ok2 == false and reason == 'entity', 'bad net id refused')
   check(runUntil(finished, 90000) and towOutcome() == 'done', 'export tow done')
   noNpcs('export')
+  nothingVanished('export')
   trace()
 end
 
@@ -1230,6 +1460,7 @@ do -- 21. the runner drops while the vehicle is half way onto the bed
   check(towOutcome() == 'done', 'outcome done (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('mid-load')
+  nothingVanished('mid-load')
   trace()
 end
 
@@ -1265,6 +1496,7 @@ do -- 23. the truck parks rear first whatever the vehicle's heading (turned unse
     checkPull(target, 'heading ' .. h)
     check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
     noNpcs('heading ' .. h)
+    nothingVanished('heading ' .. h)
     trace()
   end
 end
@@ -1279,38 +1511,41 @@ do -- 24. same, everything on screen: a wrong-way stop drives past the vehicle t
     checkPull(target, 'on screen ' .. h)
     check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
     noNpcs('on screen ' .. h)
+    nothingVanished('on screen ' .. h)
     trace()
   end
 end
 
-do -- 25. the new NPCs are simulated by another nearby player: that player runs the tow
+do -- 25. the new NPCs are simulated by another nearby player: the runner takes control of them
   local NZ = scenario('owner elsewhere', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 60.0, y = -10.0 } })
   W.ownerOverride = 2
   local target = car('sultan', 5.0, 0.0, 1)
   check(NZ.Tow.start(target, 1), 'tow started')
-  check(runUntil(function() return sawStage('node', 1) end, 8000), 'node proposed by the officer')
-  local moved = false
-  for _, r in ipairs(W.reports) do if r.stage == 'node' and r.code == 'moved' then moved = true end end
-  check(moved, 'officer told the job moved')
-  check(runUntil(function() return sawStage('spawned', 2) end, 8000), 'player 2 adopted the new NPCs')
+  check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'the officer adopted the new NPCs')
+  local truck, driver = find('flatbed'), find('s_m_m_trucker_01')
+  check(ent(truck).owner == 1 and ent(driver).owner == 1, 'the officer simulates truck and driver')
+  check(ent(truck).noMigrate == true and ent(driver).noMigrate == true, 'and keeps them (no migration)')
   check(runUntil(finished, 120000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  check(not sawStage('spawned', 2), 'player 2 never ran it')
   local told = false
   for _, n in ipairs(W.notified) do if n.target == 1 and n.message == 'Tow truck dispatched' then told = true end end
-  check(told, 'the officer is still told')
+  check(told, 'the officer is told')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('owner elsewhere')
+  nothingVanished('owner elsewhere')
   trace()
 end
 
-do -- 26. the NPCs are simulated by a player far from the vehicle: fall back
+do -- 26. the NPCs are simulated by a player far from the vehicle who keeps them: fall back
   local NZ = scenario('owner far away', { { src = 1, x = 0.0, y = -6.0 }, { src = 3, x = 2000.0, y = 0.0 } })
   W.ownerOverride = 3
+  W.noControl = true
   local target = car('sultan', 5.0, 0.0, 1)
   check(NZ.Tow.start(target, 1), 'tow started')
-  check(runUntil(finished, 10000), 'finished')
+  check(runUntil(finished, 15000), 'finished')
   local outcome, reason = towOutcome()
-  check(outcome == 'fallback' and reason == 'spawn:owner', 'fell back: ' .. tostring(reason))
-  check(ent(target) == nil, 'vehicle deleted')
+  check(outcome == 'fallback' and reason == 'runner:owner', 'fell back: ' .. tostring(reason))
+  check(ent(target) == nil, 'vehicle deleted (no truck ever came: as without a tow)')
   noNpcs('owner far away')
   trace()
 end
@@ -1339,6 +1574,7 @@ do -- 28. the runner drops while the server creates the NPCs: the remaining play
   check(runUntil(finished, 120000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('drop during creation')
+  nothingVanished('drop during creation')
   trace()
 end
 
@@ -1351,11 +1587,13 @@ do -- 29. the owner retrieves the vehicle meanwhile (Vehicles.retrieve -> NZ.Tow
   run(2000)
   check(NZ.Tow.release(other) == false, 'a vehicle that is not towed is not released')
   check(NZ.Tow.release(target) == true and ent(target) == nil, 'released: deleted at once')
+  W.nearDeletes = {} -- the owner took it out of the impound (a new copy spawns elsewhere)
   check(not NZ.Tow.isTowing(target), 'no longer towing')
   check(runUntil(function() return sawStage('leaving', 1) end, 8000), 'the empty truck leaves')
   check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(other) ~= nil, 'other vehicle untouched')
   noNpcs('release')
+  nothingVanished('release')
   -- before any truck exists: the job just ends
   NZ = scenario('release early', { { src = 1, x = 0.0, y = -6.0 } })
   W.players[1].deaf = true
@@ -1374,29 +1612,37 @@ do -- 30. the towed vehicle is deleted and its handle reused by another car of t
   check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'spawned')
   local old = ent(target)
   deleteWorld(target)
+  W.nearDeletes = {} -- deleted by the test itself
   -- a new sultan on the same handle (no nzTowing bag): never the job's vehicle
   W.entities[target] = { id = target, type = 2, model = old.model, name = 'sultan', x = 300.0, y = 300.0, z = 30.0, h = 0.0,
     owner = 1, bucket = 0, netId = 9999, state = {}, orphan = 0, plate = 'NEWCAR' }
   W.byNet[9999] = target
   check(not NZ.Tow.isTowing(target), 'the new car is not taken for the towed one')
   check(runUntil(finished, 90000), 'finished')
+  check(towOutcome() == 'done', 'the empty truck left (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(target) ~= nil and ent(target).plate == 'NEWCAR', 'the new car survives')
   noNpcs('recycled handle')
+  nothingVanished('recycled handle')
   trace()
 end
 
-do -- 31. fallbacks fade out what a client simulates, then delete it; resource stop is immediate
+do -- 31. what is retired near players fades out after cleanupSeconds; resource stop is immediate
   local NZ = scenario('fade', { { src = 1, x = 0.0, y = -6.0 } })
   W.sight = 1000.0
+  W.server.Config.Tow.attempts = 1
+  W.server.Config.Tow.cleanupSeconds = 30
   local target = car('sultan', 5.0, 0.0, 1)
   check(NZ.Tow.start(target, 1), 'tow started')
   check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'spawned')
   for id, en in pairs(W.entities) do if en.name == 'flatbed' then W.blocked[id] = true end end
-  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 60000), 'fell back (stuck)')
-  local sentFade = false
-  for _, ev in ipairs(W.sent) do if ev.name == 'nz:client:tow:fade' and ev.target == 1 then sentFade = true end end
-  check(sentFade, 'fade sent to the client that simulates them')
-  check(count('flatbed') == 1 and ent(target) ~= nil, 'still there while fading')
+  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 120000), 'fell back (stuck)')
+  local endedAt = now
+  check(count('flatbed') == 1 and ent(target) ~= nil, 'everything stays while the player is near')
+  check(runUntil(function()
+    for _, ev in ipairs(W.sent) do if ev.name == 'nz:client:tow:fade' and ev.target == 1 then return true end end
+    return false
+  end, 40000), 'fade sent to the client that simulates them')
+  check(now - endedAt >= 29000, ('after cleanupSeconds (%.0f s)'):format((now - endedAt) / 1000))
   run(200)
   local faded = 0
   for _ in pairs(W.faded) do faded = faded + 1 end
@@ -1404,18 +1650,19 @@ do -- 31. fallbacks fade out what a client simulates, then delete it; resource s
   run(FADE_WAIT)
   check(ent(target) == nil, 'vehicle deleted after the fade')
   noNpcs('fade')
-  -- resource stop in the middle of a fade: gone at once
-  NZ = scenario('fade + stop', { { src = 1, x = 0.0, y = -6.0 } })
+  -- resource stop while things are retired: gone at once
+  NZ = scenario('retired + stop', { { src = 1, x = 0.0, y = -6.0 } })
   W.sight = 1000.0
+  W.server.Config.Tow.attempts = 1
   target = car('sultan', 5.0, 0.0, 1)
   check(NZ.Tow.start(target, 1), 'tow started')
   check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'spawned')
   for id, en in pairs(W.entities) do if en.name == 'flatbed' then W.blocked[id] = true end end
-  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 60000), 'fell back')
-  check(NZ.Tow.isTowing(target), 'fading counts as towing')
+  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 120000), 'fell back')
+  check(NZ.Tow.isTowing(target), 'a retired vehicle counts as towing')
   stopResource()
   check(ent(target) == nil, 'vehicle deleted at once')
-  noNpcs('fade + stop')
+  noNpcs('retired + stop')
   trace()
 end
 
@@ -1443,13 +1690,10 @@ do -- 33. the server's seat request does not land: the runner seats the driver i
   check(runUntil(function() return sawStage('arrived', 1) end, 60000), 'arrived')
   check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
   noNpcs('seat lost')
+  nothingVanished('seat lost')
   trace()
 end
 
-local function find(name)
-  for id, en in pairs(W.entities) do if en.name == name then return id end end
-  return nil
-end
 
 --- Security log entries with this reason.
 local function securityCount(reason)
@@ -1477,6 +1721,7 @@ do -- 34. the vehicle's owner clears its nzTowing bag (cheat menu, no sv_stateBa
   check(towOutcome() == 'done', 'outcome done (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(target) == nil, 'vehicle deleted at the end')
   noNpcs('target bag cleared')
+  nothingVanished('target bag cleared')
   -- worst case: the bag stays cleared (no handler ever saw it): the server deletes it all the same
   NZ = scenario('target bag cleared silently', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 7.0, y = 2.0 } })
   W.ownerOverride = 1
@@ -1508,59 +1753,81 @@ do -- 35. the bags of the truck and driver are cleared: never left behind
   check(towOutcome() == 'done', 'outcome done (' .. tostring(select(2, towOutcome())) .. ')')
   check(ent(target) == nil, 'vehicle deleted')
   noNpcs('truck bag cleared')
+  nothingVanished('truck bag cleared')
   trace()
 end
 
-do -- 36. the bags are cleared while everything fades out: still deleted
-  local NZ = scenario('bag cleared during the fade', { { src = 1, x = 0.0, y = -6.0 } })
+do -- 36. the bags of retired entities are cleared: put back, still removed later
+  local NZ = scenario('bag cleared while retired', { { src = 1, x = 0.0, y = -6.0 } })
   W.sight = 1000.0
+  W.server.Config.Tow.attempts = 1
   local target = car('sultan', 5.0, 0.0, 1)
   check(NZ.Tow.start(target, 1), 'tow started')
   check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'spawned')
   local truck = find('flatbed')
   W.blocked[truck] = true
-  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 60000), 'fell back (stuck)')
-  check(ent(target) ~= nil and ent(truck) ~= nil, 'fading')
+  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 120000), 'fell back (stuck)')
+  check(ent(target) ~= nil and ent(truck) ~= nil, 'retired')
   ent(target).state.nzTowing = nil
   ownerSetsBag(truck, 'nzTowTruck', false)
-  run(FADE_WAIT + 200)
-  check(ent(target) == nil, 'vehicle deleted after the fade')
-  noNpcs('bag cleared during the fade')
+  run(300)
+  check(ent(truck).state.nzTowTruck == true and securityCount('bag:nzTowTruck') == 1,
+    ('retired truck bag put back, logged (%d)'):format(securityCount('bag:nzTowTruck')))
+  check(NZ.Tow.isTowing(target), 'the vehicle is still known (server data, not the bag)')
+  leaveScene()
+  check(ent(target) == nil, 'vehicle deleted once nobody is near')
+  noNpcs('bag cleared while retired')
   trace()
 end
 
-do -- 37. the vehicle falls off the leaving truck: removed once, not re-faded every second
-  local NZ = scenario('left behind while leaving', { { src = 1, x = 0.0, y = -6.0 } })
+do -- 37. the vehicle comes off the leaving truck: the truck waits, it is pulled back on
+  local NZ = scenario('off the bed while leaving', { { src = 1, x = 0.0, y = -6.0 } })
   local target = car('sultan', 5.0, 0.0, 1)
-  local netId = ent(target).netId
   check(NZ.Tow.start(target, 1), 'tow started')
   check(runUntil(function() return sawStage('leaving', 1) end, 120000), 'leaving')
+  run(600)
+  local truck = find('flatbed')
   local x, y, z = worldPos(target)
   ent(target).attached = nil
   ent(target).x, ent(target).y, ent(target).z = x, y, z
-  local t0 = now
-  local truck = find('flatbed')
-  -- the truck stops 30 m on (traffic): the job keeps running a while
-  runUntil(function()
+  W.loadedBy[truck] = nil -- this test checks the distance itself
+  local maxGap = 0
+  check(runUntil(function()
     local tx, ty = worldPos(truck)
-    return math.sqrt((tx - x) ^ 2 + (ty - y) ^ 2) > 30.0
-  end, 10000)
-  W.blocked[truck] = true
-  check(runUntil(function() return ent(target) == nil end, 6000), 'left-behind vehicle deleted')
-  local took = (now - t0) / 1000
-  check(took <= 4.5, ('deleted %.1f s after it fell off'):format(took))
-  run(5000)
-  local fades = 0
-  for _, ev in ipairs(W.sent) do
-    if ev.name == 'nz:client:tow:fade' then
-      for _, n in ipairs(ev.args[1] or {}) do if n == netId then fades = fades + 1 end end
-    end
-  end
-  check(fades == 1, 'one fade for the vehicle (' .. fades .. ')')
-  check(lastLog('impound.tow') == nil, 'the tow itself carries on')
-  W.blocked[truck] = nil
+    maxGap = math.max(maxGap, math.sqrt((tx - x) ^ 2 + (ty - y) ^ 2))
+    return ent(target).attached ~= nil and ent(target).attached.parent == truck
+  end, 15000), 'pulled back onto the bed')
+  check(maxGap < 25.0, ('the truck waited nearby (%.1f m)'):format(maxGap))
+  local asked = false
+  for _, ev in ipairs(W.sent) do if ev.name == 'nz:client:tow:attach' then asked = true end end
+  check(asked, 'the server asked the vehicle owner to pull it back on')
+  W.loadedBy[truck] = target
   check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
-  noNpcs('left behind')
+  check(ent(target) == nil, 'vehicle deleted with the truck')
+  noNpcs('off the bed')
+  nothingVanished('off the bed')
+  trace()
+  -- it cannot be put back (dragged 50 m away): retired, removed once nobody is near
+  NZ = scenario('off the bed, far', { { src = 1, x = 0.0, y = -6.0 } })
+  target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('leaving', 1) end, 120000), 'leaving')
+  truck = find('flatbed')
+  W.loadedBy[truck] = nil
+  ent(target).attached = nil
+  ent(target).x, ent(target).y, ent(target).z = 5.0, -50.0, 30.0
+  check(runUntil(function() return lastLog('impound.tow') ~= nil end, 30000), 'ended')
+  local outcome, reason = towOutcome()
+  check(outcome == 'fallback' and reason == 'detached', 'fell back: ' .. tostring(reason))
+  check(ent(target) ~= nil, 'the vehicle stays while the player is near')
+  check(dismissedTo(1) ~= nil, 'the empty truck is dismissed')
+  check(runUntil(function() return ent(truck) == nil or (ent(truck).drive and ent(truck).drive.wander) end, 5000),
+    'the empty truck drives off instead of standing there')
+  check(notifiedOf(1, FAILED_TEXT), 'officer told the tow truck could not collect the vehicle')
+  leaveScene()
+  check(ent(target) == nil, 'removed once nobody is near')
+  noNpcs('off the bed, far')
+  nothingVanished('off the bed, far')
   trace()
 end
 
@@ -1578,7 +1845,9 @@ do -- 38. a player takes the tow truck while the driver works the controls
   check(outcome == 'fallback' and reason == 'truckOccupied', 'fell back: ' .. tostring(reason))
   check(ent(truck) == nil and ped.vehicle == nil, 'truck deleted under the player (no fade)')
   run(FADE_WAIT)
-  check(ent(target) == nil, 'vehicle deleted')
+  check(ent(target) ~= nil and NZ.Tow.isTowing(target), 'the vehicle stays while players are near')
+  leaveScene()
+  check(ent(target) == nil, 'vehicle removed once nobody is near')
   noNpcs('truck occupied')
   -- a passenger while it drives away
   NZ = scenario('truck occupied leaving', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 8.0, y = -12.0 } })
@@ -1592,7 +1861,9 @@ do -- 38. a player takes the tow truck while the driver works the controls
   check(runUntil(function() return lastLog('impound.tow') ~= nil end, 2500), 'ended at once')
   check(select(2, towOutcome()) == 'truckOccupied' and ent(truck) == nil, 'truck deleted under the passenger')
   run(FADE_WAIT)
-  check(ent(target) == nil, 'vehicle deleted')
+  check(ent(target) ~= nil, 'the vehicle (dropped off the deleted truck) stays while players are near')
+  leaveScene()
+  check(ent(target) == nil, 'vehicle removed once nobody is near')
   noNpcs('truck occupied leaving')
   trace()
 end
@@ -1698,6 +1969,266 @@ do -- 41. two officers impound two cars at the same scene at once: never two tru
   end
   check(ent(a) == nil and ent(b) == nil, 'both vehicles deleted')
   noNpcs('two officers')
+  nothingVanished('two officers')
+  trace()
+end
+
+do -- 42. waiting at a red light is no lack of progress
+  local NZ = scenario('red light', { { src = 1, x = 0.0, y = -6.0 } })
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'spawned')
+  run(1000)
+  local truck = find('flatbed')
+  W.blocked[truck], W.redLight = true, truck
+  run(25000)
+  check(#W.tempActions == 0 and not sawStage('failed', 1), 'no recovery while waiting at the lights (25 s)')
+  W.blocked[truck], W.redLight = nil, nil
+  check(runUntil(finished, 120000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  check(trucks() == 1, 'one truck')
+  noNpcs('red light')
+  nothingVanished('red light')
+  trace()
+end
+
+do -- 43. spawn nodes without a route to the vehicle (other side of a motorway) are skipped
+  local NZ = scenario('no route', { { src = 1, x = 0.0, y = -6.0 } })
+  W.route = function(x1, y1, x2, y2)
+    if y1 < 0 then return 100000.0 end -- south of the vehicle: no way there
+    return math.sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2) * 1.2
+  end
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return #W.created >= 1 end, 8000), 'truck created')
+  check(W.created[1].y >= 0, ('created on a node with a route (y=%.0f)'):format(W.created[1].y))
+  check(runUntil(finished, 120000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  nothingVanished('no route')
+  trace()
+end
+
+do -- 44. a long vehicle never ends up in the cab: its front stops at bed.front
+  for _, case in ipairs({ { h = 0.0, label = 'nose first' }, { h = 180.0, label = 'tail first' } }) do
+    scenario('long vehicle ' .. case.label, { { src = 1, x = 0.0, y = -20.0 } })
+    local env = W.players[1].env
+    env.Config.Tow.bed.y = -1.0 -- a bed centre far forward: the clamp has to act
+    local truck = newEntity(2, 'flatbed', 0.0, 0.0, 30.0, 0.0, 1, { serverCreated = 0 })
+    local target = car('longcar', 0.0, -10.5, 1, { h = case.h })
+    ent(target).state.nzTowing = true
+    for _, fn in ipairs(env.handlers['nz:client:tow:attach'] or {}) do
+      addThread(env, fn, { id = 78, netId = ent(target).netId, truck = ent(truck).netId, seconds = 4 })
+    end
+    run(6000)
+    local poses = W.attachLog[target] or {}
+    local final = poses[#poses]
+    local m = MODELS.longcar
+    local front = final and (case.h == 0.0 and final.y + m.max.y or final.y - m.min.y) or math.huge
+    check(final ~= nil and front <= 1.2 + 0.01, ('%s: front of the vehicle at %.2f (bed.front 1.2)'):format(case.label, front))
+    check(ent(target).attached and ent(target).attached.parent == truck, case.label .. ': stays attached')
+  end
+end
+
+do -- 45. the runner says `loaded` but the server does not see the vehicle on the bed: no leaving
+  local NZ = scenario('forged loaded', { { src = 1, x = 0.0, y = -6.0 } })
+  W.players[1].deaf = true
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  local r = call(1, { id = 1, stage = 'node', x = 125.0, y = 40.0, z = 30.0, heading = 90.0 })
+  check(r.ok == true, 'node accepted: ' .. tostring(r.error))
+  local truck, driver = find('flatbed'), find('s_m_m_trucker_01')
+  r = call(1, { id = 1, stage = 'spawned', truck = ent(truck).netId, driver = ent(driver).netId })
+  check(r.ok == true, 'spawned')
+  r = call(1, { id = 1, stage = 'arrived' })
+  r = call(1, { id = 1, stage = 'load' })
+  check(r.ok == false and lastLog('impound.tow') == nil, 'load refused: the truck is not at the vehicle (server positions)')
+  check(trucks() == 1 and count('flatbed') == 1, 'that truck is retired (still there: the player is near), no new one yet')
+  -- the next attempt: a truck next to the vehicle, but nothing on the bed
+  r = call(1, { id = 1, stage = 'node', x = 125.0, y = 80.0, z = 30.0, heading = 90.0 })
+  check(r.ok == true, 'second node accepted')
+  truck, driver = 0, 0 -- the newest truck and driver
+  for id, en in pairs(W.entities) do
+    if en.name == 'flatbed' and id > truck then truck = id end
+    if en.name == 's_m_m_trucker_01' and id > driver then driver = id end
+  end
+  ent(truck).x, ent(truck).y = 5.0, 10.0
+  r = call(1, { id = 1, stage = 'spawned', truck = ent(truck).netId, driver = ent(driver).netId })
+  r = call(1, { id = 1, stage = 'arrived' })
+  r = call(1, { id = 1, stage = 'load' })
+  check(r.ok == true, 'load accepted next to the vehicle')
+  r = call(1, { id = 1, stage = 'loaded' })
+  check(r.ok == false and r.code == 'attach', 'loaded refused: the server sees nothing on the bed')
+  r = call(1, { id = 1, stage = 'leaving' })
+  check(r.ok == false, 'leaving refused')
+  check(ent(target) ~= nil and ent(target).attached == nil, 'the vehicle stays where it was')
+  run(FADE_WAIT)
+  check(towOutcome() == 'fallback', 'no attempts left: ended (' .. tostring(select(2, towOutcome())) .. ')')
+  check(ent(target) ~= nil, 'the vehicle stays while the player is near')
+  leaveScene()
+  check(ent(target) == nil, 'removed once nobody is near')
+  noNpcs('forged loaded')
+  nothingVanished('forged loaded')
+  trace()
+end
+
+do -- 46. the runner drops with the vehicle already on the bed: the next player only drives off
+  local NZ = scenario('runner drops when loaded', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 25.0, y = -10.0 } })
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('loaded', 1) end, 120000), 'loaded by the officer')
+  local truck = find('flatbed')
+  drop(1)
+  check(runUntil(function() return sawStage('leaving', 2) end, 20000), 'player 2 drives it off')
+  check(trucks() == 1, 'the same truck')
+  local poses = W.attachLog[target] or {}
+  local slid = 0
+  for _, p in ipairs(poses) do if math.abs(p.y + 2.35) > 0.01 then slid = slid + 1 end end
+  check(ent(target).attached and ent(target).attached.parent == truck, 'the vehicle stayed on the bed')
+  check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  say(('runner drops when loaded: %d slide poses'):format(slid))
+  noNpcs('runner drops when loaded')
+  nothingVanished('runner drops when loaded')
+  trace()
+end
+
+do -- 47. the server gives up on a truck (it stands too far from the vehicle to load): the driver
+   -- stops working the controls, gets back in and drives the empty truck off; a new one comes
+  local NZ = scenario('dismissed on retry', { { src = 1, x = 0.0, y = -6.0 } })
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('arrived', 1) end, 60000), 'arrived')
+  local first, driver = find('flatbed'), find('s_m_m_trucker_01')
+  -- pushed 35 m along the road while the driver walks to the controls: the server refuses `load`
+  ent(target).x = 40.0
+  check(runUntil(function() return trucks() == 2 end, 15000), 'a new truck comes')
+  local d = dismissedTo(1)
+  check(d ~= nil and d.truck == ent(first).netId and d.driver == ent(driver).netId, 'the old truck is dismissed (net ids)')
+  check(runUntil(function() local dr = ent(first) and ent(first).drive return dr ~= nil and dr.wander == true end, 15000),
+    'the old truck drives off')
+  check(ent(driver) and ent(driver).vehicle == first, 'its driver is back at the wheel')
+  check(not ent(first).noMigrate and not ent(driver).noMigrate, 'the old truck and driver may migrate again')
+  check(lastLog('impound.tow') == nil and not notifiedOf(1, FAILED_TEXT), 'the tow carries on, no failure notice')
+  check(runUntil(finished, 150000), 'finished')
+  check(towOutcome() == 'done', 'done with the second truck (' .. tostring(select(2, towOutcome())) .. ')')
+  check(ent(first) == nil, 'the dismissed truck is gone (removed once far from the player)')
+  noNpcs('dismissed on retry')
+  nothingVanished('dismissed on retry')
+  trace()
+end
+
+do -- 48. everything on screen: the truck stops beside the vehicle the wrong way round and the other
+   -- side is taken: it loads from where it stands (side path), no new truck
+  local NZ = scenario('wrong way, other side taken', { { src = 1, x = 0.0, y = -30.0 } })
+  W.screenRealistic, W.sight = true, 1000.0
+  local target = car('sultan', 5.0, 0.0, 1)
+  car('sultan', 5.0, -9.8, nil) -- parked on the spot behind the vehicle
+  check(NZ.Tow.start(target, 1), 'tow started')
+  local truck
+  check(runUntil(function()
+    truck = find('flatbed')
+    local d = truck and ent(truck).drive
+    return d ~= nil and not d.wander and d.speed == 5.0
+  end, 90000), 'final approach')
+  check(ent(truck).drive.y > 0, 'heads for the spot in front of the vehicle')
+  local en = ent(truck)
+  en.x, en.y, en.h, en.drive = 8.5, 0.0, 180.0, nil -- beside it, facing the other way
+  W.blocked[truck] = true
+  check(runUntil(function() return sawStage('arrived', 1) end, 20000), 'takes it from there')
+  W.blocked[truck] = nil
+  check(math.abs(en.x - 8.5) < 0.01 and math.abs(en.y) < 0.01 and en.h == 180.0, 'not moved in view of the player')
+  check(runUntil(function() return sawStage('loaded', 1) end, 30000), 'loaded')
+  check(trucks() == 1 and not sawStage('failed'), 'the same truck, no failure')
+  local poses = W.attachLog[target] or {}
+  local final = poses[#poses]
+  check(final and math.abs(final.x) < 0.01 and math.abs(final.y + 2.35) < 0.01, 'ends on the bed')
+  local worst = groundOverlap(poses)
+  check(worst == nil, 'never through the truck at ground level' ..
+    (worst and (' (%.2f m at %.2f, %.2f)'):format(worst.depth, worst.p.x, worst.p.y) or ''))
+  check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  noNpcs('wrong way, other side taken')
+  nothingVanished('wrong way, other side taken')
+  trace()
+end
+
+do -- 49. parked in line but several metres short: backs up to the vehicle before loading
+  local NZ = scenario('backs up', { { src = 1, x = 0.0, y = -30.0 } })
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  local truck
+  check(runUntil(function()
+    truck = find('flatbed')
+    local d = truck and ent(truck).drive
+    return d ~= nil and not d.wander and d.speed == 5.0 and d.y > 0
+  end, 90000), 'final approach to the front spot')
+  local en = ent(truck)
+  en.x, en.y, en.h, en.drive = 5.0, 15.3, 0.0, nil -- rear of the bed 7 m from the vehicle
+  W.blocked[truck] = true
+  check(runUntil(function() return en.drive ~= nil and en.drive.reverse == true end, 15000), 'backs up')
+  check(en.drive.speed <= 2.0, 'slowly')
+  W.blocked[truck] = nil
+  check(runUntil(function() return sawStage('arrived', 1) end, 15000), 'arrived')
+  local rear = en.y + MODELS.flatbed.min.y
+  check(rear - MODELS.sultan.max.y < 3.0 and rear - MODELS.sultan.max.y > 0.5,
+    ('rear of the bed close to the vehicle (%.1f m)'):format(rear - MODELS.sultan.max.y))
+  check(en.h == 0.0, 'still in line')
+  check(runUntil(function() return sawStage('loaded', 1) end, 30000), 'loaded')
+  local poses = W.attachLog[target] or {}
+  check(poses[1] and poses[1].y > -12.0, ('short slide on the ground (starts at y=%.1f)'):format(poses[1] and poses[1].y or 0))
+  checkPull(target, 'backs up')
+  check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  noNpcs('backs up')
+  nothingVanished('backs up')
+  trace()
+end
+
+do -- 50. the leaving truck is let go once far from the runner: a player near its route can
+   -- simulate it (the runner no longer streams the roads there)
+  local NZ = scenario('leaving migrates', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 3000.0, y = 0.0 } })
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('leaving', 1) end, 120000), 'leaving')
+  local truck, driver = find('flatbed'), find('s_m_m_trucker_01')
+  check(ent(truck).noMigrate == true and ent(target).noMigrate == true, 'kept by the runner near the scene')
+  -- player 2 drives along behind the truck
+  local p2 = ent(W.players[2].ped)
+  local function follow()
+    local tx, ty = worldPos(truck)
+    p2.x, p2.y = tx + 15.0, ty
+  end
+  check(runUntil(function()
+    follow()
+    local tx, ty = worldPos(truck)
+    return math.sqrt(tx * tx + (ty + 6.0) ^ 2) > 210.0
+  end, 60000), 'the truck is 200 m from the runner')
+  runUntil(function() follow() return false end, 1500)
+  check(lastLog('impound.tow') == nil, 'still running (a player is near the truck)')
+  check(not ent(truck).noMigrate and not ent(driver).noMigrate and not ent(target).noMigrate,
+    'truck, driver and vehicle may migrate again')
+  check(ent(target).attached and ent(target).attached.parent == truck, 'the vehicle is still on the bed')
+  p2.x = p2.x + 5000.0
+  check(runUntil(finished, 90000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  noNpcs('leaving migrates')
+  nothingVanished('leaving migrates')
+  trace()
+end
+
+do -- 51. stuck out of the runner's sight, but another player watches the truck: never moved in
+   -- front of them; a new truck comes
+  local NZ = scenario('stuck, watched', { { src = 1, x = 0.0, y = -6.0 }, { src = 2, x = 3000.0, y = 0.0 } })
+  W.sight, W.los = 5.0, true
+  local target = car('sultan', 5.0, 0.0, 1)
+  check(NZ.Tow.start(target, 1), 'tow started')
+  check(runUntil(function() return sawStage('spawned', 1) end, 8000), 'spawned')
+  local first = find('flatbed')
+  W.blocked[first] = true
+  local fx, fy = worldPos(first)
+  local p2 = ent(W.players[2].ped)
+  p2.x, p2.y = fx + 20.0, fy
+  check(runUntil(function() return trucks() == 2 end, 120000), 'gave up on the stuck truck, a new one comes')
+  local x, y = worldPos(first)
+  check(math.abs(x - fx) < 0.01 and math.abs(y - fy) < 0.01, 'never moved in front of the other player')
+  check(runUntil(finished, 150000) and towOutcome() == 'done', 'done (' .. tostring(select(2, towOutcome())) .. ')')
+  leaveScene()
+  noNpcs('stuck, watched')
+  nothingVanished('stuck, watched')
   trace()
 end
 

@@ -520,6 +520,68 @@ NZ.NUI.register('garage:goInside', function()
 end)
 
 ---------------------------------------------------------------------------------------
+-- 3D preview of the selected vehicle (NZ.Preview, client/preview.lua)
+---------------------------------------------------------------------------------------
+
+--- Preview target of the garage menu: { key, hash, plate?, callback? } or nil.
+--- `data` = { plate } for owned vehicles, { index } for spawner vehicles.
+---@param data table
+---@return table|nil
+function Garage.previewTarget(data)
+  if not ctx or type(ctx.data) ~= 'table' or type(data) ~= 'table' then return nil end
+  local index = math.tointeger(tonumber(data.index))
+  if index then
+    for _, s in pairs(ctx.data.spawner or {}) do
+      if type(s) == 'table' and math.tointeger(tonumber(s.index)) == index and tonumber(s.hash) then
+        -- configured livery / extras / max mods (when the server's spawner list carries them)
+        local mods = nil
+        if tonumber(s.livery) or type(s.extras) == 'table' or s.maxMods == true then
+          mods = { livery = tonumber(s.livery) or -1, extras = type(s.extras) == 'table' and s.extras or nil,
+            maxMods = s.maxMods == true }
+        end
+        return { key = 's:' .. index, hash = tonumber(s.hash), data = { mods = mods } }
+      end
+    end
+    return nil
+  end
+  local v = findByPlate(ctx.data.vehicles, data.plate)
+  if not v or not tonumber(v.hash) then return nil end
+  local plate = NZ.Utils.plate(v.plate)
+  return { key = 'p:' .. plate, plate = plate, hash = tonumber(v.hash), callback = 'nz:garage:preview' }
+end
+
+-- { app = 'garage'|'impound', plate? | index?, rect? } -> { shown, disabled? }
+-- No plate / index: the selection has nothing to show (stops the preview).
+NZ.NUI.register('garage:preview', function(data)
+  local app = data.app or 'garage'
+  if type(data.rect) == 'table' then NZ.Preview.setRect(data.rect) end
+  local target = nil
+  if (app == 'garage' or app == 'impound') and NZ.NUI.isOpen(app) then
+    if app == 'impound' then
+      target = NZ.ImpoundClient.previewTarget(data)
+    else
+      target = Garage.previewTarget(data)
+    end
+  end
+  if not target then
+    NZ.Preview.stop(false)
+    return NZ.Utils.ok({ shown = false, disabled = not NZ.Preview.enabled() or nil })
+  end
+  return NZ.Preview.show(app, target)
+end)
+
+-- { x, y, w, h, vw, vh, dpr } (CSS px) -> null : where the stage box is on screen
+NZ.NUI.register('garage:previewRect', function(data)
+  NZ.Preview.setRect(data)
+  return NZ.Utils.ok(nil)
+end)
+
+NZ.NUI.onClose('garage', function()
+  NZ.Preview.stop(false)
+  NZ.Preview.reset()
+end)
+
+---------------------------------------------------------------------------------------
 -- Events & exports
 ---------------------------------------------------------------------------------------
 

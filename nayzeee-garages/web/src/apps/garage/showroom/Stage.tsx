@@ -1,12 +1,15 @@
 /**
- * Showroom stage: the selected vehicle large on a "turntable" — radial spotlight, perspective
- * floor grid, thin teal horizon, elliptical floor shadow (all CSS gradients) — with overlay
- * slots in the four corners. Plus the registration plate and the title block.
+ * Showroom stage: the selected vehicle large on a "turntable" — perspective floor grid, thin
+ * teal horizon, elliptical floor shadow (all CSS gradients) — with overlay slots in the four
+ * corners. Plus the registration plate and the title block.
+ * While the 3D preview runs (PreviewContext, see ./preview.tsx) the stage is transparent: the
+ * game renders the real car behind it, slowly turning; the image is the fallback.
  */
 import type { ReactNode } from 'react';
-import { VehicleImage, cx } from '@/components/ui';
+import { Spinner, VehicleImage, cx } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import type { VehicleType } from '@/lib/types';
+import { usePreviewStage } from './preview';
 
 export interface StageProps {
   image: string | null;
@@ -43,9 +46,19 @@ export function Stage({
   className,
   children,
 }: StageProps) {
+  const preview = usePreviewStage();
+  // ghosts and the empty turntable never preview (the hook gets no target for them)
+  const live = preview.live && !empty && !ghost;
   return (
-    <div className={cx('nz-garage__stage', ghost && 'is-ghost', empty && 'is-empty', className)}>
-      <span className="nz-garage__stage-light" aria-hidden="true" />
+    <div
+      ref={empty ? undefined : preview.stageRef}
+      className={cx('nz-garage__stage', ghost && 'is-ghost', empty && 'is-empty', live && 'is-live', className)}
+    >
+      {live && preview.loading && (
+        <span className="nz-garage__stage-busy" aria-label={t('Loading vehicle...')}>
+          <Spinner size={14} />
+        </span>
+      )}
       <span className="nz-garage__stage-floor" aria-hidden="true" />
       <span className="nz-garage__stage-horizon" aria-hidden="true" />
       <span className="nz-garage__stage-ring" aria-hidden="true" />

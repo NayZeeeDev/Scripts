@@ -128,4 +128,44 @@ return {
     client = { image = 'signed_contract.png' },
     server = { export = 'nayzeee-garages.useNzItem' },
   },
+
+  ['immobiliser'] = {
+    label = 'Immobiliser',
+    weight = 600,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'Fit it to your vehicle: it can no longer be hotwired',
+    client = { image = 'immobiliser.png' },
+    server = { export = 'nayzeee-garages.useNzItem' },
+  },
+
+  ['ghost_immobiliser'] = {
+    label = 'Ghost immobiliser',
+    weight = 600,
+    stack = true,
+    close = true,
+    consume = 0,
+    description = 'Fit it to your vehicle: a PIN before the engine starts',
+    client = { image = 'ghost_immobiliser.png' },
+    server = { export = 'nayzeee-garages.useNzItem' },
+  },
+
+  ['hotwire_kit'] = {
+    label = 'Hotwire kit',
+    weight = 300,
+    stack = true,
+    close = true,
+    description = 'Wire strippers and splice clips',
+    client = { image = 'hotwire_kit.png' },
+  },
+
+  ['signal_reader'] = {
+    label = 'Signal reader',
+    weight = 400,
+    stack = true,
+    close = true,
+    description = 'Tunes into the ignition signal of protected vehicles',
+    client = { image = 'signal_reader.png' },
+  },
 }

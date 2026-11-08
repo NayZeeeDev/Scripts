@@ -932,18 +932,21 @@ function Inventory.canCarry(src, item, count, metadata)
   return not ok or res ~= false
 end
 
---- Give the player `count` of `item` (with `metadata` when supported). Checks canCarry first.
+--- Give the player `count` of `item` (with `metadata` when supported). Checks canCarry first,
+--- unless `force` (giving back an item that must not be lost: the inventory itself may still refuse).
 ---@param src number
 ---@param item string
 ---@param count number|nil
 ---@param metadata table|nil
+---@param _ nil reserved
+---@param force boolean|nil skip the canCarry check
 ---@return boolean
-function Inventory.addItem(src, item, count, metadata)
+function Inventory.addItem(src, item, count, metadata, _, force)
   src, item, count = validSrc(src), validName(item), validCount(count)
   local a = adapter()
   if not src or not item or not count or not a or type(a.add) ~= 'function' then return false end
   if type(metadata) == 'table' and a.metadata ~= true then metadata = nil end
-  if not Inventory.canCarry(src, item, count, metadata) then return false end
+  if force ~= true and not Inventory.canCarry(src, item, count, metadata) then return false end
   local ok, res = try(Inventory.name() .. ' add', a.add, src, item, count, metadata)
   if not ok or res ~= true then return false end
   if type(a.box) == 'function' then pcall(a.box, src, item, 'add', count) end
@@ -1183,7 +1186,118 @@ local function hasSharedItems()
   return false
 end
 
+---------------------------------------------------------------------------------------
+-- Key custody: moves of watched items reported by the inventory (docs/CARLOCK.md §3)
+---------------------------------------------------------------------------------------
+
+local moveWatch = { items = {}, fns = {} }   -- items: { [name] = true }; fns: { fn, ... }
+local oxMoveHook = nil                       -- ox_inventory hook id (swapItems)
+
+--- Normalized holder of an ox_inventory inventory id / type: player -> { 'player', src },
+--- glovebox -> { 'stash', 'glovebox:PLATE' }, trunk -> { 'stash', 'trunk:PLATE' },
+--- drop / stash / other -> { 'stash', '<type>:<id>' }.
+local function oxHolder(inv, invType)
+  if type(inv) == 'number' or invType == 'player' then
+    local src = validSrc(inv)
+    return 'player', src
+  end
+  local id = tostring(inv or '')
+  if invType == 'glovebox' then
+    return 'stash', 'glovebox:' .. (Utils.plate((id:gsub('^glove', ''))) or id)
+  elseif invType == 'trunk' then
+    return 'stash', 'trunk:' .. (Utils.plate((id:gsub('^trunk', ''))) or id)
+  end
+  return 'stash', ('%s:%s'):format(tostring(invType or 'stash'), id):sub(1, 64)
+end
+
+local function reportMove(name, metadata, custody, holder, slot)
+  if not moveWatch.items[name] or type(metadata) ~= 'table' then return end
+  for _, fn in ipairs(moveWatch.fns) do
+    local ok, err = pcall(fn, { item = name, metadata = metadata, custody = custody, holder = holder, slot = slot })
+    if not ok then lib.print.warn(('[nayzeee-garages] inventory: move watcher failed: %s'):format(tostring(err))) end
+  end
+end
+
+local function oxSwapHook(payload)
+  if type(payload) ~= 'table' then return end
+  local moves = {}
+  local from = payload.fromSlot
+  if type(from) == 'table' and moveWatch.items[from.name] then
+    local custody, holder = oxHolder(payload.toInventory, payload.toType)
+    moves[#moves + 1] = { from.name, from.metadata, custody, holder, type(payload.toSlot) == 'number' and payload.toSlot
+      or (type(payload.toSlot) == 'table' and payload.toSlot.slot) or nil }
+  end
+  local to = payload.toSlot
+  if payload.action == 'swap' and type(to) == 'table' and moveWatch.items[to.name] then
+    local custody, holder = oxHolder(payload.fromInventory, payload.fromType)
+    moves[#moves + 1] = { to.name, to.metadata, custody, holder, type(from) == 'table' and from.slot or nil }
+  end
+  if #moves == 0 then return end
+  -- never block the inventory: record after the move
+  CreateThread(function()
+    for _, m in ipairs(moves) do reportMove(m[1], m[2], m[3], m[4], m[5]) end
+  end)
+end
+
+local function installMoveHook()
+  local r = resolve()
+  if not r or r.name ~= 'ox_inventory' or oxMoveHook or next(moveWatch.items) == nil or #moveWatch.fns == 0 then return end
+  local filter = {}
+  for name in pairs(moveWatch.items) do filter[name] = true end
+  local ok, id = try('ox_inventory registerHook', function()
+    return exports.ox_inventory:registerHook('swapItems', oxSwapHook, { itemFilter = filter })
+  end)
+  if ok and id ~= nil then oxMoveHook = id end
+end
+
+--- Watch where items go (key custody). fn(move) with move = { item, metadata, custody =
+--- 'player'|'stash', holder (player: server id; stash: 'glovebox:PLATE' | 'trunk:PLATE' |
+--- '<type>:<id>'), slot? }. Only inventories that report moves call it (ox_inventory:
+--- swapItems hook); the others are read when the server looks into a player's pockets.
+---@param items string[]
+---@param fn function
+---@return boolean reported true when the inventory in use reports moves
+function Inventory.watchMoves(items, fn)
+  if type(items) ~= 'table' or type(fn) ~= 'function' then return false end
+  for _, name in ipairs(items) do
+    if validName(name) then moveWatch.items[name] = true end
+  end
+  moveWatch.fns[#moveWatch.fns + 1] = fn
+  queueSync(1000)
+  return Inventory.name() == 'ox_inventory'
+end
+
+--- Remove an item from a stash / glovebox / trunk by the holder id of a move report
+--- ('glovebox:PLATE', 'trunk:PLATE', 'stash:<id>'). ox_inventory only; false elsewhere.
+---@param holder string
+---@param item string
+---@param metadata table|nil matched key by key
+---@return boolean
+function Inventory.removeFromStash(holder, item, metadata)
+  local r = resolve()
+  item = validName(item)
+  if not r or r.name ~= 'ox_inventory' or type(holder) ~= 'string' or not item then return false end
+  local kind, id = holder:match('^([%w_]+):(.+)$')
+  if not kind then return false end
+  -- glovebox / trunk ids are 'glove' / 'trunk' + the plate text (trimmed, or as the vehicle shows it)
+  local prefix = kind == 'glovebox' and 'glove' or (kind == 'trunk' and 'trunk' or nil)
+  local candidates = prefix and { prefix .. id, prefix .. (id .. '        '):sub(1, 8) } or { id }
+  for _, inv in ipairs(candidates) do
+    local ok, items = try('ox_inventory GetInventoryItems', function() return exports.ox_inventory:GetInventoryItems(inv) end)
+    for _, entry in pairs(ok and type(items) == 'table' and items or {}) do
+      if type(entry) == 'table' and entry.name == item and matches(entry.metadata, metadata) then
+        local okRemove, res = try('ox_inventory RemoveItem', function()
+          return exports.ox_inventory:RemoveItem(inv, item, 1, nil, entry.slot)
+        end)
+        return okRemove and res == true
+      end
+    end
+  end
+  return false
+end
+
 installHooks = function()
+  installMoveHook()
   local r = resolve()
   if not r or r.name ~= 'qb-inventory' then return end
   if not qbHook and next(protected) ~= nil then
@@ -1230,6 +1344,7 @@ AddEventHandler('onResourceStart', function(resource)
     if resource == 'qb-core' then qbCache.obj = nil end
     if resource == 'es_extended' then esxCache = nil end
     if resource == 'qb-inventory' then qbHook, qbUseHook = nil, nil end
+    if resource == 'ox_inventory' then oxMoveHook = nil end
     -- a fresh framework has a fresh item registry: look at the previous handlers again
     if resource == 'qb-core' or resource == 'qbx_core' then previous = {} end
     queueSync(2000)
@@ -1261,6 +1376,11 @@ AddEventHandler('onResourceStop', function(resource)
     local id = qbUseHook
     qbUseHook = nil
     pcall(function() exports['qb-inventory']:RemoveHook('ItemUsed', id) end)
+  end
+  if oxMoveHook then
+    local id = oxMoveHook
+    oxMoveHook = nil
+    pcall(function() exports.ox_inventory:removeHooks(id) end)
   end
 end)
 

@@ -1,87 +1,18 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   In-world HUD widgets (never take focus): interaction prompt + key hint bar.
-   Design-sheet HUD panels: translucent --hud surface, radius 12, soft shadow.
-   No infinite animations here: these stay on screen during gameplay and an idle
-   NUI page should not repaint every frame.
+   In-world HUD widgets (never take focus): interaction prompt + key hint bar, both in the
+   owner's prompt-bar style — a solid dark rounded bar at the bottom centre, bordered key
+   chips and white labels. The prompt stacks above the hint bar when both are up
+   (--nz-hint-h is published by Hint.tsx).
+   No infinite animations here: these stay on screen during gameplay and an idle NUI page
+   should not repaint every frame.
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── prompt: left-middle ── */
-.nz-prompt {
-  position: fixed;
-  left: clamp(20px, 2.4vw, 46px);
-  top: 50%;
-  z-index: var(--z-hud);
-  height: 0;
-  display: flex;
-  align-items: center;
-  pointer-events: none;
-}
-
-.nz-prompt__pill {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  height: 46px;
-  max-width: min(420px, 40vw);
-  padding: 0 19px 0 8px;
-  background: var(--hud);
-  border: 1px solid var(--hud-line);
-  border-radius: 14px;
-  box-shadow: var(--sh-hud), 0 14px 32px rgba(0, 0, 0, .22);
-  animation: nz-prompt-in 240ms var(--ease) both;
-}
-
-.nz-prompt__pill.is-leaving { animation: nz-prompt-out 180ms var(--ease) both; }
-
-.nz-prompt__key {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  min-width: 30px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 9px;
-  background: linear-gradient(var(--teal), var(--teal-lo));
-  border-bottom: 2px solid rgba(0, 0, 0, .28);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, .32) inset, 0 0 14px rgba(var(--teal-rgb), .45);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--on-teal);
-}
-
-.nz-prompt__pill--wide .nz-prompt__key { font-size: 11px; letter-spacing: .02em; }
-
-.nz-prompt__label {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -.005em;
-  color: var(--white);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
-}
-
-@keyframes nz-prompt-in {
-  from { opacity: 0; transform: translateX(-12px); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes nz-prompt-out {
-  from { opacity: 1; transform: none; }
-  to { opacity: 0; transform: translateX(-8px); }
-}
-
-/* ── hint: bottom-center ── */
+.nz-prompt,
 .nz-hint {
+  --nz-hud-bottom: clamp(22px, 4.2vh, 48px);
   position: fixed;
   left: 0;
   right: 0;
-  bottom: clamp(22px, 4.2vh, 48px);
   z-index: var(--z-hud);
   display: flex;
   justify-content: center;
@@ -89,85 +20,103 @@
   pointer-events: none;
 }
 
-.nz-hint__panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: min(860px, 100%);
-  padding: 11px 16px 13px;
-  background: var(--hud);
-  border: 1px solid var(--hud-line);
-  border-radius: 12px;
-  box-shadow: var(--sh-hud), 0 14px 32px rgba(0, 0, 0, .22);
-  animation: nz-hint-in 240ms var(--ease) both;
-}
+.nz-hint { bottom: var(--nz-hud-bottom); }
+.nz-prompt { bottom: var(--nz-hud-bottom); transition: bottom var(--slide); }
+.nz-prompt.is-stacked { bottom: calc(var(--nz-hud-bottom) + var(--nz-hint-h, 46px) + 10px); }
 
-.nz-hint__panel.is-leaving { animation: nz-hint-out 180ms var(--ease) both; }
-
-.nz-hint__title {
+/* ── the bar ── */
+.nz-prompt__bar,
+.nz-hint__bar {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid rgba(255, 255, 255, .06);
-  font-size: 11.5px;
-  font-weight: 500;
-  letter-spacing: .01em;
-  color: var(--ink-hud);
+  min-height: 46px;
+  max-width: min(1100px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
 }
 
-.nz-hint__title svg { color: var(--teal); flex: none; }
+.nz-prompt__bar {
+  gap: 11px;
+  padding: 0 18px 0 11px;
+  animation: nz-hud-in 240ms var(--ease) both;
+}
 
-.nz-hint__groups {
-  display: flex;
+.nz-hint__bar {
   flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 20px;
+  gap: 8px 22px;
+  padding: 8px 18px 8px 11px;
+  animation: nz-hud-in 240ms var(--ease) both;
 }
+
+.nz-prompt__bar.is-leaving,
+.nz-hint__bar.is-leaving { animation: nz-hud-out 180ms var(--ease) both; }
+
+/* ── key chip + label (shared) ── */
+.nz-hud-key {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--raise);
+  box-shadow: inset 0 1px 0 var(--lift);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.nz-hud-key--word { padding: 0 9px; font-size: 11px; letter-spacing: .01em; }
+
+.nz-hud-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.nz-prompt__bar .nz-hud-label { max-width: min(460px, 60vw); }
+
+/* ── hint bar parts ── */
+.nz-hint__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 20px;
+  margin-right: -2px;
+  border-right: 1px solid var(--line-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.nz-hint__title svg { flex: none; color: var(--teal); }
 
 .nz-hint__group {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   white-space: nowrap;
-}
-
-.nz-hint__group--cross {
-  padding-right: 20px;
-  margin-right: -2px;
-  border-right: 1px solid rgba(255, 255, 255, .07);
 }
 
 .nz-hint__caps {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-}
-
-.nz-hint__cap {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: linear-gradient(rgba(255, 255, 255, .14), rgba(255, 255, 255, .07));
-  border: 1px solid rgba(255, 255, 255, .16);
-  border-bottom-width: 2px;
-  font-family: var(--font);
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--white);
-}
-
-.nz-hint__cap--word { padding: 0 8px; font-size: 10px; letter-spacing: .02em; }
-
-.nz-hint__label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink);
+  gap: 4px;
 }
 
 /* W / A S D drawn as a cross */
@@ -178,20 +127,19 @@
   gap: 3px;
 }
 
-.nz-hint__cross-w,
 .nz-hint__cross-row {
   display: flex;
   gap: 3px;
 }
 
-.nz-hint__cross .nz-hint__cap { width: 24px; padding: 0; }
+.nz-hint__cross .nz-hud-key { width: 22px; min-width: 22px; height: 20px; padding: 0; font-size: 10px; }
 
-@keyframes nz-hint-in {
+@keyframes nz-hud-in {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: none; }
 }
 
-@keyframes nz-hint-out {
+@keyframes nz-hud-out {
   from { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateY(8px); }
 }

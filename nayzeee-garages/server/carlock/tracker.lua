@@ -30,7 +30,9 @@
                     profileLabel, remote, keyType ('key'|'fob'), tracker, trackerAccess,
                     origin? (how a key that is not real was obtained: the temporary key's
                     reason / the key item's origin), trackable, towing, locked?, alarm,
-                    distance? (trackable), coords? (trackable, one plate) }
+                    distance? (trackable), coords? (trackable, one plate),
+                    immobiliser ('none'|'standard'|'ghost') }
+      tracker access follows Config.CarLock.tracker.who ('real' | 'any' | 'owner')
     nz:carlock:trackerAlarm  { plate, on? } -> { alarm, seconds?, cooldown, refused?, message? }
                              remote alarm of a trackable vehicle (NZ.CarLock.alarm, Config.CarLock.
                              tracker.alarmSeconds); a new alarm waits tracker.alarmCooldown seconds
@@ -72,7 +74,7 @@ local MAX_TOKENS = 400          -- key holder ids kept per player (older ones ar
 -- access, the owner's nickname, a name in Key holders). Every other reason is a crime's or
 -- another script's (hotwire, robbery, search, back-alley locksmith, compat, unknown ones).
 local SERVICE = { garage = true, spawner = true, admin = true, contract = true, export = true,
-  assist = true, rekey = true }
+  assist = true, rekey = true, share = true }
 
 local alarmAt = {}              -- [plate] = os.time() of the last remote alarm
 local alarmCount = 0
@@ -254,6 +256,16 @@ local function bestKeyOf(src, plate, kind)
   return kind, nil
 end
 
+--- Tracker access of a key (Config.CarLock.tracker.who): 'real' (default) = a real key,
+--- 'any' = every key (or tracker.tempKeys = true), 'owner' = the owner and garage shares /
+--- fleets only.
+local function trackAccess(src, plate, real, kind)
+  local t = trackerCfg()
+  if t.tempKeys == true or t.who == 'any' then return true end
+  if t.who == 'owner' then return kind == 'owner' or CarLock.isOwner(src, plate) end
+  return real == true
+end
+
 ---------------------------------------------------------------------------------------
 -- Status of one key
 ---------------------------------------------------------------------------------------
@@ -314,11 +326,12 @@ function CarLock.keyStatus(src, plate, entity, opts)
     remote = profile.remote == true,
     keyType = CarLock.keyKindOf(profile),
     tracker = profile.tracker == true,
-    trackerAccess = real or trackerCfg().tempKeys == true,
+    trackerAccess = trackAccess(src, plate, real, isOwner and 'owner' or opts.kind),
     origin = not real and origin or nil,
     trackable = false,
     towing = false,
     alarm = false,
+    immobiliser = CarLock.immobiliserOf(plate),
   }
   if not entity then return status end
 
@@ -382,7 +395,7 @@ lib.callback.register('nz:carlock:trackerAlarm', Utils.safe(function(source, pay
   local has, kind = CarLock.hasKey(src, plate)
   if not has then return Utils.fail(L('You do not have the keys of this vehicle')) end
   local best, reason = bestKeyOf(src, plate, kind)
-  if trackerCfg().tempKeys ~= true and not realKey(src, plate, best, reason) then
+  if not trackAccess(src, plate, realKey(src, plate, best, reason), best) then
     return Utils.fail(L('This key has no tracker access'))
   end
   local entity = CarLock.findVehicle(plate, src)
@@ -582,4 +595,388 @@ function CarLock.openKeyRing(src, plate)
   if not src or not CarLock.enabled() then return false end
   TriggerClientEvent('nz:client:carlock:keyRing', src, { plate = normPlate(plate) })
   return true
+end
+
+---------------------------------------------------------------------------------------
+-- Admin key manager (docs/CARLOCK.md §19; command Config.CarLock.commands.keyAdmin,
+-- /vehiclekeysadmin). NZ.CarLock.isAdmin only, every call rate limited and logged.
+--   nz:carlock:admin:search  { query }                      -> { rows = { KeyAdminPlayer } }
+--                            name / citizen id (framework characters) / plate (owners first)
+--   nz:carlock:admin:player  { identifier }                 -> KeyAdminPlayerData
+--   nz:carlock:admin:give    { identifier, plate, type = 'item'|'temp'|'virtual', keyKind?, hours? }
+--                                                           -> KeyAdminPlayerData
+--                            item: the player must be online (inventory); temp works offline;
+--                            virtual: registered vehicles only (no owner check)
+--   nz:carlock:admin:delete  { identifier, id }             -> KeyAdminPlayerData
+--                            id from a KeyAdminRow: 'temp:<plate>' | 'virtual:<plate>' |
+--                            'item:<plate>:<keyId>' | 'ground:<groundId>' (owner rows cannot be
+--                            deleted). A key item in a pocket of an online player or an
+--                            ox_inventory stash is taken out; otherwise it is marked lost (change
+--                            the locks to retire it for sure)
+--   nz:carlock:admin:plate   { plate }                      -> KeyAdminPlateData (every key of a vehicle)
+--   nz:carlock:admin:track   { plate }                      -> { plate, spawned, coords?, distance?, bucket? }
+-- KeyAdminPlayer = { identifier, name, online, serverId?, matchedPlates }
+-- KeyAdminRow = { id, plate, model?, type ('key'|'fob'|'virtual'|'temp'|'owner'), origin,
+--   custody = { kind ('inventory'|'stash'|'ground'|'server'|'unknown'|'lost'|'flight'), slot?,
+--   stash?, groundId? }, spawned, netId?, distance?, expires?, current?, shared? ('in'|'out'),
+--   deletable }
+-- KeyAdminPlayerData = { player = KeyAdminPlayer, keys = { KeyAdminRow }, totals = { keys,
+--   vehicles, sharedIn, sharedOut } }
+---------------------------------------------------------------------------------------
+
+local ADMIN_RATE = 250
+local ADMIN_MAX_ROWS = 300
+
+local function adminOk(src)
+  if not CarLock.isAdmin(src) then
+    log('security.adminCommand', src, { command = 'keyAdmin' })
+    return false
+  end
+  return NZ.Access.rateLimit(src, 'carlock:keyAdmin', ADMIN_RATE)
+end
+
+local function identifierArg(value)
+  if type(value) ~= 'string' or value == '' or #value > 64 or value:find('[%c]') then return nil end
+  return value
+end
+
+local function sourceOf(identifier)
+  if type(NZ.Bridge.getSourceByIdentifier) ~= 'function' then return nil end
+  local ok, res = pcall(NZ.Bridge.getSourceByIdentifier, identifier)
+  return ok and validSrc(res) or nil
+end
+
+local function nameOf(identifier)
+  local ok, name = pcall(NZ.Bridge.getCharacterName, identifier)
+  return ok and type(name) == 'string' and name or L('Unknown')
+end
+
+local function playerInfo(identifier)
+  local src = sourceOf(identifier)
+  return { identifier = identifier, name = nameOf(identifier), online = src ~= nil, serverId = src }
+end
+
+--- One pass over the world: { [real plate] = entity } (every bucket).
+local function spawnedPlates()
+  local out = {}
+  for _, entity in ipairs(GetAllVehicles() or {}) do
+    local plate = isVehicle(entity) and CarLock.realPlate(entity) or nil
+    if plate and not out[plate] then out[plate] = entity end
+  end
+  return out
+end
+
+--- custody table of a recorded key item (nz_key_items row)
+local function custodyOf(row)
+  local holder = row.holder or ''
+  if row.custody == 'player' then return { kind = 'inventory', slot = row.slot } end
+  if row.custody == 'stash' then return { kind = 'stash', stash = holder } end
+  if row.custody == 'ground' then return { kind = 'ground', groundId = holder:match('^ground:(.+)$') } end
+  if row.custody == 'lost' then return { kind = 'lost' } end
+  if holder:match('^flight:') then return { kind = 'flight' } end
+  return { kind = 'unknown' }
+end
+
+local function playerKeys(identifier)
+  local src = sourceOf(identifier)
+  local rows = {}
+  local world = spawnedPlates()
+  local from = src and pedCoords(src) or nil
+  local models = {}
+  local function add(row)
+    if #rows >= ADMIN_MAX_ROWS then return end
+    local entity = world[row.plate]
+    row.spawned = entity ~= nil
+    if entity then
+      row.netId = NetworkGetNetworkIdFromEntity(entity)
+      if from then row.distance = math.floor(#(GetEntityCoords(entity) - from) + 0.5) end
+    end
+    row.model = row.model or models[row.plate]
+    rows[#rows + 1] = row
+  end
+
+  -- owned vehicles (and the shares going out)
+  local sharedOut, owned = 0, 0
+  local okOwned, ownedRows = pcall(NZ.DB.getVehiclesByOwner, identifier)
+  for _, v in ipairs(okOwned and type(ownedRows) == 'table' and ownedRows or {}) do
+    local plate = normPlate(v.plate)
+    if plate then
+      owned = owned + 1
+      models[plate] = v.model
+      add({ id = 'owner:' .. plate, plate = plate, model = v.model, type = 'owner', origin = 'owner',
+        custody = { kind = 'server' }, deletable = false })
+      if NZ.DB.keys and type(NZ.DB.keys.list) == 'function' then
+        local okList, list = pcall(NZ.DB.keys.list, plate)
+        for _, k in ipairs(okList and type(list) == 'table' and list or {}) do
+          if k.identifier ~= identifier then sharedOut = sharedOut + 1 end
+        end
+      end
+    end
+  end
+  -- garage shares coming in
+  local sharedIn = 0
+  local okShares, shares = pcall(NZ.DB.shares.forIdentifier, identifier)
+  for _, entry in ipairs(okShares and type(shares) == 'table' and shares or {}) do
+    local plate = normPlate(type(entry) == 'table' and entry.plate or entry)
+    if plate then
+      sharedIn = sharedIn + 1
+      add({ id = 'share:' .. plate, plate = plate, type = 'owner', origin = 'share', shared = 'in',
+        custody = { kind = 'server' }, deletable = false })
+    end
+  end
+  -- virtual keys
+  if NZ.DB.keys and type(NZ.DB.keys.forIdentifier) == 'function' then
+    local okV, plates = pcall(NZ.DB.keys.forIdentifier, identifier)
+    for _, plate in ipairs(okV and type(plates) == 'table' and plates or {}) do
+      sharedIn = sharedIn + 1
+      add({ id = 'virtual:' .. plate, plate = plate, type = 'virtual', origin = 'virtual', shared = 'in',
+        custody = { kind = 'server' }, deletable = true })
+    end
+  end
+  -- temporary keys
+  for plate, t in pairs(CarLock.tempKeysOfHolder(identifier)) do
+    add({ id = 'temp:' .. plate, plate = plate, type = 'temp', origin = t.reason, expires = t.expires,
+      custody = { kind = 'server' }, deletable = true })
+  end
+  -- key items: the live pocket of an online player first, then the custody records
+  local seen = {}
+  if src and CarLock.mode() == 'physical' then
+    for _, item in pairs(CarLock.keyItems()) do
+      for _, entry in ipairs(NZ.Inventory.find(src, item) or {}) do
+        local md = entry.metadata
+        local ref = type(md) == 'table' and CarLock.keyRef(md) or nil
+        if ref and not seen[ref] then
+          seen[ref] = true
+          local valid = CarLock.verifyKeyItem(md)
+          add({ id = 'item:' .. ref, plate = normPlate(md.plate), model = md.model, type = md.kind == 'fob' and 'fob' or 'key',
+            origin = type(md.origin) == 'string' and md.origin or 'key', current = valid == true,
+            custody = { kind = 'inventory', slot = entry.slot }, deletable = true })
+        end
+      end
+    end
+  end
+  if NZ.DB.keyItems then
+    local okR, recorded = pcall(NZ.DB.keyItems.forHolder, identifier)
+    for _, r in ipairs(okR and type(recorded) == 'table' and recorded or {}) do
+      if not seen[r.id] and r.custody ~= 'lost' then
+        seen[r.id] = true
+        local version = CarLock.keyVersion(r.plate)
+        add({ id = 'item:' .. r.id, plate = r.plate, type = r.kind, origin = r.origin or 'key',
+          current = version ~= nil and r.version == version, custody = custodyOf(r), deletable = true })
+      end
+    end
+    -- keys of their own vehicles somewhere else (stash, ground, unknown pockets)
+    for plate in pairs(models) do
+      local okP, list = pcall(NZ.DB.keyItems.forPlate, plate)
+      local version = CarLock.keyVersion(plate)
+      for _, r in ipairs(okP and type(list) == 'table' and list or {}) do
+        if not seen[r.id] and r.custody ~= 'lost' and r.custody ~= 'player' and version ~= nil and r.version == version then
+          seen[r.id] = true
+          add({ id = 'item:' .. r.id, plate = r.plate, type = r.kind, origin = r.origin or 'key', current = true,
+            custody = custodyOf(r), deletable = true })
+        end
+      end
+    end
+  end
+  table.sort(rows, function(a, b)
+    if a.plate ~= b.plate then return a.plate < b.plate end
+    return a.id < b.id
+  end)
+  return { player = playerInfo(identifier), keys = rows,
+    totals = { keys = #rows, vehicles = owned, sharedIn = sharedIn, sharedOut = sharedOut } }
+end
+
+lib.callback.register('nz:carlock:admin:search', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not adminOk(src) then return Utils.fail(L('You are not allowed to do that')) end
+  local query = type(payload.query) == 'string' and Utils.trim((payload.query:gsub('%c', ''))) or ''
+  if #query > 64 then query = query:sub(1, 64) end
+  local rows, seen = {}, {}
+  local function add(identifier, name, plate)
+    if type(identifier) ~= 'string' or identifier == '' then return end
+    local row = seen[identifier]
+    if not row then
+      if #rows >= 50 then return end
+      local who = sourceOf(identifier)
+      row = { identifier = identifier, name = name or nameOf(identifier), online = who ~= nil, serverId = who, matchedPlates = {} }
+      seen[identifier] = row
+      rows[#rows + 1] = row
+    end
+    if plate then row.matchedPlates[#row.matchedPlates + 1] = plate end
+  end
+  -- a server id of an online player
+  local id = tonumber(query)
+  if id and validSrc(id) then
+    local ident = identifierOf(validSrc(id))
+    if ident then add(ident, nil, nil) end
+  end
+  local upper = query:upper()
+  if #upper >= 2 and #upper <= 8 and upper:match('^[A-Z0-9 ]+$') and type(NZ.DB.searchPlates) == 'function' then
+    local okP, hits = pcall(NZ.DB.searchPlates, upper, 30)
+    for _, hit in ipairs(okP and type(hits) == 'table' and hits or {}) do add(hit.owner, nil, hit.plate) end
+  end
+  if #query >= 2 and type(NZ.Bridge.searchCharacters) == 'function' then
+    local okC, list = pcall(NZ.Bridge.searchCharacters, query, 30, 0)
+    for _, c in ipairs(okC and type(list) == 'table' and list or {}) do
+      if type(c) == 'table' then add(c.identifier, c.name, nil) end
+    end
+  end
+  return Utils.ok({ rows = rows })
+end))
+
+lib.callback.register('nz:carlock:admin:player', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not adminOk(src) then return Utils.fail(L('You are not allowed to do that')) end
+  local identifier = identifierArg(payload.identifier)
+  if not identifier then return Utils.fail(L('Invalid identifier')) end
+  return Utils.ok(playerKeys(identifier))
+end))
+
+lib.callback.register('nz:carlock:admin:give', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not adminOk(src) then return Utils.fail(L('You are not allowed to do that')) end
+  local identifier = identifierArg(payload.identifier)
+  local plate = normPlate(payload.plate)
+  if not identifier or not plate then return Utils.fail(L('Invalid request')) end
+  local kind = payload.type
+  if kind == 'item' then
+    local target = sourceOf(identifier)
+    if not target then return Utils.fail(L('The player must be online for a key item')) end
+    local keyKind = (payload.keyKind == 'fob' or payload.keyKind == 'key') and payload.keyKind or nil
+    local ok, err = CarLock.giveKeyItem(target, plate, { kind = keyKind, reason = 'admin' })
+    if not ok then return Utils.fail(err or L('Something went wrong')) end
+  elseif kind == 'temp' then
+    local hours = tonumber(payload.hours)
+    if not CarLock.grantTempTo(identifier, plate, 'admin', hours and Utils.clamp(hours, 0.05, 720) or nil) then
+      return Utils.fail(L('Something went wrong'))
+    end
+  elseif kind == 'virtual' then
+    if not CarLock.vehicleRow(plate) then return Utils.fail(L('Only registered vehicles have virtual keys')) end
+    if CarLock.keyVersion(plate) == nil then return Utils.fail(L('Something went wrong')) end
+    if not (NZ.DB.keys and NZ.DB.keys.add(plate, identifier, identifierOf(src) or 'admin')) then
+      return Utils.fail(L('Something went wrong'))
+    end
+    CarLock.invalidate(plate)
+    local target = sourceOf(identifier)
+    if target then TriggerClientEvent('nz:client:carlock:keys', target, { plate = plate }) end
+  else
+    return Utils.fail(L('Invalid request'))
+  end
+  log('admin.giveKey', src, { target = identifier, plate = plate, type = kind })
+  return Utils.ok(playerKeys(identifier))
+end))
+
+lib.callback.register('nz:carlock:admin:delete', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not adminOk(src) then return Utils.fail(L('You are not allowed to do that')) end
+  local identifier = identifierArg(payload.identifier)
+  local id = type(payload.id) == 'string' and #payload.id <= 64 and payload.id or nil
+  if not identifier or not id then return Utils.fail(L('Invalid request')) end
+  local kind, rest = id:match('^(%a+):(.+)$')
+  if kind == 'temp' then
+    CarLock.revokeTemp(identifier, rest)
+  elseif kind == 'virtual' then
+    local ok, err = CarLock.revokeVirtual(nil, identifier, rest)
+    if not ok then return Utils.fail(err) end
+  elseif kind == 'ground' then
+    if not CarLock.groundDelete(rest) then return Utils.fail(L('This key is gone')) end
+  elseif kind == 'item' then
+    local plate, keyId = rest:match('^([^:]+):(%w+)$')
+    plate = normPlate(plate)
+    if not plate then return Utils.fail(L('Invalid request')) end
+    local md = { plate = plate, id = keyId }
+    local removed = false
+    -- the pocket of an online player
+    local target = sourceOf(identifier)
+    if target then
+      for _, item in pairs(CarLock.keyItems()) do
+        if not removed and #NZ.Inventory.find(target, item, function(m) return type(m) == 'table' and m.id == keyId end) > 0 then
+          removed = NZ.Inventory.removeItem(target, item, 1, { id = keyId })
+        end
+      end
+      if removed then TriggerClientEvent('nz:client:carlock:keys', target, { plate = plate }) end
+    end
+    local row = NZ.DB.keyItems and NZ.DB.keyItems.get(plate .. ':' .. keyId) or nil
+    if not removed and row and row.custody == 'ground' then
+      local groundId = (row.holder or ''):match('^ground:(.+)$')
+      removed = groundId ~= nil and CarLock.groundDelete(groundId) ~= nil
+    end
+    if not removed and row and row.custody == 'stash' and type(NZ.Inventory.removeFromStash) == 'function' then
+      for _, item in pairs(CarLock.keyItems()) do
+        if not removed then removed = NZ.Inventory.removeFromStash(row.holder, item, { id = keyId }) end
+      end
+    end
+    CarLock.moveKeyItem(md, 'lost', row and row.holder or nil, nil)
+  else
+    return Utils.fail(L('This key cannot be deleted'))
+  end
+  log('admin.deleteKey', src, { target = identifier, id = id })
+  return Utils.ok(playerKeys(identifier))
+end))
+
+lib.callback.register('nz:carlock:admin:plate', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not adminOk(src) then return Utils.fail(L('You are not allowed to do that')) end
+  local plate = normPlate(payload.plate)
+  if not plate then return Utils.fail(L('Invalid plate')) end
+  local row = CarLock.vehicleRow(plate)
+  local entity, dist = CarLock.findVehicle(plate, src)
+  local custody = {}
+  for _, r in ipairs(CarLock.keyCustody(plate)) do
+    custody[#custody + 1] = { id = 'item:' .. r.id, type = r.kind, origin = r.origin or 'key', current = r.current,
+      custody = custodyOf(r), holder = r.custody == 'player' and r.holder or nil,
+      holderName = r.custody == 'player' and r.holder and nameOf(r.holder) or nil }
+  end
+  local holders = {}
+  for _, h in ipairs(CarLock.holders(plate)) do
+    holders[#holders + 1] = { identifier = h.identifier, name = h.name, type = h.kind, origin = h.reason, expires = h.expires }
+  end
+  local level, pinSet = CarLock.immobiliserOf(plate)
+  return Utils.ok({
+    plate = plate, owned = row ~= nil, owner = row and row.owner or nil, ownerName = row and row.owner and nameOf(row.owner) or nil,
+    model = row and row.model or nil, version = CarLock.keyVersion(plate), live = CarLock.liveKeyCount(plate),
+    immobiliser = { level = level, pinSet = pinSet }, spawned = entity ~= nil,
+    netId = entity and NetworkGetNetworkIdFromEntity(entity) or nil, distance = dist and math.floor(dist + 0.5) or nil,
+    custody = custody, holders = holders, ground = CarLock.groundKeys(plate),
+  })
+end))
+
+lib.callback.register('nz:carlock:admin:track', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if not adminOk(src) then return Utils.fail(L('You are not allowed to do that')) end
+  local plate = normPlate(payload.plate)
+  if not plate then return Utils.fail(L('Invalid plate')) end
+  local entity = spawnedPlates()[plate]
+  if not entity then return Utils.ok({ plate = plate, spawned = false }) end
+  local pos = GetEntityCoords(entity)
+  local from = pedCoords(src)
+  return Utils.ok({ plate = plate, spawned = true, bucket = GetEntityRoutingBucket(entity),
+    coords = { x = round1(pos.x), y = round1(pos.y), z = round1(pos.z) },
+    distance = from and math.floor(#(pos - from) + 0.5) or nil })
+end))
+
+-- /vehiclekeysadmin: opens the admin key manager (the NUI screen of the key manager listens
+-- to the client event; without it the client says so)
+do
+  local commands = type(CarLock.cfg().commands) == 'table' and CarLock.cfg().commands or {}
+  local name = commands.keyAdmin
+  if CarLock.enabled() and type(name) == 'string' and name ~= '' then
+    RegisterCommand(name, function(source)
+      local src = validSrc(source)
+      if not src then return end
+      if not NZ.Access.rateLimit(src, 'carlock:command', 1000) then return end
+      if not CarLock.isAdmin(src) then
+        NZ.Bridge.notify(src, L('You are not allowed to do that'), 'error')
+        log('security.adminCommand', src, { command = name })
+        return
+      end
+      TriggerClientEvent('nz:client:carlock:keyAdmin', src, {})
+    end, false)
+  end
 end

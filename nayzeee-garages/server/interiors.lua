@@ -2,11 +2,18 @@
   nayzeee-garages — garage interiors (NZ.Interiors), server side.
 
   Interior definitions (table `nz_interiors`, docs/ARCHITECTURE.md §4.3) are cached and
-  normalized here. Players who "Go inside" a garage are placed in a private routing bucket
-  per instance (§7.7): one instance per garage key and owner, or one per private group when
-  the group stores its vehicles together. Owners and members can browse pages of display
-  vehicles, drive one straight out, invite nearby players (guests) and remove guests.
-  Purchasable private garages can be toured in a temporary guest instance.
+  normalized here. An interior made from an IPL profile without vehicle positions uses the
+  profile's preset positions (Config.IplProfiles[key].presets).
+
+  Players who "Go inside" a garage are placed in a private routing bucket per instance
+  (§7.7). Config.InteriorOptions.instances:
+  - 'player' (default): one instance per player and garage, showing that player's own
+    vehicles (fleet garages: the fleet); no invitations.
+  - 'shared': one instance per garage key and owner, or one per private group when the
+    group stores its vehicles together; owners and members invite nearby players (guests)
+    and remove guests.
+  Members browse pages of display vehicles and drive one straight out. Purchasable private
+  garages can be toured in a temporary guest instance.
 
   Callbacks: nz:garage:goInside, nz:forSale:tour, nz:interior:page, nz:interior:driveOut,
   nz:interior:leave, nz:interior:invite, nz:interior:inviteRespond, nz:interior:kick,
@@ -232,6 +239,43 @@ local function profileOf(key)
   return profile
 end
 
+--- Instance mode (Config.InteriorOptions.instances): 'player' (default) or 'shared'.
+---@return 'player'|'shared'
+function Interiors.instanceMode()
+  local opts = type(Config.InteriorOptions) == 'table' and Config.InteriorOptions or {}
+  return opts.instances == 'shared' and 'shared' or 'player'
+end
+
+--- Preset vehicle positions of a profile ({x,y,z,w} copies, [] when it has none).
+---@param key string|nil
+---@return table[]
+function Interiors.profilePresets(key)
+  local profile = profileOf(key)
+  if not profile or type(profile.presets) ~= 'table' then return {} end
+  return vec4List(profile.presets, MAX_SLOTS)
+end
+
+local presetCache = {}   -- [profileKey] = { {x,y,z,w}, ... }
+
+--- Vehicle positions players use: the interior's own, else its profile's presets.
+---@return table[] (read-only)
+local function slotsOf(interior)
+  if type(interior) ~= 'table' then return {} end
+  if type(interior.slots) == 'table' and #interior.slots > 0 then return interior.slots end
+  local key = interior.profile
+  if type(key) ~= 'string' then return {} end
+  if not presetCache[key] then presetCache[key] = Interiors.profilePresets(key) end
+  return presetCache[key]
+end
+
+--- True when players can use the interior: it has vehicle positions of its own, or its
+--- IPL profile has presets (an older interior saved before presets existed).
+---@param interior table|nil
+---@return boolean
+function Interiors.hasSlots(interior)
+  return #slotsOf(interior) > 0
+end
+
 --- Option values for the keys the profile defines (unknown keys / values are dropped).
 local function profileOptions(profile, raw)
   local out = {}
@@ -312,8 +356,13 @@ function Interiors.normalize(raw)
   if not entry and profile then entry = vec4(profile.coords) end
   if not entry then return nil, L('Set the entry point of the interior first') end
 
+  local id = positiveId(raw.id)
+  local slots = vec4List(raw.slots, MAX_SLOTS)
+  -- A new interior from a profile starts with the profile's vehicle positions.
+  if not id and #slots == 0 and profileKey then slots = Interiors.profilePresets(profileKey) end
+
   return {
-    id = positiveId(raw.id),
+    id = id,
     name = name,
     enabled = bool(raw.enabled, true),
     profile = profileKey,
@@ -321,7 +370,7 @@ function Interiors.normalize(raw)
     entry = entry,
     gtaInteriorId = positiveId(raw.gtaInteriorId),
     cutscene = cutsceneConfig(raw.cutscene),
-    slots = vec4List(raw.slots, MAX_SLOTS),
+    slots = slots,
     exit = vec4(raw.exit),
   }
 end
@@ -350,8 +399,7 @@ end
 ---------------------------------------------------------------------------------------
 
 local function pageSizeOf(interior)
-  local slots = type(interior) == 'table' and interior.slots or nil
-  return math.max(1, type(slots) == 'table' and #slots or 0)
+  return math.max(1, #slotsOf(interior))
 end
 
 local function memberCount(inst)
@@ -438,6 +486,7 @@ local function createInstance(key, fields)
     locationId = fields.locationId,
     shared = fields.shared == true,
     fleet = fields.fleet == true,
+    private = fields.private == true,  -- per-player instance: nobody else can join
     tour = fields.tour == true,
     page = 1,
     members = {},
@@ -636,6 +685,11 @@ local function membersOf(inst)
   return list
 end
 
+--- Owners and members of a shared instance may invite players (never on a tour).
+local function canInvite(inst, role)
+  return role ~= 'guest' and not inst.tour and not inst.private
+end
+
 --- 'nz:client:interior:sync' payload for one member.
 local function syncView(inst, src, rows, size, pages, ctx, members)
   local role = inst.members[src] or 'guest'
@@ -645,7 +699,7 @@ local function syncView(inst, src, rows, size, pages, ctx, members)
     pages = pages,
     members = members,
     role = role,
-    canInvite = role ~= 'guest' and not inst.tour,
+    canInvite = canInvite(inst, role),
     total = #rows,
   }
 end
@@ -656,9 +710,11 @@ local function enterData(key, inst, src, interior, rows)
   local ctx = newViewContext(inst)
   local size, pages = clampPage(inst, #rows, interior)
   local role = inst.members[src] or 'guest'
+  local view = Utils.deepCopy(interior)
+  view.slots = Utils.deepCopy(slotsOf(interior))
   return {
     instanceKey = key,
-    interior = Utils.deepCopy(interior),
+    interior = view,
     garageName = garageNameOf(inst, ctx.location),
     garageKey = inst.garageKey,
     locationId = inst.locationId,
@@ -670,7 +726,7 @@ local function enterData(key, inst, src, interior, rows)
     vehicles = vehiclesFor(inst, src, role, rows, size, ctx),
     members = membersOf(inst),
     role = role,
-    canInvite = role ~= 'guest' and not inst.tour,
+    canInvite = canInvite(inst, role),
     returnTo = returnToOf(inst),
     tour = inst.tour,
     tourSeconds = inst.tour and TOUR_SECONDS or nil,
@@ -938,7 +994,7 @@ function Interiors.enter(src, session, opts)
   local interior, err = interiorOfLocation(location)
   if not interior then return nil, err end
   -- Vehicles are shown (and driven out) on slots only: an interior without any is unusable.
-  if type(interior.slots) ~= 'table' or #interior.slots == 0 then
+  if #slotsOf(interior) == 0 then
     return nil, L('This garage interior has no vehicle slots')
   end
 
@@ -947,6 +1003,7 @@ function Interiors.enter(src, session, opts)
 
   local kind, keyId = Utils.key.parse(session.garageKey)
   local groupId = tonumber(session.groupId) or (kind == 'G' and keyId) or nil
+  local private = Interiors.instanceMode() == 'player'
   local role = 'owner'
   local shared = false
   if location.kind == 'private' then
@@ -955,7 +1012,9 @@ function Interiors.enter(src, session, opts)
     if not success or (groupRole ~= 'owner' and groupRole ~= 'member') then
       return nil, L('You do not have access to this garage')
     end
-    shared = location.storage == 'shared'
+    -- Per-player instances: a group that stores its vehicles together still gives every
+    -- member a copy of its own, with that member's vehicles.
+    shared = location.storage == 'shared' and not private
     if shared then role = groupRole end
   end
   local fleet = location.kind == 'job' and location.source == 'owned'
@@ -984,6 +1043,7 @@ function Interiors.enter(src, session, opts)
       locationId = location.id,
       shared = shared,
       fleet = fleet,
+      private = private,
       returnTo = returnPointOf(location),
     })
   elseif not alreadyInside and memberCount(inst) >= MAX_MEMBERS then
@@ -1073,7 +1133,7 @@ local AWAY_Z = 50.0              -- purpose: the server cannot tell which GTA in
 
 local function outsideInterior(interior, pos)
   local points = { interior.entry, interior.exit }
-  for _, slot in ipairs(type(interior.slots) == 'table' and interior.slots or {}) do points[#points + 1] = slot end
+  for _, slot in ipairs(slotsOf(interior)) do points[#points + 1] = slot end
   local minX, minY, minZ = math.huge, math.huge, math.huge
   local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
   local any = false
@@ -1331,6 +1391,7 @@ register('nz:interior:invite', 'interior:invite', 2000, function(src, payload)
   if not target or target == src then return fail(L('Invalid player')) end
   local key, inst, role = current(src)
   if not inst then return fail(L('You are not inside a garage')) end
+  if inst.private then return fail(L('Invitations are turned off on this server')) end
   if inst.tour or role == 'guest' then return fail(L('Only the garage owner and members can invite players')) end
   if not online(target) then return fail(L('That player is not online')) end
   if playerKey[target] then return fail(L('That player is already inside a garage')) end
@@ -1384,7 +1445,7 @@ register('nz:interior:inviteRespond', 'interior:inviteRespond', 500, function(sr
   end
 
   local inst = Interiors.instances[invite.key]
-  if not inst or inst.closed or not hasHost(inst) then return fail(L('This garage is no longer open')) end
+  if not inst or inst.closed or inst.private or not hasHost(inst) then return fail(L('This garage is no longer open')) end
   if playerKey[src] then return fail(L('You are already inside a garage')) end
   if currentBucket(src) ~= 0 then return fail(L('You cannot enter the garage right now')) end
   if inVehicle(src) then return fail(L('Leave your vehicle first')) end
@@ -1424,6 +1485,7 @@ end)
 register('nz:interior:players', 'interior:players', 1000, function(src)
   local key, inst, role = current(src)
   if not inst then return fail(L('You are not inside a garage')) end
+  if inst.private then return fail(L('Invitations are turned off on this server')) end
   if inst.tour or role == 'guest' then return fail(L('Only the garage owner and members can invite players')) end
   local location = inst.locationId and NZ.Locations.get(inst.locationId) or nil
   if type(location) ~= 'table' then return ok({}) end

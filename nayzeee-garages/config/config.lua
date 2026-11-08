@@ -109,6 +109,35 @@ Config.Phone = {
   hints = true,                 -- console hint at start for an installed phone with no adapter
 }
 
+-- Vehicle finance (finance API for dealership scripts: docs/INTEGRATIONS.md, garage payments).
+-- A payment is due every `intervalHours` of real time (wall clock, online or not). When a due
+-- date passes unpaid, the server fires 'nayzeee-garages:finance:missed' and applies
+-- `missedAction` until the payment is made:
+--   'none'    only the event (and a notification): the vehicle stays usable
+--   'block'   the garage / impound / phone valet refuse to hand the vehicle out
+--   'impound' 'block' + the vehicle is impounded (repossessed) at `impound.locationId`
+--             (nil = garages.restartImpound, else the nearest impound of its category);
+--             a vehicle somebody is sitting in is taken as soon as it is left alone
+-- Plans written by a framework vehicle shop (qb-vehicleshop / qbx_vehicleshop financetime
+-- countdown) are checked too; their own repossession keeps working while they run.
+-- QBCore with qb-vehicleshop running: its own repossession deletes financed vehicles whose
+-- financetime reaches 0 (also plans set through the SetFinance export, which mirrors the due
+-- date into financetime), whatever missedAction says. Stop qb-vehicleshop's finance timer or
+-- keep missedAction consistent with it.
+Config.Finance = {
+  checkInterval = 60,           -- seconds between due-date checks (30-3600)
+  missedAction = 'block',       -- 'none' | 'block' | 'impound'
+  impound = {
+    locationId = nil,           -- impound location id (nil = automatic, see above)
+    fee = 0,                    -- release fee on top of the overdue payment
+    hours = 0,                  -- hours before the owner may collect it (after paying)
+  },
+  notifyOwner = true,           -- tell an online owner about a missed payment / repossession
+  maxBalance = 100000000,       -- API validation limits
+  maxPayments = 1000,
+  maxIntervalHours = 8760,      -- one year
+}
+
 -- Vehicles you never want stored (spawn names). Job spawner vehicles are handled separately.
 Config.BlacklistedModels = {}
 

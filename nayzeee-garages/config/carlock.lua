@@ -12,10 +12,109 @@ Config.CarLock = {
   -- remove that resource, or set Config.Integrations.keys = 'nayzeee' to force this one.
   enabled = true,
 
-  -- 'auto' = physical keys when an inventory with item metadata is detected, else virtual keys
-  -- 'physical' = plate-specific key / fob items (falls back to virtual without an inventory)
-  -- 'virtual' = no items, keys live on the server (give-key and management menus)
-  keyMode = 'auto',
+  -- Key mode (docs/CARLOCK.md §1). Admins can change it in game (key settings, tab Keys).
+  -- 'flexible' (default) = key / fob items. Garage retrieval reuses a key you carry or that
+  --              is stored in that vehicle's glovebox / trunk, else cuts one
+  --              (giveKeyOnRetrieve). Sharing gives the other player a COPY: you keep yours.
+  -- 'limited'  = key / fob items, a fixed starting set per vehicle (limitedKeys, default 2).
+  --              Sharing hands YOUR copy over. Retrieval gives no free copy while a copy of
+  --              the current locks exists anywhere (a pocket, a stash, the ground); the set
+  --              is issued again only when none is left. Locksmiths still cut paid copies.
+  -- 'virtual'  = no items: the server issues access (garage hand-out, key ring). Sharing
+  --              gives the other player access: you keep yours.
+  -- Older values: 'physical' and 'auto' mean 'flexible'. Without an inventory that stores
+  -- item metadata (or without the key items defined in it) item modes fall back to virtual.
+  keyMode = 'flexible',
+
+  -- 'limited' mode: keys in the starting set of each vehicle (1-10).
+  limitedKeys = 2,
+
+  -- Sharing (key ring "Share"). maxKeys: copies of one vehicle's current locks that may exist
+  -- ('flexible': a share fails beyond it). hours: 0 = virtual shares stay until revoked,
+  -- else they are temporary keys of that many hours.
+  sharing = { maxKeys = 10, hours = 0 },
+
+  -- Which car the lock key / L picks when several of yours are in range:
+  -- 'nearest' | 'owned' (your own vehicles first) | 'last' (the one you used last, then nearest).
+  lockPrefer = 'nearest',
+
+  -- Key fob designs the key ring / fob HUD can draw (the UI wave adds the renders).
+  fob = { defaultDesign = 'classic', designs = { 'classic', 'slim', 'card', 'sport', 'retro' } },
+
+  -- Keyless entry / exit (fob keys only: a key item of kind 'fob', or a virtual / owner key of a
+  -- vehicle whose profile uses a fob). With the fob on you a locked car unlocks as you get in
+  -- (server check); walking away locks it again once you are farther than YOUR distance
+  -- (player settings, clamped to minDistance-maxDistance; the server measures and locks).
+  keyless = { enabled = true, minDistance = 3.0, maxDistance = 30.0, enterRange = 3.5 },
+
+  -- Keys on the ground (dropped, thrown and missed, tossed out of a window, dropped by a robbed
+  -- NPC): world props anyone can pick up. removeAfter: minutes before an untouched key is
+  -- gone (0 = never). persist: keep them across a server restart (database), else only across
+  -- a resource restart. marker: what players see above a key on the ground.
+  ground = {
+    enabled = true,
+    animateDrops = true,
+    persist = false,
+    removeAfter = 30,
+    pickupRange = 2.0,             -- metres (server ped to the key)
+    throwRange = 8.0,              -- metres: throw a key to a player at most this far
+    catchWindow = 1800,            -- ms the other player has to catch it (missed -> on the ground)
+    props = { key = 'p_car_keys_01', fob = 'lr_prop_carkey_fob' },
+    marker = { style = 'chevron', color = '#2dd4bf', size = 0.25, height = 0.35 },
+    maxPerPlayer = 10,             -- keys one player may have lying around at once
+  },
+
+  -- Immobilisers (per vehicle, stored per plate): 'none' | 'standard' (no hotwiring) | 'ghost'
+  -- (a four-digit PIN before the engine starts, even with the keys; no remote start). Installed
+  -- with the items below (owner, standing at the vehicle) or at a locksmith (services
+  -- immobiliser / ghost; items.immobiliser / items.ghostImmobiliser). The PIN is stored hashed
+  -- with the key secret.
+  immobiliser = {
+    enabled = true,
+    pinAttempts = 3,               -- wrong PINs in a row before the alarm + cooldown
+    pinCooldown = 120,             -- seconds without PIN attempts after that
+    pinSession = 600,              -- seconds a correct PIN stays valid for that driver and vehicle
+  },
+
+  -- Lock picking (doors). style 'skillcheck' = ox_lib skill checks of the profile's tool;
+  -- 'pins' = the five-pin lock of the NUI (pins, snapChance % per overset, alarmOnSnap).
+  lockpicking = { style = 'skillcheck', pins = 5, snapChance = 35, alarmOnSnap = true },
+
+  -- Hotwiring (NUI minigames, docs/CARLOCK.md §8). style 'profile' = each security profile's
+  -- hotwire method (skill checks / progress / hack); 'wires' = splice three pairs of wires
+  -- (kitRequired: needs items.hotwireKit), except readerClasses, which need items.signalReader
+  -- (tune frequency / phase). Model overrides work with either style: readerModels always use
+  -- the reader, wireModels always use wires.
+  hotwiring = {
+    style = 'profile',
+    kitRequired = false,
+    readerClasses = { 6, 7 },
+    readerModels = {},
+    wireModels = {},
+  },
+
+  -- Job vehicles: temporary keys of job spawner vehicles last this many hours (0 = tempKeyHours).
+  jobVehicles = { keyHours = 0 },
+
+  -- Per-player settings (each player changes theirs; these are the defaults).
+  playerDefaults = {
+    keylessUnlock = true,          -- a locked car unlocks as you get in with its fob
+    keylessLock = true,            -- walking away locks it again
+    keylessDistance = 10.0,        -- metres
+    engineOnEnter = false,         -- start the engine as you sit down (with a key)
+    keepEngineRunning = true,      -- the engine keeps running when you get out
+    fobBeep = true,
+    hints = true,
+    fobPosition = { x = 0.86, y = 0.72, scale = 1.0 }, -- fob HUD (share of the screen)
+    keyOrder = 'recent',           -- 'recent' | 'name' | 'plate' | 'distance'
+    combinedKeyring = true,        -- new keys go on the one key ring
+    groundPrompts = true,          -- show the pick-up prompt at keys on the ground
+    units = 'metric',              -- 'metric' | 'imperial'
+    alertLock = true,
+    alertEngine = true,
+    alertShare = true,
+    shareRecall = true,            -- remind me of keys I shared
+  },
 
   -- Owners, players a vehicle is shared with and job / gang fleet members always have a key.
   -- nil = true in virtual mode, false in physical mode (they need the key item).
@@ -72,6 +171,10 @@ Config.CarLock = {
     fakePlate = 'fake_plate',
     contract = 'vehicle_contract',
     signedContract = 'signed_contract',
+    immobiliser = 'immobiliser',           -- installs a standard immobiliser (owner, at the vehicle)
+    ghostImmobiliser = 'ghost_immobiliser', -- installs a Ghost immobiliser (PIN)
+    hotwireKit = 'hotwire_kit',            -- hotwiring.kitRequired (wires)
+    signalReader = 'signal_reader',        -- hotwiring readerClasses / readerModels
   },
 
   keys = {
@@ -87,6 +190,7 @@ Config.CarLock = {
     engine = 'engine',
     keyRing = 'keys',
     giveKey = 'givekey',   -- admin: /givekey [playerId] -> key for the vehicle that player (or you) sits in
+    keyAdmin = 'vehiclekeysadmin', -- admin: key manager (players' keys, custody, give / delete) and key settings
   },
 
   -- Groups / aces allowed to use the admin command (besides NZ.Access.isAdmin).
@@ -210,8 +314,11 @@ Config.CarLock = {
     robTime = 3500,              -- ms aiming before they hand the key over
     maxSpeed = 8.0,              -- m/s: faster drivers ignore you
     range = 6.0,                 -- metres between you and the vehicle
-    resistChance = 20,           -- % they flee with the car or fight back
-    fightChance = 35,            -- % of resisting drivers that fight instead of fleeing
+    -- How a held-up driver reacts (weights, any numbers): hand the key over after robTime,
+    -- drop the key and run (a key on the ground), fight, or drive away. Admins tune it in game.
+    reactions = { handover = 60, drop = 15, fight = 10, flee = 15 },
+    policeRequired = 0,          -- on-duty officers (dispatch.jobs) needed for a hold-up
+    dispatchDelay = 0,           -- seconds before the police alert of a hold-up goes out
     fightWeapon = 'WEAPON_PISTOL', -- what a fighting driver pulls out ('' = fists)
     deadDriverKeys = true,       -- search the body of the original (traffic) driver for the key
     alertChance = 60,
@@ -231,7 +338,8 @@ Config.CarLock = {
   -- Keys from an illegal shop open the vehicle but never reach its tracker.
   -- Services: duplicate (copy a key item: physical keys only), program (a new key for a
   -- vehicle parked nearby; virtual mode: a temporary key, illegal shops only), rekey (change
-  -- the locks: every other key stops working; OWNER ONLY at every shop, an illegal one included).
+  -- the locks: every other key stops working; OWNER ONLY at every shop, an illegal one included),
+  -- immobiliser / ghost (install that immobiliser in the owner's vehicle parked there).
   -- materials: { item = Config.CarLock.items key or item name, count, label? }.
   -- bucket: routing bucket of the shop (default 0). Checked on the atlas map: Davis Ave (south
   -- LS shops) and the Terminal container port quay (docks); the ped is put on the ground.
@@ -249,6 +357,8 @@ Config.CarLock = {
         duplicate = { enabled = true, price = 250, materials = {} },
         program = { enabled = true, price = 500, materials = { { item = 'blank', count = 1 } } },
         rekey = { enabled = true, price = 1500, materials = {} },
+        immobiliser = { enabled = true, price = 2500, materials = {} },   -- standard immobiliser (owner)
+        ghost = { enabled = true, price = 7500, materials = {} },         -- Ghost immobiliser + PIN (owner)
       },
     },
     {
@@ -264,6 +374,8 @@ Config.CarLock = {
         duplicate = { enabled = true, price = 600, materials = {} },
         program = { enabled = true, price = 3500, materials = {} },
         rekey = { enabled = false, price = 0, materials = {} },
+        immobiliser = { enabled = false, price = 0, materials = {} },
+        ghost = { enabled = false, price = 0, materials = {} },
       },
     },
   },
@@ -285,6 +397,9 @@ Config.CarLock = {
     -- service keys (garage hand-out, job spawner, staff, contract, NPC assist) always have it.
     -- true = every key, a crime's included, has tracker access (the nickname stays private).
     tempKeys = false,
+    -- Who may track a vehicle (key settings, tab Keys): 'real' = holders of a real key (above),
+    -- 'any' = every key (same as tempKeys = true), 'owner' = the owner and garage shares / fleets only.
+    who = 'real',
     alarmSeconds = 20,             -- remote alarm length
     alarmCooldown = 60,            -- seconds before the same vehicle's alarm can be triggered again
     locateSeconds = 120,           -- the map blip of a located vehicle follows it this long
@@ -329,13 +444,17 @@ Config.Tow = {
   truck = 'flatbed',
   driver = 's_m_m_trucker_01',
   plate = 'IMPOUND',               -- plate text of the tow truck (8 characters at most, '' = random)
-  spawnDistance = { min = 80.0, max = 150.0 }, -- metres from the vehicle, on a road, out of sight when possible
-  timeout = 150,                   -- seconds before falling back to deleting the vehicle
-  loadSeconds = 6,                 -- the driver works the bed controls while the vehicle is pulled on (1-20)
+  spawnDistance = { min = 80.0, max = 150.0 }, -- metres from the vehicle, on a road with a route to it, out of sight when possible
+  timeout = 240,                   -- seconds for the whole tow (every attempt) before it ends
+  attempts = 2,                    -- trucks sent in all: a stuck / failed truck is replaced by a new one (1-5)
+  loadSeconds = 6,                 -- the driver works the bed controls while the vehicle slides onto the bed (1-20)
   speed = 14.0,                    -- m/s on the way to the vehicle and when leaving (about 50 km/h)
-  drivingStyle = 786603,           -- law-abiding (786469 = goes around traffic and ignores lights)
-  despawnDistance = 150.0,         -- after loading: removed once every player is farther than this ...
-  despawnSeconds = 60,             -- ... or after this many seconds
+  drivingStyle = 786603,           -- on the way and when leaving: law-abiding (stops at lights, steers around obstacles)
+  approachStyle = 786492,          -- final approach and recovering from stuck: steers around parked cars, peds and objects
+                                   -- (after a recovery it also stops at red lights and drives at 8 m/s at most)
+  despawnDistance = 150.0,         -- the truck (and anything left after a failure) is removed once every player is farther than this ...
+  despawnSeconds = 60,             -- ... the leaving truck is followed this long at most (then left to the cleanup below)
+  cleanupSeconds = 300,            -- what is left near players is faded out at the latest after this many seconds
   maxActive = 6,                   -- tow trucks at the same time (more impounds delete the vehicle at once)
   -- Too big for the bed: deleted at once (no tow). Metres, from the model dimensions.
   maxSize = { length = 6.9, width = 2.9, height = 3.4 },
@@ -343,9 +462,12 @@ Config.Tow = {
   -- 19 military, 20 commercial, 21 trains.
   skipClasses = { 10, 14, 15, 16, 19, 20, 21 },
   -- Where the vehicle sits on the bed (metres, relative to the truck bone): `y` = centre of the
-  -- bed, `rear` = its rear edge (the vehicle is pulled on from there). The bed height is
-  -- measured on the truck when possible; `surface` is the fallback. Tune for add-on trucks.
-  bed = { bone = 'bodyshell', y = -2.35, surface = 0.55, rear = -6.0 },
+  -- bed, `rear` = its rear edge (the vehicle slides on from there), `front` = its front end at
+  -- the cab (long vehicles are moved back so they never reach into the cab and hang over the
+  -- rear instead). The bed height is measured on the truck when possible; `surface` is the
+  -- fallback. `pitch` = degrees the vehicle tilts while it climbs onto the bed (the end that goes
+  -- up first rises; 0 = level; flip the sign if it tips the wrong way in game). Tune for add-on trucks.
+  bed = { bone = 'bodyshell', y = -2.35, surface = 0.55, rear = -6.0, front = 1.2, pitch = 10.0 },
   animation = { dict = 'amb@prop_human_atm@male@idle_a', clip = 'idle_b' }, -- the driver at the bed controls
   -- Blip on the tow truck for the impounding officer while it is on its way.
   blip = { enabled = true, sprite = 68, color = 17, scale = 0.8 },

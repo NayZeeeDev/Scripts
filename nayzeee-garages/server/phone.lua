@@ -347,11 +347,12 @@ local function checkValet(src, row, ctx)
     return false, L('Impounded at {impound}', { impound = where or L('the impound') })
   end
   if state == 'out' or claims[row.plate] then return false, L('Vehicle is already out') end
-  if type(row.finance) == 'table' and row.finance.overdue then return false, L('Finance payment overdue') end
+  if NZ.Finance and NZ.Finance.blocks and NZ.Finance.blocks(row) then return false, L('Finance payment overdue') end
   if not valetTypeAllowed(NZ.Vehicles.vehicleTypeOf(row)) then
     return false, L('The valet cannot deliver this type of vehicle')
   end
-  if setting('vehicles.trailers', true) == true and type(row.trailer) == 'table' then
+  if setting('vehicles.trailers', true) == true and type(row.trailer) == 'table'
+    and not (NZ.Vehicles.trailerParked and NZ.Vehicles.trailerParked(row.plate, row)) then
     return false, L('Take this vehicle out at its garage to bring its trailer')
   end
   local session, err = parkedSession(src, row, ctx.retrieveMode, ctx.resolved, ctx)

@@ -41,7 +41,11 @@ local ESX_SELECT = { 'owner', 'plate', 'vehicle', 'type', 'stored', 'parking', '
 local NZ_SELECT = {
   'nz_garage', 'nz_state', 'nz_nickname', 'nz_type', 'nz_job', 'nz_gang', 'nz_mileage',
   'nz_damage', 'nz_trailer', 'nz_impound', 'nz_blocked', 'nz_last_out', 'nz_finance_total',
+  'nz_finance',
 }
+-- Our own finance record (JSON, every framework): the plan set through the finance API or
+-- the garage, with its wall-clock due date. QBCore / Qbox also mirror the framework columns.
+local FINANCE_COLUMN = 'nz_finance'
 
 ---------------------------------------------------------------------------------------
 -- Low level helpers
@@ -359,33 +363,70 @@ function DB.financeIntervalHours()
   return intervalCache or 24
 end
 
+--- Finance of a raw row (docs §4.5), or nil when nothing is owed.
+--- QBCore / Qbox: the framework columns (qb `player_vehicles`, qbx `vehicle_financing`) hold
+--- balance / payment / payments left, so a payment or pay-off made by another script (the
+--- vehicle shop's own menu) is always seen. Our nz_finance record adds the wall-clock due date,
+--- the plan length and missed payments while it still matches those columns ("managed");
+--- otherwise (a vehicle shop wrote the plan) the due date is the shop's `financetime` countdown
+--- (minutes). ESX (no framework finance): the nz_finance record alone.
 local function financeOf(r)
   local mode = DB.schema.financeMode
+  local now = os.time()
+  local meta = decodeTable(r.nz_finance)
   local balance, payment, left, minutes
   if mode == 'columns' then
     balance, payment, left, minutes = r.balance, r.paymentamount, r.paymentsleft, r.financetime
   elseif mode == 'table' then
     balance, payment, left, minutes = r.nzf_balance, r.nzf_paymentamount, r.nzf_paymentsleft, r.nzf_financetime
-  else
-    return nil
   end
-  balance = tonumber(balance) or 0
-  if balance <= 0 then return nil end
-  payment = tonumber(payment) or 0
-  left = tonumber(left) or 0
-  minutes = tonumber(minutes) or 0
-  -- Total payments are not stored by the vehicle shops: nz_finance_total is recorded on the
-  -- first payment through this resource or set by an admin. Ignore impossible totals.
-  local total = tonumber(r.nz_finance_total)
+
+  local managed
+  if mode == 'columns' or mode == 'table' then
+    balance = tonumber(balance) or 0
+    if balance <= 0 then return nil end
+    payment = tonumber(payment) or 0
+    left = tonumber(left) or 0
+    managed = meta ~= nil and int(meta.balance, -1) == math.floor(balance)
+      and int(meta.paymentsLeft, -1) == math.floor(left)
+  else
+    if not meta then return nil end
+    balance = tonumber(meta.balance) or 0
+    if balance <= 0 then return nil end
+    payment = tonumber(meta.payment) or 0
+    left = tonumber(meta.paymentsLeft) or 0
+    managed = true
+  end
+
+  -- Total payments are not stored by the vehicle shops: our record (or nz_finance_total,
+  -- recorded on the first payment through this resource / by an admin) has it.
+  local total = tonumber(meta and meta.paymentsTotal) or tonumber(r.nz_finance_total)
   if total and total < left then total = nil end
+
+  local nextAt = managed and int(meta.nextPaymentAt, nil) or nil
+  local interval = managed and tonumber(meta.intervalHours) or nil
+  if not interval or interval <= 0 then interval = DB.financeIntervalHours() end
+  local overdue
+  if nextAt then
+    overdue = now >= nextAt
+  else
+    minutes = tonumber(minutes) or 0
+    nextAt = now + math.floor(math.max(minutes, 0) * 60)
+    overdue = left > 0 and minutes <= 0
+  end
   return {
     balance = math.floor(balance),
     payment = math.floor(payment),
     paymentsLeft = math.floor(left),
     paymentsTotal = total and math.floor(total) or nil,
-    intervalHours = DB.financeIntervalHours(),
-    nextPaymentHours = Utils.round(math.max(minutes, 0) / 60, 1),
-    overdue = left > 0 and minutes <= 0,
+    intervalHours = interval,
+    nextPaymentHours = Utils.round(math.max(nextAt - now, 0) / 3600, 1),
+    nextPaymentAt = nextAt,
+    overdue = overdue,
+    missed = managed and math.max(int(meta.missed, 0), 0) or 0,
+    missedDue = managed and int(meta.missedDue, nil) or nil,
+    since = managed and int(meta.since, nil) or nil,
+    managed = managed == true,
   }
 end
 
@@ -518,7 +559,7 @@ local function mapRow(r, memo)
     trailer = decodeTable(r.nz_trailer),
     impound = decodeTable(r.nz_impound),
     blocked = truthy(r.nz_blocked),
-    finance = (not isEsx) and financeOf(r) or nil,
+    finance = financeOf(r),
     lastOut = int(r.nz_last_out, nil),
   }
   if stateCodeNow == 2 and row.impound == nil then row.impound = legacyImpound(r, row, memo) end
@@ -595,9 +636,60 @@ local function financeValues(fin)
   local balance = math.max(int(fin.balance, 0), 0)
   local payment = math.max(int(fin.payment, 0), 0)
   local left = math.max(int(fin.paymentsLeft, 0), 0)
-  local hours = tonumber(fin.nextPaymentHours) or tonumber(fin.intervalHours)
-  local minutes = hours and math.max(math.floor(hours * 60 + 0.5), 0) or nil
+  local minutes
+  local nextAt = int(fin.nextPaymentAt, nil)
+  if nextAt then
+    minutes = math.max(math.ceil((nextAt - os.time()) / 60), 0)
+  else
+    local hours = tonumber(fin.nextPaymentHours) or tonumber(fin.intervalHours)
+    minutes = hours and math.max(math.floor(hours * 60 + 0.5), 0) or nil
+  end
   return balance, payment, left, minutes
+end
+
+--- The nz_finance record written for a Finance table (docs §4.5 + API fields). The due date
+--- is wall-clock: nextPaymentAt, else now + nextPaymentHours / intervalHours.
+local function financeRecord(fin)
+  local now = os.time()
+  local interval = tonumber(fin.intervalHours)
+  if not interval or interval <= 0 then interval = DB.financeIntervalHours() end
+  local nextAt = int(fin.nextPaymentAt, nil)
+  if not nextAt then
+    local hours = tonumber(fin.nextPaymentHours) or interval
+    nextAt = now + math.floor(math.max(hours, 0) * 3600 + 0.5)
+  end
+  local total = int(fin.paymentsTotal, nil)
+  return {
+    v = 1,
+    balance = math.max(int(fin.balance, 0), 0),
+    payment = math.max(int(fin.payment, 0), 0),
+    paymentsLeft = math.max(int(fin.paymentsLeft, 0), 0),
+    paymentsTotal = (total and total > 0) and total or nil,
+    intervalHours = interval,
+    nextPaymentAt = nextAt,
+    missed = math.max(int(fin.missed, 0), 0),
+    missedDue = int(fin.missedDue, nil),
+    since = int(fin.since, nil) or now,
+    by = str(fin.by, 64),
+  }
+end
+
+--- Is vehicle finance stored anywhere on this server (framework finance or nz_finance)?
+---@return boolean
+function DB.financeSupported()
+  if not ready() then return false end
+  return DB.schema.financeMode ~= 'none' or has(FINANCE_COLUMN)
+end
+
+--- Add the nz_finance column when an older install does not have it yet (idempotent;
+--- server/migrations.lua creates it on fresh installs). Returns true when it exists.
+---@return boolean
+function DB.ensureFinanceColumn()
+  if not ready() then return false end
+  if has(FINANCE_COLUMN) then return true end
+  local _, ok = run('query', ('ALTER TABLE `%s` ADD COLUMN `%s` LONGTEXT NULL'):format(VT, FINANCE_COLUMN))
+  if ok and type(DB.loadSchema) == 'function' then DB.loadSchema(true) end
+  return has(FINANCE_COLUMN)
 end
 
 --- qbx vehicle_financing write (row keyed by player_vehicles.id).
@@ -765,6 +857,67 @@ function DB.getOutVehicles()
   local out = {}
   for _, row in ipairs(rows) do
     if row.state == 'out' then out[#out + 1] = row end
+  end
+  return out
+end
+
+--- Every vehicle with an overdue finance payment (our record or the framework's), for the
+--- finance due-date check. A light query (plate + finance columns only) finds the overdue
+--- plans; only those are read in full. Rows carry the normalized `finance` (§4.5).
+---@return table[]
+function DB.getFinanced()
+  if not ready() then return {} end
+  local mode = DB.schema.financeMode
+  local parts = {}
+  if has(FINANCE_COLUMN) then parts[#parts + 1] = ('v.`%s` IS NOT NULL'):format(FINANCE_COLUMN) end
+  if mode == 'columns' and has('balance') then
+    parts[#parts + 1] = 'v.`balance` > 0'
+  elseif mode == 'table' then
+    parts[#parts + 1] = 'f.`balance` > 0'
+  end
+  if #parts == 0 then return {} end
+
+  local cols = { 'v.`plate` AS `plate`' }
+  for _, name in ipairs({ FINANCE_COLUMN, 'nz_finance_total' }) do
+    if has(name) then cols[#cols + 1] = ('v.`%s` AS `%s`'):format(name, name) end
+  end
+  local join = ''
+  if mode == 'columns' then
+    for _, name in ipairs(QB_FINANCE) do
+      if has(name) then cols[#cols + 1] = ('v.`%s` AS `%s`'):format(name, name) end
+    end
+  elseif mode == 'table' then
+    for _, name in ipairs(QB_FINANCE) do cols[#cols + 1] = ('f.`%s` AS `nzf_%s`'):format(name, name) end
+    join = ' LEFT JOIN `vehicle_financing` f ON f.`vehicleId` = v.`id`'
+  end
+  local sql = ('SELECT %s FROM `%s` v%s WHERE (%s)'):format(table.concat(cols, ', '), VT, join,
+    table.concat(parts, ' OR '))
+  local rows, ok = run('query', sql, {})
+  local out = {}
+  if not ok or type(rows) ~= 'table' then return out end
+  for _, r in ipairs(rows) do
+    local finance = financeOf(r)
+    local plate = Utils.plate(r.plate)
+    if plate and type(finance) == 'table' and finance.overdue and finance.balance > 0 then
+      local row = DB.getVehicle(plate)
+      if row and type(row.finance) == 'table' then out[#out + 1] = row end
+    end
+  end
+  return out
+end
+
+--- Every saved trailer: { { plate, trailer = { hash, model, props, damage } }, ... }.
+--- Used at boot so a trailer parked away from its vehicle is never taken by another one.
+---@return table[]
+function DB.getSavedTrailers()
+  if not ready() or not has('nz_trailer') then return {} end
+  local rows, ok = run('query', ('SELECT `plate`, `nz_trailer` FROM `%s` WHERE `nz_trailer` IS NOT NULL'):format(VT), {})
+  local out = {}
+  if not ok or type(rows) ~= 'table' then return out end
+  for _, r in ipairs(rows) do
+    local plate = Utils.plate(r.plate)
+    local trailer = decodeTable(r.nz_trailer)
+    if plate and type(trailer) == 'table' then out[#out + 1] = { plate = plate, trailer = trailer } end
   end
   return out
 end
@@ -1044,12 +1197,23 @@ function DB.updateVehicle(plate, fields)
     set('nz_last_out', int(fields.lastOut, nil))
   end
 
-  -- finance (qb columns go in the same statement; qbx table is written afterwards)
+  -- finance (qb columns go in the same statement; qbx table is written afterwards; our own
+  -- record with the due date on every framework)
   if fields.finance == false then
     set('nz_finance_total', nil)
-  elseif type(fields.finance) == 'table' and fields.finance.paymentsTotal ~= nil then
-    local total = int(fields.finance.paymentsTotal, nil)
-    set('nz_finance_total', (total and total > 0) and total or nil)
+    set(FINANCE_COLUMN, nil)
+  elseif type(fields.finance) == 'table' then
+    if fields.finance.paymentsTotal ~= nil then
+      local total = int(fields.finance.paymentsTotal, nil)
+      set('nz_finance_total', (total and total > 0) and total or nil)
+    end
+    local record = financeRecord(fields.finance)
+    if record.balance <= 0 then
+      set(FINANCE_COLUMN, nil)
+    else
+      local encoded = encode(record, 'finance of ' .. storedPlate)
+      if encoded then set(FINANCE_COLUMN, encoded) end
+    end
   end
   local financeTable = false
   if not isEsx and (fields.finance == false or type(fields.finance) == 'table') then
@@ -1181,6 +1345,10 @@ function DB.deleteVehicle(plate)
   queries[#queries + 1] = { query = 'DELETE FROM `nz_shares` WHERE `plate` = ?', values = { p } }
   queries[#queries + 1] = { query = 'DELETE FROM `nz_vehicle_events` WHERE `plate` = ?', values = { p } }
   queries[#queries + 1] = { query = 'DELETE FROM `nz_keys` WHERE `plate` = ?', values = { p } }
+  if DB.keyTables then
+    queries[#queries + 1] = { query = 'DELETE FROM `nz_key_security` WHERE `plate` = ?', values = { p } }
+    queries[#queries + 1] = { query = 'DELETE FROM `nz_key_items` WHERE `plate` = ?', values = { p } }
+  end
   return transaction(queries)
 end
 
@@ -1218,6 +1386,12 @@ function DB.changePlate(oldPlate, newPlate)
     add('UPDATE `nz_logs` SET `plate` = ? WHERE `plate` = ?', { new, old })
     add('DELETE FROM `nz_keys` WHERE `plate` = ?', { new })
     add('UPDATE `nz_keys` SET `plate` = ? WHERE `plate` = ?', { new, old })
+    if DB.keyTables then
+      -- key items are signed for the old plate (they stop working); the immobiliser moves along
+      add('DELETE FROM `nz_key_security` WHERE `plate` = ?', { new })
+      add('UPDATE `nz_key_security` SET `plate` = ? WHERE `plate` = ?', { new, old })
+      add('DELETE FROM `nz_key_items` WHERE `plate` = ?', { old })
+    end
   end
   return transaction(queries)
 end
@@ -1824,6 +1998,272 @@ function DB.keys.secret(candidate)
   value = run('scalar', 'SELECT `value` FROM `nz_settings` WHERE `key` = ? LIMIT 1', { KEY_SECRET })
   if type(value) == 'string' and #value >= KEY_SECRET_MIN then return value end
   return candidate
+end
+
+---------------------------------------------------------------------------------------
+-- Car lock v2 tables (docs/CARLOCK.md §3, §15-§18): key custody (nz_key_items), immobilisers
+-- (nz_key_security), per-player key settings (nz_key_players), keys on the ground
+-- (nz_ground_keys) and the admin key settings (nz_settings 'carlock_settings').
+---------------------------------------------------------------------------------------
+
+DB.keyTables = true
+
+local CUSTODY = { player = true, stash = true, ground = true, unknown = true, lost = true }
+
+local function keyItemRow(r)
+  if type(r) ~= 'table' or type(r.key_id) ~= 'string' then return nil end
+  return {
+    id = r.key_id,
+    plate = Utils.plate(r.plate),
+    version = int(r.version, 0),
+    kind = r.kind == 'fob' and 'fob' or 'key',
+    origin = nonEmpty(r.origin),
+    custody = CUSTODY[r.custody] and r.custody or 'unknown',
+    holder = nonEmpty(r.holder),
+    slot = int(r.slot, nil),
+    createdBy = nonEmpty(r.created_by),
+    createdAt = int(r.created, nil),
+    updatedAt = int(r.updated, nil),
+  }
+end
+
+local KEY_ITEM_SELECT = [[SELECT `key_id`, `plate`, `version`, `kind`, `origin`, `custody`, `holder`, `slot`,
+  `created_by`, UNIX_TIMESTAMP(`created_at`) AS `created`, UNIX_TIMESTAMP(`updated_at`) AS `updated` FROM `nz_key_items` ]]
+
+DB.keyItems = {}
+
+--- Record (or update) a key item: { id, plate, version, kind, origin?, custody, holder?, slot?, createdBy? }.
+---@param e table
+---@return boolean
+function DB.keyItems.upsert(e)
+  if type(e) ~= 'table' then return false end
+  local id, plate = str(e.id, 32), Utils.plate(e.plate)
+  if not id or not plate or #plate > 16 then return false end
+  local custody = CUSTODY[e.custody] and e.custody or 'unknown'
+  local _, ok = run('update', [[INSERT INTO `nz_key_items`
+      (`key_id`, `plate`, `version`, `kind`, `origin`, `custody`, `holder`, `slot`, `created_by`)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE `custody` = VALUES(`custody`), `holder` = VALUES(`holder`), `slot` = VALUES(`slot`)]],
+    { id, plate, int(e.version, 0), e.kind == 'fob' and 'fob' or 'key', str(e.origin, 16), custody,
+      str(e.holder, 64), int(e.slot, nil), str(e.createdBy, 64) })
+  return ok
+end
+
+--- Move a recorded key item (custody / holder / slot). Returns true when a row changed.
+---@param id string
+---@param custody string
+---@param holder string|nil
+---@param slot number|nil
+---@return boolean
+function DB.keyItems.move(id, custody, holder, slot)
+  id = str(id, 32)
+  if not id or not CUSTODY[custody] then return false end
+  local affected = run('update', 'UPDATE `nz_key_items` SET `custody` = ?, `holder` = ?, `slot` = ? WHERE `key_id` = ?',
+    { custody, str(holder, 64), int(slot, nil), id })
+  return (tonumber(affected) or 0) > 0
+end
+
+--- One recorded key item, or nil.
+---@param id string
+---@return table|nil
+function DB.keyItems.get(id)
+  id = str(id, 32)
+  if not id then return nil end
+  return keyItemRow(run('single', KEY_ITEM_SELECT .. 'WHERE `key_id` = ? LIMIT 1', { id }))
+end
+
+--- Recorded key items of a plate (every version), oldest first.
+---@param plate string
+---@return table[]
+function DB.keyItems.forPlate(plate)
+  plate = Utils.plate(plate)
+  if not plate then return {} end
+  local out = {}
+  for _, r in ipairs(run('query', KEY_ITEM_SELECT .. 'WHERE `plate` = ? ORDER BY `created_at` LIMIT 500', { plate }) or {}) do
+    out[#out + 1] = keyItemRow(r)
+  end
+  return out
+end
+
+--- Recorded key items a holder (character identifier, stash id, ground id) has.
+---@param holder string
+---@return table[]
+function DB.keyItems.forHolder(holder)
+  holder = str(holder, 64)
+  if not holder then return {} end
+  local out = {}
+  for _, r in ipairs(run('query', KEY_ITEM_SELECT .. 'WHERE `holder` = ? ORDER BY `plate` LIMIT 500', { holder }) or {}) do
+    out[#out + 1] = keyItemRow(r)
+  end
+  return out
+end
+
+--- Key items of a plate with this version whose custody is not 'lost' (copies of the current
+--- locks that exist somewhere). nil on a database error.
+---@param plate string
+---@param version integer
+---@return integer|nil
+function DB.keyItems.countLive(plate, version)
+  plate = Utils.plate(plate)
+  if not plate then return 0 end
+  local n, ok = run('scalar', [[SELECT COUNT(*) FROM `nz_key_items`
+    WHERE `plate` = ? AND `version` = ? AND `custody` <> 'lost']], { plate, int(version, 0) })
+  if not ok then return nil end
+  return math.max(int(n, 0), 0)
+end
+
+--- Forget a recorded key item.
+---@param id string
+---@return boolean
+function DB.keyItems.remove(id)
+  id = str(id, 32)
+  if not id then return false end
+  local _, ok = run('update', 'DELETE FROM `nz_key_items` WHERE `key_id` = ?', { id })
+  return ok
+end
+
+--- Totals for the admin key manager: { items, lost }.
+---@return table
+function DB.keyItems.totals()
+  local row = run('single', [[SELECT COUNT(*) AS `items`, SUM(`custody` = 'lost') AS `lost` FROM `nz_key_items`]])
+  return { items = int(row and row.items, 0), lost = int(row and row.lost, 0) }
+end
+
+DB.keySecurity = {}
+
+--- Immobiliser of a plate: { immobiliser = 'none'|'standard'|'ghost', pinHash? }; nil on a
+--- database error.
+---@param plate string
+---@return table|nil
+function DB.keySecurity.get(plate)
+  plate = Utils.plate(plate)
+  if not plate then return { immobiliser = 'none' } end
+  local row, ok = run('single', 'SELECT `immobiliser`, `pin_hash` FROM `nz_key_security` WHERE `plate` = ? LIMIT 1', { plate })
+  if not ok then return nil end
+  if type(row) ~= 'table' then return { immobiliser = 'none' } end
+  local level = row.immobiliser
+  if level ~= 'standard' and level ~= 'ghost' then level = 'none' end
+  return { immobiliser = level, pinHash = nonEmpty(row.pin_hash) }
+end
+
+--- Store the immobiliser of a plate (pinHash false = clear the PIN, nil = keep it).
+---@param plate string
+---@param level 'none'|'standard'|'ghost'
+---@param pinHash string|false|nil
+---@return boolean
+function DB.keySecurity.set(plate, level, pinHash)
+  plate = Utils.plate(plate)
+  if not plate or #plate > 16 then return false end
+  if level ~= 'standard' and level ~= 'ghost' then level = 'none' end
+  local pin = pinHash == false and nil or str(pinHash, 64)
+  local sql, params
+  if pinHash == nil then
+    sql = [[INSERT INTO `nz_key_security` (`plate`, `immobiliser`) VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE `immobiliser` = VALUES(`immobiliser`)]]
+    params = { plate, level }
+  else
+    sql = [[INSERT INTO `nz_key_security` (`plate`, `immobiliser`, `pin_hash`) VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE `immobiliser` = VALUES(`immobiliser`), `pin_hash` = VALUES(`pin_hash`)]]
+    params = { plate, level, pin }
+  end
+  local _, ok = run('update', sql, params)
+  return ok
+end
+
+DB.keyPlayers = {}
+
+--- Stored key settings of a character (table) or nil.
+---@param identifier string
+---@return table|nil
+function DB.keyPlayers.get(identifier)
+  identifier = str(identifier, 64)
+  if not identifier then return nil end
+  return decodeTable(run('scalar', 'SELECT `data` FROM `nz_key_players` WHERE `identifier` = ? LIMIT 1', { identifier }))
+end
+
+--- Store the key settings of a character.
+---@param identifier string
+---@param data table
+---@return boolean
+function DB.keyPlayers.set(identifier, data)
+  identifier = str(identifier, 64)
+  local encoded = type(data) == 'table' and encode(data, 'key settings') or nil
+  if not identifier or not encoded then return false end
+  local _, ok = run('update', [[INSERT INTO `nz_key_players` (`identifier`, `data`) VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE `data` = VALUES(`data`)]], { identifier, encoded })
+  return ok
+end
+
+DB.groundKeys = {}
+
+--- Every stored ground key: { { id, plate, data, x, y, z, heading, bucket, expiresAt } }.
+---@return table[]
+function DB.groundKeys.all()
+  local out = {}
+  for _, r in ipairs(run('query', [[SELECT `id`, `plate`, `data`, `x`, `y`, `z`, `heading`, `bucket`, `expires_at`
+    FROM `nz_ground_keys` LIMIT 2000]]) or {}) do
+    local data = decodeTable(r.data)
+    if type(r.id) == 'string' and data then
+      out[#out + 1] = { id = r.id, plate = Utils.plate(r.plate), data = data, x = num(r.x) or 0.0, y = num(r.y) or 0.0,
+        z = num(r.z) or 0.0, heading = num(r.heading) or 0.0, bucket = int(r.bucket, 0), expiresAt = int(r.expires_at, nil) }
+    end
+  end
+  return out
+end
+
+--- Store a ground key (record of NZ.CarLock ground keys); again with the same id moves it.
+---@param g table { id, plate, data, x, y, z, heading, bucket, expiresAt? }
+---@return boolean
+function DB.groundKeys.add(g)
+  if type(g) ~= 'table' then return false end
+  local id, plate = str(g.id, 32), Utils.plate(g.plate)
+  local data = encode(g.data, 'ground key')
+  if not id or not plate or not data then return false end
+  local _, ok = run('update', [[INSERT INTO `nz_ground_keys` (`id`, `plate`, `data`, `x`, `y`, `z`, `heading`, `bucket`, `expires_at`)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE `data` = VALUES(`data`), `x` = VALUES(`x`),
+    `y` = VALUES(`y`), `z` = VALUES(`z`)]],
+    { id, plate, data, num(g.x) or 0.0, num(g.y) or 0.0, num(g.z) or 0.0, num(g.heading) or 0.0, int(g.bucket, 0), int(g.expiresAt, nil) })
+  return ok
+end
+
+--- Remove a stored ground key.
+---@param id string
+---@return boolean
+function DB.groundKeys.remove(id)
+  id = str(id, 32)
+  if not id then return false end
+  local _, ok = run('update', 'DELETE FROM `nz_ground_keys` WHERE `id` = ?', { id })
+  return ok
+end
+
+--- Remove every stored ground key (persistence switched off).
+---@return boolean
+function DB.groundKeys.clear()
+  local _, ok = run('update', 'DELETE FROM `nz_ground_keys`')
+  return ok
+end
+
+DB.keySettings = {}
+
+local KEY_SETTINGS = 'carlock_settings'
+
+--- The admin key settings ({ [id] = value }), {} when none are stored, nil on a database error.
+---@return table|nil
+function DB.keySettings.load()
+  local value, ok = run('scalar', 'SELECT `value` FROM `nz_settings` WHERE `key` = ? LIMIT 1', { KEY_SETTINGS })
+  if not ok then return nil end
+  return decodeTable(value) or {}
+end
+
+--- Store the admin key settings.
+---@param values table
+---@return boolean
+function DB.keySettings.save(values)
+  local encoded = type(values) == 'table' and encode(values, 'key settings') or nil
+  if not encoded then return false end
+  local _, ok = run('update', [[INSERT INTO `nz_settings` (`key`, `value`) VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)]], { KEY_SETTINGS, encoded })
+  return ok
 end
 
 ---------------------------------------------------------------------------------------

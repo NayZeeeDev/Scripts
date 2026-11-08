@@ -48,7 +48,8 @@ import { RailList, RailSkeleton, RailVacant } from './showroom/Rail';
 import { SlotStrip } from './showroom/SlotStrip';
 import { useShowroomKeys } from './showroom/keys';
 import { GarageRow, RailToolbar, SpawnerRow } from './GarageRail';
-import { EmptyShowcase, SpawnerShowcase, VehicleShowcase } from './GarageShowcase';
+import { EmptyShowcase, SpawnerShowcase, VehicleShowcase, isGhost } from './GarageShowcase';
+import { PreviewContext, PreviewVeil, useVehiclePreview } from './showroom/preview';
 import { RenameModal } from './modals/RenameModal';
 import { TransferModal } from './modals/TransferModal';
 import { ShareModal } from './modals/ShareModal';
@@ -213,6 +214,15 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
 
   const sv = !spawnerMode ? byPlate(currentKey) : null;
   const ss = spawnerMode ? spawner.find((s) => String(s.index) === currentKey) ?? null : null;
+
+  /* ── 3D preview of the selection (ghosts keep their image) ── */
+  const previewPlate = sv && !isGhost(sv) ? sv.plate : null;
+  const previewIndex = ss ? ss.index : null;
+  const previewTarget = useMemo(
+    () => (previewPlate ? { plate: previewPlate } : previewIndex !== null ? { index: previewIndex } : null),
+    [previewPlate, previewIndex],
+  );
+  const preview = useVehiclePreview('garage', previewTarget, data.previewStopped);
 
   /* ── actions ── */
   const toggleFavourite = async (v: GarageVehicle) => {
@@ -444,7 +454,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
       {garage.canGoInside && (
         <Button
           size="sm"
-          variant="line"
+          variant="teal"
           icon="walk"
           loading={headerBusy === 'inside'}
           disabled={!!headerBusy && headerBusy !== 'inside'}
@@ -585,9 +595,10 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
   const hereCount = vehicles.filter(isHere).length;
 
   return (
-    <>
+    <PreviewContext.Provider value={preview}>
+      <PreviewVeil state={preview} />
       <Window
-        className={cx('nz-garage', busyHeader && 'is-busyhead')}
+        className={cx('nz-garage', busyHeader && 'is-busyhead', preview.live && 'is-live')}
         bodyClassName="nz-garage__body"
         width="min(1240px, 94vw)"
         height="min(930px, 92vh)"
@@ -622,13 +633,14 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
                 {t('Garage full')}
               </span>
             )}
-            <span className="nz-garage__spacer" />
-            {count > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
-            {enterKind && <KeyHint keys={['Enter']} label={enterLabel[enterKind]} />}
-            {sv && <KeyHint keys={['F']} label={t('Favourite')} />}
-            {sv?.isOwner && <KeyHint keys={['R']} label={t('Rename')} />}
-            {total > 0 && <KeyHint keys={['/']} label={t('Search')} />}
-            <KeyHint keys={['Esc']} label={t('Close')} />
+            <span className="nz-garage__keybar">
+              {count > 0 && <KeyHint keys={['ArrowUp', 'ArrowDown']} label={t('Select')} />}
+              {enterKind && <KeyHint keys={['Enter']} label={enterLabel[enterKind]} />}
+              {sv && <KeyHint keys={['F']} label={t('Favourite')} className="nz-garage__keyhint-minor" />}
+              {sv?.isOwner && <KeyHint keys={['R']} label={t('Rename')} className="nz-garage__keyhint-minor" />}
+              {total > 0 && <KeyHint keys={['/']} label={t('Search')} />}
+              <KeyHint keys={['Esc']} label={t('Close')} />
+            </span>
           </>
         }
       >
@@ -745,7 +757,7 @@ function GarageWindow({ data, close }: { data: GarageOpenData; close: () => void
         onConfirm={() => void confirmSellGarage()}
         onCancel={() => setSellGarage(false)}
       />
-    </>
+    </PreviewContext.Provider>
   );
 }
 

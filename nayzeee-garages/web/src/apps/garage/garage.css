@@ -48,6 +48,60 @@
 .nz-garage .nz-btn__label,
 .nz-garage-modal .nz-btn__label { line-height: 1.3; }
 
+/* footer key hints: the owner's prompt bar — dark rounded bar in the middle of the footer,
+   bordered key chips + white labels */
+.nz-garage .nz-window__footer { min-height: 40px; }
+
+.nz-garage__keybar {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  height: 28px;
+  max-width: calc(100% - 340px);
+  padding: 0 14px 0 6px;
+  border-radius: 7px;
+  border: 1px solid var(--line-soft);
+  background: var(--raise);
+  box-shadow: var(--sh-1);
+}
+
+/* long locales: labels shrink with an ellipsis instead of the bar clipping its last hint */
+.nz-garage__keybar .nz-keyhint { gap: 8px; min-width: 0; flex: 0 1 auto; }
+.nz-garage__keybar .nz-keyhint__keys { flex: none; gap: 4px; }
+
+.nz-garage__keybar .nz-kbd {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: inset 0 1px 0 var(--lift);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--white);
+}
+
+.nz-garage__keybar .nz-keyhint__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+/* narrow screens: the least used hints go first (the buttons still carry the action) */
+@media (max-width: 1359px) {
+  .nz-garage__keybar .nz-garage__keyhint-minor { display: none; }
+}
+
 /* ── header: capacity slot strip, group switcher ── */
 /* The header controls keep their size; a long garage name ellipsizes instead of the
    controls spilling over it (the brand block shrinks first). */
@@ -614,7 +668,7 @@
   flex-direction: column;
 }
 
-/* stage: turntable with spotlight, perspective floor and a teal horizon. The height is its
+/* stage: turntable with a perspective floor and a teal horizon. The height is its
    minimum: when the detail sections are short (spawners, the impound) the stage takes the
    spare height up to its cap, so the vehicle grows instead of empty space under the blocks. */
 .nz-garage__stage {
@@ -625,21 +679,8 @@
   overflow: hidden;
   border-bottom: 1px solid var(--line-soft);
   background:
-    radial-gradient(48% 70% at 50% -6%, rgba(255, 255, 255, .075), rgba(255, 255, 255, 0) 72%),
     radial-gradient(64% 42% at 50% 70%, rgba(var(--teal-rgb), .075), rgba(var(--teal-rgb), 0) 70%),
     linear-gradient(180deg, var(--panel) 0%, var(--inset) 60%, var(--side) 100%);
-}
-
-.nz-garage__stage-light {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 64%;
-  height: 92%;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 88%);
-  clip-path: polygon(41% 0, 59% 0, 100% 100%, 0 100%);
-  pointer-events: none;
 }
 
 .nz-garage__stage-floor {
@@ -882,6 +923,82 @@
 
 .nz-garage__plate.is-muted b { color: var(--ink-2); font-size: 12.5px; letter-spacing: .1em; }
 
+/* ── 3D preview (showroom/preview.tsx): the game renders the real car behind the stage.
+   Only the stage is see-through: the window shell and the showcase pane lose their fill and
+   every other part paints its own (rail, bar, strip, sections, dock, footer already do).
+   The frame keeps its hairline as an inset ring (+ the chamfer diagonal). ── */
+.nz-garage.is-live .nz-window__frame {
+  background:
+    linear-gradient(to top left, rgba(255, 255, 255, 0) calc(50% - 1px), var(--line) 50%, rgba(255, 255, 255, 0) calc(50% + 1px))
+    right bottom / var(--chamfer) var(--chamfer) no-repeat;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.nz-garage.is-live .nz-window__shell { background: transparent; }
+.nz-garage.is-live .nz-garage__stagearea { background: transparent; }
+/* the stage still takes the spare height first (up to its cap); the sections take the rest,
+   so no see-through gap opens between them and the dock */
+.nz-garage.is-live .nz-garage__stage { flex-grow: 1000; }
+.nz-garage.is-live .nz-garage__secwrap { flex-grow: 1; background: var(--base); }
+/* short screens (720p): a taller live stage so the turning car is not squeezed between the
+   class tag and the title strip; the sections below scroll */
+@media (max-height: 760px) {
+  .nz-garage.is-live .nz-garage__stage { min-height: 230px; }
+}
+
+.nz-garage__stage.is-live { background: transparent; }
+
+.nz-garage__stage-car,
+.nz-garage__stage-floor,
+.nz-garage__stage-horizon,
+.nz-garage__stage-ring { transition: opacity var(--slide); }
+
+.nz-garage__stage.is-live .nz-garage__stage-car { animation: none; }
+
+.nz-garage__stage.is-live .nz-garage__stage-car,
+.nz-garage__stage.is-live .nz-garage__stage-floor,
+.nz-garage__stage.is-live .nz-garage__stage-horizon,
+.nz-garage__stage.is-live .nz-garage__stage-ring { opacity: 0; }
+
+/* a soft vignette keeps the corner tags and the title readable over the game scene */
+.nz-garage__stage.is-live::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 64px;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(5, 6, 7, .55), rgba(5, 6, 7, 0));
+  pointer-events: none;
+}
+
+.nz-garage__stage-busy {
+  position: absolute;
+  right: 16px;
+  bottom: 74px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line);
+  background: var(--hud);
+  color: var(--teal);
+}
+
+/* everything around the stage while the preview runs (the camera shows the studio there) */
+.nz-garage-veil {
+  position: fixed;
+  z-index: calc(var(--z-window) - 1);
+  box-shadow: 0 0 0 200vmax rgba(5, 6, 7, .9);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--slide);
+}
+
+/* in fast (Lua switches the camera ~100 ms after the stage went see-through), out at panel pace */
+.nz-garage-veil.is-on { opacity: 1; transition-duration: 90ms; }
+
 /* status strip */
 .nz-garage__strip {
   flex: none;
@@ -965,6 +1082,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
+  align-items: start;
   gap: 12px;
   padding: 14px 16px 18px;
   animation: nz-garage-rise 220ms var(--ease) both;
@@ -1053,6 +1171,80 @@
   flex-direction: column;
   padding: 12px 14px 14px;
 }
+
+/* accordion: Condition / Performance / Upgrades / Details fold; "Expand all" in the bar */
+.nz-garage__secbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 10px 16px 0;
+}
+
+.nz-garage__secbar-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.nz-garage__secbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 11px 0 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-soft);
+  background: var(--inset);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: color var(--fast), border-color var(--fast), background var(--fast);
+}
+
+.nz-garage__secbar-btn > svg { color: var(--teal); }
+.nz-garage__secbar-btn:hover { color: var(--white); border-color: var(--teal-edge); background: var(--teal-wash); }
+.nz-garage__secbar + .nz-garage__sections { padding-top: 10px; }
+
+.nz-garage__blk.is-collapsible .nz-garage__blk-head { cursor: pointer; transition: background var(--fast); }
+.nz-garage__blk.is-collapsible .nz-garage__blk-head:hover { background: var(--lift); }
+.nz-garage__blk.is-closed .nz-garage__blk-head { border-bottom-color: transparent; }
+
+.nz-garage__blk-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
+.nz-garage__blk-toggle > svg { flex: none; color: var(--teal); }
+.nz-garage__blk.is-red .nz-garage__blk-toggle > svg { color: var(--red); }
+.nz-garage__blk-toggle:focus-visible { outline: 1px solid var(--teal-edge); outline-offset: 3px; border-radius: 3px; }
+.nz-garage__blk.is-collapsible .nz-garage__blk-head:hover h4 { color: var(--ink-2); }
+
+.nz-garage__blk-chev {
+  flex: none;
+  margin-left: -2px;
+  color: var(--ink-3);
+  transform: rotate(180deg);
+  transition: transform var(--fast), color var(--fast);
+}
+
+.nz-garage__blk.is-closed .nz-garage__blk-chev { transform: none; }
+.nz-garage__blk.is-collapsible .nz-garage__blk-head:hover .nz-garage__blk-chev { color: var(--teal); }
+.nz-garage__blk.is-collapsible .nz-garage__blk-aside { margin-left: auto; }
+.nz-garage__blk.is-collapsible .nz-garage__blk-head { justify-content: flex-start; }
+.nz-garage__blk.is-collapsible .nz-garage__blk-head h4 { flex: 1 1 auto; }
+.nz-garage__blk-body { animation: nz-garage-rise 200ms var(--ease) both; }
 
 .nz-garage__blk-note {
   max-width: 220px;

@@ -17,6 +17,13 @@ local SPAWN_GRACE = 60          -- seconds a retrieved vehicle may stay unreport
 local LOCK_TIMEOUT = 30000      -- ms after which a plate lock is considered stale
 local SPAWN_CLEARANCE = 2.5     -- metres; a spawn point with a vehicle closer than this is occupied
 local TRAILER_RANGE = 20.0      -- metres; max distance of an unattached trailer from its vehicle
+local HITCH_RANGE = 16.0        -- metres; centre distance of a vehicle and the trailer on its hitch
+                                -- (long semi trailers ~12 m), used when the server sees no attachment
+local HITCH_ANGLE = 100.0       -- degrees; max heading difference of truck and unseen-hitch trailer
+local TRAILER_BACK = 20.0       -- metres behind the spawn point a server-created trailer appears,
+                                -- frozen (the owner client then moves it onto the hitch); clear of
+                                -- the truck's rear even for long semi trailers
+local TRAILER_UNFREEZE_MS = 20000 -- the server unfreezes a server-created trailer after this anyway
 local MAX_PLATE_LENGTH = 16
 local MAX_PROPS_BYTES = 32768
 local MAX_DAMAGE_BYTES = 65536
@@ -41,6 +48,7 @@ local locks = {}          -- [plate] = GetGameTimer() at lock time
 local blacklist = nil     -- lazily built set of blacklisted model hashes
 local entityTypes = {}    -- [model hash] = network entity type seen on a real entity (false = unknown)
 local trailerOwners = {}  -- ['<hash>:<plate>'] = plate of the vehicle whose saved trailer is out in the world
+local trailerOf = {}      -- [plate] = '<hash>:<plate>' key of its tracked trailer (reverse of trailerOwners)
 local booted = false
 
 ---------------------------------------------------------------------------------------
@@ -349,16 +357,63 @@ local function trailerKeyOfEntity(entity)
   return trailerKey(toSigned(GetEntityModel(entity)), plateOf(entity))
 end
 
---- The saved trailer of `plate` is out in the world: no other vehicle may absorb it.
-local function trackTrailer(plate, data)
-  local key = trailerKeyOfData(data)
-  if key then trailerOwners[key] = plate end
+local function untrackTrailers(plate)
+  local key = trailerOf[plate]
+  if key and trailerOwners[key] == plate then trailerOwners[key] = nil end
+  trailerOf[plate] = nil
 end
 
-local function untrackTrailers(plate)
-  for key, owner in pairs(trailerOwners) do
-    if owner == plate then trailerOwners[key] = nil end
+--- `data` is the saved trailer of `plate` (in its garage or out in the world): no other
+--- vehicle may absorb an entity of it. A vehicle has one saved trailer.
+local function trackTrailer(plate, data)
+  local key = trailerKeyOfData(data)
+  if not key then return end
+  untrackTrailers(plate)
+  -- a key moving to another vehicle leaves no stale reverse entry behind
+  local previous = trailerOwners[key]
+  if previous and previous ~= plate and trailerOf[previous] == key then trailerOf[previous] = nil end
+  trailerOwners[key] = plate
+  trailerOf[plate] = key
+end
+
+--- Live, unoccupied entity of a saved trailer (model + plate), or nil.
+local function findSavedTrailer(data)
+  local key = trailerKeyOfData(data)
+  if not key then return nil end
+  for _, entity in ipairs(GetAllVehicles() or {}) do
+    if isVehicleEntity(entity) and trailerKeyOfEntity(entity) == key and not isOccupied(entity) then
+      local success, vtype = pcall(GetVehicleType, entity)
+      if not success or vtype == nil or vtype == 'trailer' then return entity end
+    end
   end
+  return nil
+end
+
+--- Is the saved trailer of `plate` (database row `row`) standing in the world right now
+--- (parked separately from its vehicle)? The phone valet delivers such a vehicle alone.
+---@param plate string
+---@param row table|nil NZVehicleRow (read when nil)
+---@return boolean parked
+function Vehicles.trailerParked(plate, row)
+  plate = readPlate(plate)
+  if not plate then return false end
+  if type(row) ~= 'table' then row = NZ.DB.getVehicle(plate) end
+  if type(row) ~= 'table' or type(row.trailer) ~= 'table' then return false end
+  return findSavedTrailer(row.trailer) ~= nil
+end
+
+--- Track every saved trailer (boot): one parked away from its vehicle (or in the world after
+--- a resource restart) is never taken by another vehicle.
+local function trackSavedTrailers()
+  if type(NZ.DB.getSavedTrailers) ~= 'function' then return 0 end
+  local count = 0
+  for _, entry in ipairs(NZ.DB.getSavedTrailers() or {}) do
+    if type(entry) == 'table' and entry.plate and type(entry.trailer) == 'table' then
+      trackTrailer(entry.plate, entry.trailer)
+      count = count + 1
+    end
+  end
+  return count
 end
 
 --- Delete the saved trailer of a vehicle that is being put away without being driven to a
@@ -371,9 +426,8 @@ function Vehicles.removeTrailerOf(plate, row)
   plate = readPlate(plate)
   if not plate then return false end
   local keys = {}
-  for key, owner in pairs(trailerOwners) do
-    if owner == plate then keys[key] = true end
-  end
+  local tracked = trailerOf[plate]
+  if tracked and trailerOwners[tracked] == plate then keys[tracked] = true end
   local own = type(row) == 'table' and trailerKeyOfData(row.trailer) or nil
   if own and (trailerOwners[own] == nil or trailerOwners[own] == plate) then keys[own] = true end
   local removed = false
@@ -389,6 +443,8 @@ function Vehicles.removeTrailerOf(plate, row)
     end
   end
   untrackTrailers(plate)
+  -- still its saved trailer (it comes back with the vehicle on the next retrieve)
+  if type(row) == 'table' and type(row.trailer) == 'table' then trackTrailer(plate, row.trailer) end
   return removed
 end
 
@@ -670,7 +726,14 @@ local function evaluate(src, row, session, cache, allowImpounded, access)
     return false, L('Impounded at {impound}', { impound = where or L('the impound') })
   end
   if state == 'out' then return false, L('Vehicle is already out') end
-  if type(row.finance) == 'table' and row.finance.overdue then
+  -- Config.Finance.missedAction 'none' leaves an overdue vehicle usable
+  local financeBlocks
+  if NZ.Finance and type(NZ.Finance.blocks) == 'function' then
+    financeBlocks = NZ.Finance.blocks(row)
+  else
+    financeBlocks = type(row.finance) == 'table' and row.finance.overdue == true
+  end
+  if financeBlocks then
     return false, L('Finance payment overdue')
   end
   local location = type(session) == 'table' and session.location or nil
@@ -1265,8 +1328,10 @@ end
 ---@param coords table {x,y,z,w}
 ---@param init table { plate, props, damage, fuel, engine, body, mileage, trailer }
 ---@param bucket number|nil routing bucket for the entity
+---@param noPlateBag boolean|nil true: no 'nzPlate' bag / plate tracking (a saved trailer is
+---                  not a registered vehicle)
 ---@return number|nil entity, number|nil netId
-function Vehicles.spawnServer(hash, entityType, coords, init, bucket)
+function Vehicles.spawnServer(hash, entityType, coords, init, bucket, noPlateBag)
   local point = Utils.v4(coords)
   hash = toSigned(hash)
   if not point or not hash then return nil, nil end
@@ -1289,7 +1354,7 @@ function Vehicles.spawnServer(hash, entityType, coords, init, bucket)
     local bag = Entity(entity).state
     bag:set('nzInit', init, true)
     local plate = Utils.plate(init.plate)
-    if plate then
+    if plate and not noPlateBag then
       bag:set('nzPlate', plate, true)
       entityPlates[entity] = plate
     end
@@ -1300,6 +1365,41 @@ function Vehicles.spawnServer(hash, entityType, coords, init, bucket)
     return nil, nil
   end
   return entity, NetworkGetNetworkIdFromEntity(entity)
+end
+
+--- Server-create the saved trailer of a server-spawned vehicle TRAILER_BACK metres behind
+--- the spawn point. Its own 'nzInit' (plate, props, damage) is applied by its owner client;
+--- the client that finishes the vehicle moves it onto the hitch and attaches it.
+---@return number|nil entity, number|nil netId
+local function spawnServerTrailer(trailer, spawn, bucket)
+  local hash = trailerHashOf(trailer)
+  local point = Utils.v4(spawn)
+  if not hash or not point then return nil, nil end
+  local heading = math.rad(tonumber(point.w) or 0.0)
+  -- GTA headings: forward = (-sin h, cos h); behind = point - forward * distance
+  local coords = {
+    x = point.x + math.sin(heading) * TRAILER_BACK,
+    y = point.y - math.cos(heading) * TRAILER_BACK,
+    z = point.z,
+    w = point.w,
+  }
+  local init = {
+    plate = trailerPlateOf(trailer),
+    props = type(trailer.props) == 'table' and trailer.props or nil,
+    damage = trailer.damage,
+    isTrailer = true,
+  }
+  local entity, netId = Vehicles.spawnServer(hash, 'trailer', coords, init, bucket, true)
+  -- Frozen until the client that hitches it moves it (client/vehicle.lua hitchServerTrailer
+  -- unfreezes it): no physics push on the truck or on whatever stands behind the spot.
+  if entity then
+    FreezeEntityPosition(entity, true)
+    -- safety net: a trailer no client could take control of does not stay frozen forever
+    SetTimeout(TRAILER_UNFREEZE_MS, function()
+      if DoesEntityExist(entity) then FreezeEntityPosition(entity, false) end
+    end)
+  end
+  return entity, netId
 end
 
 ---------------------------------------------------------------------------------------
@@ -1368,7 +1468,7 @@ local function doRetrieve(src, plate, session, opts)
 
   -- The saved trailer comes out with the vehicle. It needs a plate the server can recognise
   -- it by later (recover / impound remove it, no other vehicle may absorb it).
-  local trailer = nil
+  local trailer, trailerParked = nil, false
   if setting('vehicles.trailers', true) and type(row.trailer) == 'table' then
     trailer = row.trailer
     if not trailerPlateOf(trailer) then
@@ -1376,6 +1476,15 @@ local function doRetrieve(src, plate, session, opts)
       trailer.props = type(trailer.props) == 'table' and trailer.props or {}
       trailer.props.plate = Utils.generatePlate('TR*****')
     end
+    -- Parked separately: its entity is still where it was left, never a second copy.
+    trailerParked = findSavedTrailer(trailer) ~= nil
+  end
+  -- What the client (or the server spawn) creates behind the vehicle.
+  local trailerSpawn = nil
+  if trailer and not trailerParked then
+    trailerSpawn = {}
+    for k, v in pairs(trailer) do trailerSpawn[k] = v end
+    if not setting('vehicles.saveDamage', true) then trailerSpawn.damage = nil end
   end
 
   local paid, account = charge(src, fee, 'nayzeee-garages:retrieve')
@@ -1393,8 +1502,11 @@ local function doRetrieve(src, plate, session, opts)
   local function rollback(why)
     local entry = Vehicles.out[plate]
     if entry and entry.entity then deleteVehicle(entry.entity) end
+    if entry and entry.trailerEntity then deleteVehicle(entry.trailerEntity) end
     Vehicles.clearOut(plate)
+    -- the database record is unchanged: it stays this vehicle's saved trailer
     untrackTrailers(plate)
+    if type(row.trailer) == 'table' then trackTrailer(plate, row.trailer) end
     local restore = { state = row.state or 'garaged', lastOut = row.lastOut or false }
     if opts.fromImpound then restore.impound = row.impound or false end
     NZ.DB.updateVehicle(plate, restore)
@@ -1409,6 +1521,10 @@ local function doRetrieve(src, plate, session, opts)
     at = now,
     spawner = false,
     job = select(2, Vehicles.fleetOf(row)),
+    -- trailerSeen: the server saw an entity of its saved trailer while the vehicle was out;
+    -- only then may a store without it drop the record (doStore)
+    trailerExpected = trailerSpawn ~= nil or nil,
+    trailerSeen = trailerParked or nil,
   })
 
   local built, result = pcall(function()
@@ -1422,13 +1538,29 @@ local function doRetrieve(src, plate, session, opts)
       engine = percent(row.engine) or 100,
       body = percent(row.body) or 100,
       mileage = tonumber(row.mileage) or 0,
-      trailer = trailer,
+      trailer = trailerSpawn,
     }
 
     if setting('vehicles.serverSpawn', false) and entityType then
-      local entity, netId = Vehicles.spawnServer(hash, entityType, spawn, vehicle, GetPlayerRoutingBucket(src))
-      if not entity then return nil end
+      local bucket = GetPlayerRoutingBucket(src)
       local entry = Vehicles.out[plate]
+      -- The trailer first: the vehicle's 'nzInit' tells its client which entity to hitch.
+      -- When it cannot be created here, that client creates it (vehicle.trailer without netId).
+      if trailerSpawn then
+        local tEntity, tNetId = spawnServerTrailer(trailerSpawn, spawn, bucket)
+        if tEntity then
+          if entry then
+            entry.trailerEntity = tEntity
+            entry.trailerSeen = true
+          end
+          local hitch = {}
+          for k, v in pairs(trailerSpawn) do hitch[k] = v end
+          hitch.netId = tNetId
+          vehicle.trailer = hitch
+        end
+      end
+      local entity, netId = Vehicles.spawnServer(hash, entityType, spawn, vehicle, bucket)
+      if not entity then return nil end
       if entry then
         entry.entity = entity
         entry.netId = netId
@@ -1443,6 +1575,9 @@ local function doRetrieve(src, plate, session, opts)
     return fail(L('The vehicle could not be spawned'))
   end
   if trailer then trackTrailer(plate, trailer) end
+  if trailerParked then
+    NZ.Bridge.notify(src, L('Your trailer is still where you parked it'), 'info')
+  end
 
   log('vehicle.retrieve', src, {
     plate = plate,
@@ -1452,6 +1587,7 @@ local function doRetrieve(src, plate, session, opts)
     fromImpound = opts.fromImpound == true,
     fromInterior = opts.fromInterior == true,
     serverSpawn = result.netId ~= nil,
+    trailer = trailerParked and 'parked' or (trailerSpawn and 'spawned') or nil,
   })
   return ok(result)
 end
@@ -1472,8 +1608,7 @@ function Vehicles.retrieve(src, plate, session, opts)
     session = session or NZ.Access.getSession(src)
     if type(session) ~= 'table' then return fail(L('The garage is not open')) end
   elseif type(session) == 'table' then
-    local points = type(session.location) == 'table' and session.location.openPoints or {}
-    if not NZ.Access.isNear(src, points, maxDistance()) then return fail(L('You are too far from the garage')) end
+    if not NZ.Access.nearLocation(src, session.location, maxDistance()) then return fail(L('You are too far from the garage')) end
   else
     local err
     session, err = NZ.Access.requireSession(src, maxDistance())
@@ -1542,6 +1677,11 @@ function Vehicles.markSpawned(src, plate, netId)
   bag:set('nzPlate', plate, true)
   -- The client's own first write may have raced the entity's creation on the server.
   if row and bag.nzMileage == nil then bag:set('nzMileage', tonumber(row.mileage) or 0, true) end
+  -- its trailer is normally created (and networked) before the vehicle is reported
+  if row and entry.trailerExpected and not entry.trailerSeen and type(row.trailer) == 'table'
+    and findSavedTrailer(row.trailer) then
+    entry.trailerSeen = true
+  end
 
   if setting('vehicles.giveKeys', true) and NZ.KeysServer and NZ.KeysServer.give then
     local given, err = pcall(NZ.KeysServer.give, src, netId, plate)
@@ -1578,7 +1718,9 @@ function Vehicles.spawnFailed(src, plate)
   local done, err = Vehicles.withLock(plate, function()
     local row = NZ.DB.getVehicle(plate)
     Vehicles.clearOut(plate)
+    -- the database record is unchanged: it stays this vehicle's saved trailer
     untrackTrailers(plate)
+    if row and type(row.trailer) == 'table' then trackTrailer(plate, row.trailer) end
     if row and row.state == 'out' then
       NZ.DB.updateVehicle(plate, { state = 'garaged' })
       log('vehicle.spawnFailed', src, { plate = plate, garage = row.garageKey })
@@ -1600,9 +1742,12 @@ local function storePointsOf(location)
   return location.storePoints
 end
 
+--- The driver (server ped position) is at a store point of the location, or anywhere inside
+--- its garage zone (no store circle needed there).
 local function nearStorePoint(src, location)
   local pos = pedCoords(src)
   if not pos then return false end
+  if type(location.zone) == 'table' and NZ.Access.inZone(src, location) then return true end
   for _, point in ipairs(storePointsOf(location)) do
     local coords = Utils.v3(type(point) == 'table' and point.coords or point)
     if coords then
@@ -1622,8 +1767,9 @@ end
 
 --- Validate and package the trailer of `vehicle` (plate `plate`, database row `row`):
 --- a trailer hitched to it, or its own saved trailer standing loose nearby. Returns entity,
---- data or nil.
-local function collectTrailer(vehicle, info, saveDamage, saveDeformation, plate, row)
+--- data (saved with the vehicle) or entity, nil, trailerRow when the trailer is a registered
+--- vehicle of its own (it is parked separately), or nil.
+local function collectTrailer(src, vehicle, info, saveDamage, saveDeformation, plate, row)
   if type(info) ~= 'table' then return nil, nil end
   local netId = toInt(info.netId, 1)
   if not netId then return nil, nil end
@@ -1633,22 +1779,42 @@ local function collectTrailer(vehicle, info, saveDamage, saveDeformation, plate,
   local vtype = GetVehicleType(trailer)
   if type(vtype) == 'string' and vtype ~= 'trailer' then return nil, nil end
 
-  -- The saved trailer of another vehicle that is still out belongs to that vehicle.
+  -- The saved trailer of another vehicle belongs to that vehicle.
   local key = trailerKeyOfEntity(trailer)
   local owner = key and trailerOwners[key] or nil
   if owner and owner ~= plate then return nil, nil end
 
-  local attached = GetEntityAttachedTo(trailer) == vehicle
-  if not attached then
+  local attachedTo = GetEntityAttachedTo(trailer)
+  if attachedTo ~= vehicle then
+    -- hitched to something else (another truck, a tow truck, a cargobob)
+    if attachedTo and attachedTo ~= 0 and DoesEntityExist(attachedTo) then return nil, nil end
+    -- The server does not always see the hitch (attachment not replicated yet): a trailer
+    -- right behind the vehicle counts as hitched; its own saved trailer within TRAILER_RANGE.
     local own = key ~= nil and (owner == plate or key == trailerKeyOfData(type(row) == 'table' and row.trailer or nil))
-    if not own or Utils.dist(GetEntityCoords(trailer), GetEntityCoords(vehicle)) > TRAILER_RANGE then
-      return nil, nil
+    local vPos, tPos = GetEntityCoords(vehicle), GetEntityCoords(trailer)
+    if not own then
+      -- Any other loose trailer only counts when the server can tell it is on this hitch:
+      -- the storing client drives it (a towed trailer migrates to the truck's driver), it
+      -- stands behind the truck and points roughly the same way (a jackknife stays < 90).
+      if NetworkGetEntityOwner(trailer) ~= src then return nil, nil end
+      local h = math.rad(tonumber(GetEntityHeading(vehicle)) or 0.0)
+      local fx, fy = -math.sin(h), math.cos(h)
+      if (tPos.x - vPos.x) * fx + (tPos.y - vPos.y) * fy > 0.0 then return nil, nil end
+      local diff = math.abs(((tonumber(GetEntityHeading(trailer)) or 0.0) - math.deg(h) + 180.0) % 360.0 - 180.0)
+      if diff > HITCH_ANGLE then return nil, nil end
     end
+    local range = own and TRAILER_RANGE or HITCH_RANGE
+    if Utils.dist(tPos, vPos) > range then return nil, nil end
   end
 
-  -- Never absorb a trailer that is a registered vehicle of its own.
-  local trailerPlate = plateOf(trailer)
-  if trailerPlate and (Vehicles.out[trailerPlate] or NZ.DB.getVehicle(trailerPlate)) then return nil, nil end
+  -- A trailer that is a registered vehicle of its own is never absorbed: it is parked as
+  -- itself (doStore). A spawner / rental one stays out.
+  local trailerPlate = identityOf(trailer)
+  if trailerPlate then
+    local trailerRow = NZ.DB.getVehicle(trailerPlate)
+    if trailerRow then return trailer, nil, trailerRow end
+    if Vehicles.out[trailerPlate] then return nil, nil end
+  end
 
   local hash = toSigned(GetEntityModel(trailer))
   if not hash then return nil, nil end
@@ -1801,14 +1967,47 @@ local function doStore(src, session, entity, plate, payload)
     end
   end
 
-  local trailerEntity = nil
-  fields.trailer = false
-  if setting('vehicles.trailers', true) and type(data.trailer) == 'table' then
-    local tEntity, tData = collectTrailer(entity, data.trailer, saveDamage, saveDeformation, plate, row)
-    if tEntity then
-      trailerEntity = tEntity
-      fields.trailer = tData
+  -- Trailer: the one hitched to the vehicle is saved with it (and replaces its saved trailer).
+  -- Without one, its own saved trailer standing close by goes in with it; one parked further
+  -- away stays where it is and keeps being its saved trailer (it is not spawned a second
+  -- time while it exists). One the server saw out and that no longer exists is dropped; one
+  -- the client never managed to spawn is kept (it comes back on the next retrieve). A hitched
+  -- trailer that is a registered vehicle of its own is parked as itself (after the vehicle).
+  local trailerEntity, trailerNote, separate = nil, nil, nil
+  if setting('vehicles.trailers', true) then
+    local tEntity, tData, tRow = nil, nil, nil
+    if type(data.trailer) == 'table' then
+      tEntity, tData, tRow = collectTrailer(src, entity, data.trailer, saveDamage, saveDeformation, plate, row)
     end
+    if tEntity and tData then
+      trailerEntity, trailerNote = tEntity, 'stored'
+      fields.trailer = tData
+    elseif tEntity and tRow then
+      separate = { entity = tEntity, row = tRow, info = data.trailer }
+    end
+    if not fields.trailer and type(row.trailer) == 'table' then
+      local parked = findSavedTrailer(row.trailer)
+      if parked and parked ~= entity then
+        local attachedTo = GetEntityAttachedTo(parked)
+        local free = not attachedTo or attachedTo == 0 or attachedTo == entity or not DoesEntityExist(attachedTo)
+        if free and Utils.dist(GetEntityCoords(parked), GetEntityCoords(entity)) <= TRAILER_RANGE then
+          trailerEntity, trailerNote = parked, 'stored'
+        else
+          trailerNote = 'parked'
+        end
+      elseif not parked then
+        -- The trailer was out with this vehicle (the server saw its entity) and is gone now
+        -- (destroyed, deleted, cleaned up): the vehicle goes in without it. One the client
+        -- never managed to spawn is kept (it comes back on the next retrieve).
+        local entry = Vehicles.out[plate]
+        if entry and entry.trailerSeen == true then
+          fields.trailer = false
+          trailerNote = 'lost'
+        end
+      end
+    end
+  else
+    fields.trailer = false
   end
 
   if row.vehicleType ~= category then fields.vehicleType = category end
@@ -1829,8 +2028,14 @@ local function doStore(src, session, entity, plate, payload)
   deleteVehicle(entity)
   if trailerEntity then deleteVehicle(trailerEntity) end
   Vehicles.clearOut(plate)
-  -- The saved trailer is now whatever was stored with the vehicle (or nothing).
-  untrackTrailers(plate)
+  -- The saved trailer is now whatever was stored with the vehicle (or the one it had).
+  if type(fields.trailer) == 'table' then
+    trackTrailer(plate, fields.trailer)
+  elseif fields.trailer == false then
+    untrackTrailers(plate)
+  elseif type(row.trailer) == 'table' then
+    trackTrailer(plate, row.trailer)
+  end
 
   log('vehicle.store', src, {
     plate = plate,
@@ -1841,10 +2046,33 @@ local function doStore(src, session, entity, plate, payload)
     engine = fields.engine,
     body = fields.body,
     mileage = fields.mileage,
-    trailer = fields.trailer ~= false,
+    trailer = trailerNote,
     fakePlate = hadFake or nil,
   })
-  return ok({ returnTo = returnToOf(location) })
+
+  -- A registered trailer it was towing goes into the same garage as a vehicle of its own,
+  -- with every check a stored vehicle gets (access, capacity, model, duplicates).
+  local separateStored = nil
+  if separate and payload.towing == nil then
+    local tPlate = separate.row.plate
+    local res = Vehicles.withLock(tPlate, doStore, src, session, separate.entity, tPlate,
+      { data = separate.info, towing = plate })
+    separateStored = type(res) == 'table' and res.ok == true
+    if not separateStored then
+      NZ.Bridge.notify(src, L('The trailer {plate} was not stored: {reason}', {
+        plate = tPlate, reason = type(res) == 'table' and res.error or L('Something went wrong'),
+      }), 'error')
+    end
+  end
+
+  if trailerNote == 'parked' then
+    NZ.Bridge.notify(src, L('Your trailer stays where you parked it'), 'info')
+  end
+  return ok({
+    returnTo = payload.towing == nil and returnToOf(location) or nil,
+    trailer = trailerNote,
+    trailerStored = separateStored,
+  })
 end
 
 --- Store the vehicle the player is driving into the garage of `session` (§7.2).
@@ -1910,6 +2138,7 @@ local function adoptExisting()
           spawner = false,
           job = fleetName,
           adopted = true,
+          trailerSeen = type(row.trailer) == 'table' and findSavedTrailer(row.trailer) ~= nil or nil,
         })
         Entity(entity).state:set('nzPlate', plate, true)
         learnEntityType(entity)
@@ -1998,9 +2227,24 @@ local function applyOutOnRestart()
   lib.print.info(('[nayzeee-garages] server start: %d vehicle(s) left out were returned to their garage'):format(count))
 end
 
+--- A retrieved vehicle whose trailer the client spawns: note once the server sees that
+--- trailer (doStore may then drop the record when it is gone). Gives up after 5 minutes.
+local function watchTrailer(plate, entry)
+  if entry.spawner or not entry.trailerExpected or entry.trailerSeen then return end
+  if os.time() - (tonumber(entry.at) or 0) > 300 then
+    entry.trailerExpected = nil
+    return
+  end
+  local row = NZ.DB.getVehicle(plate)
+  if type(row) == 'table' and type(row.trailer) == 'table' and findSavedTrailer(row.trailer) then
+    entry.trailerSeen = true
+  end
+end
+
 local function sweep()
   for plate, entry in pairs(Vehicles.out) do
     local alive = Vehicles.isOut(plate)
+    if alive then watchTrailer(plate, entry) end
     if not alive then
       local adopted = false
       if not entry.netId then
@@ -2032,6 +2276,9 @@ function Vehicles.boot()
   else
     applyOutOnRestart()
   end
+  -- every saved trailer, also those of vehicles in a garage (one may be parked in the world)
+  local tracked, err = pcall(trackSavedTrailers)
+  if not tracked then lib.print.warn(('[nayzeee-garages] could not load saved trailers: %s'):format(tostring(err))) end
   CreateThread(function()
     while true do
       Wait(60000)
@@ -2070,7 +2317,7 @@ register('nz:garage:open', function(src, payload)
   if rateLimited(src, 'garage:open', 750) then return fail(L('Please wait a moment before trying again')) end
   local target, err = Vehicles.resolveGarage(src, payload)
   if not target then return fail(err) end
-  if not NZ.Access.isNear(src, target.location.openPoints or {}, maxDistance()) then
+  if not NZ.Access.nearLocation(src, target.location, maxDistance()) then
     return fail(L('You are too far from the garage'))
   end
   local session = NZ.Access.openSession(src, target.garageKey, target.location, {

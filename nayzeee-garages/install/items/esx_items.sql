@@ -14,4 +14,8 @@ INSERT IGNORE INTO `items` (`name`, `label`, `weight`, `rare`, `can_remove`) VAL
   ('hacking_device', 'Hacking device', 1, 0, 1),
   ('fake_plate', 'Fake plate', 1, 0, 1),
   ('vehicle_contract', 'Vehicle sale contract', 1, 0, 1),
-  ('signed_contract', 'Signed sale contract', 1, 0, 1);
+  ('signed_contract', 'Signed sale contract', 1, 0, 1),
+  ('immobiliser', 'Immobiliser', 1, 0, 1),
+  ('ghost_immobiliser', 'Ghost immobiliser', 1, 0, 1),
+  ('hotwire_kit', 'Hotwire kit', 1, 0, 1),
+  ('signal_reader', 'Signal reader', 1, 0, 1);

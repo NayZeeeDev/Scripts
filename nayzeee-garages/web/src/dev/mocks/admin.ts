@@ -11,7 +11,10 @@
  * Scenarios: admin-garages, admin-jobs, admin-private, admin-impounds, admin-edit-location,
  * admin-edit-job, admin-edit-private, admin-private-owners, admin-create-impound, admin-empty.
  * admin:points answers after ~1.5 s (the admin UI is hidden meanwhile) and appends one point
- * next to the last one; the in-world key hint is shown while it "runs".
+ * next to the last one; the in-world key hint is shown while it "runs". kind 'zone' returns a
+ * polygon around the first open interaction (redrawing turns the previous one a little).
+ * Garage zones: Legion Square (7 corners) and Davis Impound (5 corners); `admin-edit-zone`
+ * opens Legion Square's editor scrolled to its zone.
  * mockNui: admin:refresh, admin:location:save|delete|toggle|teleport|import, admin:points,
  * admin:pickPosition, admin:groups, admin:group:save|delete|member.
  */
@@ -28,6 +31,7 @@ import type {
   ImpoundLocation,
   InteractionPoint,
   Interior,
+  LocationZone,
   IplProfile,
   JobInfo,
   JobLocation,
@@ -51,6 +55,13 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const v3 = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 const v4 = (x: number, y: number, z: number, w: number): Vec4 => ({ x, y, z, w });
 const pt = (x: number, y: number, z: number, radius = 2): InteractionPoint => ({ coords: v3(x, y, z), radius });
+
+/** Garage zone from [x, y] corners. */
+const zone = (corners: [number, number][], minZ: number, maxZ: number): LocationZone => ({
+  points: corners.map(([x, y]) => ({ x, y })),
+  minZ,
+  maxZ,
+});
 
 const SPRITE: Record<VehicleType, number> = { car: 357, sea: 356, air: 359 };
 const COLOUR = { garage: 3, job: 38, private: 5, impound: 1 } as const;
@@ -363,6 +374,19 @@ const publicGarages: GarageLocation[] = [
     enabled: true,
     openPoints: [pt(215.8, -810.06, 30.73)],
     spawnPoints: spawnRow(229.74, -800.12, 30.57, 157.5, 4),
+    zone: zone(
+      [
+        [196.5, -786.2],
+        [232.4, -771.0],
+        [251.8, -795.6],
+        [246.3, -823.9],
+        [221.0, -838.4],
+        [199.7, -826.5],
+        [190.2, -805.0],
+      ],
+      28.5,
+      35.5,
+    ),
     source: 'personal',
     spawner: [],
     capacity: limited(8),
@@ -647,6 +671,17 @@ const impounds: ImpoundLocation[] = [
     enabled: true,
     spawnPoints: spawnRow(401.8, -1632.4, 29.29, 229.6, 4),
     openPoints: [pt(409.25, -1622.98, 29.29)],
+    zone: zone(
+      [
+        [388.4, -1612.0],
+        [414.9, -1601.7],
+        [431.6, -1631.5],
+        [410.2, -1652.3],
+        [384.7, -1638.9],
+      ],
+      27.3,
+      34.3,
+    ),
     useOpenForStore: true,
     storePoints: [],
     returnToEntrance: false,
@@ -905,8 +940,40 @@ mockNui('admin:location:import', async ({ source, json }) => {
   return fail('This resource is not running');
 });
 
+let zoneTurn = 0;
+
+/** Simulates the in-world zone tool: the hint, then an irregular polygon around the anchor. */
+async function mockZoneTool(req: { zone: LocationZone | null; openPoints: InteractionPoint[] }): Promise<LocationZone | null> {
+  emitNuiMessage({
+    action: 'hint',
+    data: {
+      title: 'Garage zone · 0 points',
+      keys: [
+        { keys: ['E'], label: 'Add point' },
+        { keys: ['X'], label: 'Undo' },
+        { keys: ['Enter'], label: 'Close shape' },
+        { keys: ['G'], label: 'Fly' },
+        { keys: ['Esc'], label: 'Cancel' },
+      ],
+    },
+  });
+  await wait(1500);
+  emitNuiMessage({ action: 'hint', data: null });
+  const anchor = req.openPoints[0]?.coords ?? v3(215.8, -810.06, 30.73);
+  zoneTurn += 1;
+  const turn = (zoneTurn * 17 * Math.PI) / 180;
+  const radii = [24, 31, 27, 35, 22, 29];
+  const corners = radii.map((r, i) => {
+    const a = turn + (i / radii.length) * Math.PI * 2;
+    return { x: r2(anchor.x + 8 + Math.cos(a) * r), y: r2(anchor.y + 6 + Math.sin(a) * r * 0.8) };
+  });
+  return { points: corners, minZ: r2(anchor.z - 2), maxZ: r2(anchor.z + 5) };
+}
+
 /** Simulates the in-world point manager: shows the key hint, then returns the edited list. */
-mockNui('admin:points', async ({ kind, points, vehicleType }) => {
+mockNui('admin:points', async (req) => {
+  if (req.kind === 'zone') return mockZoneTool(req);
+  const { kind, points, vehicleType } = req;
   emitNuiMessage({
     action: 'hint',
     data: {
@@ -1025,7 +1092,7 @@ mockNui('admin:group:member', async ({ groupId, identifier, role }) => {
 
 /** Dev-only hints read by the location pages: open the editor for this id ('new' = create),
  *  optionally on a tab ('owners' for saved private garages); select a location (inspector). */
-type DevHint = { __devEdit?: number | 'new'; __devTab?: 'settings' | 'owners'; __devSelect?: number };
+type DevHint = { __devEdit?: number | 'new'; __devTab?: 'settings' | 'owners'; __devSelect?: number; __devSection?: 'zone' };
 
 function open(page: AdminPage, extra: Partial<AdminOpenData> & DevHint = {}) {
   return {
@@ -1067,6 +1134,18 @@ registerMock({
   group: 'Admin',
   label: 'Edit location (Legion Square)',
   messages: [open('garages', { __devEdit: 1 })],
+});
+registerMock({
+  id: 'admin-edit-zone',
+  group: 'Admin',
+  label: 'Edit location: garage zone (Legion Square)',
+  messages: [open('garages', { __devEdit: 1, __devSection: 'zone' })],
+});
+registerMock({
+  id: 'admin-edit-impound-zone',
+  group: 'Admin',
+  label: 'Edit location: impound zone (Davis Impound)',
+  messages: [open('impounds', { __devEdit: 18, __devSection: 'zone' })],
 });
 registerMock({
   id: 'admin-edit-job',

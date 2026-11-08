@@ -24,4 +24,8 @@ return {
   fake_plate = { name = 'fake_plate', label = 'Fake plate', weight = 500, type = 'item', image = 'fake_plate.png', unique = true, useable = true, shouldClose = true, description = 'A license plate that is not yours' },
   vehicle_contract = { name = 'vehicle_contract', label = 'Vehicle sale contract', weight = 10, type = 'item', image = 'vehicle_contract.png', unique = false, useable = true, shouldClose = true, description = 'A blank contract to sell a vehicle' },
   signed_contract = { name = 'signed_contract', label = 'Signed sale contract', weight = 10, type = 'item', image = 'signed_contract.png', unique = true, useable = true, shouldClose = true, description = 'Proof of a vehicle sale' },
+  immobiliser = { name = 'immobiliser', label = 'Immobiliser', weight = 600, type = 'item', image = 'immobiliser.png', unique = false, useable = true, shouldClose = true, description = 'Fit it to your vehicle: it can no longer be hotwired' },
+  ghost_immobiliser = { name = 'ghost_immobiliser', label = 'Ghost immobiliser', weight = 600, type = 'item', image = 'ghost_immobiliser.png', unique = false, useable = true, shouldClose = true, description = 'Fit it to your vehicle: a PIN before the engine starts' },
+  hotwire_kit = { name = 'hotwire_kit', label = 'Hotwire kit', weight = 300, type = 'item', image = 'hotwire_kit.png', unique = false, useable = false, shouldClose = true, description = 'Wire strippers and splice clips' },
+  signal_reader = { name = 'signal_reader', label = 'Signal reader', weight = 400, type = 'item', image = 'signal_reader.png', unique = false, useable = false, shouldClose = true, description = 'Tunes into the ignition signal of protected vehicles' },
 }
