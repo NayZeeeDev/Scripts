@@ -23,11 +23,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # NUI callbacks handled on the client (never forwarded to the server).
 CLIENT_ONLY_NUI = {
     'notify',
+    'garage:preview', 'garage:previewRect',
     'ready', 'close',
     'garage:drive', 'garage:spawner', 'garage:track', 'garage:goInside', 'garage:directions',
     'forSale:tour', 'forSale:buy',
     'impound:retrieve',
-    'setup:livery', 'setup:extra', 'setup:drive',
+    'setup:livery', 'setup:extra', 'setup:drive', 'setup:camera',
     'interior:leave',
     'creator:pickEntry', 'creator:applyProfile', 'creator:addCameraPoint', 'creator:previewCutscene',
     'creator:placeSlot', 'creator:showSlots', 'creator:pickExit', 'creator:teleport', 'creator:walk',

@@ -1378,7 +1378,8 @@ end))
 
 local function landFlight(id)
   local f = flights[id]
-  if not f then return end
+  if not f or f.landing then return end
+  f.landing = true -- the inventory / DB calls below may yield: land once
   -- missed: at the catcher's feet (else where it was thrown from)
   local ped = validSrc(f.to) and pedOf(f.to) or nil
   local from = validSrc(f.from) and pedOf(f.from) or nil
@@ -1437,7 +1438,7 @@ lib.callback.register('nz:carlock:ground:catch', Utils.safe(function(source, pay
   if not src or type(payload) ~= 'table' or type(payload.id) ~= 'string' then return Utils.fail(L('Invalid request')) end
   if limited(src, 'inspect') then return Utils.fail(L('Please wait a moment')) end
   local f = flights[payload.id]
-  if not f or f.to ~= src then return Utils.fail(L('Too late')) end
+  if not f or f.to ~= src or f.landing then return Utils.fail(L('Too late')) end
   if GetGameTimer() > f.expires then
     landFlight(payload.id)
     return Utils.fail(L('Too late'))

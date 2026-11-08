@@ -481,7 +481,7 @@ local SETTINGS = {
 
   -- Lockpicking
   { id = 'lockpick.style', tab = 'lockpicking', type = 'enum', path = 'lockpicking.style', options = { 'skillcheck', 'pins' },
-    label = 'Lock picking', description = 'Skill checks, or the five-pin lock.' },
+    label = 'Lock picking', description = 'Skill checks, or the five-pin lock (players whose client cannot show the pin lock get skill checks).' },
   { id = 'lockpick.pins', tab = 'lockpicking', type = 'number', path = 'lockpicking.pins', min = 3, max = 7, step = 1, integer = true,
     label = 'Pins', description = 'Pins of the pin lock.' },
   { id = 'lockpick.snapChance', tab = 'lockpicking', type = 'number', path = 'lockpicking.snapChance', min = 0, max = 100, step = 1, integer = true,
@@ -491,11 +491,11 @@ local SETTINGS = {
 
   -- Hotwiring
   { id = 'hotwire.style', tab = 'hotwiring', type = 'enum', path = 'hotwiring.style', options = { 'profile', 'wires' },
-    label = 'Hotwiring', description = 'Each profile\'s method, or splicing wires.' },
+    label = 'Hotwiring', description = 'Each profile\'s method, or splicing wires (players whose client cannot show the minigame get the profile\'s method).' },
   { id = 'hotwire.kitRequired', tab = 'hotwiring', type = 'bool', path = 'hotwiring.kitRequired',
     label = 'Wires need a hotwire kit', description = 'Splicing wires needs the hotwire_kit item.' },
   { id = 'hotwire.readerClasses', tab = 'hotwiring', type = 'classes', path = 'hotwiring.readerClasses',
-    label = 'Classes that need the reader', description = 'These classes are started with the signal reader.' },
+    label = 'Classes that need the reader', description = 'Only with Hotwiring = wires: these classes are started with the signal reader.' },
   { id = 'hotwire.readerModels', tab = 'hotwiring', type = 'models', path = 'hotwiring.readerModels',
     label = 'Models that need the reader', description = 'Model overrides: always the signal reader.' },
   { id = 'hotwire.wireModels', tab = 'hotwiring', type = 'models', path = 'hotwiring.wireModels',

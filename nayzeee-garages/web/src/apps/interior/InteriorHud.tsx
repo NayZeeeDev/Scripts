@@ -191,13 +191,15 @@ function FloatingTag({ v, at, leaving }: { v: HudVehicle; at: HudAnchor; leaving
   const cardRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 280, h: 176 });
 
+  // Measured only when the card's content changes (not on every position update: reading
+  // offsetWidth forces a layout, and the anchor moves up to ~30 times a second).
   useLayoutEffect(() => {
     const el = cardRef.current;
     if (!el) return;
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-    if (w && h && (w !== size.w || h !== size.h)) setSize({ w, h });
-  });
+    if (w && h) setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+  }, [v.plate, v.label, v.make, v.ownerName, v.canDrive]);
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;

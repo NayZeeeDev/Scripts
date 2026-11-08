@@ -102,11 +102,19 @@ local function mySettings()
   return type(CarLock.playerSettings) == 'function' and CarLock.playerSettings() or {}
 end
 
---- Ask the player for a Ghost PIN (yields): the PIN text or nil. The UI wave replaces
---- CarLock.pinPrompt with the owner's keypad; this fallback uses ox_lib's input dialog.
+--- Ask the player for a Ghost PIN (yields): the PIN text or nil. The owner-styled keypad of the
+--- UI wave (NZ.NUI.keypad({ plate, attemptsLeft?, length = 4 }) -> '1234' | nil, yields) is used
+--- when it exists; ox_lib's input dialog is only a placeholder until then.
 ---@param info table { plate, cooldown, attemptsLeft? }
 ---@return string|nil
 function CarLock.pinPrompt(info)
+  -- optional hook: defined by the UI wave's keypad screen (client/nui.lua); absent until then
+  local keypad = type(NZ.NUI) == 'table' and rawget(NZ.NUI, 'keypad') or nil
+  if type(keypad) == 'function' then
+    local okPad, entered = pcall(keypad, { plate = info.plate, attemptsLeft = info.attemptsLeft, length = 4 })
+    local text = okPad and type(entered) == 'string' and entered or ''
+    return text:match('^%d%d%d%d$') and text or nil
+  end
   local ok, input = pcall(lib.inputDialog, L('Ghost immobiliser · {plate}', { plate = tostring(info.plate or '') }), {
     { type = 'input', label = L('PIN'), password = true, required = true, min = 4, max = 4 },
   })
@@ -137,7 +145,7 @@ function CarLock.enterPin(vehicle, info)
   end
   local data = type(res.data) == 'table' and res.data or {}
   if data.success then
-    notify('success', L('PIN accepted'))
+    if mySettings().alertEngine ~= false then notify('success', L('PIN accepted')) end
     state.pin = nil
     if state.vehicle == vehicle then state.recheckAt = 0 end
     return true
@@ -175,6 +183,7 @@ local function check(vehicle, generation, firstCheck)
     end
   elseif allowed == true and firstCheck and mySettings().engineOnEnter == true and not GetIsVehicleEngineRunning(vehicle) then
     SetVehicleEngineOn(vehicle, true, false, true)
+    if mySettings().alertEngine ~= false then notify('info', L('Engine started')) end
   end
   if before ~= allowed or firstCheck then publish() end
 end
@@ -270,6 +279,7 @@ function CarLock.toggleEngine()
   if GetIsVehicleEngineRunning(vehicle) then
     SetVehicleEngineOn(vehicle, false, false, true)
     if state.vehicle == vehicle then state.manualOff = true end
+    if mySettings().alertEngine ~= false then notify('info', L('Engine off')) end
     return true, false
   end
   if CarLock.enabled() and ignitionCfg().requireKey ~= false and not localBypass(vehicle)
@@ -301,6 +311,7 @@ function CarLock.toggleEngine()
     state.manualOff = false
   end
   SetVehicleEngineOn(vehicle, true, false, true)
+  if mySettings().alertEngine ~= false then notify('info', L('Engine started')) end
   return true, true
 end
 

@@ -2404,6 +2404,26 @@ register('nz:garage:track', function(src, payload)
   return ok({ coords = coords })
 end)
 
+-- { plate } -> { hash, props, damage?, engine, body } : 3D preview of a vehicle in the
+-- garage menu (client/preview.lua). Read only; the vehicle must be one the player may use.
+register('nz:garage:preview', function(src, payload)
+  if rateLimited(src, 'garage:preview', 250) then return fail(L('Please wait a moment before trying again')) end
+  local session, err = NZ.Access.requireSession(src, maxDistance())
+  if not session then return fail(err or L('The garage is not open')) end
+  local plate = readPlate(payload.plate)
+  if not plate then return fail(L('Invalid vehicle')) end
+  local row = NZ.DB.getVehicle(plate)
+  if not row then return fail(L('Vehicle not found')) end
+  if not Vehicles.accessOf(src, row, session) then return fail(L('You do not have access to this vehicle')) end
+  return ok({
+    hash = tonumber(row.hash),
+    props = type(row.props) == 'table' and row.props or {},
+    damage = setting('vehicles.saveDamage', true) and row.damage or nil,
+    engine = percent(row.engine) or 100,
+    body = percent(row.body) or 100,
+  })
+end)
+
 -- { plate } -> null
 register('nz:garage:recover', function(src, payload)
   local session, err = NZ.Access.requireSession(src, maxDistance())

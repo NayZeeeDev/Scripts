@@ -768,6 +768,24 @@ res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'hac
 check(not res.ok and res.error == 'This tool does not work on this vehicle', 'a tool the profile does not list')
 res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'screwdriver' })
 check(not res.ok and res.error == 'You do not have the right tool', 'a listed tool the player does not carry')
+
+-- pin lock (lockpicking.style = 'pins'): only for clients that say they can show it
+CarLock.setLocked(car, true)
+C.lockpicking = C.lockpicking or {}
+local styleWas = C.lockpicking.style
+C.lockpicking.style = 'pins'
+res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'lockpick', slot = lpSlot })
+check(res.ok and res.data.method == 'skillcheck' and res.data.puzzle == nil,
+  'pins set, the client cannot show the pin lock: skill checks instead (no attempt that can never succeed)')
+advance(3000)
+cb('nz:carlock:lockpick', 1, { step = 'finish', id = res.data.id, success = false })
+res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet, tool = 'lockpick', slot = lpSlot, minigames = { pins = true } })
+check(res.ok and res.data.method == 'pins' and type(res.data.puzzle) == 'table', 'pins set and the client can play it: the pin lock')
+advance(6000)
+fin = cb('nz:carlock:lockpick', 1, { step = 'finish', id = res.data.id, success = true, answer = res.data.puzzle and res.data.puzzle.order })
+check(fin.ok and fin.data.success == true and not CarLock.isLocked(car), 'pin lock solved in time: unlocked')
+C.lockpicking.style = styleWas
+CarLock.setLocked(car, true)
 res = cb('nz:carlock:lockpick', 1, { step = 'start', netId = carNet })
 check(res.ok and res.data.item == 'lockpick', 'target option (no tool): the first profile tool the player carries')
 advance(200000)
@@ -830,6 +848,20 @@ check(res.ok and res.data.method == 'skillcheck' and #res.data.difficulty == 3, 
 advance(1500)
 fin = cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = false })
 check(fin.ok and fin.data.success == false and not hasKey(1, 'NPC100'), 'hotwire failure: no key')
+-- hotwiring.style = 'wires': only for clients that can show the wires
+C.hotwiring = C.hotwiring or {}
+local hwStyle = C.hotwiring.style
+C.hotwiring.style = 'wires'
+res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
+check(res.ok and res.data.method == 'skillcheck' and res.data.puzzle == nil, 'wires set, the client cannot show them: the profile method')
+advance(1500)
+cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = false })
+res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet, minigames = { wires = true, reader = true } })
+check(res.ok and res.data.method == 'wires' and type(res.data.puzzle) == 'table' and #res.data.puzzle.left == 3,
+  'wires set and the client can play them: the wires puzzle')
+advance(1500)
+cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = false })
+C.hotwiring.style = hwStyle
 res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
 advance(1500)
 fin = cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = true })

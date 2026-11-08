@@ -1121,8 +1121,14 @@ export interface KeyAdminTrack { plate: string; spawned: boolean; bucket?: numbe
 /** nz:carlock:remote { netId? | plate?, action, on? } (fob only; Ghost: no remote start). */
 export interface RemoteResult { action: 'engine' | 'windows'; on: boolean; netId: number; plate: string }
 
+/** The NUI minigames a client can play: sent as `minigames` with every lockpick / hotwire
+ *  start. The server only hands out 'pins' / 'wires' / 'reader' to a client that lists them,
+ *  else skill checks (lockpick) / the profile's method (hotwire). */
+export interface MinigameSupport { pins?: boolean; wires?: boolean; reader?: boolean }
+
 /** Lockpick / hotwire minigame puzzles (nz:carlock:lockpick / hotwire start answers);
- *  finish with { id, success, answer, snapped? }. */
+ *  finish with { id, success, answer, snapped? }. Skill-gated, not cheat-proof: the client gets
+ *  what it needs to draw the puzzle; the server checks the answer and the minimum play time. */
 export interface PinsPuzzle { pins: number; order: number[]; heights: number[] }
 export interface WiresPuzzle { left: string[]; right: string[] }
 export interface ReaderPuzzle { frequency: number; phase: number; tolerance: { frequency: number; phase: number } }

@@ -281,8 +281,8 @@ local function feedback(data)
   if type(data) ~= 'table' then return end
   local plate = Utils.plate(data.plate)
   if plate then store(plate, true, data.kind) end
-  CarLock.playFob()
   local mine = type(CarLock.playerSettings) == 'function' and CarLock.playerSettings() or {}
+  if mine.fobBeep ~= false then CarLock.playFob() end
   if CarLock.cfg().lockNotify ~= false and mine.alertLock ~= false then
     if data.locked then
       notify('info', L('Vehicle locked'))
@@ -638,6 +638,29 @@ end)
 -- Remote actions (server 'nz:client:carlock:remote' to the vehicle's owner client)
 ---------------------------------------------------------------------------------------
 
+--- Remote action of the fob in your pocket (yields): engine start / stop or windows of the
+--- vehicle (netId, or the plate of a key you carry). The answer is shown as a notification
+--- (engine: only with the player's alertEngine setting). Returns ok, data | error.
+---@param target number|string netId or plate
+---@param action 'engine'|'windows'
+---@param on boolean
+---@return boolean ok, table|string data
+function CarLock.remote(target, action, on)
+  local payload = { action = action, on = on ~= false }
+  if type(target) == 'number' then payload.netId = target else payload.plate = target end
+  local ok, res = pcall(lib.callback.await, 'nz:carlock:remote', false, payload)
+  if not ok or type(res) ~= 'table' then return false, L('Something went wrong') end
+  if not res.ok then
+    notify('error', res.error)
+    return false, res.error
+  end
+  local mine = type(CarLock.playerSettings) == 'function' and CarLock.playerSettings() or {}
+  if action == 'engine' and mine.alertEngine ~= false then
+    notify('info', payload.on and L('Engine started remotely') or L('Engine stopped remotely'))
+  end
+  return true, res.data
+end
+
 RegisterNetEvent('nz:client:carlock:remote', function(data)
   if type(data) ~= 'table' then return end
   local netId = tonumber(data.netId)
@@ -668,7 +691,9 @@ end)
 --   CarLock.groundKeysNearby(radius?) -> { { id, keyKind, coords, distance } }
 ---------------------------------------------------------------------------------------
 
-local GROUND_SYNC_MS = 120000
+local GROUND_SYNC_MS = 30000
+local GROUND_JUMP = 100.0     -- m in one 500 ms step: a teleport (interior / instance / spawn): sync again
+local groundSyncSoon = false
 local GROUND_DRAW_RANGE = 25.0
 local MARKER_TYPES = { chevron = 20, ring = 25, dot = 28 }
 local groundList = {}         -- [id] = { id, keyKind, x, y, z, netId? }
@@ -704,6 +729,10 @@ local function syncGround()
   end
   groundList = list
 end
+
+-- the ground keys of the bucket the character spawned in (the first sync often runs while the
+-- player is still in a character-select bucket)
+AddEventHandler('nz:client:playerLoaded', function() groundSyncSoon = true end)
 
 RegisterNetEvent('nz:client:carlock:ground', function(data)
   if type(data) ~= 'table' then return end
@@ -832,6 +861,7 @@ CreateThread(function()
   if not CarLock.enabled() then return end
   syncGround()
   local lastSync = now()
+  local lastPos = GetEntityCoords(PlayerPedId())
   local prompted = nil
   CreateThread(function()
     while true do
@@ -859,7 +889,12 @@ CreateThread(function()
   end)
   while true do
     Wait(500)
-    if now() - lastSync > GROUND_SYNC_MS then
+    local pos = GetEntityCoords(PlayerPedId())
+    if #(pos - lastPos) > GROUND_JUMP then groundSyncSoon = true end
+    lastPos = pos
+    -- the list endpoint allows one call per 2 s
+    if now() - lastSync > GROUND_SYNC_MS or (groundSyncSoon and now() - lastSync > 2500) then
+      groundSyncSoon = false
       lastSync = now()
       syncGround()
     end

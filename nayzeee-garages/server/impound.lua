@@ -674,6 +674,35 @@ register('nz:impound:refresh', function(src)
   return ok(buildImpoundData(src, location, session))
 end)
 
+-- { plate } -> { hash, props, damage?, engine, body } : 3D preview of an impounded vehicle
+-- (client/preview.lua). Same visibility as the impound list: staff see every vehicle
+-- impounded here, everyone else only their own.
+register('nz:impound:preview', function(src, payload)
+  if rateLimited(src, 'impound:preview', 250) then return fail(waitMessage()) end
+  local session, location, err = impoundSession(src)
+  if not session then return fail(err) end
+  local plate = readPlate(payload.plate)
+  if not plate then return fail(L('Invalid vehicle')) end
+  local row = NZ.DB.getVehicle(plate)
+  if not row or not impoundedHere(row, location) then return fail(L('This vehicle is not impounded here')) end
+  local identifier = identifierOf(src)
+  if not (identifier and row.owner == identifier) and not Impound.isStaff(src, location) then
+    return fail(L('You do not have access to this vehicle'))
+  end
+  local function pct(value)
+    local n = tonumber(value)
+    if not n or n ~= n then return 100 end
+    return math.floor(math.max(0, math.min(100, n)) * 10 + 0.5) / 10
+  end
+  return ok({
+    hash = tonumber(row.hash),
+    props = type(row.props) == 'table' and row.props or {},
+    damage = setting('vehicles.saveDamage', true) and row.damage or nil,
+    engine = pct(row.engine),
+    body = pct(row.body),
+  })
+end)
+
 -- { plate, spawnIndex, entityType } -> { spawn, vehicle, netId? } (retrieve flow §7.1)
 register('nz:impound:retrieve', function(src, payload)
   if rateLimited(src, 'impound:retrieve', 1000) then return fail(waitMessage()) end

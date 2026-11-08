@@ -14,14 +14,20 @@
                    counts as a failure. Peds / vehicles a session holds are free again once it
                    expires (a stopped NPC is released by the server then).
   Callbacks (lib.callback, { ok, data, error }), payload { step, ... }:
-    nz:carlock:lockpick    start { netId, tool?, slot? } -> { id, method = 'skillcheck', difficulty, inputs, tool }
+    nz:carlock:lockpick    start { netId, tool?, slot?, minigames? } -> { id, method = 'skillcheck', difficulty, inputs, tool }
                                                          | { id, method = 'pins', puzzle = { pins, order, heights },
                                                              snapChance, tool }   (lockpicking.style = 'pins')
-    nz:carlock:hotwire     start { netId }               -> { id, method, difficulty, inputs, duration }
+    nz:carlock:hotwire     start { netId, minigames? }   -> { id, method, difficulty, inputs, duration }
                                                          | { id, method = 'wires', puzzle = { left, right }, item? }
                                                          | { id, method = 'reader', puzzle = { frequency, phase,
                                                              tolerance }, item }   (Config.CarLock.hotwiring)
                            refused for vehicles with an immobiliser (standard or Ghost)
+                           minigames = { pins?, wires?, reader? = true }: the NUI minigames this client
+                           can play. 'pins' / 'wires' / 'reader' are only handed out when listed;
+                           else skill checks (lockpick) / the profile's method (hotwire).
+                           The puzzles are skill-gated, not cheat-proof: the client gets what it
+                           needs to draw them (a modded client could answer at once); the server
+                           enforces the minimum play time per puzzle and checks the answer.
     nz:carlock:search      start { netId }               -> { id, duration }
     nz:carlock:npcRob      start { netId, pedNetId }     -> { id?, outcome = 'comply'|'drop'|'flee'|'fight', duration }
                            npc.reactions weights (handover = 'comply' after robTime, drop = the key on
@@ -665,6 +671,14 @@ local function wiresPuzzle()
   return { left = left, right = shuffled(left) }
 end
 
+--- Can this client play the NUI minigame `game`? start payloads carry
+--- minigames = { pins = true, wires = true, reader = true } once the client has the screens;
+--- without it the server falls back to skill checks (lockpick) / the profile's method (hotwire)
+--- so an admin setting the client cannot play never makes every attempt fail.
+local function canPlay(payload, game)
+  return type(payload) == 'table' and type(payload.minigames) == 'table' and payload.minigames[game] == true
+end
+
 local function readerPuzzle()
   return { frequency = math.random(3000, 9000) / 10, phase = math.random(0, 359), tolerance = READER_TOLERANCE }
 end
@@ -727,7 +741,7 @@ local function lockpickStart(src, payload)
   local checks = checksOf(tool.difficulty)
   local street, label = displayInfo(payload)
   local picking = section('lockpicking')
-  if picking.style == 'pins' then
+  if picking.style == 'pins' and canPlay(payload, 'pins') then
     -- the five-pin lock of the NUI (G.6): the server picks the binding order
     local count = math.floor(Utils.clamp(tonumber(picking.pins) or 5, 3, 7))
     local puzzle = pinsPuzzle(count)
@@ -791,7 +805,7 @@ local function hotwireStart(src, payload)
   local _, profile = CarLock.profileOfEntity(entity)
   local hotwire = type(profile.hotwire) == 'table' and profile.hotwire or {}
   local game = CarLock.hotwireMethodOf(GetEntityModel(entity), CarLock.classOf(entity), profile)
-  if game == 'wires' or game == 'reader' then
+  if (game == 'wires' or game == 'reader') and canPlay(payload, game) then
     -- the NUI minigames (G.7): wires (hotwiring.kitRequired: items.hotwireKit) or the signal reader
     local need = nil
     if game == 'reader' then

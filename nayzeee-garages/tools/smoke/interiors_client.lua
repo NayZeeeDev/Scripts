@@ -235,6 +235,42 @@ coords[11] = nil
 rec = Interior.pickTagVehicle(byEntity, { x = 0, y = 0, z = 0 }, recA, 5.0)
 check(rec == recB, 'deleted vehicle loses the card')
 
+-- 6. the arrival ride ends at once when `abort` says so (death / moved away) ----------
+do
+  local profile = Config.IplProfiles.garage_6car
+  local entry = Utils.v4(profile.coords)
+  local keys = Camera.tourKeys(profile.presets, entry)
+  keys[#keys + 1] = Camera.playerKey(entry)
+  local clock, frames, rendered = 0, 0, nil
+  local saved = { GetGameTimer, Wait, CreateCamWithParams, RenderScriptCams, IsScreenFadedOut, DoesCamExist }
+  GetGameTimer = function() return clock end
+  Wait = function() clock = clock + 16 frames = frames + 1 end
+  CreateCamWithParams = function() return 7 end
+  RenderScriptCams = function(on) rendered = on end
+  IsScreenFadedOut = function() return true end
+  DoesCamExist = function() return true end
+
+  local calls = 0
+  local done = Camera.playKeys(keys, { duration = 7500, skippable = true, abort = function()
+    calls = calls + 1
+    return calls >= 4
+  end })
+  check(done == false, 'aborted ride reports not completed')
+  check(frames <= 4, ('aborted ride stops within a few frames (%d)'):format(frames))
+  check(rendered == false and not Camera.isPlaying(), 'aborted ride hands back the gameplay camera')
+
+  clock, frames = 0, 0
+  done = Camera.playKeys(keys, { duration = 2000, skippable = false, blend = 0, abort = function() error('boom') end })
+  check(done == false and not Camera.isPlaying(), 'a failing abort check ends the ride safely')
+
+  clock, frames = 0, 0
+  done = Camera.playKeys(keys, { duration = 2000, skippable = false, blend = 0, abort = function() return false end })
+  check(done == true and frames >= 120, 'ride plays to its end while abort says no')
+  check(rendered == false and not Camera.isPlaying(), 'finished ride hands back the gameplay camera')
+
+  GetGameTimer, Wait, CreateCamWithParams, RenderScriptCams, IsScreenFadedOut, DoesCamExist = table.unpack(saved)
+end
+
 if #failures > 0 then
   print(('interiors_client: %d/%d checks failed'):format(#failures, checks))
   for _, f in ipairs(failures) do print('  - ' .. f) end

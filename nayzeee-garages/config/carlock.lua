@@ -78,13 +78,15 @@ Config.CarLock = {
 
   -- Lock picking (doors). style 'skillcheck' = ox_lib skill checks of the profile's tool;
   -- 'pins' = the five-pin lock of the NUI (pins, snapChance % per overset, alarmOnSnap).
+  -- The NUI minigames are only used when the player's client says it can play them; until
+  -- then the server falls back to skill checks (lockpick) / the profile's method (hotwire).
   lockpicking = { style = 'skillcheck', pins = 5, snapChance = 35, alarmOnSnap = true },
 
   -- Hotwiring (NUI minigames, docs/CARLOCK.md §8). style 'profile' = each security profile's
   -- hotwire method (skill checks / progress / hack); 'wires' = splice three pairs of wires
-  -- (kitRequired: needs items.hotwireKit), except readerClasses, which need items.signalReader
-  -- (tune frequency / phase). Model overrides work with either style: readerModels always use
-  -- the reader, wireModels always use wires.
+  -- (kitRequired: needs items.hotwireKit), except readerClasses (only read with style 'wires'),
+  -- which need items.signalReader (tune frequency / phase). Model overrides work with either
+  -- style: readerModels always use the reader, wireModels always use wires.
   hotwiring = {
     style = 'profile',
     kitRequired = false,
