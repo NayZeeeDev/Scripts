@@ -1,4 +1,4 @@
-# nayzeee-chainsnatch — install & guide
+# nayzeee-chains — install & guide
 
 > **New here? Read [HOW-TO-USE.md](HOW-TO-USE.md) first:** installing, adding a chain in 3 steps, custom chains for one player.
 
@@ -18,7 +18,7 @@ ensure ox_lib
 ensure ox_inventory
 ensure ox_target
 ensure screenshot-basic
-ensure nayzeee-chainsnatch
+ensure nayzeee-chains
 # no "ensure nayzeee-chainprops": the script starts it after converting new chains on start (one restart is enough)
 ```
 
@@ -31,25 +31,25 @@ add_ace group.admin nayzeee.chains allow
 The converter creates and restarts `nayzeee-chainprops` by itself. Let it run those commands:
 
 ```
-add_ace resource.nayzeee-chainsnatch command.refresh allow
-add_ace resource.nayzeee-chainsnatch command.ensure allow
-add_ace resource.nayzeee-chainsnatch command.restart allow
+add_ace resource.nayzeee-chains command.refresh allow
+add_ace resource.nayzeee-chains command.ensure allow
+add_ace resource.nayzeee-chains command.restart allow
 ```
 
 Newer FXServer builds also block starting other programs and writing into other resources. Let the script run
 the converter and copy chain pictures:
 
 ```
-add_unsafe_child_process_permission "nayzeee-chainsnatch"
-add_filesystem_permission nayzeee-chainsnatch write ox_inventory
-add_filesystem_permission nayzeee-chainsnatch write nayzeee-chainprops
+add_unsafe_child_process_permission "nayzeee-chains"
+add_filesystem_permission nayzeee-chains write ox_inventory
+add_filesystem_permission nayzeee-chains write nayzeee-chainprops
 ```
 
 If the console says *could not write into ox_inventory/web/images*, your FXServer build restricts
 cross-resource writes. Add this and restart:
 
 ```
-add_filesystem_permission nayzeee-chainsnatch write ox_inventory
+add_filesystem_permission nayzeee-chains write ox_inventory
 ```
 
 ## 2. The item
@@ -190,14 +190,14 @@ says *"This chain must be purchased at the jewelry store."* Nothing else is bloc
 ## Exports (server)
 
 ```lua
-exports['nayzeee-chainsnatch']:GetWornChain(src)          -- { chain, variant, label, metadata, holding } | nil
-exports['nayzeee-chainsnatch']:GiveChain(src, key, letter)
-exports['nayzeee-chainsnatch']:TakeWornChain(src)         -- takes it off, returns its metadata (yours to keep)
-exports['nayzeee-chainsnatch']:DropChain(metadata, coords)
-exports['nayzeee-chainsnatch']:GetChains()
+exports['nayzeee-chains']:GetWornChain(src)          -- { chain, variant, label, metadata, holding } | nil
+exports['nayzeee-chains']:GiveChain(src, key, letter)
+exports['nayzeee-chains']:TakeWornChain(src)         -- takes it off, returns its metadata (yours to keep)
+exports['nayzeee-chains']:DropChain(metadata, coords)
+exports['nayzeee-chains']:GetChains()
 ```
 
-Client: `exports['nayzeee-chainsnatch']:IsJewelleryDrawable(ped, drawable)` (accessory slot 7), used by the
+Client: `exports['nayzeee-chains']:IsJewelleryDrawable(ped, drawable)` (accessory slot 7), used by the
 illenium addon.
 
 ## Performance

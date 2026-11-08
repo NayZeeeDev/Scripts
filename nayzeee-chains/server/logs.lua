@@ -10,7 +10,7 @@ function Logs.send(kind, title, text)
     local hook = ServerConfig.Webhook
     if not hook or hook == '' then return end
     PerformHttpRequest(hook, function() end, 'POST', json.encode({
-        username = 'Chain Snatch',
+        username = 'NayZeee Chains',
         embeds = { {
             title = title, description = text, color = COLORS[kind] or COLORS.info,
             footer = { text = RES }, timestamp = os.date('!%Y-%m-%dT%H:%M:%SZ'),

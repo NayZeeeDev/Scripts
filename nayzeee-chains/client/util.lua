@@ -12,7 +12,7 @@ function Util.loadModel(model, quiet)
     if not IsModelInCdimage(hash) then
         if not quiet and not warned[hash] then
             warned[hash] = true
-            print(('^1[nayzeee-chainsnatch] model "%s" is not registered.^0'):format(tostring(model)))
+            print(('^1[nayzeee-chains] model "%s" is not registered.^0'):format(tostring(model)))
             print(('^3  - is %s started (ensure it in server.cfg)?^0'):format(Config.PropsResource))
             print('^3  - converted chains: run Build in /chainstudio > Convert^0')
         end
@@ -34,7 +34,7 @@ function Util.loadDict(dict)
     if not DoesAnimDictExist(dict) then
         if not warned[dict] then
             warned[dict] = true
-            print(('^3[nayzeee-chainsnatch] anim dict "%s" does not exist^0'):format(dict))
+            print(('^3[nayzeee-chains] anim dict "%s" does not exist^0'):format(dict))
         end
         return false
     end

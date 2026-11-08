@@ -8,5 +8,5 @@
     close = true,
     consume = 0,
     description = 'Jewellery',
-    server = { export = 'nayzeee-chainsnatch.nz_chain' },
+    server = { export = 'nayzeee-chains.nz_chain' },
 },

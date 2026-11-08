@@ -3,7 +3,7 @@ game 'gta5'
 lua54 'yes'
 
 author 'NAYZEEE Development'
-description 'Chain Snatch: wear, flex, throw, set down and snatch chains converted from clothing'
+description 'NayZeee Chains: wear, flex, throw, set down and snatch chains converted from clothing'
 version '1.0.0'
 
 shared_scripts {

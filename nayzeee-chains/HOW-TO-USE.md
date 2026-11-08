@@ -1,4 +1,4 @@
-# Chain Snatch — how to use it
+# NayZeee Chains — how to use it
 
 ## The idea in 30 seconds
 
@@ -8,41 +8,41 @@ for you**. You never open CodeWalker and you never write config for a chain.
 
 If you know nayzeee-backpack, this is the difference:
 
-| | nayzeee-backpack | nayzeee-chainsnatch |
+| | nayzeee-backpack | nayzeee-chains |
 |---|---|---|
 | The models | come as props, you add `.ydr` / `.ytd` / `.ytyp` + a config entry | you drop the **clothing files** in a folder, the script makes the props |
 | Items | one item per bag | **one item for every chain** (`nz_chain`), paste it once |
 | Fitting | `/bagstudio` | **automatic**: the chain sits exactly where the clothing sat (studio only to change it) |
 | Pictures | icon studio | drawn **automatically** when a chain is converted (icon studio for nicer ones) |
 
-You only install **one folder**, `nayzeee-chainsnatch`. The script makes the second one by itself:
+You only install **one folder**, `nayzeee-chains`. The script makes the second one by itself:
 
 | Folder | What it is |
 |---|---|
-| `nayzeee-chainsnatch` | the script, the UI and the converter (`tools/chainkit`) |
-| `nayzeee-chainprops` | the chain props. **Created by the script** the first time it converts a chain, next to `nayzeee-chainsnatch`, and restarted by it after every build. Don't edit it, don't put files in it |
+| `nayzeee-chains` | the script, the UI and the converter (`tools/chainkit`) |
+| `nayzeee-chainprops` | the chain props. **Created by the script** the first time it converts a chain, next to `nayzeee-chains`, and restarted by it after every build. Don't edit it, don't put files in it |
 
 ---
 
 ## Install (once)
 
-1. Put `nayzeee-chainsnatch` in your `resources` (`nayzeee-chainprops` appears next to it after the first build).
+1. Put `nayzeee-chains` in your `resources` (`nayzeee-chainprops` appears next to it after the first build).
 2. Add this to `server.cfg`:
 
    ```
    ensure ox_lib
    ensure ox_inventory
    ensure screenshot-basic
-   ensure nayzeee-chainsnatch
+   ensure nayzeee-chains
 
    add_ace group.admin nayzeee.chains allow
-   add_ace resource.nayzeee-chainsnatch command.refresh allow
-   add_ace resource.nayzeee-chainsnatch command.ensure allow
-   add_ace resource.nayzeee-chainsnatch command.restart allow
+   add_ace resource.nayzeee-chains command.refresh allow
+   add_ace resource.nayzeee-chains command.ensure allow
+   add_ace resource.nayzeee-chains command.restart allow
 
-   add_unsafe_child_process_permission "nayzeee-chainsnatch"
-   add_filesystem_permission nayzeee-chainsnatch write ox_inventory
-   add_filesystem_permission nayzeee-chainsnatch write nayzeee-chainprops
+   add_unsafe_child_process_permission "nayzeee-chains"
+   add_filesystem_permission nayzeee-chains write ox_inventory
+   add_filesystem_permission nayzeee-chains write nayzeee-chainprops
    ```
 
    - **Don't** add `ensure nayzeee-chainprops`: the script starts it itself, right after it has converted any new
@@ -62,10 +62,10 @@ You only install **one folder**, `nayzeee-chainsnatch`. The script makes the sec
 
 ## Add a chain (every time, 3 steps)
 
-**1. Make a folder** in `nayzeee-chainsnatch/chains/`, named what players should see:
+**1. Make a folder** in `nayzeee-chains/chains/`, named what players should see:
 
 ```
-nayzeee-chainsnatch/chains/
+nayzeee-chains/chains/
 └─ Diamond Cuban Chain/
    ├─ teef_000_u.ydd              ← the model
    └─ teef_diff_000_a_uni.ytd     ← colour A
@@ -123,7 +123,7 @@ Want to hand it over for free instead? `/givechain [their id] "chain name"`.
 
 If your server already has chains in a clothing pack and you want them sold at the jewelry store instead:
 
-1. `config.lua` → `Config.ScanResources = { 'your_clothing_resource' }` → restart `nayzeee-chainsnatch`
+1. `config.lua` → `Config.ScanResources = { 'your_clothing_resource' }` → restart `nayzeee-chains`
    (the config is read on start, so a Build alone won't see the change).
 2. Add the chains to block to `Config.Appearance.Block`. The studio's **Look** tab shows the exact line to paste.
 3. illenium-appearance: install the small addon in `install/illenium-appearance` (3 steps, its README).
@@ -156,9 +156,9 @@ Nothing in your clothing packs is blocked unless you list it.
 | A new chain only shows after a **second** restart | take `ensure nayzeee-chainprops` out of `server.cfg`: the script starts it after converting |
 | The chain sits wrong on the neck | the studio has a saved fit for it: **Fit** tab → red **×** (forget the saved fit). It then fits itself |
 | No picture on the item | restart `ox_inventory` once after the first build (it loads new pictures on start) |
-| *could not start chainkit: Access to this API has been restricted* / *child spawn not allowed* | add `add_unsafe_child_process_permission "nayzeee-chainsnatch"` to `server.cfg` and restart |
-| *No room in your pockets* with empty pockets | the console prints `inventory: ox_inventory` a few seconds after start: if it says anything else, `ensure ox_inventory` above `ensure nayzeee-chainsnatch` |
-| *could not write into ox_inventory/web/images* | add `add_filesystem_permission nayzeee-chainsnatch write ox_inventory` to `server.cfg` |
+| *could not start chainkit: Access to this API has been restricted* / *child spawn not allowed* | add `add_unsafe_child_process_permission "nayzeee-chains"` to `server.cfg` and restart |
+| *No room in your pockets* with empty pockets | the console prints `inventory: ox_inventory` a few seconds after start: if it says anything else, `ensure ox_inventory` above `ensure nayzeee-chains` |
+| *could not write into ox_inventory/web/images* | add `add_filesystem_permission nayzeee-chains write ox_inventory` to `server.cfg` |
 | Looks right on men, wrong on women | the chain was made for men only: fit it on a female ped and **Save** (fits are per body) |
 
 **Updating the script?** Keep these three folders from your old copy: `chains/` (your chain files), `data/` (fits,

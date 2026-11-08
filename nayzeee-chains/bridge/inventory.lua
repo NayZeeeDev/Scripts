@@ -36,14 +36,14 @@ Inv.Detect = detect
 
 local function qbAdd(p, src, item, count, slot, info)
     if qbinv then
-        local ok, res = pcall(function() return qbinv:AddItem(src, item, count, slot, info, 'nayzeee-chainsnatch') end)
+        local ok, res = pcall(function() return qbinv:AddItem(src, item, count, slot, info, 'nayzeee-chains') end)
         if ok and res ~= nil then return res ~= false end
     end
     return p and p.Functions.AddItem and p.Functions.AddItem(item, count, slot, info) ~= false or false
 end
 local function qbRemove(p, src, item, count, slot)
     if qbinv then
-        local ok, res = pcall(function() return qbinv:RemoveItem(src, item, count, slot, 'nayzeee-chainsnatch') end)
+        local ok, res = pcall(function() return qbinv:RemoveItem(src, item, count, slot, 'nayzeee-chains') end)
         if ok and res ~= nil then return res ~= false end
     end
     return p and p.Functions.RemoveItem and p.Functions.RemoveItem(item, count, slot) ~= false or false
@@ -169,7 +169,7 @@ function Inv.Chains(src)
     return out
 end
 
---- ox_inventory: using the item calls this export (item server = { export = 'nayzeee-chainsnatch.nz_chain' })
+--- ox_inventory: using the item calls this export (item server = { export = 'nayzeee-chains.nz_chain' })
 function Inv.HookUse(cb)
     ensure()
     -- always defined (only ox_inventory ever calls it), so it works even when ox_inventory started after us

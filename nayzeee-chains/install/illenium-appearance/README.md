@@ -1,6 +1,6 @@
 # illenium-appearance addon
 
-The chains **you list** in `Config.Appearance.Block` (nayzeee-chainsnatch/config.lua) are sold at the jewelry
+The chains **you list** in `Config.Appearance.Block` (nayzeee-chains/config.lua) are sold at the jewelry
 store, so the clothing store won't put them on. Trying one shows *"This chain must be purchased at the jewelry
 store."* Nothing else in your clothing packs is touched. It covers the clothing menu, saved outfits, outfit
 codes and loading a skin, because they all go through one function.
@@ -25,7 +25,7 @@ codes and loading a skin, because they all go through one function.
                return
            end
 
-           -- nayzeee-chainsnatch: jewellery chains are bought at the jewelry store, not worn as clothing
+           -- nayzeee-chains: jewellery chains are bought at the jewelry store, not worn as clothing
            if NZC_BlockComponent and NZC_BlockComponent(ped, component) then return end
 
            SetPedComponentVariation(ped, component.component_id, component.drawable, component.texture, 0)
@@ -33,7 +33,7 @@ codes and loading a skin, because they all go through one function.
    end
    ```
 
-`illenium-appearance.patch` is the same change as a diff. If nayzeee-chainsnatch isn't running, the addon does
+`illenium-appearance.patch` is the same change as a diff. If nayzeee-chains isn't running, the addon does
 nothing.
 
 ## Which chains are blocked

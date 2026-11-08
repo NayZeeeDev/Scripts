@@ -1,10 +1,10 @@
--- nayzeee-chainsnatch addon for illenium-appearance
+-- nayzeee-chains addon for illenium-appearance
 --
--- Chains that nayzeee-chainsnatch turned into jewellery can't be picked as clothing: they're bought at
+-- Chains that nayzeee-chains turned into jewellery can't be picked as clothing: they're bought at
 -- the jewelry store. Called from setPedComponent (game/util.lua), which the clothing menu, saved outfits, outfit
 -- codes and loading a skin go through. Job outfits set clothing directly: Config.Appearance.Enforce covers those.
 
-local RES = 'nayzeee-chainsnatch'
+local RES = 'nayzeee-chains'
 local last = 0
 
 local function jewellery(ped, drawable)

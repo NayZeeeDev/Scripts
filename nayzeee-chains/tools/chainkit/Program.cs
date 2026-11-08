@@ -1,4 +1,4 @@
-// chainkit: turns chain clothing (a .ydd and its texture .ytd files) into props for nayzeee-chainsnatch.
+// chainkit: turns chain clothing (a .ydd and its texture .ytd files) into props for nayzeee-chains.
 // Built on CodeWalker.Core, the same way as the Wig Snatch hairkit.
 //
 //   chainkit scan  --out <props> [--drop dir]... [--roots-file f] [root ...]   what's new / changed / gone
@@ -351,7 +351,7 @@ static class P
         var manifest = Path.Combine(outDir, "fxmanifest.lua");
         if (!File.Exists(manifest))
         {
-            File.WriteAllText(manifest, "fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Chain props for nayzeee-chainsnatch (made by chainkit, do not edit)'\n\n" +
+            File.WriteAllText(manifest, "fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Chain props for nayzeee-chains (made by chainkit, do not edit)'\n\n" +
                 "this_is_a_map 'yes'\ndata_file 'DLC_ITYP_REQUEST' 'stream/nzc_chains.ytyp'\nfiles { 'chainmap.json', 'icons/*.png' }\n");
         }
         Emit("done", new JsonObject { ["built"] = ok, ["tried"] = todo.Count, ["removed"] = prune ? removed.Count : 0, ["kept"] = prune ? 0 : removed.Count, ["chains"] = map.Entries.Count });

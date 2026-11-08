@@ -5,7 +5,7 @@
 -- inventory, the converter, what it restored, warnings) is collected and
 -- printed as ONE block under the banner, instead of scattered through the
 -- server log. After that every line goes out the same way:
---   [NayZeee Chain Snatch] WARN  something to look at
+--   [NayZeee Chains] WARN  something to look at
 --
 --   Console.wait(task)                     a startup step is still running
 --   Console.done(task)                     ...and finished
@@ -17,7 +17,7 @@
 Console = {}
 
 local RESOURCE = GetCurrentResourceName()
-local NAME     = 'NayZeee Chain Snatch'
+local NAME     = 'NayZeee Chains'
 local VERSION  = GetResourceMetadata(RESOURCE, 'version', 0) or '1.0.0'
 local ABOUT    = 'Chains you can buy, wear, flex, throw & snatch'
 

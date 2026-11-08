@@ -437,7 +437,7 @@ local function studioLoop()
         if #queue > 0 then
             local job = table.remove(queue, 1)
             local ok, err = pcall(job)
-            if not ok then print('^1[nayzeee-chainsnatch] studio: ' .. tostring(err) .. '^0') end
+            if not ok then print('^1[nayzeee-chains] studio: ' .. tostring(err) .. '^0') end
         end
         if not (Icons and Icons.active()) then
             HideHudAndRadarThisFrame()
@@ -509,7 +509,7 @@ local function openStudio()
     end)
     end)
     opening = false
-    if not ok then print('^1[nayzeee-chainsnatch] studio: ' .. tostring(err) .. '^0'); close() end
+    if not ok then print('^1[nayzeee-chains] studio: ' .. tostring(err) .. '^0'); close() end
 end
 
 RegisterCommand(Config.Studio.Command or 'chainstudio', function() openStudio() end, false)

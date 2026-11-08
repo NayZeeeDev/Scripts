@@ -6,7 +6,7 @@
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'nayzeee-chainsnatch';
+const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'nayzeee-chains';
 const post = (name, data = {}) =>
   fetch(`https://${RES}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(data) })
     .catch(() => {});
