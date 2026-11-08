@@ -5,7 +5,7 @@ lua54 'yes'
 name 'nayzeee-coinshop'
 author 'NAYZEEE Development'
 description 'Coin shop: vehicles, items, weapons, tools, bundles, Tebex redeem, gifting, promo codes and a full admin panel'
-version '1.1.0'
+version '1.0.0'
 
 shared_scripts {
     '@ox_lib/init.lua',

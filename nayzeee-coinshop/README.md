@@ -20,8 +20,6 @@ Admins (anyone with admin panel access) build bundles in game: **Admin panel →
 
 Delivery: if a package cannot be delivered (inventory full), that package's share of the price is refunded automatically. If nothing can be delivered, the whole price is refunded and the stock is put back. When a bundle has more than one vehicle, the first one spawns next to the player and the rest go to the garage.
 
-Updating from v1.0.0: just replace the files. The new bundle columns are added to the database on start, existing deals become bundles, and an old `config.lua` without `Config.Bundles` keeps working with default values.
-
 ## Connecting Tebex packages
 The shop does not poll the Tebex API and does not need `TEBEX_SECRET` or a package-ID list. Each coin package on your store runs one server command on purchase, which stores the order as a code. The player then redeems the order number in the shop.
 

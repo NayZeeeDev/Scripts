@@ -11,7 +11,7 @@
     ██║     ██║   ██║██║██║╚██╗██║╚════██║██╔══██║██║   ██║██╔═══╝
     ╚██████╗╚██████╔╝██║██║ ╚████║███████║██║  ██║╚██████╔╝██║
      ╚═════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝
-    nayzeee-coinshop · v1.1.0
+    nayzeee-coinshop · v1.0.0
     Discord: discord.gg/nayzeeedev  ·  Docs: nayzeee-dev.gitbook.io/docs
 
     Server-only settings (admins, webhooks, Discord bot token) live in server_config.lua

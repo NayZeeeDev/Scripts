@@ -161,7 +161,7 @@ local function hasColumn(tbl, col)
     return (MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?', { tbl, col }) or 0) > 0
 end
 
--- Columns added after v1.0.0. Added one by one so it works on MySQL and MariaDB.
+-- Brings databases made by earlier test builds up to date. Added one by one so it works on MySQL and MariaDB.
 local columns = {
     { 'nayzeee_coinshop_deals', 'stock',        'INT DEFAULT NULL' },
     { 'nayzeee_coinshop_deals', 'player_limit', 'INT DEFAULT NULL' },
