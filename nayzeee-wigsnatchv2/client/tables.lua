@@ -171,8 +171,10 @@ end
 function Tables.WigModel(hair)
     local TP = Config.TableProps
     if hair and hair.m and hair.d then
-        local built = HairProps.Model(hair.m, hair.d)   -- made by hairkit from the server's own hair
-        if built then return built end
+        -- made by hairkit from the server's own hair. GTA hair is modelled facing -Y, the foam head faces +Y:
+        -- these are turned round on the head (the second value)
+        local built = HairProps.Model(hair.m, hair.d)
+        if built then return built, 180.0 end
         local mapped = TP.HairPropMap and TP.HairPropMap[('%s:%d'):format(hair.m, hair.d)]
         if mapped and IsModelInCdimage(GetHashKey(mapped)) then return GetHashKey(mapped) end
         if TP.HairProps then
@@ -529,13 +531,13 @@ local function run(ent, kind, req, view)
     live.props = props
     local TP = Config.TableProps
     local head = TP.Head and tableProp(TP.Head.model, work, heading + 180.0)
-    local wigModel = Tables.WigModel(info)
+    local wigModel, wigTurn = Tables.WigModel(info)
     if head and wigModel and loadModel(wigModel) then
         local p = TP.Head.point
         build = CreateObject(wigModel, work.x, work.y, work.z + 0.3, false, false, false)
         live.build = build
         SetEntityCollision(build, false, false)
-        AttachEntityToEntity(build, head, 0, p.x, p.y, p.z, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+        AttachEntityToEntity(build, head, 0, p.x, p.y, p.z, 0.0, 0.0, wigTurn or 0.0, false, false, false, false, 2, true)
         SetModelAsNoLongerNeeded(wigModel)
         if kind ~= 'dye' then SetEntityAlpha(build, 0, false) end
     end

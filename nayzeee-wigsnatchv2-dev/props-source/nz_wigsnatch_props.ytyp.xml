@@ -114,10 +114,10 @@
    <lodDist value="25" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0145" y="-0.105" z="-0.0013" />
-   <bbMax x="0.0095" y="0.105" z="0.0013" />
-   <bsCentre x="-0.0025" y="0" z="0" />
-   <bsRadius value="0.105691" />
+   <bbMin x="-0.013" y="-0.104" z="-0.0021" />
+   <bbMax x="0.0097" y="0.112" z="0.0021" />
+   <bsCentre x="-0.00165" y="0.004" z="0" />
+   <bsRadius value="0.108554" />
    <hdTextureDist value="12.5" />
    <name>nz_sty_comb</name>
    <textureDictionary />
@@ -132,10 +132,10 @@
    <lodDist value="30" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.036" y="-0.11" z="-0.0085" />
-   <bbMax x="0.036" y="0.103" z="0.017" />
-   <bsCentre x="0" y="-0.0035" z="0.00425" />
-   <bsRadius value="0.109737" />
+   <bbMin x="-0.0365" y="-0.115" z="-0.0095" />
+   <bbMax x="0.0365" y="0.115" z="0.0193" />
+   <bsCentre x="0" y="0" z="0.0049" />
+   <bsRadius value="0.117746" />
    <hdTextureDist value="15" />
    <name>nz_sty_brush</name>
    <textureDictionary />
@@ -150,10 +150,10 @@
    <lodDist value="20" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0095" y="-0.075" z="-0.003133" />
-   <bbMax x="0.0042" y="0.036" z="0.0125" />
-   <bsCentre x="-0.00265" y="-0.0195" z="0.004683" />
-   <bsRadius value="0.056189" />
+   <bbMin x="-0.0109" y="-0.07" z="-0.0032" />
+   <bbMax x="0.0042" y="0.04" z="0.013515" />
+   <bsCentre x="-0.00335" y="-0.015" z="0.005157" />
+   <bsRadius value="0.055817" />
    <hdTextureDist value="10" />
    <name>nz_sty_edge</name>
    <textureDictionary />
@@ -168,10 +168,10 @@
    <lodDist value="15" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.022769" y="-0.09" z="-0.007798" />
-   <bbMax x="0.0265" y="0.0228" z="0.022786" />
-   <bsCentre x="0.001866" y="-0.0336" z="0.007494" />
-   <bsRadius value="0.06217" />
+   <bbMin x="-0.000523" y="-0.021704" z="-0.020139" />
+   <bbMax x="0.043548" y="0.033216" z="0.0009" />
+   <bsCentre x="0.021512" y="0.005756" z="-0.009619" />
+   <bsRadius value="0.032086" />
    <hdTextureDist value="7.5" />
    <name>nz_sty_needle</name>
    <textureDictionary />
@@ -186,10 +186,10 @@
    <lodDist value="15" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0046" y="-0.07" z="-0.00429" />
-   <bbMax x="0.0046" y="0.075298" z="0.005692" />
-   <bsCentre x="0" y="0.002649" z="0.000701" />
-   <bsRadius value="0.072691" />
+   <bbMin x="-0.0052" y="-0.07" z="-0.005848" />
+   <bbMax x="0.0052" y="0.084045" z="0.0052" />
+   <bsCentre x="0" y="0.007023" z="-0.000324" />
+   <bsRadius value="0.077052" />
    <hdTextureDist value="7.5" />
    <name>nz_sty_hook</name>
    <textureDictionary />
@@ -204,10 +204,10 @@
    <lodDist value="30" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0125" y="-0.16" z="-0.02282" />
-   <bbMax x="0.0125" y="0.170051" z="0.02282" />
-   <bsCentre x="0" y="0.005026" z="0" />
-   <bsRadius value="0.166216" />
+   <bbMin x="-0.016" y="-0.192942" z="-0.020792" />
+   <bbMax x="0.016" y="0.16613" z="0.020792" />
+   <bsCentre x="0" y="-0.013406" z="0" />
+   <bsRadius value="0.180126" />
    <hdTextureDist value="15" />
    <name>nz_sty_iron</name>
    <textureDictionary />
@@ -222,10 +222,10 @@
    <lodDist value="30" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0125" y="-0.11" z="-0.0125" />
-   <bbMax x="0.0125" y="0.175" z="0.0125" />
-   <bsCentre x="0" y="0.0325" z="0" />
-   <bsRadius value="0.142784" />
+   <bbMin x="-0.0135" y="-0.115" z="-0.016919" />
+   <bbMax x="0.0135" y="0.189" z="0.0135" />
+   <bsCentre x="0" y="0.037" z="-0.001709" />
+   <bsRadius value="0.15231" />
    <hdTextureDist value="15" />
    <name>nz_sty_wand</name>
    <textureDictionary />
@@ -240,10 +240,10 @@
    <lodDist value="35" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0775" y="-0.1" z="-0.036" />
-   <bbMax x="0.11" y="0.080803" z="0.036" />
-   <bsCentre x="0.01625" y="-0.009599" z="0" />
-   <bsRadius value="0.124495" />
+   <bbMin x="-0.087" y="-0.171151" z="-0.038" />
+   <bbMax x="0.135" y="0.088" z="0.038" />
+   <bsCentre x="0.024" y="-0.041576" z="0" />
+   <bsRadius value="0.167601" />
    <hdTextureDist value="17.5" />
    <name>nz_sty_dryer</name>
    <textureDictionary />
@@ -258,10 +258,10 @@
    <lodDist value="25" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.03536" y="-0.03536" z="0" />
-   <bbMax x="0.03536" y="0.03536" z="0.04284" />
-   <bsCentre x="0" y="0" z="0.02142" />
-   <bsRadius value="0.040913" />
+   <bbMin x="-0.03708" y="-0.03708" z="0.0015" />
+   <bbMax x="0.03708" y="0.03708" z="0.044528" />
+   <bsCentre x="0" y="0" z="0.023014" />
+   <bsRadius value="0.04218" />
    <hdTextureDist value="12.5" />
    <name>nz_sty_gel</name>
    <textureDictionary />
@@ -276,10 +276,10 @@
    <lodDist value="25" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.03328" y="-0.03328" z="0" />
-   <bbMax x="0.03328" y="0.03328" z="0.0204" />
-   <bsCentre x="0" y="0" z="0.0102" />
-   <bsRadius value="0.034693" />
+   <bbMin x="-0.033825" y="-0.033825" z="0.0012" />
+   <bbMax x="0.033825" y="0.033825" z="0.02163" />
+   <bsCentre x="0" y="0" z="0.011415" />
+   <bsRadius value="0.03499" />
    <hdTextureDist value="12.5" />
    <name>nz_sty_tin</name>
    <textureDictionary />
@@ -294,10 +294,10 @@
    <lodDist value="25" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0235" y="-0.0235" z="0" />
-   <bbMax x="0.0235" y="0.0235" z="0.157" />
+   <bbMin x="-0.024" y="-0.024" z="0" />
+   <bbMax x="0.024" y="0.024" z="0.157" />
    <bsCentre x="0" y="0" z="0.0785" />
-   <bsRadius value="0.08126" />
+   <bsRadius value="0.081008" />
    <hdTextureDist value="12.5" />
    <name>nz_sty_mousse</name>
    <textureDictionary />
@@ -312,10 +312,10 @@
    <lodDist value="25" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0215" y="-0.0215" z="0" />
-   <bbMax x="0.0215" y="0.0215" z="0.146" />
-   <bsCentre x="0" y="0" z="0.073" />
-   <bsRadius value="0.075432" />
+   <bbMin x="-0.022" y="-0.022" z="0" />
+   <bbMax x="0.022" y="0.034" z="0.1565" />
+   <bsCentre x="0" y="0.006" z="0.07825" />
+   <bsRadius value="0.082147" />
    <hdTextureDist value="12.5" />
    <name>nz_sty_spray</name>
    <textureDictionary />
@@ -330,10 +330,46 @@
    <lodDist value="25" />
    <flags value="32" />
    <specialAttribute value="0" />
-   <bbMin x="-0.0175" y="-0.15" z="-0.0068" />
-   <bbMax x="0.0175" y="0.15" z="0.0068" />
-   <bsCentre x="0" y="0" z="0" />
-   <bsRadius value="0.150605" />
+   <bbMin x="-0.022" y="-0.022" z="0" />
+   <bbMax x="0.022" y="0.034" z="0.1565" />
+   <bsCentre x="0" y="0.006" z="0.07825" />
+   <bsRadius value="0.082147" />
+   <hdTextureDist value="12.5" />
+   <name>nz_sty_heat</name>
+   <textureDictionary />
+   <clipDictionary />
+   <drawableDictionary />
+   <physicsDictionary />
+   <assetType>ASSET_TYPE_DRAWABLE</assetType>
+   <assetName>nz_sty_heat</assetName>
+   <extensions />
+  </Item>
+  <Item type="CBaseArchetypeDef">
+   <lodDist value="25" />
+   <flags value="32" />
+   <specialAttribute value="0" />
+   <bbMin x="-0.022" y="-0.022" z="0" />
+   <bbMax x="0.022" y="0.034" z="0.1565" />
+   <bsCentre x="0" y="0.006" z="0.07825" />
+   <bsRadius value="0.082147" />
+   <hdTextureDist value="12.5" />
+   <name>nz_sty_moist</name>
+   <textureDictionary />
+   <clipDictionary />
+   <drawableDictionary />
+   <physicsDictionary />
+   <assetType>ASSET_TYPE_DRAWABLE</assetType>
+   <assetName>nz_sty_moist</assetName>
+   <extensions />
+  </Item>
+  <Item type="CBaseArchetypeDef">
+   <lodDist value="25" />
+   <flags value="32" />
+   <specialAttribute value="0" />
+   <bbMin x="-0.0175" y="-0.160033" z="-0.0042" />
+   <bbMax x="0.0175" y="0.160029" z="0.0042" />
+   <bsCentre x="0" y="-0.000002" z="0" />
+   <bsRadius value="0.160453" />
    <hdTextureDist value="12.5" />
    <name>nz_sty_pack</name>
    <textureDictionary />
@@ -342,6 +378,60 @@
    <physicsDictionary />
    <assetType>ASSET_TYPE_DRAWABLE</assetType>
    <assetName>nz_sty_pack</assetName>
+   <extensions />
+  </Item>
+  <Item type="CBaseArchetypeDef">
+   <lodDist value="30" />
+   <flags value="32" />
+   <specialAttribute value="0" />
+   <bbMin x="-0.02992" y="-0.104454" z="-0.103693" />
+   <bbMax x="0.185271" y="0.121814" z="0.103689" />
+   <bsCentre x="0.077675" y="0.00868" z="-0.000002" />
+   <bsRadius value="0.139393" />
+   <hdTextureDist value="15" />
+   <name>nz_sty_capon</name>
+   <textureDictionary />
+   <clipDictionary />
+   <drawableDictionary />
+   <physicsDictionary />
+   <assetType>ASSET_TYPE_DRAWABLE</assetType>
+   <assetName>nz_sty_capon</assetName>
+   <extensions />
+  </Item>
+  <Item type="CBaseArchetypeDef">
+   <lodDist value="15" />
+   <flags value="32" />
+   <specialAttribute value="0" />
+   <bbMin x="-0.004" y="-0.022" z="-0.00518" />
+   <bbMax x="0.004" y="0.072" z="0.00518" />
+   <bsCentre x="0" y="0.025" z="0" />
+   <bsRadius value="0.04738" />
+   <hdTextureDist value="7.5" />
+   <name>nz_sty_clip</name>
+   <textureDictionary />
+   <clipDictionary />
+   <drawableDictionary />
+   <physicsDictionary />
+   <assetType>ASSET_TYPE_DRAWABLE</assetType>
+   <assetName>nz_sty_clip</assetName>
+   <extensions />
+  </Item>
+  <Item type="CBaseArchetypeDef">
+   <lodDist value="10" />
+   <flags value="32" />
+   <specialAttribute value="0" />
+   <bbMin x="-0.001649" y="-0.000301" z="-0.0007" />
+   <bbMax x="0.003666" y="0.050666" z="0.0007" />
+   <bsCentre x="0.001008" y="0.025182" z="0" />
+   <bsRadius value="0.025511" />
+   <hdTextureDist value="5" />
+   <name>nz_sty_pin</name>
+   <textureDictionary />
+   <clipDictionary />
+   <drawableDictionary />
+   <physicsDictionary />
+   <assetType>ASSET_TYPE_DRAWABLE</assetType>
+   <assetName>nz_sty_pin</assetName>
    <extensions />
   </Item>
  </archetypes>

@@ -588,3 +588,109 @@ def torus(R, r, segs, rings, uv_rect, a0=0.0, a1=360.0):
     """Ring around Z (radius R, tube r); partial arcs are open."""
     prof = [(R + r * math.cos(2 * math.pi * k / rings), r * math.sin(2 * math.pi * k / rings)) for k in range(rings + 1)]
     return lathe(prof, segs, uv_rect, a0=a0, a1=a1)
+
+
+
+# ── high quality props: normal + specular maps (GTA's normal_spec shader) ───────────────────────────
+
+def tangents(part):
+    """Per-vertex tangents (x, y, z, w) from the UVs, for normal mapping."""
+    P, N, UV, T = part.P, part.N, part.UV, part.T
+    tan = np.zeros((len(P), 3)); bit = np.zeros((len(P), 3))
+    for a, b, c in T:
+        e1, e2 = P[b] - P[a], P[c] - P[a]
+        d1, d2 = UV[b] - UV[a], UV[c] - UV[a]
+        r = d1[0] * d2[1] - d2[0] * d1[1]
+        if abs(r) < 1e-12:
+            continue
+        r = 1.0 / r
+        t = (e1 * d2[1] - e2 * d1[1]) * r
+        bt = (e2 * d1[0] - e1 * d2[0]) * r
+        for v in (a, b, c):
+            tan[v] += t; bit[v] += bt
+    out = np.zeros((len(P), 4))
+    for i in range(len(P)):
+        n = N[i]
+        t = tan[i] - n * np.dot(n, tan[i])
+        l = np.linalg.norm(t)
+        if l < 1e-9:
+            t = np.cross(n, [0.0, 0.0, 1.0]) if abs(n[2]) < 0.9 else np.cross(n, [1.0, 0.0, 0.0])
+            l = np.linalg.norm(t)
+        t = t / l
+        w = -1.0 if np.dot(np.cross(n, t), bit[i]) < 0 else 1.0
+        out[i] = (t[0], t[1], t[2], w)
+    return out
+
+
+def height_to_normal(h, strength=2.0):
+    """A height map (2D array 0..1) -> a tangent-space normal map image (RGB)."""
+    from PIL import Image
+    gy, gx = np.gradient(h.astype(np.float64))
+    nx, ny, nz = -gx * strength, gy * strength, np.ones_like(h)
+    l = np.sqrt(nx * nx + ny * ny + nz * nz)
+    rgb = np.stack([(nx / l) * 0.5 + 0.5, (ny / l) * 0.5 + 0.5, (nz / l) * 0.5 + 0.5], axis=-1)
+    return Image.fromarray(np.uint8(np.clip(rgb * 255, 0, 255)))
+
+
+SHADER_FALLBACK = False   # True: build every prop with the plain diffuse shader (if normal_spec ever misbehaves)
+
+
+def ydr_xml_hq(name, part, tex, spec_mult=1.0, falloff=60.0, bumpiness=1.0, bounds=True):
+    """tex = {'diffuse': (name, w, h, mips), 'normal': (...), 'spec': (...)} -> CodeWalker XML with normal_spec."""
+    if SHADER_FALLBACK:
+        d = tex['diffuse']
+        return ydr_xml(name, part, d[0], d[1], d[2], d[3])
+    parts = part if isinstance(part, (list, tuple)) else [part]
+    base = ydr_xml(name, parts, tex['diffuse'][0], tex['diffuse'][1], tex['diffuse'][2], tex['diffuse'][3], 'normal_spec', bounds)
+    # vertex layout with tangents
+    def geom_lines(gp):
+        tg = tangents(gp)
+        lines = []
+        for i in range(len(gp.P)):
+            p, n, uv, t = gp.P[i], gp.N[i], gp.UV[i], tg[i]
+            lines.append('       %s %s %s   %s %s %s   255 255 255 255   %s %s   %s %s %s %s' % (
+                f(p[0]), f(p[1]), f(p[2]), f(n[0]), f(n[1]), f(n[2]), f(uv[0]), f(uv[1]), f(t[0]), f(t[1]), f(t[2]), f(t[3])))
+        return '\n'.join(lines)
+    import re as _re
+    out = base
+    blocks = list(_re.finditer(r'<Layout type="GTAV1">.*?</Layout>\s*<Data>\n(.*?)\n\s*</Data>', out, _re.S))
+    for gp, m in reversed(list(zip(parts, blocks))):
+        new = m.group(0).replace('<TexCoord0 />', '<TexCoord0 />\n       <Tangent />').replace(m.group(1), geom_lines(gp))
+        out = out[:m.start()] + new + out[m.end():]
+    texitem = lambda nm, w, h, mips, usage: """   <Item>
+    <Name>%s</Name>
+    <Unk32 value="128" />
+    <Usage>%s</Usage>
+    <UsageFlags>UNK24</UsageFlags>
+    <ExtraFlags value="0" />
+    <Width value="%d" />
+    <Height value="%d" />
+    <MipLevels value="%d" />
+    <Format>D3DFMT_DXT5</Format>
+    <FileName>%s.dds</FileName>
+   </Item>""" % (nm, usage, w, h, mips, nm)
+    td = '\n'.join([texitem(*tex['diffuse'], 'DIFFUSE'), texitem(*tex['normal'], 'BUMP'), texitem(*tex['spec'], 'SPECULAR')])
+    out = _re.sub(r'<TextureDictionary>.*?</TextureDictionary>', '<TextureDictionary>\n' + td + '\n  </TextureDictionary>', out, flags=_re.S)
+    params = """<Parameters>
+     <Item name="DiffuseSampler" type="Texture">
+      <Name>%s</Name>
+     </Item>
+     <Item name="BumpSampler" type="Texture">
+      <Name>%s</Name>
+     </Item>
+     <Item name="SpecSampler" type="Texture">
+      <Name>%s</Name>
+     </Item>
+     <Item name="matMaterialColorScale" type="Vector" x="1" y="0" z="0" w="1" />
+     <Item name="HardAlphaBlend" type="Vector" x="1" y="0" z="0" w="0" />
+     <Item name="useTessellation" type="Vector" x="0" y="0" z="0" w="0" />
+     <Item name="wetnessMultiplier" type="Vector" x="1" y="0" z="0" w="0" />
+     <Item name="bumpiness" type="Vector" x="%s" y="0" z="0" w="0" />
+     <Item name="specularIntensityMult" type="Vector" x="%s" y="0" z="0" w="0" />
+     <Item name="specularFalloffMult" type="Vector" x="%s" y="0" z="0" w="0" />
+     <Item name="specularFresnel" type="Vector" x="0.97" y="0" z="0" w="0" />
+     <Item name="globalAnimUV0" type="Vector" x="1" y="0" z="0" w="0" />
+     <Item name="globalAnimUV1" type="Vector" x="0" y="1" z="0" w="0" />
+    </Parameters>""" % (tex['diffuse'][0], tex['normal'][0], tex['spec'][0], f(bumpiness), f(spec_mult), f(falloff))
+    out = _re.sub(r'<Parameters>.*?</Parameters>', params, out, count=1, flags=_re.S)
+    return out

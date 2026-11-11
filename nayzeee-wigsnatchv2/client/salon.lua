@@ -722,30 +722,18 @@ end
 
 local work = {}      -- [clientSrc] = { id, style, opts, m, d, slices = {hash}, shown = 0, objs = {}, cap = obj }
 
-local function rotMatrix(r)
-    -- GTA's rotation order 2 for attachments: yaw (z), then pitch (x), then roll (y)
-    local x, y, z = math.rad(r.x), math.rad(r.y), math.rad(r.z)
-    local cx, sx, cy, sy, cz, sz = math.cos(x), math.sin(x), math.cos(y), math.sin(y), math.cos(z), math.sin(z)
-    local Rx = { { 1, 0, 0 }, { 0, cx, -sx }, { 0, sx, cx } }
-    local Ry = { { cy, 0, sy }, { 0, 1, 0 }, { -sy, 0, cy } }
-    local Rz = { { cz, -sz, 0 }, { sz, cz, 0 }, { 0, 0, 1 } }
-    local function mul(A, B)
-        local C = {}
-        for i = 1, 3 do C[i] = {} for j = 1, 3 do C[i][j] = A[i][1] * B[1][j] + A[i][2] * B[2][j] + A[i][3] * B[3][j] end end
-        return C
-    end
-    return mul(mul(Rz, Rx), Ry)
-end
+-- SKEL_Head's rest pose in the freemode model's space (rows); its columns are the bone's axes
+local HEAD_REST = { { -0.000001, 0.000026, 1.0 }, { 0.008806, -0.999961, 0.000026 }, { 0.999961, 0.008806, 0.000001 } }
 
--- a point on the head (head-local unit coords) as an offset from the head bone, in the bone's axes
+-- a point on the head (head-local unit coords) as an offset from the head bone, in the bone's own axes
 local function boneOffset(p)
     local k = p.s and HAIR or 1.0
-    local m = { p.x * RADII.x * k, p.y * RADII.y * k + CENTRE.y, p.z * RADII.z * k + CENTRE.z }
-    local R = rotMatrix(SC.Attach.rot)
-    local o = SC.Attach.pos
-    return vec3(R[1][1] * m[1] + R[1][2] * m[2] + R[1][3] * m[3] + o.x,
-                R[2][1] * m[1] + R[2][2] * m[2] + R[2][3] * m[3] + o.y,
-                R[3][1] * m[1] + R[3][2] * m[2] + R[3][3] * m[3] + o.z)
+    -- head frame (x right, y face, z up) -> the freemode model's space, which faces -Y (so x and y turn round)
+    local m = { -(p.x * RADII.x * k), -(p.y * RADII.y * k + CENTRE.y), p.z * RADII.z * k + CENTRE.z }
+    local R, o = HEAD_REST, SC.Attach.pos
+    return vec3(R[1][1] * m[1] + R[2][1] * m[2] + R[3][1] * m[3] + o.x,
+                R[1][2] * m[1] + R[2][2] * m[2] + R[3][2] * m[3] + o.y,
+                R[1][3] * m[1] + R[2][3] * m[2] + R[3][3] * m[3] + o.z)
 end
 
 local function attach(model, ped, off, spin)

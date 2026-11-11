@@ -471,7 +471,9 @@ static class P
             // salon slices: the same hair in bands, so a style can go on row by row
             if (SliceKeys.Contains(s.Key))
             {
-                var bands = Slice(geos, SliceCount);
+                // slices go on a ped's head bone, so they're baked into the bone's own space: the freemode rest
+                // pose of SKEL_Head (same for both models), so they attach at offset 0, rotation 0
+                var bands = Slice(geos, SliceCount).Select(b => b.Select(ToHeadBone).ToList()).ToList();
                 for (int b = 0; b < bands.Count; b++)
                 {
                     var bg = new List<Geo>();
@@ -582,6 +584,21 @@ static class P
             bands.Add(band);
         }
         return bands;
+    }
+
+    // SKEL_Head's rest pose in the freemode model's space (rows); its columns are the bone's axes
+    static readonly float[,] HeadRest = { { -0.000001f, 0.000026f, 1f }, { 0.008806f, -0.999961f, 0.000026f }, { 0.999961f, 0.008806f, 0.000001f } };
+
+    // hair relative to the head (model axes) -> the head bone's own axes: transpose(rest) * v
+    static Geo ToHeadBone(Geo g)
+    {
+        Vector3 T(Vector3 v) => new(
+            HeadRest[0, 0] * v.X + HeadRest[1, 0] * v.Y + HeadRest[2, 0] * v.Z,
+            HeadRest[0, 1] * v.X + HeadRest[1, 1] * v.Y + HeadRest[2, 1] * v.Z,
+            HeadRest[0, 2] * v.X + HeadRest[1, 2] * v.Y + HeadRest[2, 2] * v.Z);
+        var o = new Geo();
+        o.P.AddRange(g.P.Select(T)); o.N.AddRange(g.N.Select(T)); o.UV.AddRange(g.UV); o.I.AddRange(g.I);
+        return o;
     }
 
     // an empty band still needs a model: one tiny triangle inside the head

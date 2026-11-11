@@ -404,11 +404,12 @@ ITEMS = {
 
 
 # ── the salon ────────────────────────────────────────────────────────────────────────────────────
-import salon_props as SP  # noqa: E402
+import salon_props_hq as SP  # noqa: E402
 
 
 def sp(builder, mat=PLASTIC, view=None, R=None, **kw):
-    _, part, tex, _, _ = builder(**kw) if kw else builder()
+    _, part, atlas, _ = builder(**kw) if kw else builder()
+    tex = atlas.images()[0]
     if R is not None:
         part = part.transformed(R=R)
     return [(part, tex, mat)], view or dict(yaw=25, pitch=20)
@@ -465,7 +466,7 @@ def locs():
 
 
 def hair_pack(cols, text, seed):
-    return sp(SP.pack, HAIR, dict(yaw=-35, pitch=40), R=rot('z', 0), hair=cols, lines=[('NZ', 26, TEAL, 800)] + [(t, 15, (18, 19, 21), 700) for t in text], seed=seed)
+    return sp(SP.pack, HAIR, dict(yaw=-35, pitch=40), R=rot('z', 0), hair=cols[1], title=text[0], sub=text[1])
 
 
 ITEMS.update({
@@ -481,10 +482,8 @@ ITEMS.update({
     'edge_control': lambda: sp(SP.tin, PLASTIC, dict(yaw=0, pitch=30)),
     'mousse': lambda: sp(SP.mousse, GLOSS, dict(yaw=0, pitch=12)),
     'shine_spray': lambda: sp(SP.spray, GLOSS, dict(yaw=0, pitch=12)),
-    'heat_protect': lambda: sp(SP.spray, GLOSS, dict(yaw=0, pitch=12), liquid=(245, 240, 236), band=(229, 72, 77),
-                               lines=[('NZ', 44, (255, 255, 255), 800), ('HEAT PROTECT', 19, (255, 255, 255), 700), ('up to 230°', 16, (255, 236, 236), 400)]),
-    'moisturizer': lambda: sp(SP.spray, GLOSS, dict(yaw=0, pitch=12), liquid=(240, 244, 246), band=(120, 170, 220),
-                              lines=[('NZ', 44, (255, 255, 255), 800), ('MOISTURIZER', 19, (255, 255, 255), 700), ('leave-in', 16, (236, 244, 250), 400)]),
+    'heat_protect': lambda: sp(SP.heat, GLOSS, dict(yaw=0, pitch=12)),
+    'moisturizer': lambda: sp(SP.moist, GLOSS, dict(yaw=0, pitch=12)),
     'elastics': elastics,
     'bobby_pins': bobby_pins,
     'hair_beads': hair_beads,

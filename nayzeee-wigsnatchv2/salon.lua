@@ -118,9 +118,9 @@ Config.Salon = {
         braid_gel    = { label = 'Braiding Gel',     item = 'braid_gel',    use = true,  prop = { model = `nz_sty_gel`,    bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) } },
         edge_control = { label = 'Edge Control',     item = 'edge_control', use = true,  prop = { model = `nz_sty_tin`,    bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) } },
         mousse       = { label = 'Foam Mousse',      item = 'mousse',       use = true,  prop = { model = `nz_sty_mousse`, bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
-        heat_protect = { label = 'Heat Protectant',  item = 'heat_protect', use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
+        heat_protect = { label = 'Heat Protectant',  item = 'heat_protect', use = true,  prop = { model = `nz_sty_heat`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
         shine_spray  = { label = 'Shine Spray',      item = 'shine_spray',  use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
-        moisturizer  = { label = 'Moisturizer',      item = 'moisturizer',  use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
+        moisturizer  = { label = 'Moisturizer',      item = 'moisturizer',  use = true,  prop = { model = `nz_sty_moist`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
         elastics     = { label = 'Hair Elastics',    item = 'elastics',     use = true },
         bobby_pins   = { label = 'Bobby Pins',       item = 'bobby_pins',   use = true },
         hair_beads   = { label = 'Beads & Cuffs',    item = 'hair_beads',   use = true },
@@ -141,10 +141,10 @@ Config.Salon = {
         cornrows = 'Cornrows: the braid down under a sew-in',
     },
 
-    -- How props sit on a head (slices, the wig cap, clips): attached to the head bone (SKEL_Head) turned
-    -- from the ped's axes into the bone's. If they sit wrong on your build, /salonalign (admins) lets you
-    -- nudge it live with the arrow keys and prints the values to put here.
-    Attach = { pos = vec3(0.0, 0.0, 0.0), rot = vec3(0.0, 90.0, 0.0) },
+    -- How props sit on a head (slices, the wig cap, clips): they're built in the head bone's own space
+    -- (the freemode rest pose, like nayzeee-chains), so they attach at 0 / 0. If they ever sit off on your
+    -- build, /salonalign (admins) nudges them live with the arrow keys and prints the values to put here.
+    Attach = { pos = vec3(0.0, 0.0, 0.0), rot = vec3(0.0, 0.0, 0.0) },
     -- The pieces that go on the head while working (props in stream/)
     Pieces = {
         cap  = `nz_sty_capon`,   -- the mesh wig cap, over the cornrows

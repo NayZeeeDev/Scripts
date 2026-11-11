@@ -418,9 +418,8 @@ def bundle():
 
 BUILDERS = [clippers, razor, dye, wig_head, wig_shell, bundle]
 
-# the salon props (salon_props.py)
-import salon_props  # noqa: E402
-BUILDERS += salon_props.PROPS
+# the salon props, high quality (salon_props_hq.py: normal + specular maps)
+import salon_props_hq  # noqa: E402
 
 if __name__ == '__main__':
     OUT = sys.argv[1] if len(sys.argv) > 1 else 'out'
@@ -429,6 +428,9 @@ if __name__ == '__main__':
     for b in BUILDERS:
         name, part, tex, lod, views = b()
         items.append(save(name, part, tex, lod, views))
+    for b in salon_props_hq.PROPS:
+        name, part, atlas, lod = b()
+        items.append(salon_props_hq.save_hq(OUT, name, part, atlas, lod))
     with open(os.path.join(OUT, 'nz_wigsnatch_props.ytyp.xml'), 'w') as fh:
         fh.write(ytyp_xml('nz_wigsnatch_props', items))
     print('done ->', OUT)

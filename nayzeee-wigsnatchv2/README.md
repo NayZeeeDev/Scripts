@@ -237,19 +237,21 @@ Doing hair, step by step, in first person. Everything is in `salon.lua` (not esc
 | Gathering, puffing bubbles, the cap, the lace | Drag the hair to the ring |
 | Dipping ends, threading the needle | Hold and let go in the green band |
 
-Parts, cornrows, braids, gel, beads and sewn tracks stay drawn on the head as you go, so the style builds up step by step. A sew-in shows its cornrow base halfway (`Config.Salon.Looks`).
+**The hair goes on for real, on the client's head.** When you link a style to a hairstyle in the Wig Studio, hairkit cuts that hairstyle (straight from your clothing pack) into 5 slices, grouping its strands by where they root: nape first, crown last. While the style is done, every row sewn / braid finished puts the next slice on the client's head, so the real hairstyle builds up row by row for everyone close by. A sew-in starts with the braid down: the client's hair goes to GTA's cornrows (`Config.Salon.Cornrows`, or a linked "cornrows" look), then the mesh wig cap goes over them, then the wefts go on row by row. Sectioning clips and bobby pins go on the head as props too, and the tool you're using sits on the hair under your cursor. The screen only shows small guides for where to work.
+
+Your hairstyles stay normal clothing hair (`.ydd` / `.ytd` in your packs): the slices are only props for while the style is being done, made from the same files, and the finished style is the real hairstyle on the ped (it takes the hair colour like any hairstyle). Props sit on the head bone in the freemode rest pose; if they ever sit off on your build, `/salonalign` (admins) nudges them live and prints the values for `Config.Salon.Attach`.
 
 4. When the last move is done the client gets the style on their own ped, in the shade of the hair you used (natural styles keep their colour), with a **New Look** reveal while the camera turns around them. The stylist gets paid and XP (more for harder styles and clean work). Every move is scored and the server checks the order and the time each one took. The quality decides how long the style lasts (`days` per style x `Config.Salon.DayMinutes`, or until taken down).
 
 A style sits on the player's own hair: a wig goes over it, `/takedown` (or the Vault) takes it down, cutting the hair takes it out, and snatching it takes it like natural hair (the wig keeps the look).
 
-**Giving each style its look (admins).** GTA can only show hairstyles your server has. So each style is linked to one of your hairstyles per model: `/wigstudio`, find the hairstyle (your braid / loc / weave packs), then **Salon look** > pick the style > **Use**. The Style Book shows "No look" on styles that aren't linked for the client's model yet. Looks are saved in the database.
+**Giving each style its look (admins).** Each style is one of your hairstyles per model, hand-picked: `/wigstudio`, find the hairstyle (your braid / loc / weave packs), then **Salon look** > pick the style > **Use**. Linking it builds its slices (3D wigs, a few seconds per hairstyle). The Style Book shows "No look" on styles that aren't linked for the client's model yet. Looks are saved in the database.
 
 **The Beauty Supply** (`Config.BeautySupply`, the same store window as the Hair Supply) sells extension hair by shade, length and texture (longer packs cost more), the products and the tools. Packs of one shade and length count together. Without item metadata (plain ESX inventory) packs are generic and the style keeps the client's colour.
 
 ## 🧰 Props
 
-19 props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
+24 props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
 
 | Model | Used for |
 | --- | --- |
@@ -261,8 +263,11 @@ A style sits on the player's own hair: a wig goes over it, `/takedown` (or the V
 | `nz_hair_bundle` | The bundles laid out on the table |
 | `nz_sty_comb` / `nz_sty_brush` / `nz_sty_edge` / `nz_sty_needle` / `nz_sty_hook` | Rat-tail comb, paddle brush, edge brush, C-needle, crochet hook in the stylist's hand |
 | `nz_sty_iron` / `nz_sty_wand` / `nz_sty_dryer` | Flat iron, curling wand, blow dryer |
-| `nz_sty_gel` / `nz_sty_tin` / `nz_sty_mousse` / `nz_sty_spray` | Braiding gel, edge control, mousse, spray bottle (shine, heat protectant, moisturizer) |
+| `nz_sty_gel` / `nz_sty_tin` / `nz_sty_mousse` / `nz_sty_spray` / `nz_sty_heat` / `nz_sty_moist` | Braiding gel, edge control, mousse, shine spray, heat protectant, moisturizer |
 | `nz_sty_pack` | A pack of braiding hair while feeding it in |
+| `nz_sty_capon` / `nz_sty_clip` / `nz_sty_pin` | The mesh wig cap over the cornrows, sectioning clips, bobby pins (on the client's head) |
+
+The salon props are built with normal and specular maps (GTA's `normal_spec`), like the game's own props.
 
 They were made for this script and ship compiled in `stream/`, escrowed (encrypted) with the rest of the resource.
 
@@ -307,6 +312,9 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 | A style says "No look" | Link it to one of your hairstyles: `/wigstudio` > the hairstyle > Salon look. Needed per model (male / female). |
 | The client doesn't sit down | They're not near a chair in `Config.Salon.Chairs` (they stand still instead). Add your salon chair's model there. |
 | The braid colour looks off | Shades are matched to the closest GTA hair colour. Adjust `rgb` in `Config.Salon.Shades`. |
+| A style goes on all at once at the end | Its hairstyle has no slices yet: hairkit isn't installed / allowed, or the build failed (F8 / server console). `/wigstudio` > 3D wigs > Build. |
+| The cornrows of a sew-in are the wrong hairstyle | Put your build's cornrow numbers in `Config.Salon.Cornrows` (check them in the Wig Studio), or link a "cornrows" look there. |
+| Slices / the cap sit off the head | `/salonalign` and put the printed values in `Config.Salon.Attach`. |
 | The foam head shows the generic wig | That hairstyle has no prop yet: `/wigstudio` > 3D wigs > Build. Base game hair needs `hairkit game` on a PC with GTA. If the console says it couldn't start `nzw_hairprops`, add the `add_ace` lines from Installation. |
 | Tables are plain workbenches | SasDragon's pack isn't started. Buy it from her and `ensure` it before this resource. |
 | No third-eye options | Start ox_target / qb-target before this resource, or use the commands and usable items. |
