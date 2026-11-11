@@ -285,19 +285,21 @@ static partial class P
     static byte[] PackYmt(List<Slot> slots)
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<CPedVariationInfo>\n <bHasTexVariations value=\"true\" />\n <bHasDrawblVariations value=\"true\" />\n");
+        // laid out like the .ymt of a working addon hair pack (one drawable per hairstyle, propMask 11 for hair)
+        bool texVar = slots.Any(s => s.Tex > 1), drawVar = slots.Count > 1;
+        sb.Append($"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<CPedVariationInfo>\n <bHasTexVariations value=\"{(texVar ? "true" : "false")}\" />\n <bHasDrawblVariations value=\"{(drawVar ? "true" : "false")}\" />\n");
         sb.Append(" <bHasLowLODs value=\"false\" />\n <bIsSuperLOD value=\"false\" />\n");
         sb.Append(" <availComp>255 255 0 255 255 255 255 255 255 255 255 255</availComp>\n");
         sb.Append($" <aComponentData3 itemType=\"CPVComponentData\">\n  <Item>\n   <numAvailTex value=\"{Math.Min(255, slots.Sum(s => s.Tex))}\" />\n   <aDrawblData3 itemType=\"CPVDrawblData\">\n");
         foreach (var s in slots)
         {
-            sb.Append("    <Item>\n     <propMask value=\"1\" />\n     <numAlternatives value=\"0\" />\n     <aTexData itemType=\"CPVTextureData\">\n");
+            sb.Append("    <Item>\n     <propMask value=\"11\" />\n     <numAlternatives value=\"0\" />\n     <aTexData itemType=\"CPVTextureData\">\n");
             for (int t = 0; t < Math.Max(1, s.Tex); t++) sb.Append("      <Item>\n       <texId value=\"0\" />\n       <distribution value=\"255\" />\n      </Item>\n");
             sb.Append("     </aTexData>\n     <clothData>\n      <ownsCloth value=\"false\" />\n     </clothData>\n    </Item>\n");
         }
         sb.Append("   </aDrawblData3>\n  </Item>\n </aComponentData3>\n <aSelectionSets itemType=\"CPedSelectionSet\" />\n <compInfos itemType=\"CComponentInfo\">\n");
         foreach (var s in slots)
-            sb.Append("  <Item>\n   <pedXml_audioID>none</pedXml_audioID>\n   <pedXml_audioID2>none</pedXml_audioID2>\n   <pedXml_expressionMods>0 0 0 0 0</pedXml_expressionMods>\n" +
+            sb.Append("  <Item>\n   <pedXml_audioID>none</pedXml_audioID>\n   <pedXml_audioID2 />\n   <pedXml_expressionMods>0 0 0 0 0</pedXml_expressionMods>\n" +
                       "   <flags value=\"0\" />\n   <inclusions>0</inclusions>\n   <exclusions>0</exclusions>\n   <pedXml_vfxComps>PV_COMP_HEAD</pedXml_vfxComps>\n" +
                       $"   <pedXml_flags value=\"0\" />\n   <pedXml_compIdx value=\"2\" />\n   <pedXml_drawblIdx value=\"{s.N}\" />\n  </Item>\n");
         sb.Append(" </compInfos>\n <propInfo>\n  <numAvailProps value=\"0\" />\n  <aPropMetaData itemType=\"CPedPropMetaData\" />\n  <aAnchors itemType=\"CAnchorProps\" />\n </propInfo>\n");

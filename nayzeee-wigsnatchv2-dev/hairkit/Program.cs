@@ -553,13 +553,35 @@ static partial class P
 
     static float F(string v) => float.Parse(v, NumberStyles.Float, IC);
 
-    // Cuts hair into `count` bands for the salon. Hair is made of separate strands / cards / braids (connected
-    // pieces of the mesh); each piece goes in the band of where it roots (its highest point, near the scalp),
-    // lowest roots first, so the bands go on nape -> crown like weft rows or braids. Pieces are shared out so
-    // every band has about the same amount of hair. A mesh that's one big piece is cut by triangle height.
+    // Cuts hair into `count` bands for the salon, in the order a stylist puts hair in: by where it grows from
+    // the scalp, nape first, crown last. Hair is made of separate strands / cards / braids (connected pieces of
+    // the mesh):
+    //  - a piece on the scalp roots at its highest point;
+    //  - a piece that doesn't touch the scalp (a loose curl, a braid's end) goes with the hair it hangs from
+    //    (the nearest hair above it), so nothing ever floats;
+    //  - a mesh that's one big piece: every part of it goes with the spot where it reaches the scalp (walking
+    //    the mesh), so a braid from the nape goes on whole in the first rows and the crown last.
+    // Pieces are shared out so every band has about the same amount of hair.
+    static readonly Vector3 HeadC = new(0f, -0.015f, 0.055f), HeadR = new(0.105f, 0.125f, 0.135f);
+    static bool OnScalp(Vector3 p)
+    {
+        var d = (p - HeadC) / (HeadR * 1.3f);
+        return p.Z > -0.05f && d.LengthSquared() <= 1f;
+    }
+
     static List<List<Geo>> Slice(List<Geo> geos, int count)
     {
         var pieces = new List<(Geo g, List<int> tris, float root)>();
+        var loose = new List<(Geo g, List<int> tris)>();
+        var keyed = new Dictionary<(int, int, int), List<(Vector3 p, float key)>>();
+        const float Cell = 0.02f;
+        (int, int, int) CellOf(Vector3 p) => ((int)MathF.Floor(p.X / Cell), (int)MathF.Floor(p.Y / Cell), (int)MathF.Floor(p.Z / Cell));
+        void Keep(Vector3 p, float key)
+        {
+            var c = CellOf(p);
+            if (!keyed.TryGetValue(c, out var l)) keyed[c] = l = new List<(Vector3, float)>();
+            l.Add((p, key));
+        }
         foreach (var g in geos)
         {
             int nv = g.P.Count, nt = g.I.Count / 3;
@@ -580,22 +602,69 @@ static partial class P
             int total = nt;
             foreach (var l in groups.Values)
             {
-                if (l.Count > total * 0.6 && total > 50)
+                bool touches = false;
+                foreach (var t in l) { for (int k = 0; k < 3 && !touches; k++) touches = OnScalp(g.P[g.I[t * 3 + k]]); if (touches) break; }
+                if (l.Count > total * 0.6 && total > 50 && touches)
                 {
-                    // one big piece: by triangle height instead
+                    // one big piece: each vertex takes the height of the scalp spot it reaches first (multi-source
+                    // Dijkstra over the mesh from every vertex on the scalp)
+                    var key = new float[nv]; var dist = new float[nv];
+                    Array.Fill(dist, float.MaxValue);
+                    var adj = new Dictionary<int, List<int>>();
+                    void Edge(int x, int y)
+                    {
+                        if (!adj.TryGetValue(x, out var e)) adj[x] = e = new List<int>(6);
+                        e.Add(y);
+                    }
+                    var pq = new PriorityQueue<int, float>();
+                    foreach (var t in l)
+                        for (int k = 0; k < 3; k++)
+                        {
+                            int v = g.I[t * 3 + k], w = g.I[t * 3 + (k + 1) % 3];
+                            Edge(v, w); Edge(w, v);
+                            if (dist[v] != 0f && OnScalp(g.P[v])) { dist[v] = 0f; key[v] = g.P[v].Z; pq.Enqueue(v, 0f); }
+                        }
+                    while (pq.TryDequeue(out var v, out var dv))
+                    {
+                        if (dv > dist[v]) continue;
+                        foreach (var w in adj[v])
+                        {
+                            float nd = dv + Vector3.Distance(g.P[v], g.P[w]);
+                            if (nd < dist[w]) { dist[w] = nd; key[w] = key[v]; pq.Enqueue(w, nd); }
+                        }
+                    }
                     foreach (var t in l)
                     {
-                        float z = (g.P[g.I[t * 3]].Z + g.P[g.I[t * 3 + 1]].Z + g.P[g.I[t * 3 + 2]].Z) / 3f;
-                        pieces.Add((g, new List<int> { t }, z));
+                        float kk = (key[g.I[t * 3]] + key[g.I[t * 3 + 1]] + key[g.I[t * 3 + 2]]) / 3f;
+                        pieces.Add((g, new List<int> { t }, kk));
+                        Keep(g.P[g.I[t * 3]], kk);
                     }
                 }
-                else
+                else if (touches)
                 {
                     float root = float.MinValue;
                     foreach (var t in l) for (int k = 0; k < 3; k++) root = Math.Max(root, g.P[g.I[t * 3 + k]].Z);
                     pieces.Add((g, l, root));
+                    foreach (var t in l) Keep(g.P[g.I[t * 3]], root);
                 }
+                else loose.Add((g, l));
             }
+        }
+        // loose pieces go with the nearest hair above them that's on the scalp
+        foreach (var (g, l) in loose)
+        {
+            var top = l.SelectMany(t => new[] { g.P[g.I[t * 3]], g.P[g.I[t * 3 + 1]], g.P[g.I[t * 3 + 2]] }).OrderByDescending(p => p.Z).First();
+            float best = float.MaxValue, key = top.Z;
+            var c = CellOf(top);
+            for (int r = 1; r <= 6 && best == float.MaxValue; r++)
+                for (int x = -r; x <= r; x++) for (int y = -r; y <= r; y++) for (int z = -r; z <= r; z++)
+                    if (keyed.TryGetValue((c.Item1 + x, c.Item2 + y, c.Item3 + z), out var cand))
+                        foreach (var (p, k) in cand)
+                        {
+                            float d = Vector3.DistanceSquared(p, top);
+                            if (d < best) { best = d; key = k; }
+                        }
+            pieces.Add((g, l, key));
         }
         pieces.Sort((a, b) => a.root.CompareTo(b.root));
         int all = pieces.Sum(p => p.tris.Count);
