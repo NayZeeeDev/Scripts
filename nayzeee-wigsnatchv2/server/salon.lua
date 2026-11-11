@@ -24,7 +24,7 @@ local function cleanLooks(t)
                 local l = per[m]
                 if type(l) == 'table' and tonumber(l.d) then
                     out[id] = out[id] or {}
-                    out[id][m] = { d = math.floor(tonumber(l.d)), t = math.floor(tonumber(l.t) or 0) }
+                    out[id][m] = { d = math.floor(tonumber(l.d)), t = math.floor(tonumber(l.t) or 0), key = type(l.key) == 'string' and l.key or nil }
                 end
             end
         end
@@ -42,14 +42,26 @@ RegisterNetEvent('nz-wig:s:salonLooks', function()
 end)
 
 -- from the Wig Studio: use the hairstyle on screen for a style (or clear it)
-RegisterNetEvent('nz-wig:s:salonSetLook', function(id, m, d, t)
+-- the hairstyles (hairkit keys) the salon shows: hairkit builds their slices
+function Salon.SliceKeys()
+    local out, seen = {}, {}
+    for _, per in pairs(Salon.Looks) do
+        for _, l in pairs(per) do
+            if l.key and not seen[l.key] then seen[l.key] = true out[#out + 1] = l.key end
+        end
+    end
+    return out
+end
+
+RegisterNetEvent('nz-wig:s:salonSetLook', function(id, m, d, t, key)
     local src = source
     if not IsPlayerAceAllowed(src, 'command.wigstudio') then return end
     if type(id) ~= 'string' or (not Salon.Style(id) and not SC.Looks[id]) or (m ~= 'm' and m ~= 'f') then return end
     Salon.Looks[id] = Salon.Looks[id] or {}
     d = SafeNumber(d)
     if d then
-        Salon.Looks[id][m] = { d = math.floor(d), t = math.floor(SafeNumber(t) or 0) }
+        Salon.Looks[id][m] = { d = math.floor(d), t = math.floor(SafeNumber(t) or 0),
+                               key = type(key) == 'string' and key:match('^[mf]|[%w_%-%.]*|%d+$') and key or nil }
     else
         Salon.Looks[id][m] = nil
         if next(Salon.Looks[id]) == nil then Salon.Looks[id] = nil end
@@ -57,6 +69,8 @@ RegisterNetEvent('nz-wig:s:salonSetLook', function(id, m, d, t)
     DB.SetKV('salon_looks', Salon.Looks)
     TriggerClientEvent('nz-wig:c:salonLooks', -1, Salon.Looks)
     Notify(src, d and L('salon_look_set', (Salon.Style(id) or {}).label or SC.Looks[id]) or L('salon_look_cleared'), 'success')
+    -- build its slices (only what's missing is built)
+    if d and HairProps and HairProps.kit and not HairProps.running then HairProps.Run('build', src) end
 end)
 
 local function lookFor(id, m)
@@ -224,6 +238,19 @@ end)
 
 -- asking -------------------------------------------------------------------------------------------------
 
+-- the work on the client's head, for everyone close by: slices of the style going on, the cornrow base,
+-- the wig cap, clips and pins (client/salon.lua puts the props on)
+local function workFx(s, op, data)
+    local c = PedCoords(s.c)
+    local seen = { [s.b] = true, [s.c] = true }
+    TriggerClientEvent('nz-wig:c:salonWork', s.b, s.c, s.id, op, data)
+    TriggerClientEvent('nz-wig:c:salonWork', s.c, s.c, s.id, op, data)
+    if not c then return end
+    for _, p in ipairs(PlayersNear(c, 60.0)) do
+        if not seen[p] then seen[p] = true TriggerClientEvent('nz-wig:c:salonWork', p, s.c, s.id, op, data) end
+    end
+end
+
 local function release(s)
     sessions[s.id] = nil
     asks[s.id] = nil
@@ -237,6 +264,7 @@ end
 local function cancel(s, reason)
     if not sessions[s.id] then return end
     release(s)
+    if s.stage == 'styling' then workFx(s, 'clear', {}) end
     if s.paid and Players[s.c] then Bridge.AddMoney(s.c, s.price, SC.Payment.Account, 'salon refund') end
     if s.idx == 1 and Players[s.b] then giveBack(s.b, s.taken) end
     TriggerClientEvent('nz-wig:c:salonEnd', s.b, { id = s.id, cancelled = true, reason = reason })
@@ -290,6 +318,7 @@ RegisterNetEvent('nz-wig:s:salonRequest', function(target, styleId, opts, hairKe
     local s = {
         id = seq, b = src, c = C.src, style = style, opts = opts, hairKey = hairKey, extraKey = extraKey,
         model = model, look = look, shade = shade, price = price, moves = moves, idx = 1, scores = {},
+        effects = Salon.Effects(style, moves), revealed = 0, revealAt = 0,
         stage = 'asking',
     }
     sessions[s.id] = s
@@ -332,6 +361,7 @@ local function start(s)
         id = s.id, other = s.b, name = B.name, style = s.style.id, opts = s.opts, label = s.style.label,
         total = #s.moves, price = s.price,
     })
+    workFx(s, 'begin', { style = s.style.id, opts = s.opts, m = s.model, d = s.look.d, t = s.look.t })
     local id = s.id
     SetTimeout(SC.MaxMinutes * 60000 + 500, function()
         if sessions[id] == s then cancel(s, 'time') end
@@ -392,14 +422,39 @@ RegisterNetEvent('nz-wig:s:salonMove', function(id, idx, score)
 
     local m = s.moves[idx]
     local nextM = s.moves[idx + 1]
-    local stepDone = not nextM or nextM.step ~= m.step
     TriggerClientEvent('nz-wig:c:salonProgress', s.c, { id = s.id, idx = s.idx, total = #s.moves, step = nextM and nextM.step or m.step })
-    -- some steps show a look halfway (the cornrow base of a sew-in)
-    local look = stepDone and s.style.steps[m.step].look
-    if look and lookFor(look, s.model) then
-        TriggerClientEvent('nz-wig:c:salonLook', s.c, s.id, lookFor(look, s.model))
+    -- what it did to the head
+    local e = s.effects[idx]
+    if e then
+        if e.base then
+            -- the braid down: the client's hair goes to cornrows (a linked look wins over the config number)
+            local look = lookFor(e.base, s.model) or (SC.Cornrows and SC.Cornrows[s.model])
+            if look then TriggerClientEvent('nz-wig:c:salonLook', s.c, s.id, look) end
+        end
+        if e.cap then workFx(s, 'cap', {}) end
+        if e.pieces then workFx(s, 'pieces', { kind = e.pieces, idx = idx }) end
+        if e.reveal then
+            s.revealed = e.reveal
+            workFx(s, 'reveal', { f = e.reveal })
+        end
     end
     if not nextM then Salon.Finish(s) end
+end)
+
+-- part way through a long move (rows of cornrows, a braid, a weft track): the style goes on as it's done
+RegisterNetEvent('nz-wig:s:salonPart', function(id, idx, frac)
+    local src = source
+    local s = sessions[tonumber(id) or -1]
+    if not s or s.b ~= src or s.stage ~= 'styling' or tonumber(idx) ~= s.idx then return end
+    local e = s.effects[s.idx]
+    frac = SafeNumber(frac)
+    if not e or not e.reveal or not frac then return end
+    local f = (e.from or 0) + (e.reveal - (e.from or 0)) * math.max(0, math.min(0.95, frac))
+    local t = GetGameTimer()
+    if f > s.revealed + 0.03 and t - s.revealAt > 600 then
+        s.revealed, s.revealAt = f, t
+        workFx(s, 'reveal', { f = f })
+    end
 end)
 
 -- the sound / spray / steam others see, at most a few times a second
@@ -456,6 +511,9 @@ function Salon.Finish(s)
     React(C.src, 'cut_client', 600)
     SaveP(B) SaveP(C) SyncP(B)
     Hair.Push(C, 'style')
+    -- the finished hairstyle is on the ped now: the pieces make way once it has streamed in
+    workFx(s, 'reveal', { f = 1 })
+    SetTimeout(1800, function() workFx(s, 'clear', {}) end)
     DB.AddFeed('style', B.id, B.name, C.id, C.name, nil, style.label, s.price)
     Social.PushFeed({ kind = 'style', actor_name = B.name, target_name = C.name, label = style.label, amount = s.price, created = now() })
 
@@ -491,6 +549,8 @@ OnPlayerDrop(function(src)
 end)
 
 function Salon.InSession(src) return bySrc[src] ~= nil end
+
+lib.callback.register('nz-wig:salonAdmin', function(src) return IsPlayerAceAllowed(src, 'command.wigstudio') end)
 
 -- the rat-tail comb opens the Style Book on whoever is in front
 function Salon.RegisterItems()

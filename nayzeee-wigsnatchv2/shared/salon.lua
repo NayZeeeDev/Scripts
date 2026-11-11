@@ -560,3 +560,45 @@ function Salon.Minutes(style, opts)
     for i = 1, #moves do t = t + Salon.MoveTime(moves, i) * 3 + 6 end
     return math.max(1, math.floor(t / 60 + 0.5))
 end
+
+-- what each move does to the head, for everyone to see (props on the client's head):
+--   reveal = share of the style's slices on after it (0..1), base = a look to switch to ('cornrows'),
+--   cap = true (the wig cap goes on), pieces = 'clip' | 'pin' at the move's points
+function Salon.Effects(style, moves)
+    local out = {}
+    -- the work that builds the style: the weft tracks of a sew-in, else braids / cornrows / twists / sewing
+    local work = {}
+    local tracks = false
+    for _, m in ipairs(moves) do
+        if (Salon.GeoOf(moves, _) or ''):sub(1, 6) == 'track:' then tracks = true break end
+    end
+    for i, m in ipairs(moves) do
+        local geo = Salon.GeoOf(moves, i) or ''
+        local isWork
+        if tracks then isWork = geo:sub(1, 6) == 'track:' and (m.a == 'sew' or m.a == 'trace')
+        else
+            -- twisting / wrapping down a strand counts, a bun or a scrunch doesn't
+            local twist = m.a == 'circle' and (geo:find('length', 1, true) or geo:find('grid', 1, true)) ~= nil
+            isWork = (m.a == 'braid' or m.a == 'cornrow' or m.a == 'sew' or twist) and not m.base
+        end
+        if isWork then work[#work + 1] = i end
+    end
+    -- nothing braided / sewn (a bubble braid): the hair builds up over every move after the first step
+    if #work == 0 then
+        for i, m in ipairs(moves) do if m.stepNo > 1 then work[#work + 1] = i end end
+    end
+    for j, i in ipairs(work) do
+        out[i] = out[i] or {}
+        out[i].reveal = j / #work
+        out[i].from = (j - 1) / #work   -- where this move starts, for the reveal along the way
+    end
+    for i, m in ipairs(moves) do
+        local e = out[i] or {}
+        local geo = Salon.GeoOf(moves, i) or ''
+        if m.base then e.base = m.base end
+        if geo == 'drag:cap' then e.cap = true end
+        if m.a == 'dab' and (m.mark == 'clip' or m.mark == 'pin') then e.pieces = m.mark end
+        if next(e) then out[i] = e end
+    end
+    return out
+end

@@ -231,3 +231,10 @@
 .sk .store.tall .store-body{grid-template-rows:minmax(0,1fr)}
 .sk .store.tall .store-left{height:100%}
 .sk .store.wide .store-body{grid-template-columns:1fr 340px}
+
+/* lighter panels while working: the character is the show */
+.sl-steps{width:260px}
+.sl-steps .ch-in,.sl-tray .ch-in,.sl-top .ch-in{background:linear-gradient(rgba(14,16,17,.82),rgba(8,9,10,.82));backdrop-filter:blur(2px)}
+.sl-step p{font-size:11.5px}
+.sl-tray{width:260px}
+.sl-obj{width:460px}

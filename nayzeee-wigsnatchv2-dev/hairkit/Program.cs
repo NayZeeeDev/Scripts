@@ -4,6 +4,8 @@
 //   hairkit scan  --out <nzw_hairprops> [--roots-file f] [root ...]   what's new / changed / gone
 //   hairkit build --out <nzw_hairprops> [--all] [--roots-file f] [root ...]
 //   hairkit game  --out <nzw_hairprops> --gta <GTA V folder>          base game + DLC hair (needs GTA)
+//   --slices <file>  hairstyle keys (one per line) that also get slice props for the salon: the hair cut into
+//                    bands by where each strand roots, nape first, crown last (<prop>_s1 .. _s5)
 //
 // Lines starting with '@' are JSON for the server script; everything else is a log line.
 // Started with no arguments (double-clicked), it asks for the GTA V folder and runs `game`.
@@ -40,6 +42,7 @@ static class P
             string outDir = null, gta = null, rootsFile = null;
             bool all = false;
             int texSize = 256;
+            string slicesFile = null;
             var roots = new List<string>();
             for (int i = 1; i < args.Length; i++)
             {
@@ -50,6 +53,7 @@ static class P
                     case "--roots-file": rootsFile = args[++i]; break;
                     case "--all": all = true; break;
                     case "--tex": texSize = int.Parse(args[++i]); break;
+                    case "--slices": slicesFile = args[++i]; break;
                     default: roots.Add(args[i]); break;
                 }
             }
@@ -57,6 +61,8 @@ static class P
             if (outDir == null) return Usage();
             outDir = Path.GetFullPath(outDir);
             var map = HairMap.Load(outDir);
+            if (slicesFile != null && File.Exists(slicesFile))
+                SliceKeys = new HashSet<string>(File.ReadAllLines(slicesFile).Select(l => l.Trim()).Where(l => l.Length > 0));
 
             switch (cmd)
             {
@@ -72,6 +78,10 @@ static class P
                     var found = FindServerHair(roots, outDir);
                     var diff = map.Diff(found, "server");
                     var todo = all ? found : diff.New.Concat(diff.Changed).ToList();
+                    // salon looks that don't have their slices yet
+                    foreach (var f in found)
+                        if (SliceKeys.Contains(f.Key) && !todo.Contains(f) && (!map.Entries.TryGetValue(f.Key, out var e) || (e["slices"]?.GetValue<int>() ?? 0) != SliceCount))
+                            todo.Add(f);
                     Build(outDir, map, todo, diff.Removed, texSize);
                     return 0;
                 }
@@ -97,7 +107,7 @@ static class P
 
     static int Usage()
     {
-        Console.WriteLine("hairkit scan|build|game --out <nzw_hairprops folder> [--all] [--tex 256] [--roots-file file] [--gta folder] [root ...]");
+        Console.WriteLine("hairkit scan|build|game --out <nzw_hairprops folder> [--all] [--tex 256] [--roots-file file] [--slices file] [--gta folder] [root ...]");
         return 2;
     }
 
@@ -378,6 +388,9 @@ static class P
         Emit("done", new JsonObject { ["built"] = ok, ["tried"] = total, ["removed"] = removed, ["props"] = map.Entries.Count });
     }
 
+    static HashSet<string> SliceKeys = new();
+    const int SliceCount = 5;
+
     static string PropName(Src s)
     {
         var coll = s.Collection == "" ? "base" : JenkHash.GenHash(s.Collection).ToString("x8");
@@ -412,8 +425,15 @@ static class P
 
             // texture: the hair's diffuse from its .ytd, else a diffuse embedded in the .ydd
             var tex = PickDiffuse(ytd, ydd);
-            if (tex == null) { Console.WriteLine($"skip {s.Key}: no diffuse texture"); return false; }
-            var (rgba, w, h) = Pixels(tex);
+            byte[] rgba; int w, h;
+            if (tex != null) (rgba, w, h) = Pixels(tex);
+            else
+            {
+                // no diffuse shipped with it (an empty .ytd): a plain dark brown, so it still shows
+                Console.WriteLine($"note {s.Key}: no diffuse texture, using a plain colour");
+                w = h = 32; rgba = new byte[w * h * 4];
+                for (int k = 0; k < rgba.Length; k += 4) { rgba[k] = 38; rgba[k + 1] = 26; rgba[k + 2] = 20; rgba[k + 3] = 255; }
+            }
             int tw = Pow2(w, texSize), th = Pow2(h, texSize);
             rgba = Resize(rgba, w, h, tw, th);
             bool alpha = UsesAlpha(rgba);
@@ -447,6 +467,38 @@ static class P
             var all = outGeos.SelectMany(g => g.P).ToList();
             var mn = all.Aggregate(Vector3.Min); var mx = all.Aggregate(Vector3.Max);
             map.Set(s, name, mn, mx, outGeos.Sum(g => g.I.Count / 3), alpha);
+
+            // salon slices: the same hair in bands, so a style can go on row by row
+            if (SliceKeys.Contains(s.Key))
+            {
+                var bands = Slice(geos, SliceCount);
+                for (int b = 0; b < bands.Count; b++)
+                {
+                    var bg = new List<Geo>();
+                    foreach (var g in bands[b])
+                    {
+                        if (alpha)
+                        {
+                            int n = g.P.Count;
+                            var dbl = new Geo();
+                            dbl.P.AddRange(g.P); dbl.N.AddRange(g.N); dbl.UV.AddRange(g.UV); dbl.I.AddRange(g.I);
+                            dbl.P.AddRange(g.P); dbl.N.AddRange(g.N.Select(v => -v)); dbl.UV.AddRange(g.UV);
+                            for (int k = 0; k < g.I.Count; k += 3) { dbl.I.Add(g.I[k] + n); dbl.I.Add(g.I[k + 2] + n); dbl.I.Add(g.I[k + 1] + n); }
+                            bg.AddRange(Split(dbl));
+                        }
+                        else bg.AddRange(Split(g));
+                    }
+                    var sname = $"{name}_s{b + 1}";
+                    if (bg.Count == 0 || bg.All(g => g.I.Count == 0)) bg = new List<Geo> { Tiny() };
+                    var sx = XmlYdr.GetYdr(YdrXml(sname, bg, texName, tw, th, mips, alpha ? "cutout" : "default", alpha ? 3 : 0), tmp);
+                    var sd = sx.Save();
+                    var sb = new YdrFile(); sb.Load(sd);
+                    if (sb.Drawable == null) throw new Exception("compiled slice did not load back");
+                    File.WriteAllBytes(Path.Combine(outDir, "stream", sname + ".ydr"), sd);
+                }
+                map.Entries[s.Key]["slices"] = bands.Count;
+                Console.WriteLine($"ok {s.Key} -> {bands.Count} salon slices");
+            }
             Console.WriteLine($"ok {s.Key} -> {name} ({all.Count} verts, {data.Length / 1024} KB{(alpha ? ", cutout" : "")})");
             return true;
         }
@@ -454,6 +506,94 @@ static class P
     }
 
     static float F(string v) => float.Parse(v, NumberStyles.Float, IC);
+
+    // Cuts hair into `count` bands for the salon. Hair is made of separate strands / cards / braids (connected
+    // pieces of the mesh); each piece goes in the band of where it roots (its highest point, near the scalp),
+    // lowest roots first, so the bands go on nape -> crown like weft rows or braids. Pieces are shared out so
+    // every band has about the same amount of hair. A mesh that's one big piece is cut by triangle height.
+    static List<List<Geo>> Slice(List<Geo> geos, int count)
+    {
+        var pieces = new List<(Geo g, List<int> tris, float root)>();
+        foreach (var g in geos)
+        {
+            int nv = g.P.Count, nt = g.I.Count / 3;
+            var parent = Enumerable.Range(0, nv).ToArray();
+            int Find(int a) { while (parent[a] != a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; }
+            for (int t = 0; t < nt; t++)
+            {
+                int a = Find(g.I[t * 3]), b = Find(g.I[t * 3 + 1]), c = Find(g.I[t * 3 + 2]);
+                parent[b] = a; parent[Find(c)] = a;
+            }
+            var groups = new Dictionary<int, List<int>>();
+            for (int t = 0; t < nt; t++)
+            {
+                int r = Find(g.I[t * 3]);
+                if (!groups.TryGetValue(r, out var l)) groups[r] = l = new List<int>();
+                l.Add(t);
+            }
+            int total = nt;
+            foreach (var l in groups.Values)
+            {
+                if (l.Count > total * 0.6 && total > 50)
+                {
+                    // one big piece: by triangle height instead
+                    foreach (var t in l)
+                    {
+                        float z = (g.P[g.I[t * 3]].Z + g.P[g.I[t * 3 + 1]].Z + g.P[g.I[t * 3 + 2]].Z) / 3f;
+                        pieces.Add((g, new List<int> { t }, z));
+                    }
+                }
+                else
+                {
+                    float root = float.MinValue;
+                    foreach (var t in l) for (int k = 0; k < 3; k++) root = Math.Max(root, g.P[g.I[t * 3 + k]].Z);
+                    pieces.Add((g, l, root));
+                }
+            }
+        }
+        pieces.Sort((a, b) => a.root.CompareTo(b.root));
+        int all = pieces.Sum(p => p.tris.Count);
+        var bands = new List<List<Geo>>();
+        int at = 0, done = 0;
+        for (int b = 0; b < count; b++)
+        {
+            int want = (int)Math.Round((double)all * (b + 1) / count);
+            var byGeo = new Dictionary<Geo, List<int>>();
+            while (at < pieces.Count && (done < want || b == count - 1))
+            {
+                var p = pieces[at++];
+                if (!byGeo.TryGetValue(p.g, out var l)) byGeo[p.g] = l = new List<int>();
+                l.AddRange(p.tris);
+                done += p.tris.Count;
+            }
+            var band = new List<Geo>();
+            foreach (var kv in byGeo)
+            {
+                var src = kv.Key; var ng = new Geo(); var remap = new Dictionary<int, int>();
+                foreach (var t in kv.Value)
+                    for (int k = 0; k < 3; k++)
+                    {
+                        int v = src.I[t * 3 + k];
+                        if (!remap.TryGetValue(v, out var nv2)) { nv2 = ng.P.Count; remap[v] = nv2; ng.P.Add(src.P[v]); ng.N.Add(src.N[v]); ng.UV.Add(src.UV[v]); }
+                        ng.I.Add(nv2);
+                    }
+                band.Add(ng);
+            }
+            bands.Add(band);
+        }
+        return bands;
+    }
+
+    // an empty band still needs a model: one tiny triangle inside the head
+    static Geo Tiny()
+    {
+        var g = new Geo();
+        g.P.AddRange(new[] { new Vector3(0, 0, 0.05f), new Vector3(0.001f, 0, 0.05f), new Vector3(0, 0.001f, 0.05f) });
+        g.N.AddRange(new[] { Vector3.UnitZ, Vector3.UnitZ, Vector3.UnitZ });
+        g.UV.AddRange(new[] { Vector2.Zero, Vector2.Zero, Vector2.Zero });
+        g.I.AddRange(new[] { 0, 1, 2 });
+        return g;
+    }
 
     static List<Geo> ParseGeometries(string hi)
     {
@@ -672,6 +812,16 @@ static class P
             items.Append($"   <bsCentre x=\"{N(c.X)}\" y=\"{N(c.Y)}\" z=\"{N(c.Z)}\" />\n   <bsRadius value=\"{N(r)}\" />\n   <hdTextureDist value=\"20\" />\n");
             items.Append($"   <name>{name}</name>\n   <textureDictionary />\n   <clipDictionary />\n   <drawableDictionary />\n   <physicsDictionary />\n");
             items.Append($"   <assetType>ASSET_TYPE_DRAWABLE</assetType>\n   <assetName>{name}</assetName>\n   <extensions />\n  </Item>\n");
+            int slices = e["slices"]?.GetValue<int>() ?? 0;
+            for (int k = 1; k <= slices; k++)
+            {
+                var sn = $"{name}_s{k}";
+                items.Append($"  <Item type=\"CBaseArchetypeDef\">\n   <lodDist value=\"40\" />\n   <flags value=\"32\" />\n   <specialAttribute value=\"0\" />\n");
+                items.Append($"   <bbMin x=\"{N(mn.X)}\" y=\"{N(mn.Y)}\" z=\"{N(mn.Z)}\" />\n   <bbMax x=\"{N(mx.X)}\" y=\"{N(mx.Y)}\" z=\"{N(mx.Z)}\" />\n");
+                items.Append($"   <bsCentre x=\"{N(c.X)}\" y=\"{N(c.Y)}\" z=\"{N(c.Z)}\" />\n   <bsRadius value=\"{N(r)}\" />\n   <hdTextureDist value=\"20\" />\n");
+                items.Append($"   <name>{sn}</name>\n   <textureDictionary />\n   <clipDictionary />\n   <drawableDictionary />\n   <physicsDictionary />\n");
+                items.Append($"   <assetType>ASSET_TYPE_DRAWABLE</assetType>\n   <assetName>{sn}</assetName>\n   <extensions />\n  </Item>\n");
+            }
         }
         var xml = $"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<CMapTypes>\n <extensions />\n <archetypes>\n{items}</archetypes>\n <name>nzw_hair</name>\n <dependencies />\n <compositeEntityTypes itemType=\"CCompositeEntityType\" />\n</CMapTypes>\n";
         var doc = new XmlDocument(); doc.LoadXml(xml);
@@ -722,6 +872,8 @@ static class P
         {
             if (!Entries.TryGetValue(key, out var e)) return;
             try { File.Delete(Path.Combine(dir, "stream", e["prop"].GetValue<string>() + ".ydr")); } catch { }
+            for (int k = 1; k <= (e["slices"]?.GetValue<int>() ?? 0); k++)
+                try { File.Delete(Path.Combine(dir, "stream", e["prop"].GetValue<string>() + $"_s{k}.ydr")); } catch { }
             Entries.Remove(key);
         }
 

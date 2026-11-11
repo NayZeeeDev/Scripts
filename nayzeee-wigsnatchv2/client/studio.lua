@@ -369,7 +369,7 @@ end)
 -- the salon: show a style as the hairstyle on screen (or stop)
 on('st:salonLook', function(d)
     if type(d.id) ~= 'string' then return end
-    TriggerServerEvent('nz-wig:s:salonSetLook', d.id, model, d.clear and false or drawable, texture)
+    TriggerServerEvent('nz-wig:s:salonSetLook', d.id, model, d.clear and false or drawable, texture, HairProps.Key(model, drawable))
 end)
 
 on('st:name', function(d)

@@ -2,7 +2,7 @@
 -- The server sends hairmap ("m|mp_m_mypack|3" -> "nzw_m_1a2b3c4d_3"); a hairstyle number is turned into
 -- that key with the game's collection natives, so props stay right when hair packs are added or reordered.
 
-HairProps = { map = {} }
+HairProps = { map = {}, slices = {} }
 
 local keys = {}      -- [m] = { [drawable] = key }
 local natives = nil  -- whether this game build has the collection natives
@@ -53,9 +53,26 @@ function HairProps.Has(m, d)
     return key ~= nil and HairProps.map[key] ~= nil
 end
 
-RegisterNetEvent('nz-wig:c:hairmap', function(map)
+RegisterNetEvent('nz-wig:c:hairmap', function(map, slices)
     HairProps.map = type(map) == 'table' and map or {}
+    HairProps.slices = type(slices) == 'table' and slices or {}
 end)
+
+-- the salon slices of a hairstyle: a list of prop hashes, nape first (nil if it has none)
+function HairProps.Slices(m, d)
+    if not Config.HairProps.Enabled or not m or not d then return nil end
+    local key = HairProps.Key(m, d)
+    local prop = key and HairProps.map[key]
+    local n = key and HairProps.slices[key]
+    if not prop or not n then return nil end
+    local out = {}
+    for k = 1, n do
+        local h = GetHashKey(('%s_s%d'):format(prop, k))
+        if not IsModelInCdimage(h) then return nil end
+        out[k] = h
+    end
+    return out
+end
 
 CB.OnLoaded(function() TriggerServerEvent('nz-wig:s:hairmap') end)
 CreateThread(function() if CB.IsLoaded() then TriggerServerEvent('nz-wig:s:hairmap') end end)

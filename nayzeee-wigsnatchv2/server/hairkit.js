@@ -35,6 +35,11 @@ on('nz-wig:hairkit:run', (job) => {
   }
   const args = [job.mode === 'rebuild' ? 'build' : job.mode, '--out', path.resolve(job.out), '--roots-file', rootsFile, '--tex', String(job.tex || 256)];
   if (job.mode === 'rebuild') args.push('--all');
+  // hairstyles the salon uses: they also get slice props (the style goes on row by row)
+  if (job.slices && job.slices.length) {
+    const slicesFile = path.join(path.dirname(kit), '.slices.txt');
+    try { fs.writeFileSync(slicesFile, job.slices.join('\n')); args.push('--slices', slicesFile); } catch (e) { /* no slices this time */ }
+  }
 
   let buf = '', tail = [];
   try {

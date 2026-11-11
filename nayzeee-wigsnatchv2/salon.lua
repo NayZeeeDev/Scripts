@@ -12,11 +12,14 @@
 -- When it's done the client gets the style for real, on their own ped, for everyone to see.
 --
 -- HOW THE STYLES SHOW IN PERSON
--- GTA can only show a hairstyle the game (or a clothing pack on your server) has. So every style is
--- linked to one of your hairstyles, per model: /wigstudio > pick the hairstyle > "Salon look" >
--- pick the style. Box braids from your braid pack, a sew-in from a long body wave, and so on.
--- A style with no look for the client's model can't be started (the Style Book says so).
--- Some styles also show a look halfway (the cornrow base of a sew-in): those are in Looks below.
+-- Every style is one of your hairstyles (hand-picked from your clothing packs, or base game), per model:
+-- /wigstudio > pick the hairstyle > "Salon look" > pick the style. Box braids from your braid pack, a sew-in
+-- from a long body wave, and so on. A style with no look for the client's model can't be started.
+-- While the style is done, that hairstyle goes on for real, on the client's head, piece by piece: hairkit
+-- (the 3D wigs tool) cuts it into slices (nape first, crown last) when you link it, and every row sewn /
+-- braid finished puts the next slice on. At the end the slices make way for the hairstyle itself.
+-- A sew-in starts with the braid down: the client's hair goes to cornrows (Cornrows below), the mesh wig
+-- cap goes over them, and the wefts go on row by row.
 
 Config.Salon = {
     Enabled        = true,
@@ -129,9 +132,24 @@ Config.Salon = {
         hair         = { label = 'Extension Hair',   item = false, prop = { model = `nz_sty_pack`, bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) } },
     },
 
-    -- In-between looks some styles show halfway (set them in /wigstudio like the styles)
+    -- The braid down under a sew-in: GTA's own cornrows. Female 25 is Pinched Cornrows and male 8 is
+    -- Cornrows on most game builds; check the number in /wigstudio and put yours here (or link the
+    -- "cornrows" look there, which wins over this).
+    Cornrows = { f = { d = 25, t = 0 }, m = { d = 8, t = 0 } },
+    -- In-between looks you can link in /wigstudio like the styles
     Looks = {
-        sewin_base = 'Sew-in: braid down (cornrows under the cap)',
+        cornrows = 'Cornrows: the braid down under a sew-in',
+    },
+
+    -- How props sit on a head (slices, the wig cap, clips): attached to the head bone (SKEL_Head) turned
+    -- from the ped's axes into the bone's. If they sit wrong on your build, /salonalign (admins) lets you
+    -- nudge it live with the arrow keys and prints the values to put here.
+    Attach = { pos = vec3(0.0, 0.0, 0.0), rot = vec3(0.0, 90.0, 0.0) },
+    -- The pieces that go on the head while working (props in stream/)
+    Pieces = {
+        cap  = `nz_sty_capon`,   -- the mesh wig cap, over the cornrows
+        clip = `nz_sty_clip`,    -- sectioning clips
+        pin  = `nz_sty_pin`,     -- bobby pins
     },
 }
 
@@ -580,8 +598,8 @@ Config.SalonStyles = {
                 { a = 'dab', geo = 'point:top', tool = 'hands', mark = 'clip' } } },
             { text = 'Apply braiding gel and braid the rest of the natural hair into tight, flat, uniform cornrows running straight back or in a circular beehive pattern against the scalp.', moves = {
                 { a = 'sweep', geo = 'zone:back', tool = 'braid_gel' },
-                { a = 'cornrow', geo = 'rows:all:6', stitches = 6 } } },
-            { text = 'Sew or pin the loose ends of the cornrows flat against the head so there are no lumps.', look = 'sewin_base', moves = {
+                { a = 'cornrow', geo = 'rows:all:6', stitches = 6, base = 'cornrows' } } },
+            { text = 'Sew or pin the loose ends of the cornrows flat against the head so there are no lumps.', moves = {
                 { a = 'dab', geo = 'points:rows:6', tool = 'c_needle', mark = 'tack' } } },
             -- PHASE 2: WIG CAP & CLOSURE PLACEMENT
             { phase = 'Wig cap & closure placement',

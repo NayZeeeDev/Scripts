@@ -3,7 +3,7 @@
 -- converts new / changed ones into nzw_hairprops/stream and writes hairmap.json, which says which prop
 -- belongs to which hairstyle ("m|mp_m_mypack|3" = male, collection mp_m_mypack, local hairstyle 3).
 
-HairProps = { map = {}, scan = nil, running = false, kit = false, platform = nil }
+HairProps = { map = {}, slices = {}, scan = nil, running = false, kit = false, platform = nil }
 
 local CH = Config.HairProps
 local RES = CH.Resource
@@ -32,10 +32,14 @@ end
 
 local function loadMap()
     HairProps.map = {}
+    HairProps.slices = {}
     local raw = GetResourceState(RES) ~= 'missing' and LoadResourceFile(RES, 'hairmap.json') or nil
     local ok, data = pcall(json.decode, raw or '{}')
     for key, e in pairs(ok and type(data) == 'table' and data.props or {}) do
-        if type(e) == 'table' and type(e.prop) == 'string' then HairProps.map[key] = e.prop end
+        if type(e) == 'table' and type(e.prop) == 'string' then
+            HairProps.map[key] = e.prop
+            if tonumber(e.slices) and e.slices > 0 then HairProps.slices[key] = math.floor(e.slices) end
+        end
     end
     return HairProps.map
 end
@@ -68,7 +72,8 @@ function HairProps.Run(mode, src)
     end
     HairProps.running = mode
     tell(src, { kind = 'start', mode = mode })
-    TriggerEvent('nz-wig:hairkit:run', { mode = mode, src = src or 0, kits = CH.Kit, roots = roots(), out = outDir(), tex = CH.TextureSize })
+    TriggerEvent('nz-wig:hairkit:run', { mode = mode, src = src or 0, kits = CH.Kit, roots = roots(), out = outDir(), tex = CH.TextureSize,
+        slices = Salon and Salon.SliceKeys and Salon.SliceKeys() or {} })
     return true
 end
 
@@ -84,7 +89,7 @@ local function restartProps()
             print(('^3  or add "ensure %s" to server.cfg after this resource.^0'):format(RES))
         end
         loadMap()
-        TriggerClientEvent('nz-wig:c:hairmap', -1, HairProps.map)
+        TriggerClientEvent('nz-wig:c:hairmap', -1, HairProps.map, HairProps.slices)
     end)
 end
 
@@ -148,7 +153,7 @@ end)
 
 -- clients ask for the hairstyle -> prop map after joining
 RegisterNetEvent('nz-wig:s:hairmap', function()
-    TriggerClientEvent('nz-wig:c:hairmap', source, HairProps.map)
+    TriggerClientEvent('nz-wig:c:hairmap', source, HairProps.map, HairProps.slices)
 end)
 
 CreateThread(function()
@@ -157,7 +162,7 @@ CreateThread(function()
     TriggerEvent('nz-wig:hairkit:check', CH.Kit)
     if GetResourceState(RES) == 'stopped' or GetResourceState(RES) == 'uninitialized' then ExecuteCommand('ensure ' .. RES) end
     loadMap()
-    TriggerClientEvent('nz-wig:c:hairmap', -1, HairProps.map)
+    TriggerClientEvent('nz-wig:c:hairmap', -1, HairProps.map, HairProps.slices)
     if CH.AutoScan and HairProps.kit then HairProps.Run('scan', 0)
     else booting = false end
 end)

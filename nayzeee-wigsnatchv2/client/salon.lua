@@ -298,33 +298,6 @@ local function chainOf(i)
     return n
 end
 
--- the work that stays on the head after a move: parts, rows, braids, spots, tracks
-local function keep(i, k)
-    if type(k) ~= 'table' or not S.geo then return end
-    local m = S.moves[i]
-    local list = S.geo.list
-    local col = (m.feed or k.c == 'feed') and S.colour.feed or S.colour.hair
-    if k.k == 'part' or k.k == 'row' or k.k == 'track' then
-        if S.geo.kind ~= 'paths' then return end
-        S.decor[#S.decor + 1] = { k = k.k, paths = list, c = col }
-    elseif k.k == 'braid' then
-        if S.geo.kind ~= 'paths' then return end
-        local upto = math.max(1, math.min(#list, (tonumber(k.path) or 0) + 1))
-        local d = { k = 'braid', paths = G.Slice(list, 1, upto), t = math.max(0, math.min(1, tonumber(k.t) or 1)), c = S.colour.hair }
-        local last = S.decor[#S.decor]
-        if m.cont and last and last.k == 'braid' then S.decor[#S.decor] = d else S.decor[#S.decor + 1] = d end
-    elseif k.k == 'dab' and S.geo.kind == 'points' and type(k.hit) == 'table' then
-        local pts = {}
-        for _, h in ipairs(k.hit) do
-            local p = list[(tonumber(h) or -1) + 1]
-            if p then pts[#pts + 1] = p end
-        end
-        if #pts > 0 then S.decor[#S.decor + 1] = { k = 'dab', points = pts, m = type(k.m) == 'string' and k.m or 'gel', c = col } end
-    end
-    -- keep it to the last few dozen pieces
-    while #S.decor > 40 do table.remove(S.decor, 1) end
-end
-
 local function startMove(i)
     S.i = i
     local m = S.moves[i]
@@ -368,24 +341,79 @@ local function project()
     local _, hx, hy = GetScreenCoordFromWorldCoord(c.x, c.y, c.z)
     local top = c + up * RADII.z
     local _, tx, ty = GetScreenCoordFromWorldCoord(top.x, top.y, top.z)
-    -- the work so far, projected the same way
-    local dec = {}
-    for k, d in ipairs(S.decor) do
-        local e = { k = d.k, c = d.c, t = d.t, m = d.m }
-        if d.paths then
-            e.ps = {}
-            for j, path in ipairs(d.paths) do
-                local pp = {}
-                for q, p in ipairs(path) do pp[q] = pt(p) end
-                e.ps[j] = pp
-            end
-        else
-            e.p = {}
-            for j, p in ipairs(d.points) do e.p[j] = pt(p) end
+    NUI.Send('salon:geo', { i = S.i, g = out, head = { hx, hy, tx, ty } })
+end
+
+-- the tool in use, on the client's head where the cursor is: lying on the hair (combs, brushes, irons,
+-- the needle) or held off it, pointed at it (sprays, mousse, the dryer). Only the stylist sees this one:
+-- everyone else sees the tool in the stylist's hand.
+local AIM = { mousse = 0.14, heat_protect = 0.14, shine_spray = 0.14, moisturizer = 0.14, blow_dryer = 0.2, braid_gel = 0.07, edge_control = 0.07, hair = 0.05 }
+local function dot3(a, b) return a.x * b.x + a.y * b.y + a.z * b.z end
+local function unit(v) local l = math.sqrt(dot3(v, v)) return l > 1e-6 and v / l or vec3(0.0, 0.0, 1.0) end
+local function cross(a, b) return vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x) end
+
+local function hitHead(ped, origin, dir)
+    local c, fwd, right, up = headFrame(ped)
+    local o = origin - c
+    local k = HAIR
+    local lo = vec3(dot3(o, right) / (RADII.x * k), dot3(o, fwd) / (RADII.y * k), dot3(o, up) / (RADII.z * k))
+    local ld = vec3(dot3(dir, right) / (RADII.x * k), dot3(dir, fwd) / (RADII.y * k), dot3(dir, up) / (RADII.z * k))
+    local a, b, cc = dot3(ld, ld), 2.0 * dot3(lo, ld), dot3(lo, lo) - 1.0
+    local disc = b * b - 4.0 * a * cc
+    if disc < 0 then return nil end
+    local t = (-b - math.sqrt(disc)) / (2.0 * a)
+    if t < 0 then return nil end
+    local p = lo + ld * t
+    local world = c + right * (p.x * RADII.x * k) + fwd * (p.y * RADII.y * k) + up * (p.z * RADII.z * k)
+    local n = unit(right * (p.x / RADII.x) + fwd * (p.y / RADII.y) + up * (p.z / RADII.z))
+    return world, n
+end
+
+local function toolOnHead(ped)
+    local tool = S.moves[S.i] and S.moves[S.i].tool or 'hands'
+    local def = SC.Tools[tool] or {}
+    local model = def.prop and def.prop.model
+    if S.headTool ~= tool then
+        if S.headObj then DeleteEntity(S.headObj) S.headObj = nil end
+        S.headTool = tool
+        if model and IsModelInCdimage(model) and pcall(lib.requestModel, model, 1500) then
+            local c = GetEntityCoords(ped)
+            S.headObj = CreateObject(model, c.x, c.y, c.z + 5.0, false, false, false)
+            SetEntityCollision(S.headObj, false, false)
+            SetModelAsNoLongerNeeded(model)
         end
-        dec[k] = e
     end
-    NUI.Send('salon:geo', { i = S.i, g = out, head = { hx, hy, tx, ty }, dec = dec })
+    local obj = S.headObj
+    if not obj then return end
+    local x, y = GetNuiCursorPosition()
+    local w, h = GetActiveScreenResolution()
+    local origin, dir
+    if x and w > 0 then origin, dir = GetWorldCoordFromScreenCoord(x / w, y / h) end
+    local hit, n
+    if origin then hit, n = hitHead(ped, origin, dir) end
+    if not hit then SetEntityVisible(obj, false, false) return end
+    SetEntityVisible(obj, true, false)
+    local camR = unit(cross(dir, vec3(0.0, 0.0, 1.0)))
+    local up, fwd, pos
+    local off = AIM[tool]
+    if off then
+        -- held off the hair, pointing at it
+        pos = hit + n * off
+        fwd = unit(-n)
+        up = unit(cross(camR, fwd))
+        if tool == 'blow_dryer' or tool == 'hair' then up = vec3(0.0, 0.0, 1.0) end
+    else
+        -- lying on the hair, along it
+        pos = hit + n * 0.006
+        up = n
+        local down = vec3(0.0, 0.0, -1.0)
+        fwd = down - n * dot3(down, n)
+        if dot3(fwd, fwd) < 1e-4 then fwd = camR end
+        fwd = unit(fwd)
+    end
+    local right = unit(cross(fwd, up))
+    up = unit(cross(right, fwd))
+    SetEntityMatrix(obj, fwd.x, fwd.y, fwd.z, right.x, right.y, right.z, up.x, up.y, up.z, pos.x, pos.y, pos.z)
 end
 
 local function loop()
@@ -405,6 +433,7 @@ local function loop()
         if IsDisabledControlPressed(0, 32) then orbit.pitch = math.min(70.0, orbit.pitch + 1.0) want = nil end
         if IsDisabledControlPressed(0, 33) then orbit.pitch = math.max(-30.0, orbit.pitch - 1.0) want = nil end
         placeCam(other)
+        toolOnHead(other)
         local now = GetGameTimer()
         if now - lastSend > 33 then lastSend = now project() end
         local a = S.anim
@@ -423,7 +452,7 @@ RegisterNetEvent('nz-wig:c:salonStart', function(d)
     FaceEntity(me, other)
     FreezeEntityPosition(me, true)
     local moves, steps = Salon.Moves(style, d.opts or {})
-    S = { id = d.id, other = d.other, name = d.name, style = style, opts = d.opts or {}, moves = moves, stepCount = #steps, shade = d.shade, decor = {} }
+    S = { id = d.id, other = d.other, name = d.name, style = style, opts = d.opts or {}, moves = moves, stepCount = #steps, shade = d.shade }
     Salon.session = S
     Snatch.busy = true
     S.anim = LoopAnim(SC.Anim, me) and SC.Anim or (LoopAnim(SC.Fallback, me) and SC.Fallback or nil)
@@ -447,10 +476,14 @@ end)
 RegisterNUICallback('salonMoveDone', function(d, cb)
     cb(1)
     if not S or type(d) ~= 'table' or tonumber(d.i) ~= S.i then return end
-    keep(S.i, d.keep)
     TriggerServerEvent('nz-wig:s:salonMove', S.id, S.i, math.floor(tonumber(d.score) or 0))
     if S.i < #S.moves then startMove(S.i + 1)
     else NUI.Send('salon:wait', {}) end
+end)
+
+RegisterNUICallback('salonPart', function(d, cb)
+    cb(1)
+    if S and type(d) == 'table' and tonumber(d.i) == S.i then TriggerServerEvent('nz-wig:s:salonPart', S.id, S.i, tonumber(d.f) or 0) end
 end)
 
 RegisterNUICallback('salonAct', function(d, cb)
@@ -495,6 +528,7 @@ end)
 local function endStylist()
     if not S then return end
     S.prop = DeleteProp(S.prop)
+    if S.headObj then DeleteEntity(S.headObj) end
     S = nil
     Salon.session = nil
     Snatch.busy = false
@@ -676,5 +710,167 @@ RegisterNUICallback('takedown', function(_, cb) cb(1) SetTimeout(200, takedown) 
 
 function Salon.Cleanup()
     if S then endStylist() end
+    if Salon.ClearAllWork then Salon.ClearAllWork() end
     if Salon.sitting then FreezeEntityPosition(PlayerPedId(), false) stopCam() end
+end
+
+
+-- ═══════════════ the work on the client's head, for everyone close by ═══════════════
+-- Real props on the client's head bone: the slices of the style (hairkit cuts the linked hairstyle into
+-- bands, nape first) going on as the work is done, the mesh wig cap over the cornrows of a sew-in,
+-- sectioning clips and bobby pins. Every player near a session builds these themselves.
+
+local work = {}      -- [clientSrc] = { id, style, opts, m, d, slices = {hash}, shown = 0, objs = {}, cap = obj }
+
+local function rotMatrix(r)
+    -- GTA's rotation order 2 for attachments: yaw (z), then pitch (x), then roll (y)
+    local x, y, z = math.rad(r.x), math.rad(r.y), math.rad(r.z)
+    local cx, sx, cy, sy, cz, sz = math.cos(x), math.sin(x), math.cos(y), math.sin(y), math.cos(z), math.sin(z)
+    local Rx = { { 1, 0, 0 }, { 0, cx, -sx }, { 0, sx, cx } }
+    local Ry = { { cy, 0, sy }, { 0, 1, 0 }, { -sy, 0, cy } }
+    local Rz = { { cz, -sz, 0 }, { sz, cz, 0 }, { 0, 0, 1 } }
+    local function mul(A, B)
+        local C = {}
+        for i = 1, 3 do C[i] = {} for j = 1, 3 do C[i][j] = A[i][1] * B[1][j] + A[i][2] * B[2][j] + A[i][3] * B[3][j] end end
+        return C
+    end
+    return mul(mul(Rz, Rx), Ry)
+end
+
+-- a point on the head (head-local unit coords) as an offset from the head bone, in the bone's axes
+local function boneOffset(p)
+    local k = p.s and HAIR or 1.0
+    local m = { p.x * RADII.x * k, p.y * RADII.y * k + CENTRE.y, p.z * RADII.z * k + CENTRE.z }
+    local R = rotMatrix(SC.Attach.rot)
+    local o = SC.Attach.pos
+    return vec3(R[1][1] * m[1] + R[1][2] * m[2] + R[1][3] * m[3] + o.x,
+                R[2][1] * m[1] + R[2][2] * m[2] + R[2][3] * m[3] + o.y,
+                R[3][1] * m[1] + R[3][2] * m[2] + R[3][3] * m[3] + o.z)
+end
+
+local function attach(model, ped, off, spin)
+    if not model or not IsModelInCdimage(model) or not pcall(lib.requestModel, model, 2000) then return nil end
+    local c = GetEntityCoords(ped)
+    local obj = CreateObject(model, c.x, c.y, c.z, false, false, false)
+    SetModelAsNoLongerNeeded(model)
+    SetEntityCollision(obj, false, false)
+    local r = SC.Attach.rot
+    off = off or SC.Attach.pos
+    AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, HEAD_BONE), off.x, off.y, off.z, r.x + (spin or 0.0), r.y, r.z, false, false, false, false, 2, true)
+    return obj
+end
+
+local function clearWork(src)
+    local w = work[src]
+    if not w then return end
+    for _, o in ipairs(w.objs) do if DoesEntityExist(o) then DeleteEntity(o) end end
+    work[src] = nil
+end
+
+local function showSlices(w, ped)
+    if not w.slices then return end
+    local want = math.min(#w.slices, math.floor(w.f * #w.slices + 1e-4))
+    while w.shown < want do
+        w.shown = w.shown + 1
+        local o = attach(w.slices[w.shown], ped, nil)
+        if o then w.objs[#w.objs + 1] = o end
+    end
+end
+
+RegisterNetEvent('nz-wig:c:salonWork', function(src, id, op, data)
+    local ped = PedOf(src)
+    if op == 'clear' then return clearWork(src) end
+    if op == 'begin' then
+        clearWork(src)
+        work[src] = { id = id, style = data.style, opts = data.opts or {}, m = data.m, d = data.d, f = 0, shown = 0, objs = {},
+                      slices = HairProps.Slices and HairProps.Slices(data.m, data.d) or nil }
+        return
+    end
+    local w = work[src]
+    if not w or w.id ~= id or ped == 0 then return end
+    if op == 'reveal' then
+        w.f = math.max(w.f, tonumber(data.f) or 0)
+        showSlices(w, ped)
+    elseif op == 'cap' then
+        local o = attach(SC.Pieces.cap, ped, nil)
+        if o then w.objs[#w.objs + 1] = o end
+    elseif op == 'pieces' then
+        local style = Salon.Style(w.style)
+        if not style then return end
+        local moves = Salon.Moves(style, w.opts)
+        local m = moves[tonumber(data.idx) or 0]
+        local geo = m and Salon.GeoOf(moves, data.idx)
+        local g = geo and G.Build(geo)
+        if not g or g.kind ~= 'points' then return end
+        local model = SC.Pieces[data.kind]
+        for i, p in ipairs(G.Slice(g.list, m.from, m.limit)) do
+            if p.s then
+                local o = attach(model, ped, boneOffset(p), (i * 47) % 360)
+                if o then w.objs[#w.objs + 1] = o end
+            end
+        end
+    end
+end)
+
+-- a ped that streamed out and back in (or respawned) gets its pieces back
+CreateThread(function()
+    while true do
+        Wait(1500)
+        for src, w in pairs(work) do
+            local ped = PedOf(src)
+            if ped ~= 0 and w.ped ~= ped then
+                for _, o in ipairs(w.objs) do if DoesEntityExist(o) then DeleteEntity(o) end end
+                w.objs, w.shown, w.ped = {}, 0, ped
+                showSlices(w, ped)
+            end
+        end
+    end
+end)
+
+-- ═══════════════ /salonalign: line the head props up on your build (admins) ═══════════════
+-- Wears your own hairstyle's 3D prop (or the wig cap) on your head; arrow keys turn it, PageUp / PageDown and
+-- Shift + arrows move it, Enter prints the values for Config.Salon.Attach.
+RegisterCommand('salonalign', function()
+    if not lib.callback.await('nz-wig:salonAdmin', false) then return CB.Notify(L('no_permission'), 'error') end
+    local ped = PlayerPedId()
+    local m = ModelKey(GetEntityModel(ped))
+    local model = HairProps.Model and HairProps.Model(m, GetPedDrawableVariation(ped, 2)) or nil
+    model = model or SC.Pieces.cap
+    local rot = vec3(SC.Attach.rot.x, SC.Attach.rot.y, SC.Attach.rot.z)
+    local pos = vec3(SC.Attach.pos.x, SC.Attach.pos.y, SC.Attach.pos.z)
+    local obj = attach(model, ped, pos)
+    if not obj then return CB.Notify('No prop to align with', 'error') end
+    CB.Notify('Arrows turn · Shift+arrows / PgUp / PgDn move · Enter prints · Backspace stops', 'info', 10000)
+    CreateThread(function()
+        while DoesEntityExist(obj) do
+            local shift = IsControlPressed(0, 21)
+            local step = 0.5
+            DisableControlAction(0, 172, true) DisableControlAction(0, 173, true) DisableControlAction(0, 174, true) DisableControlAction(0, 175, true)
+            if shift then
+                if IsDisabledControlPressed(0, 172) then pos = pos + vec3(0.0, 0.001, 0.0) end
+                if IsDisabledControlPressed(0, 173) then pos = pos - vec3(0.0, 0.001, 0.0) end
+                if IsDisabledControlPressed(0, 174) then pos = pos - vec3(0.001, 0.0, 0.0) end
+                if IsDisabledControlPressed(0, 175) then pos = pos + vec3(0.001, 0.0, 0.0) end
+            else
+                if IsDisabledControlPressed(0, 172) then rot = rot + vec3(step, 0.0, 0.0) end
+                if IsDisabledControlPressed(0, 173) then rot = rot - vec3(step, 0.0, 0.0) end
+                if IsDisabledControlPressed(0, 174) then rot = rot - vec3(0.0, 0.0, step) end
+                if IsDisabledControlPressed(0, 175) then rot = rot + vec3(0.0, 0.0, step) end
+            end
+            if IsControlPressed(0, 10) then rot = rot + vec3(0.0, step, 0.0) end
+            if IsControlPressed(0, 11) then rot = rot - vec3(0.0, step, 0.0) end
+            AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, HEAD_BONE), pos.x, pos.y, pos.z, rot.x, rot.y, rot.z, false, false, false, false, 2, true)
+            if IsControlJustPressed(0, 191) then
+                local line = ('Attach = { pos = vec3(%.3f, %.3f, %.3f), rot = vec3(%.1f, %.1f, %.1f) },'):format(pos.x, pos.y, pos.z, rot.x, rot.y, rot.z)
+                print(line) CB.Notify(line, 'success', 12000)
+            end
+            if IsControlJustPressed(0, 194) then break end
+            Wait(0)
+        end
+        if DoesEntityExist(obj) then DeleteEntity(obj) end
+    end)
+end, false)
+
+function Salon.ClearAllWork()
+    for src in pairs(work) do clearWork(src) end
 end

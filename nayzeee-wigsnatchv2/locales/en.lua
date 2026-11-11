@@ -112,6 +112,7 @@ Locales['en'] = {
     salon_taken_down       = 'You took down your %s',
     salon_no_style         = "You don't have a salon style in",
     salon_book_title       = 'Style Book',
+    no_permission          = "You can't do that",
     salon_takedown_title   = 'Take it down?',
     salon_takedown_body    = 'Take down your %s? It goes back to your own hair.',
     salon_taking_down      = 'Taking it down',

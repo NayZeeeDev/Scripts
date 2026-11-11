@@ -3,7 +3,7 @@ using System.IO;
 using System.Xml;
 using CodeWalker.GameFiles;
 
-// cwtool ydr2xml <in.ydr> <outdir> | xml2ydr <in.xml> <texdir> <out.ydr> | ytyp2xml <in.ytyp> <out.xml> | xml2ytyp <in.xml> <out.ytyp>
+// cwtool yft2xml <in.yft> <outdir> | ydr2xml <in.ydr> <outdir> | xml2ydr <in.xml> <texdir> <out.ydr> | ytyp2xml <in.ytyp> <out.xml> | xml2ytyp <in.xml> <out.ytyp>
 var cmd = args[0];
 switch (cmd) {
   case "ydr2xml": {
@@ -63,6 +63,16 @@ switch (cmd) {
     var back = new YtypFile();
     back.Load(data);
     foreach (var a in back.AllArchetypes) Console.WriteLine($"ok archetype {a.Name} txd={a._BaseArchetypeDef.textureDictionary} lod={a._BaseArchetypeDef.lodDist} r={a._BaseArchetypeDef.bsRadius}");
+    break;
+  }
+  case "yft2xml": {
+    // the ped skeleton (and anything else) of a .yft as CodeWalker XML
+    var y = new YftFile();
+    y.Load(File.ReadAllBytes(args[1]));
+    Directory.CreateDirectory(args[2]);
+    var xml = YftXml.GetXml(y, args[2]);
+    File.WriteAllText(Path.Combine(args[2], Path.GetFileNameWithoutExtension(args[1]) + ".yft.xml"), xml);
+    Console.WriteLine("ok " + args[1]);
     break;
   }
 }

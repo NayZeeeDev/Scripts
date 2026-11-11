@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
    WIG SNATCH V2 · the salon
-   Doing hair in first person. Lua projects every move's guides
-   (parts, rows, strands, spots, tracks) onto the screen; this
-   file draws them on a canvas over the head and plays the move:
-   trace · cornrow · braid · dab · sew · sweep · stroke · circle ·
-   drag · hold. Finished work stays on the head (decor).
+   Doing hair in first person. The hair itself goes on for real
+   (props on the client's head, client/salon.lua); this file only
+   draws small guides where to work (projected by Lua) and plays
+   the move: trace · cornrow · braid · dab · sew · sweep · stroke ·
+   circle · drag · hold.
    Also: the client's view while sitting, and the reveal.
    ═══════════════════════════════════════════════════════════ */
 'use strict';
@@ -134,133 +134,13 @@ function guidePath(pts, opts = {}) {
   ctx.restore();
 }
 
-// a part: a thin bright line of scalp with darker hair either side
-function partLine(pts, t = 1) {
-  const L = lengths(pts), tot = L[L.length - 1], upTo = tot * t;
-  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  for (const [w, c] of [[5, 'rgba(20,12,8,.55)'], [2.2, '#f0d3bb']]) {
-    ctx.lineWidth = w; ctx.strokeStyle = c;
-    ctx.beginPath();
-    let open = false;
-    for (let i = 0; i < pts.length; i++) {
-      if (L[i] > upTo || !pts[i].v) { open = false; continue; }
-      if (!open) { ctx.moveTo(pts[i].x, pts[i].y); open = true; } else ctx.lineTo(pts[i].x, pts[i].y);
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-// plaits along a polyline up to t: a cornrow (flat) or a braid (hanging, thicker, tapering)
-function plait(pts, t, w, col, opts = {}) {
-  if (pts.length < 2 || t <= 0) return;
-  const L = lengths(pts), tot = L[L.length - 1], upTo = tot * clamp(t, 0, 1);
-  const step = Math.max(3, w * 0.62);
-  let k = 0;
-  for (let s = 0; s <= upTo; s += step, k++) {
-    const a = along(pts, s / tot);
-    if (!a.v && !opts.always) continue;
-    const taper = opts.taper ? 1 - 0.45 * (s / tot) : 1;
-    const ww = w * taper, nx = -a.dy, ny = a.dx, side = k % 2 ? 1 : -1;
-    const cx = a.x + nx * side * ww * 0.18, cy = a.y + ny * side * ww * 0.18;
-    const ang = Math.atan2(a.dy, a.dx) + side * 0.55;
-    ctx.save();
-    ctx.translate(cx, cy); ctx.rotate(ang);
-    const g = ctx.createLinearGradient(0, -ww * 0.3, 0, ww * 0.3);
-    g.addColorStop(0, shade(col, 0.28)); g.addColorStop(0.5, col); g.addColorStop(1, shade(col, -0.45));
-    ctx.fillStyle = g;
-    ctx.strokeStyle = shade(col, -0.6); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.ellipse(0, 0, ww * 0.46, ww * 0.27, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.restore();
-  }
-}
-
-// a stitched weft track (sew-in)
-function track(pts, t, col) {
-  const L = lengths(pts), tot = L[L.length - 1], upTo = tot * t;
-  ctx.save(); ctx.lineCap = 'round';
-  ctx.lineWidth = 7; ctx.strokeStyle = shade(col, -0.25);
-  ctx.beginPath(); let open = false;
-  for (let i = 0; i < pts.length; i++) {
-    if (L[i] > upTo || !pts[i].v) { open = false; continue; }
-    if (!open) { ctx.moveTo(pts[i].x, pts[i].y); open = true; } else ctx.lineTo(pts[i].x, pts[i].y);
-  }
-  ctx.stroke();
-  ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
-  ctx.restore();
-}
-
-function mark(kind, p, r, extra = {}) {
-  if (!p.v && !extra.always) return;
-  ctx.save(); ctx.translate(p.x, p.y);
-  switch (kind) {
-    case 'gel': {
-      const g = ctx.createRadialGradient(-r * 0.2, -r * 0.2, 1, 0, 0, r);
-      g.addColorStop(0, 'rgba(255,255,255,.85)'); g.addColorStop(0.4, 'rgba(140,200,240,.55)'); g.addColorStop(1, 'rgba(110,180,230,.15)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.8, 0.3, 0, Math.PI * 2); ctx.fill(); break;
-    }
-    case 'pin': ctx.strokeStyle = '#141414'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-r, -r * 0.6); ctx.lineTo(r, r * 0.6); ctx.stroke();
-      ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.arc(r, r * 0.6, 2.5, 0, Math.PI * 2); ctx.fill(); break;
-    case 'elastic': ctx.strokeStyle = '#0d0d0d'; ctx.lineWidth = r * 0.45; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.9, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke(); break;
-    case 'bead': {
-      const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
-      g.addColorStop(0, '#fff3c4'); g.addColorStop(0.35, extra.c || '#d6a43a'); g.addColorStop(1, shade(extra.c || '#d6a43a', -0.55));
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2); ctx.fill(); break;
-    }
-    case 'clip': ctx.fillStyle = '#08afa2'; ctx.strokeStyle = '#04403b'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.roundRect(-r, -r * 0.3, r * 2, r * 0.6, 3); ctx.fill(); ctx.stroke(); break;
-    case 'tack': case 'stitch': ctx.strokeStyle = '#d7a63a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.5); ctx.lineTo(r * 0.5, r * 0.5); ctx.moveTo(r * 0.5, -r * 0.5); ctx.lineTo(-r * 0.5, r * 0.5); ctx.stroke(); break;
-    case 'pick': ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -r * 0.6); ctx.lineTo(r * 0.55, r * 0.45); ctx.lineTo(-r * 0.55, r * 0.45); ctx.closePath(); ctx.stroke(); break;
-    case 'curl': ctx.strokeStyle = extra.c || '#3a2418'; ctx.lineWidth = 2.4; ctx.beginPath();
-      for (let a = 0; a < Math.PI * 5; a += 0.3) { const rr = r * 0.15 + a * r * 0.05; ctx.lineTo(Math.cos(a) * rr * 0.6, a * r * 0.12 + Math.sin(a) * rr * 0.3); }
-      ctx.stroke(); break;
-    case 'wrap': ctx.strokeStyle = extra.c || '#3a2418'; ctx.lineWidth = r * 0.35; ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.2); ctx.lineTo(r * 0.6, r * 0.2); ctx.stroke(); break;
-    case 'slice': ctx.strokeStyle = '#f0d3bb'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-r * 0.7, 0); ctx.lineTo(r * 0.7, 0); ctx.stroke(); break;
-    case 'knot': ctx.fillStyle = '#d7a63a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fill(); break;
-    case 'snip': break;
-  }
-  ctx.restore();
-}
-
 function ring(p, r, col, w = 2, frac = 1) {
   ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.shadowColor = col; ctx.shadowBlur = 8;
   ctx.beginPath(); ctx.arc(p.x, p.y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke(); ctx.restore();
 }
 function dot(p, r, col) { ctx.save(); ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
 
-// little hair bits / spray mist / sparkles, in screen space
-function burst(x, y, kind, n = 10) {
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, s = 0.5 + Math.random() * 2.5;
-    SL.fx.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - (kind === 'mist' ? 0.4 : 0), life: 1, kind, r: kind === 'mist' ? 6 + Math.random() * 10 : 1.5 + Math.random() * 2 });
-  }
-}
-function drawFx(dt) {
-  for (let i = SL.fx.length - 1; i >= 0; i--) {
-    const f = SL.fx[i];
-    f.life -= dt * (f.kind === 'mist' ? 1.1 : 1.6);
-    if (f.life <= 0) { SL.fx.splice(i, 1); continue; }
-    f.x += f.vx; f.y += f.vy; f.vy += f.kind === 'bits' ? 0.25 : 0.02;
-    ctx.save();
-    ctx.globalAlpha = f.life * (f.kind === 'mist' ? 0.25 : 0.9);
-    ctx.fillStyle = f.kind === 'mist' ? '#eaf4f7' : f.kind === 'spark' ? '#ffe9a8' : f.kind === 'steam' ? '#ffffff' : hairColour();
-    ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (f.kind === 'mist' || f.kind === 'steam' ? 2 - f.life : 1), 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
-}
-
-/* ─────────────── decor: the work that stays on the head ─────────────── */
-function drawDecor() {
-  const R = headR();
-  for (const d of SL.dec) {
-    const col = d.c || SL.d.colour;
-    if (d.k === 'part') for (const p of d.ps) partLine(p.map(P));
-    else if (d.k === 'row') for (const p of d.ps) plait(p.map(P), 1, R * 0.075, col);
-    else if (d.k === 'braid') d.ps.forEach((p, i) => plait(p.map(P), i < d.ps.length - 1 ? 1 : d.t, R * 0.13, col, { taper: true, always: true }));
-    else if (d.k === 'track') for (const p of d.ps) track(p.map(P), 1, col);
-    else if (d.k === 'dab') for (const p of d.p) mark(d.m, P(p), R * 0.06, { c: col, always: d.m === 'bead' || d.m === 'elastic' });
-  }
-}
+function burst() { /* the effects are in game (spray, steam, clippings) */ }
 
 /* ═══════════════ the moves ═══════════════ */
 // every move: start(), tick(dt), draw(), down(), up(), key(e). It calls done(score) once.
@@ -282,6 +162,13 @@ function flash(text, cls) {
   sl.flash.textContent = text;
   sl.flash.className = 'sl-flash ' + (cls || '');
   void sl.flash.offsetWidth; sl.flash.classList.add('go');
+}
+let partAt = 0;
+function part(f) {
+  const t = performance.now();
+  if (t - partAt < 400) return;
+  partAt = t;
+  post('salonPart', { i: SL.m.i, f: clamp(f, 0, 1) });
 }
 function act(kind) {
   const t = performance.now();
@@ -324,10 +211,10 @@ MOVES.trace = {
   draw() {
     const paths = geoPaths(), R = headR();
     paths.forEach((pts, i) => {
-      if (i < MV.path) partLine(pts);
+      if (i < MV.path) guidePath(pts, { c: 'rgba(8,175,162,.35)', dash: [1, 0], w: 1.5 });
       else if (i === MV.path) {
         guidePath(pts);
-        partLine(pts.slice(0, MV.prog + 1));
+        guidePath(pts.slice(0, MV.prog + 1), { c: 'rgba(8,175,162,.9)', dash: [1, 0], w: 2 });
         const s = pts[MV.prog]; if (s && s.v) { ring(s, R * 0.06 + Math.sin(performance.now() / 160) * 3, '#08afa2', 2.5); dot(s, 4, '#08afa2'); }
         const e = pts[pts.length - 1]; if (e && e.v) ring(e, R * 0.035, 'rgba(255,255,255,.6)', 1.5);
       } else guidePath(pts, { c: 'rgba(255,255,255,.25)' });
@@ -383,6 +270,7 @@ MOVES.cornrow = {
     MV.st++; MV.want = MV.want === 'A' ? 'D' : 'A'; MV.t0 = performance.now();
     SFX.key();
     const h = this.head(); if (h) burst(h.x, h.y, 'bits', 3);
+    part((MV.row + MV.st / (m.stitches || 6)) / Math.max(1, geoPaths().length));
     if (m.feed && MV.st % 3 === 1) startFeed(m.feed);
     if (m.slice && MV.st % 2 === 0 && MV.st < (m.stitches || 6)) MV.slice = this.head();
     if (MV.st >= (m.stitches || 6)) {
@@ -401,9 +289,11 @@ MOVES.cornrow = {
   draw() {
     const m = SL.m, paths = geoPaths(), R = headR(), col = m.feed ? SL.d.feedColour : SL.d.colour;
     paths.forEach((pts, i) => {
-      if (i < MV.row) plait(pts, 1, R * 0.075, col);
-      else if (i === MV.row) { guidePath(pts, { c: 'rgba(255,255,255,.4)' }); plait(pts, MV.st / (m.stitches || 6), R * 0.075, col); }
-      else guidePath(pts, { c: 'rgba(255,255,255,.22)' });
+      if (i === MV.row) {
+        guidePath(pts, { c: 'rgba(255,255,255,.45)' });
+        const L = lengths(pts), upTo = L[L.length - 1] * MV.st / (m.stitches || 6);
+        guidePath(pts.filter((_, k) => L[k] <= upTo), { c: 'rgba(8,175,162,.9)', dash: [1, 0], w: 2 });
+      } else if (i > MV.row) guidePath(pts, { c: 'rgba(255,255,255,.18)' });
     });
     const h = this.head();
     if (h && h.v) {
@@ -507,9 +397,9 @@ MOVES.braid = {
     SFX.key();
     // drops don't add a stitch: the strand falls through
     if (MV.cross !== 'D') SL.braid.st++;
-    else { const h = this.head(); burst(h.x, h.y + 8, 'bits', 6); }
     if (SL.braid.st >= SL.braid.chain && SL.braid.path < geoPaths().length - 1) { SL.braid.path++; SL.braid.st = 0; }
     const m = SL.m, all = m.cont ? m.stitches : m.stitches * Math.max(1, geoPaths().length);
+    part(MV.done / Math.max(1, all || 6));
     if (MV.done >= (all || 6)) {
       const timing = MV.hits ? MV.good / MV.hits : 0.5, feed = MV.feeds ? MV.feedGood / MV.feeds : 1;
       return done(timing * 60 + feed * 30 + 10 - MV.misses * 5), true;
@@ -520,25 +410,15 @@ MOVES.braid = {
   draw() {
     const paths = geoPaths(), R = headR(), col = SL.d.colour, b = SL.braid;
     paths.forEach((pts, i) => {
-      if (i < b.path) plait(pts, 1, R * 0.13, col, { taper: true, always: true });
-      else if (i === b.path) { guidePath(pts, { c: 'rgba(255,255,255,.35)' }); plait(pts, b.st / b.chain, R * 0.13, col, { taper: true, always: true }); }
-      else guidePath(pts, { c: 'rgba(255,255,255,.2)' });
+      if (i === b.path) {
+        guidePath(pts, { c: 'rgba(255,255,255,.4)' });
+        const L = lengths(pts), upTo = L[L.length - 1] * b.st / b.chain;
+        guidePath(pts.filter((_, k) => L[k] <= upTo), { c: 'rgba(8,175,162,.9)', dash: [1, 0], w: 2 });
+      } else if (i > b.path) guidePath(pts, { c: 'rgba(255,255,255,.18)' });
     });
-    for (const c of b.curls) { const p = along(paths[c.path] || [], c.t); mark('curl', { x: p.x + R * 0.08, y: p.y, v: true }, R * 0.22, { c: SL.d.feedColour }); }
     const h = this.head();
     if (!h) return;
-    // the loose strands below the braid head
-    const strands = SL.m.strands === 2 ? [-1, 1] : [-1, 0, 1];
     const hl = TOKEN[MV.cross] ? TOKEN[MV.cross][0] : 'D';
-    strands.forEach((s) => {
-      const active = (s === 1 && hl === 'D') || (s === -1 && hl === 'A');
-      const ex = h.x + (s * 0.22 * R) + h.dx * R * 0.38, ey = h.y + h.dy * R * 0.38 + Math.abs(s) * R * 0.04;
-      ctx.save(); ctx.lineCap = 'round';
-      ctx.strokeStyle = active ? '#08afa2' : 'rgba(0,0,0,.35)'; ctx.lineWidth = R * 0.075 + (active ? 4 : 2);
-      ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.quadraticCurveTo(h.x + s * 0.12 * R, h.y + h.dy * R * 0.15, ex, ey); ctx.stroke();
-      ctx.strokeStyle = shade(SL.feeding ? SL.d.feedColour : col, s * 0.12); ctx.lineWidth = R * 0.07;
-      ctx.stroke(); ctx.restore();
-    });
     beatRing(h, R, true);
     const pills = [];
     if (MV.feed) pills.push(...feedPills(h));
@@ -577,7 +457,7 @@ MOVES.dab = {
     const R = headR(), t = performance.now() / 200;
     const pills = [];
     geoPoints().forEach((p, i) => {
-      if (MV.hit.includes(i)) return mark(SL.m.mark, p, R * 0.06, { c: SL.d.colour, always: true });
+      if (MV.hit.includes(i)) { if (p.v) dot(p, 2.5, 'rgba(8,175,162,.8)'); return; }
       if (!p.v) return;
       ring(p, R * 0.055 + Math.sin(t + i) * 2, '#08afa2', 2);
       dot(p, 3, 'rgba(255,255,255,.9)');
@@ -620,6 +500,7 @@ MOVES.sew = {
         const took = performance.now() - MV.at.t;
         if (took > 900) MV.slow++;
         MV.st++; MV.phase = 'in'; SFX.key(); act('stitch');
+        part(MV.st / Math.max(1, this.targets().length));
         if (MV.st >= this.targets().length) return done(100 - (MV.err / MV.st) * 30 - MV.slow * 5);
       }
       if (!SL.mouse.down && up < headR() * 0.16) MV.phase = 'in';
@@ -628,11 +509,8 @@ MOVES.sew = {
   },
   draw() {
     const R = headR(), tg = this.targets();
-    if (SL.g.kind === 'paths') for (const pts of geoPaths()) { guidePath(pts, { c: 'rgba(255,255,255,.3)' }); track(pts, MV.st / Math.max(1, tg.length / Math.max(1, geoPaths().length)), SL.d.feedColour); }
-    // the thread so far: a zig-zag lock stitch
-    ctx.save(); ctx.strokeStyle = '#d7a63a'; ctx.lineWidth = 1.6; ctx.beginPath();
-    for (let i = 0; i < MV.st; i++) { const p = tg[i]; if (!p || !p.v) continue; ctx.moveTo(p.x - 4, p.y - 5); ctx.lineTo(p.x + 4, p.y + 5); ctx.moveTo(p.x + 4, p.y - 5); ctx.lineTo(p.x - 4, p.y + 5); }
-    ctx.stroke(); ctx.restore();
+    if (SL.g.kind === 'paths') for (const pts of geoPaths()) guidePath(pts, { c: 'rgba(255,255,255,.3)' });
+    for (let i = 0; i < MV.st; i++) { const p = tg[i]; if (p && p.v) dot(p, 2.5, 'rgba(8,175,162,.8)'); }
     const cur = tg[MV.st];
     if (cur && cur.v) {
       ring(cur, R * 0.06 + Math.sin(performance.now() / 140) * 2, MV.phase === 'pull' ? '#ffe9a8' : '#08afa2', 2);
@@ -742,14 +620,15 @@ MOVES.circle = {
     } else MV.last = null;
     const need = Math.PI * 2 * (SL.m.turns || 1);
     if (MV.ang >= need) {
-      MV.pt++; MV.ang = 0; MV.last = null; SFX.hit(); burst(c.x, c.y, 'bits', 4);
+      MV.pt++; MV.ang = 0; MV.last = null; SFX.hit();
+      part(MV.pt / pts.length);
       if (MV.pt >= pts.length) return done(100 - (MV.samples ? (MV.wob / MV.samples) * 40 : 10));
     }
     progress((MV.pt + MV.ang / need) / pts.length, `${MV.pt + 1} / ${pts.length} · ${this.dir() > 0 ? 'clockwise' : 'anticlockwise'}`);
   },
   draw() {
     const pts = geoPoints(), R = headR(), c = pts[MV.pt];
-    pts.forEach((p, i) => { if (i < MV.pt) mark('wrap', p, R * 0.08, { c: SL.d.colour }); });
+    pts.forEach((p, i) => { if (i < MV.pt && p.v) dot(p, 2.5, 'rgba(8,175,162,.8)'); });
     if (!c || !c.v) return keyPills([]);
     const r0 = R * 0.2, need = Math.PI * 2 * (SL.m.turns || 1), dir = this.dir();
     ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.setLineDash([3, 6]); ctx.lineWidth = 2;
@@ -787,11 +666,6 @@ MOVES.drag = {
     ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.setLineDash([4, 6]); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(pr[0].x, pr[0].y); ctx.lineTo(pr[1].x, pr[1].y); ctx.stroke(); ctx.restore();
     ring(pr[1], R * 0.1 + Math.sin(performance.now() / 150) * 2, '#08afa2', 2.5);
-    const from = MV.grab ? SL.mouse : pr[0];
-    // a tuft of hair in hand
-    ctx.save(); ctx.strokeStyle = hairColour(); ctx.lineWidth = 3; ctx.lineCap = 'round';
-    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(from.x + i * 3, from.y - 8); ctx.quadraticCurveTo(from.x + i * 5, from.y + 6, from.x + i * 2, from.y + 16); ctx.stroke(); }
-    ctx.restore();
     if (!MV.grab) ring(pr[0], R * 0.07, '#ffe9a8', 2);
     keyPills([{ key: MV.grab ? 'DROP' : 'GRAB', x: (MV.grab ? pr[1] : pr[0]).x, y: (MV.grab ? pr[1] : pr[0]).y - R * 0.18, on: true }]);
   },
@@ -897,11 +771,9 @@ function frame(t) {
   const dt = Math.min(0.05, (t - (lastT || t)) / 1000); lastT = t;
   ctx.clearRect(0, 0, W, H);
   if (SL.g && SL.m) {
-    drawDecor();
     const MOVE = MOVES[SL.m.a];
     if (MOVE && !SL.sent) { MOVE.tick && MOVE.tick(dt); MOVE.draw && MOVE.draw(); follow(MOVE, t); }
   }
-  drawFx(dt);
   SL.mouse.vx *= 0.8; SL.mouse.vy *= 0.8;
   requestAnimationFrame(frame);
 }
