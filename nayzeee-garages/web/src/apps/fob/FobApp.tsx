@@ -19,6 +19,7 @@ import type { FobButtonName, FobHudData, FobHudKey, FobInspect, FobKeyBinds, Fob
 import { Badge, Button, Icon, KeyHint, PlateTag, Toggle, Window } from '@/components/ui';
 import { FobArt, fobAspect } from '@/components/fob/FobArt';
 import { BrandLogo3D } from '@/components/fob/BrandLogo3D';
+import { brandName, brandSlug } from '@/components/fob/brands';
 import { fobBeep } from './beep';
 import './fob.css';
 
@@ -370,9 +371,10 @@ function InspectWindow({ info, onClose }: { info: FobInspect; onClose: () => voi
       <div className="nz-fob__inspect-body">
         <div className="nz-fob__stage">
           <span className="nz-fob__stage-glow" />
-          <FobArt design={info.design} kind={info.kind} brand={info.make || null} size={232} className="nz-fob__stage-art" />
+          <FobArt design={info.design} kind={info.kind} brand={info.make || null} size={224} className="nz-fob__stage-art" />
           <span className="nz-fob__stage-logo">
-            <BrandLogo3D brand={info.make || null} size={104} />
+            <BrandLogo3D brand={info.make || null} size={112} />
+            <span className="nz-fob__stage-brand">{brandSlug(info.make) ? brandName(brandSlug(info.make)!) : t('Unknown make')}</span>
           </span>
         </div>
         <div className="nz-fob__facts">

@@ -17,7 +17,7 @@ import { request } from '@/lib/nui';
 import { toast } from '@/lib/store';
 import type { KeyMode, KeySetting, KeySettingValue, KeySettings, KeySettingsTab } from '@/lib/types';
 import { MarkerPreview, ReactionBar, SettingControl } from './SettingControls';
-import { TAB_ICONS, columnsOf, groupsOf, idleReason, isList, optionLabel, same, splitUnit, validate, valueText } from './model';
+import { TAB_ICONS, columnsOf, groupsOf, idleReason, isList, list, optionLabel, same, splitUnit, validate, valueText } from './model';
 import type { Group } from './model';
 
 type Values = Record<string, KeySettingValue>;
@@ -38,6 +38,15 @@ function writeTab(v: string) {
   } catch {
     /* storage unavailable */
   }
+}
+
+/** Lua's empty tables ({}) become lists where the type is a list. */
+function normalize(s: KeySettings): KeySettings {
+  const fix = (x: KeySetting, v: KeySettingValue) => (isList(x) ? (list(v as never) as KeySettingValue) : v);
+  return {
+    tabs: list(s.tabs),
+    settings: list(s.settings).map((x) => ({ ...x, options: x.options ? list(x.options) : x.options, value: fix(x, x.value), default: fix(x, x.default) })),
+  };
 }
 
 const valuesOf = (s: KeySettings): Values => Object.fromEntries(s.settings.map((x) => [x.id, x.value]));
@@ -66,8 +75,9 @@ export function SettingsView({ active, initialTab, onDirtyChange, onKeyMode }: P
       setFailed(true);
       return;
     }
-    setBase(res.data);
-    setDraft(valuesOf(res.data));
+    const data = normalize(res.data);
+    setBase(data);
+    setDraft(valuesOf(data));
     setResets(new Set());
     setServerError(null);
   }, []);
@@ -157,11 +167,12 @@ export function SettingsView({ active, initialTab, onDirtyChange, onKeyMode }: P
       }
       return;
     }
-    setBase(res.data);
-    setDraft(valuesOf(res.data));
+    const saved = normalize(res.data);
+    setBase(saved);
+    setDraft(valuesOf(saved));
     setResets(new Set());
     setServerError(null);
-    const mode = res.data.settings.find((s) => s.id === 'keys.mode')?.value;
+    const mode = saved.settings.find((s) => s.id === 'keys.mode')?.value;
     if (mode === 'flexible' || mode === 'limited' || mode === 'virtual') onKeyMode(mode);
     toast({ type: 'success', title: t('Key settings saved'), message: t('{n} change(s) apply to every player right away.', { n: changed.size }) });
   }, [base, dirty, saving, errorIds, errors, byId, query, changed, resets, draft, onKeyMode]);

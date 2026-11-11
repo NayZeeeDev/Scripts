@@ -13,8 +13,9 @@ import { MAP_H, MAP_STYLES, MAP_W, readMapStyle, worldToImage, writeMapStyle } f
 import type { MapStyle } from '@/apps/admin/shared/mapGeo';
 
 const ZOOM_MIN = 0.6;
-const ZOOM_MAX = 7;
-const ZOOM_DEFAULT = 3.2;
+const ZOOM_MAX = 5;
+// the map images are upscaled: a moderate default zoom stays sharp
+const ZOOM_DEFAULT = 1.7;
 const SEA: Record<MapStyle, string> = { satellite: '#143e6b', dark: '#394a51', atlas: '#1662ad' };
 
 export interface TrackMapProps {
@@ -56,6 +57,12 @@ export function TrackMap({ target, heading, me, live, veil, stale }: TrackMapPro
   const centre = pan ?? follow;
   const left = size.w / 2 - centre.x * zoom;
   const top = size.h / 2 - centre.y * zoom;
+  // glide small moves (the vehicle driving, a zoom step); jump on big ones (the first position)
+  const prev = useRef<{ left: number; top: number } | null>(null);
+  const glide = !!prev.current && Math.hypot(prev.current.left - left, prev.current.top - top) < 260;
+  useEffect(() => {
+    prev.current = { left, top };
+  });
 
   const zoomBy = (f: number) => setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z * f)));
 
@@ -93,7 +100,7 @@ export function TrackMap({ target, heading, me, live, veil, stale }: TrackMapPro
   return (
     <div
       ref={boxRef}
-      className={cx('nz-keys-map', drag.current?.moved && 'is-dragging')}
+      className={cx('nz-keys-map', drag.current?.moved && 'is-dragging', (drag.current?.moved || !glide) && 'is-still')}
       style={{ background: SEA[style] }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

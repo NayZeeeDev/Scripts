@@ -14,7 +14,7 @@ import { toast, useSettings } from '@/lib/store';
 import type { KeyAdminPlateData } from '@/lib/types';
 import type { Nav } from './ManageKeys';
 import { KeyGlyph } from './PlayerView';
-import { custodyOf, duration, meters, originLabel, secondsLeft, stamp } from './model';
+import { custodyOf, duration, list, meters, originLabel, secondsLeft, stamp } from './model';
 
 interface Props {
   plate: string;
@@ -48,7 +48,7 @@ export function PlateModal({ plate, fobDesign, onClose, onChanged, nav }: Props)
     if (id !== seq.current) return;
     setLoading(false);
     setFailed(!res.ok);
-    if (res.ok && res.data) setData(res.data);
+    if (res.ok && res.data) setData({ ...res.data, custody: list(res.data.custody), holders: list(res.data.holders), ground: list(res.data.ground) });
   };
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function PlateModal({ plate, fobDesign, onClose, onChanged, nav }: Props)
           <Button variant="ghost" icon="refresh" onClick={() => void load()} loading={loading && !!data}>
             {t('Refresh')}
           </Button>
-          <Button variant="teal" icon="route" disabled={!data?.spawned} onClick={() => nav.track(plate, data?.label)}>
+          <Button variant="teal" icon="map" disabled={!data?.spawned} onClick={() => nav.track(plate, data?.label)}>
             {data?.spawned ? t('Track') : t('Not out')}
           </Button>
         </>
@@ -138,7 +138,7 @@ export function PlateModal({ plate, fobDesign, onClose, onChanged, nav }: Props)
 
           <div className="nz-kadm-pv__stats">
             <Stat label={t('Lock version')} value={data.version ?? '—'} hint={t('Changing the locks retires every older key')} />
-            <Stat label={t('Copies of the current locks')} value={data.live ?? '—'} hint={t('Pockets, stashes and the ground')} />
+            <Stat label={t('Live copies')} value={data.live ?? '—'} hint={t('Key items cut for the current locks: pockets, stashes and the ground')} />
             <Stat
               label={t('Immobiliser')}
               value={

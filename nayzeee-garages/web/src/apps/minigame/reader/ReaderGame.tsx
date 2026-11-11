@@ -420,7 +420,7 @@ export function ReaderGame({ data }: { data: ReaderData }) {
                 </button>
               </div>
               <div className="nz-mg-reader__keys">
-                <button type="button" className={`nz-mg-reader__verify${held === 'enter' ? ' is-held' : ''}`} {...button('enter')}>
+                <button type="button" {...button('enter')} className={`nz-mg-reader__verify${held === 'enter' ? ' is-held' : ''}`}>
                   <Icon name="check" size={15} strokeWidth={2.2} />
                   {t('Verify')}
                 </button>

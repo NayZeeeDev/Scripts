@@ -12,7 +12,7 @@ import type { KeyAdminOpenData, KeyAdminPlayer } from '@/lib/types';
 import { PlayerView } from './PlayerView';
 import { PlateModal } from './PlateModal';
 import { TrackModal } from './TrackModal';
-import { pushRecent, readRecent } from './model';
+import { list, pushRecent, readRecent } from './model';
 import type { RecentPlayer } from './model';
 
 const DEBOUNCE_MS = 450;
@@ -49,7 +49,7 @@ export function ManageKeys({ data, active }: { data: KeyAdminOpenData; active: b
     if (id !== seq.current) return;
     setLoading(false);
     setSearched(q);
-    setResults(res.ok ? res.data?.rows ?? [] : []);
+    setResults(res.ok ? list(res.data?.rows).map((p) => ({ ...p, matchedPlates: list(p.matchedPlates) })) : []);
   }, []);
 
   // live search while typing

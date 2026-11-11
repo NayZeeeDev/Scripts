@@ -70,9 +70,11 @@ function NumberControl({ setting, value, onChange }: ControlProps) {
   const n = typeof value === 'number' ? value : Number(value) || 0;
   const per = unit ? SECONDS[unit] : undefined;
   const secs = per !== undefined ? n * per : null;
+  // a readable duration only where it says more than the number (120 s → 2m, 90 min → 1h 30m, 48 h → 2d 0h)
+  const worth = secs !== null && (unit === 'h' ? n >= 24 : unit === 'min' ? n >= 60 : unit === 's' ? n >= 120 : false);
   return (
     <div className="nz-kadm-num">
-      {secs !== null && secs >= 120 && <span className="nz-kadm-num__hint">≈ {duration(secs)}</span>}
+      {worth && secs !== null && <span className="nz-kadm-num__hint">≈ {duration(secs)}</span>}
       {secs === 0 && setting.min === 0 && <span className="nz-kadm-num__hint">{t('off / never')}</span>}
       <NumberInput
         value={n}
@@ -264,34 +266,39 @@ function TagList({
 export function MarkerPreview({ style, color, size, height }: { style: string; color: string; size: number; height: number }) {
   const { hex, alpha } = parseColor(color);
   const fill = rgba(hex, (alpha ?? MARKER_ALPHA) / 100);
-  const px = 70; // px per metre
-  const groundY = 104;
-  const keyY = groundY - 6;
-  const s = Math.max(4, Math.min(2, size) * px * 0.5);
-  const cy = keyY - Math.min(2, height) * px - s / 2;
+  const px = 120; // px per metre
+  const groundY = 112;
+  const keyY = groundY - 7;
+  const s = Math.max(6, Math.min(2, size) * px);
+  const cy = keyY - 8 - Math.min(2, height) * px - s / 2;
+  const top = Math.min(0, cy - s / 2 - 6);
   return (
     <div className="nz-kadm-marker">
-      <svg viewBox="0 0 220 120" width="100%" height="120" aria-hidden="true">
+      <svg viewBox={`0 ${top} 360 ${130 - top}`} width="100%" height="130" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
         <defs>
           <linearGradient id="nz-kadm-ground" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stopColor="rgba(255,255,255,.08)" />
             <stop offset="1" stopColor="rgba(255,255,255,0)" />
           </linearGradient>
         </defs>
-        <rect x="0" y={groundY} width="220" height="16" fill="url(#nz-kadm-ground)" />
-        <line x1="0" x2="220" y1={groundY} y2={groundY} stroke="rgba(255,255,255,.18)" strokeWidth="1" />
-        {/* the key on the ground */}
-        <g transform={`translate(110 ${keyY})`} fill="none" stroke="rgba(255,255,255,.75)" strokeWidth="1.4">
-          <circle cx="-7" cy="0" r="4" />
-          <path d="M-3 0 H9 M5 0 v3 M8 0 v3" />
+        <rect x="0" y={groundY} width="360" height="18" fill="url(#nz-kadm-ground)" />
+        <line x1="0" x2="360" y1={groundY} y2={groundY} stroke="rgba(255,255,255,.18)" strokeWidth="1" />
+        {/* the key on the ground (about 8 cm) */}
+        <g transform={`translate(180 ${keyY}) scale(1.6)`} fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="1.2">
+          <circle cx="-6" cy="0" r="3.4" />
+          <path d="M-2.6 0 H8 M4.6 0 v2.6 M7.4 0 v2.6" />
         </g>
         {/* height guide */}
         {style !== 'none' && (
-          <line x1="150" x2="150" y1={keyY} y2={cy + s / 2} stroke="rgba(255,255,255,.22)" strokeDasharray="2 3" />
+          <>
+            <line x1="236" x2="236" y1={keyY} y2={cy + s / 2} stroke="rgba(255,255,255,.25)" strokeDasharray="2 3" />
+            <line x1="230" x2="242" y1={keyY} y2={keyY} stroke="rgba(255,255,255,.25)" />
+            <line x1="230" x2="242" y1={cy + s / 2} y2={cy + s / 2} stroke="rgba(255,255,255,.25)" />
+          </>
         )}
-        {style === 'chevron' && <path d={`M${110 - s / 2} ${cy - s / 4} L110 ${cy + s / 2} L${110 + s / 2} ${cy - s / 4} L110 ${cy + s / 6} Z`} fill={fill} />}
-        {style === 'ring' && <ellipse cx="110" cy={cy + s / 2} rx={s / 2} ry={s / 6} fill="none" stroke={fill} strokeWidth={Math.max(2, s / 8)} />}
-        {style === 'dot' && <circle cx="110" cy={cy + s / 4} r={s / 3} fill={fill} />}
+        {style === 'chevron' && <path d={`M${180 - s / 2} ${cy - s / 4} L180 ${cy + s / 2} L${180 + s / 2} ${cy - s / 4} L180 ${cy + s / 8} Z`} fill={fill} />}
+        {style === 'ring' && <ellipse cx="180" cy={cy + s / 2} rx={s / 2} ry={s / 6} fill="none" stroke={fill} strokeWidth={Math.max(2, s / 8)} />}
+        {style === 'dot' && <circle cx="180" cy={cy + s / 4} r={s / 3} fill={fill} />}
       </svg>
       <div className="nz-kadm-marker__legend">
         {style === 'none' ? (

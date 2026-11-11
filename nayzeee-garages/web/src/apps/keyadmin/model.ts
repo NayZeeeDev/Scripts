@@ -11,6 +11,9 @@ import type { IconName } from '@/components/ui';
 import { t } from '@/lib/i18n';
 import type { KeyAdminRow, KeyCustody, KeySetting, KeySettingValue, KeySettingsTab } from '@/lib/types';
 
+/** Lua sends an empty table as {} or []: lists are read through this. */
+export const list = <T,>(v: T[] | null | undefined | Record<string, never>): T[] => (Array.isArray(v) ? v : []);
+
 /* ── distances / times ───────────────────────────────────────────────── */
 
 /** Metres in, "12 m" / "1.4 km" or "40 ft" / "0.9 mi" out (interface distance unit). */

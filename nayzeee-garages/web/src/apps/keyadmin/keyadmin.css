@@ -945,7 +945,7 @@
 
 .nz-kadm-pv__row {
   display: grid;
-  grid-template-columns: 32px minmax(0, 1.3fr) auto minmax(0, 1.2fr) minmax(0, .9fr) 30px;
+  grid-template-columns: 32px minmax(0, 1.3fr) 92px minmax(0, 1.2fr) minmax(0, .9fr) 30px;
   align-items: center;
   gap: 12px;
   min-height: 48px;
@@ -1583,3 +1583,6 @@
   .nz-kadm-set__body,
   .nz-kadm-bar { animation: none; }
 }
+
+/* one vehicle: the location legend of the admin map says nothing here */
+.nz-kadm-track .nz-admin-map__legend { display: none; }

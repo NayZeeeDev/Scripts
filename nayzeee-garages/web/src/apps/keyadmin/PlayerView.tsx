@@ -32,10 +32,10 @@ import type { KeyAdminPlayerData, KeyAdminRow } from '@/lib/types';
 import { GiveKeyModal } from './GiveKeyModal';
 import type { GivePreset } from './GiveKeyModal';
 import type { Nav } from './ManageKeys';
-import { custodyOf, deleteMessage, duration, filterOf, meters, originLabel, secondsLeft, typeOf } from './model';
+import { custodyOf, deleteMessage, duration, filterOf, list, meters, originLabel, secondsLeft, typeOf } from './model';
 import type { RowFilter } from './model';
 
-const ROW_H = 57;
+const ROW_H = 56;
 const HEAD_H = 36;
 
 /** true while the window is narrower than `px` (the spawn code column folds away). */
@@ -113,7 +113,10 @@ export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, a
     return () => ro.disconnect();
   }, [data === null]);
 
-  const rows = data?.keys ?? [];
+  const rows = useMemo(() => {
+    const rank: Record<KeyAdminRow['type'], number> = { owner: 0, fob: 1, key: 1, virtual: 2, temp: 3 };
+    return [...list(data?.keys)].sort((a, b) => a.plate.localeCompare(b.plate) || rank[a.type] - rank[b.type] || a.id.localeCompare(b.id));
+  }, [data]);
   const counts = useMemo(() => {
     const c: Record<RowFilter, number> = { all: rows.length, items: 0, access: 0, temp: 0, owned: 0 };
     for (const r of rows) c[filterOf(r)]++;
@@ -179,7 +182,7 @@ export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, a
     {
       key: 'type',
       header: t('Type'),
-      width: 118,
+      width: 158,
       render: (r) => <TypeCell row={r} />,
     },
     {
@@ -214,7 +217,7 @@ export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, a
             onClick={() => setGive({ plate: r.plate, type: online ? 'item' : 'temp', keyKind: r.type === 'fob' ? 'fob' : r.type === 'key' ? 'key' : undefined })}
           />
           <IconButton
-            icon="route"
+            icon="map"
             size="sm"
             label={r.spawned ? t('Track {plate}', { plate: r.plate }) : t('The vehicle is not out')}
             disabled={!r.spawned}
@@ -490,7 +493,6 @@ function TypeCell({ row }: { row: KeyAdminRow }) {
         </Tooltip>
       )}
       {left !== null && <em className={cx(left < 3600 && 'is-soon')}>{left > 0 ? duration(left) : t('ending')}</em>}
-      {row.shared === 'in' && row.type !== 'virtual' && <em>{t('shared')}</em>}
     </span>
   );
 }

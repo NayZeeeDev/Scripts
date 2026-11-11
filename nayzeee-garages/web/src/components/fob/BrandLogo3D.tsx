@@ -25,7 +25,7 @@ const reducedMotion = () =>
 
 export function BrandLogo3D({ brand, size = 120, spin = true, className }: BrandLogo3DProps) {
   const slug = brandSlug(brand);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const hostRef = useRef<HTMLSpanElement>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const sceneRef = useRef<BrandScene | null>(null);
   const [ready, setReady] = useState(false);
@@ -33,16 +33,22 @@ export function BrandLogo3D({ brand, size = 120, spin = true, className }: Brand
   const visibleRef = useRef(true);
   const spinRef = useRef(spin);
   spinRef.current = spin;
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
 
-  // build the scene once per logo
+  // build the scene once per logo, on a canvas of its own: a disposed renderer loses its
+  // WebGL context, which must never be handed to the next scene (React dev mounts twice)
   useEffect(() => {
     setReady(false);
     setBadgeOk(true);
-    if (!slug || !canvasRef.current) return;
+    const host = hostRef.current;
+    if (!slug || !host) return;
     let cancelled = false;
-    const canvas = canvasRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'nz-brand3d__canvas';
+    host.appendChild(canvas);
     import('./brandScene')
-      .then(({ createBrandScene }) => createBrandScene(canvas, brandModelUrl(slug), size))
+      .then(({ createBrandScene }) => createBrandScene(canvas, brandModelUrl(slug), sizeRef.current))
       .then((scene) => {
         if (cancelled) {
           scene.dispose();
@@ -59,6 +65,7 @@ export function BrandLogo3D({ brand, size = 120, spin = true, className }: Brand
       cancelled = true;
       sceneRef.current?.dispose();
       sceneRef.current = null;
+      canvas.remove();
     };
     // size changes are applied by the effect below without rebuilding the scene
   }, [slug]);
@@ -107,7 +114,7 @@ export function BrandLogo3D({ brand, size = 120, spin = true, className }: Brand
               onError={() => setBadgeOk(false)}
             />
           )}
-          <canvas ref={canvasRef} className="nz-brand3d__canvas" />
+          <span ref={hostRef} className="nz-brand3d__host" />
         </>
       ) : (
         <span className="nz-brand3d__neutral" aria-hidden="true">

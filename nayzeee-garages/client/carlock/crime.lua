@@ -186,6 +186,19 @@ local function cancelProgress()
   if lib.progressActive() then pcall(lib.cancelProgress) end
 end
 
+--- The NUI minigames this client can play (client/carlock/minigame.lua), sent with the starts.
+local function minigames()
+  return type(CarLock.minigameSupport) == 'function' and CarLock.minigameSupport() or nil
+end
+
+--- Play the server's NUI puzzle (minigame.lua): success, answer, snapped.
+local function playMinigame(game, puzzle, opts)
+  if type(CarLock.playMinigame) ~= 'function' then return false, nil, false end
+  local ok, out = pcall(CarLock.playMinigame, game, puzzle, opts)
+  if not ok or type(out) ~= 'table' then return false, nil, false end
+  return out.success == true, out.answer, out.snapped == true
+end
+
 ---------------------------------------------------------------------------------------
 -- No-key driver hint (Hotwire / Search)
 ---------------------------------------------------------------------------------------
@@ -268,20 +281,28 @@ function CarLock.hotwire(slot)
   local vehicle = state.vehicle
   setBusy(true)
   local ok, err = pcall(function()
-    local res = call('nz:carlock:hotwire', displayInfo(vehicle, { step = 'start', netId = state.netId, slot = slot }))
+    local res = call('nz:carlock:hotwire', displayInfo(vehicle, {
+      step = 'start', netId = state.netId, slot = slot, minigames = minigames(),
+    }))
     if not res then return end
     if not res.ok then return notify('error', res.error) end
+    local since = now()
     local data = type(res.data) == 'table' and res.data or {}
     local ped = PlayerPedId()
-    local success
-    if data.method == 'progress' then
+    local success, answer
+    if data.method == 'wires' or data.method == 'reader' then
+      -- the NUI minigames (G.7): splice the wires / tune the signal reader
+      local anim = playAnim(ped, ANIMS.hotwire)
+      success, answer = playMinigame(data.method, data.puzzle, { vehicle = vehicle, since = since })
+      if anim then stopAnim(ped, ANIMS.hotwire) end
+    elseif data.method == 'progress' then
       success = progress(math.floor(tonumber(data.duration) or 6000), L('Hotwiring...'), ANIMS.hotwire, { move = true, car = true, combat = true })
     else
       local anim = playAnim(ped, ANIMS.hotwire)
       success = skillCheck(data.difficulty, data.inputs)
       if anim then stopAnim(ped, ANIMS.hotwire) end
     end
-    local fin = call('nz:carlock:hotwire', { step = 'finish', id = data.id, success = success })
+    local fin = call('nz:carlock:hotwire', { step = 'finish', id = data.id, success = success, answer = answer })
     if not fin or not fin.ok then return notify('error', fin and fin.error) end
     local result = type(fin.data) == 'table' and fin.data or {}
     if result.broke then notify('error', L('Your hacking device broke')) end
@@ -347,19 +368,29 @@ function CarLock.lockpick(vehicle, tool, slot)
   local ok, err = pcall(function()
     local res = call('nz:carlock:lockpick', displayInfo(vehicle, {
       step = 'start', netId = netId, tool = type(tool) == 'string' and tool or nil, slot = tonumber(slot),
+      minigames = minigames(),
     }))
     if not res then return end
     if not res.ok then return notify('error', res.error) end
+    local since = now()
     local data = type(res.data) == 'table' and res.data or {}
     TaskTurnPedToFaceEntity(ped, vehicle, 800)
     Wait(800)
     local anim = playAnim(ped, ANIMS.lockpick)
-    local success = skillCheck(data.difficulty, data.inputs)
+    local success, answer, snapped
+    if data.method == 'pins' then
+      -- the 3D pin lock (G.6); an overset pin may snap the pick (the server rolls snapChance)
+      success, answer, snapped = playMinigame('pins', data.puzzle, { vehicle = vehicle, since = since, snapChance = data.snapChance })
+    else
+      success = skillCheck(data.difficulty, data.inputs)
+    end
     if anim then stopAnim(ped, ANIMS.lockpick) end
-    local fin = call('nz:carlock:lockpick', { step = 'finish', id = data.id, success = success })
+    local fin = call('nz:carlock:lockpick', {
+      step = 'finish', id = data.id, success = success, answer = answer, snapped = snapped or nil,
+    })
     if not fin or not fin.ok then return notify('error', fin and fin.error) end
     local result = type(fin.data) == 'table' and fin.data or {}
-    if result.broke then notify('error', L('Your tool broke')) end
+    if result.broke then notify('error', snapped and L('Your lockpick snapped') or L('Your tool broke')) end
     if result.success then
       notify('success', L('The lock gave way'))
     else

@@ -59,7 +59,7 @@ export function TrackModal({ plate, label, onClose }: { plate: string; label?: s
       open
       title={label ? t('Track {name}', { name: label }) : t('Track vehicle')}
       subtitle={<span className="nz-kadm-mono">{plate}</span>}
-      icon="route"
+      icon="map"
       width={760}
       onClose={onClose}
       bodyClassName="nz-kadm-track"

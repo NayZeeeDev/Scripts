@@ -40,6 +40,8 @@ CLIENT_ONLY_NUI = {
     'keyadmin:search', 'keyadmin:player', 'keyadmin:give', 'keyadmin:delete', 'keyadmin:plate', 'keyadmin:track',
     'keyadmin:waypoint', 'keyadmin:settings', 'keyadmin:saveSettings',
 }
+# minigame app (client/carlock/minigame.lua): client-only NUI callbacks
+CLIENT_ONLY_NUI |= {'minigame:ready', 'minigame:started', 'minigame:finish'}
 # Client handlers that call a server callback under a different name.
 CLIENT_TO_SERVER = {
     'garage:drive': 'nz:garage:retrieve', 'garage:spawner': 'nz:garage:spawner',

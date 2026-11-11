@@ -112,6 +112,7 @@
   line-height: 0;
 }
 .nz-brand3d__badge,
+.nz-brand3d__host,
 .nz-brand3d__canvas {
   position: absolute;
   inset: 0;

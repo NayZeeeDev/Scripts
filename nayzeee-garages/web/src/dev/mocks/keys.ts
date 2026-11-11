@@ -12,13 +12,32 @@
  *   keys-backalley  a fob cut by a back-alley locksmith: it opens the car, no tracker, no nickname
  *   keys-names      the share picker of a server with character names on (sharePicker.names)
  *   keys-empty      no keys at all
+ *   keys-settings   the Settings tab (player key settings)
+ *   keys-track      the track vehicle modal over the ring (live, then the tracker's position)
+ *   keys-track-none the track modal of a car without a tracker
+ *   keys-give       the give keys picker on its own (fob HUD Give)
+ *   keys-inspect-ground   a key on the ground looked at: Keep / Return to ground
+ *   keys-inspect-carried  a key item you carry, cut for old locks
+ *   keys-pin-enter  the Ghost PIN pad as the driver (PIN 1234; wrong guesses count down)
+ *   keys-pin-cooldown     the pad during the wrong-PIN cooldown
+ *   keys-pin-set    the owner changes the Ghost PIN (current PIN 1234 first)
+ *   keys-access     the owner's key access list (virtual mode)
  * Stateful handlers answer keys:* like the server would (range rules as refused = 'range',
  * alarm cooldown as refused = 'cooldown', holders by opaque id with a masked thief).
  */
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui, onNuiMessage } from '../../lib/nui';
 import { defaultInterface } from '../../lib/store';
-import type { KeyEntry, KeyHolder, KeyRingPlayer, KeysOpenData, NuiMessage } from '../../lib/types';
+import type {
+  KeyEntry,
+  KeyHolder,
+  KeyRingPlayer,
+  KeysOpenData,
+  KeyTrackData,
+  NuiMessage,
+  PlayerKeySettings,
+  PlayerKeySettingsData,
+} from '../../lib/types';
 import { joaat, modelInfo } from './garage';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
@@ -62,19 +81,29 @@ function key(model: string, label: string, make: string, plate: string, extra: K
     alarm: false,
     canShare: true,
     holders: null,
+    design: highend ? 'sport' : 'classic',
+    immobiliser: 'none',
+    engine: extra.spawned ? false : null,
+    usedAt: null,
+    slot: extra.kind === 'item' || extra.kind === 'fob' ? (slotSeq += 1) : null,
+    keyId: extra.kind === 'item' || extra.kind === 'fob' ? `k${slotSeq}` : null,
     ...extra,
   };
 }
+let slotSeq = 0;
+const NOW = Math.floor(Date.now() / 1000);
 
 function physical(): KeysOpenData {
   return {
     mode: 'physical',
+    keyMode: 'flexible',
+    prefs: { keyOrder: 'recent', units: 'metric' },
     ranges: RANGES,
     tracker: true,
     closeKey: 'F7',
     nearbyPlayers: [],
     keys: [
-      key('jester4', 'Jester RR', 'Dinka', '52MZL952', { kind: 'item', spawned: true, netId: 101, locked: true, distance: 4 }),
+      key('jester4', 'Jester RR', 'Dinka', '52MZL952', { kind: 'item', spawned: true, netId: 101, locked: true, distance: 4, usedAt: NOW - 300 }),
       key('italigto', 'Itali GTO', 'Grotti', 'GTO 88', {
         kind: 'fob',
         profile: 'highend',
@@ -84,6 +113,10 @@ function physical(): KeysOpenData {
         locked: false,
         distance: 1240,
         trackable: true,
+        engine: true,
+        immobiliser: 'ghost',
+        design: 'luxury',
+        usedAt: NOW - 1200,
       }),
       key('kuruma', 'Kuruma', 'Karin', 'KRM 404', { kind: 'item', spawned: false }),
       key('elegy', 'Elegy Retro Custom', 'Annis', 'RETRO 6', {
@@ -93,6 +126,7 @@ function physical(): KeysOpenData {
         netId: 103,
         locked: true,
         distance: 46,
+        usedAt: NOW - 86400,
       }),
       key('baller7', 'Baller ST', 'Gallivanter', 'FAM 2024', {
         kind: 'owner',
@@ -174,6 +208,7 @@ function physical(): KeysOpenData {
         netId: 109,
         locked: true,
         distance: 21,
+        design: 'card',
       }),
       key('vigero2', 'Vigero ZX', 'Declasse', 'VGR 22', {
         kind: 'item',
@@ -190,6 +225,8 @@ function physical(): KeysOpenData {
 function virtual(): KeysOpenData {
   return {
     mode: 'virtual',
+    keyMode: 'virtual',
+    prefs: { keyOrder: 'name', units: 'metric' },
     ranges: RANGES,
     tracker: true,
     closeKey: 'F7',
@@ -204,7 +241,9 @@ function virtual(): KeysOpenData {
         locked: true,
         distance: 18,
         trackable: true,
-        holders: 3,
+        holders: 4,
+        immobiliser: 'ghost',
+        design: 'slim',
       }),
       key('schafter3', 'Schafter V12', 'Benefactor', 'SCH 12', { kind: 'owner', spawned: false }),
       key('rebla', 'Rebla GTS', 'Übermacht', 'FAM 7', { kind: 'owner', spawned: true, netId: 202, locked: false, distance: 7 }),
@@ -427,4 +466,271 @@ registerMock({
   group: 'Key ring',
   label: 'Empty key ring',
   messages: [init, open({ mode: 'physical', ranges: RANGES, tracker: true, nearbyPlayers: [], keys: [] })],
+});
+
+/* ── car lock v2: remote, track, inspect, drop, settings, Ghost PIN ── */
+
+const POS: Record<string, { x: number; y: number; heading: number; street: string; area: string }> = {
+  'GTO 88': { x: -612.4, y: -1095.2, heading: 82, street: 'Vespucci Boulevard', area: 'Little Seoul' },
+  '52MZL952': { x: 212.4, y: -806.1, heading: 160, street: 'San Andreas Avenue', area: 'Pillbox Hill' },
+  'XO 1': { x: 221.9, y: -790.3, heading: 250, street: 'Alta Street', area: 'Pillbox Hill' },
+  'CMT 911': { x: -1215.6, y: -1460.8, heading: 300, street: 'Del Perro Freeway', area: 'Vespucci Beach' },
+};
+const ME = { x: 215.2, y: -810.4 };
+
+mockNui('keys:remote', ({ plate, action, on }) => {
+  const k = find(plate);
+  if (!k || !k.spawned) return { ok: false, error: 'The vehicle of this key is not nearby' };
+  if (k.kind === 'item') return { ok: false, error: 'You need the fob of this vehicle' };
+  if (k.distance === null || k.distance > RANGES.fob) return { action, on, plate, refused: 'range', message: 'The vehicle is too far away' };
+  if (action === 'engine' && on && k.immobiliser === 'ghost') return { ok: false, error: 'Remote start is disabled by the immobiliser' };
+  if (action === 'engine') k.engine = on;
+  return { action, on, plate };
+});
+
+mockNui('keys:track', ({ plate }) => {
+  const k = find(plate);
+  const pos = POS[plate];
+  const base = {
+    plate,
+    model: k?.model ?? 'italigto',
+    hash: k?.hash ?? joaat('italigto'),
+    label: k?.label ?? 'Itali GTO',
+    make: k?.make ?? 'Grotti',
+    image: k?.image ?? 'italigto',
+    nickname: k?.nickname ?? null,
+    profileLabel: k?.profileLabel ?? 'High-end',
+    tracker: k?.tracker ?? true,
+    trackerAccess: k?.trackerAccess ?? true,
+    spawned: k?.spawned ?? true,
+    towing: k?.towing ?? false,
+    locked: k?.locked ?? true,
+    engine: k?.engine ?? false,
+    alarm: k?.alarm ?? false,
+    immobiliser: k?.immobiliser ?? 'ghost',
+    me: ME,
+  };
+  const trackable = !!k && k.trackable && !!pos;
+  if (!trackable) {
+    const reason: KeyTrackData['reason'] = !base.tracker ? 'notracker' : !base.trackerAccess ? 'noaccess' : base.towing ? 'towing' : 'notout';
+    return { ...base, trackable: false, coords: null, heading: null, street: null, area: null, distance: null, live: false, reason };
+  }
+  // drift a little each poll: the marker moves
+  pos.x += Math.cos((pos.heading * Math.PI) / 180) * 6;
+  pos.y += Math.sin((pos.heading * Math.PI) / 180) * 6;
+  const distance = Math.round(Math.hypot(pos.x - ME.x, pos.y - ME.y));
+  return {
+    ...base,
+    trackable: true,
+    coords: { x: pos.x, y: pos.y, z: 30 },
+    heading: pos.heading,
+    street: pos.street,
+    area: pos.area,
+    distance,
+    live: distance < 300,
+    reason: null,
+  } satisfies KeyTrackData;
+});
+
+mockNui('keys:inspect', ({ plate }) => {
+  const k = find(plate);
+  if (!k) return { ok: false, error: 'You do not carry this key' };
+  return {
+    plate,
+    keyKind: k.keyType,
+    keyLabel: k.keyType === 'fob' ? `Fob · ${plate}` : `Key · ${plate}`,
+    model: k.model,
+    hash: k.hash,
+    label: k.label,
+    make: k.make,
+    image: k.image,
+    design: k.design ?? 'classic',
+    kind: 'item',
+    valid: true,
+    reason: null,
+    origin: k.reason === 'locksmith' || k.reason === 'search' ? k.reason : null,
+  };
+});
+
+mockNui('keys:drop', ({ plate }) => {
+  if (!current) return { ok: false, error: 'Nothing open' };
+  current.keys = current.keys.filter((k) => k.plate !== plate);
+  return { plate };
+});
+mockNui('keys:leave', ({ plate }) => {
+  if (!current) return { ok: false, error: 'Nothing open' };
+  current.keys = current.keys.filter((k) => k.plate !== plate);
+  return null;
+});
+mockNui('keys:groundKeep', ({ id }) => {
+  window.setTimeout(() => emitNuiMessage({ action: 'close', data: { app: 'keys' } }), 200);
+  return { plate: id === 'g1' ? '07CWE819' : 'UNKNOWN' };
+});
+mockNui('keys:groundReturn', () => null);
+
+const DEFAULTS: PlayerKeySettings = {
+  keylessUnlock: true,
+  keylessLock: true,
+  keylessDistance: 10,
+  engineOnEnter: false,
+  keepEngineRunning: true,
+  fobBeep: true,
+  hints: true,
+  fobPosition: { x: 0.86, y: 0.72, scale: 1 },
+  keyOrder: 'recent',
+  combinedKeyring: true,
+  groundPrompts: true,
+  units: 'metric',
+  alertLock: true,
+  alertEngine: true,
+  alertShare: true,
+  shareRecall: true,
+};
+let mySettings: PlayerKeySettings = { ...DEFAULTS, engineOnEnter: true, keylessDistance: 6 };
+const settingsData = (): PlayerKeySettingsData => ({
+  settings: clone(mySettings),
+  defaults: clone(DEFAULTS),
+  limits: { keylessMin: 3, keylessMax: 30 },
+  server: { keyless: true, keepEngineRunning: true, ground: true },
+});
+mockNui('keys:settings', () => settingsData());
+mockNui('keys:saveSettings', ({ settings }) => {
+  mySettings = { ...mySettings, ...settings };
+  return settingsData();
+});
+
+// Ghost PIN: 1234 (three tries, then a 30 s cooldown with the alarm)
+let pinTries = 3;
+let pinBlockedUntil = 0;
+let storedPin = '1234';
+mockNui('keys:immobiliser', ({ plate }) => ({ plate, level: 'ghost', pinSet: true, pinRequired: false, cooldown: 0, remoteStart: false }));
+mockNui('keys:pinEnter', ({ pin }) => {
+  const left = Math.ceil((pinBlockedUntil - Date.now()) / 1000);
+  if (left > 0) return { success: false, error: `Too many wrong PINs: wait ${left} s`, cooldown: left };
+  if (pin === storedPin) {
+    pinTries = 3;
+    return { success: true };
+  }
+  pinTries -= 1;
+  if (pinTries <= 0) {
+    pinTries = 3;
+    pinBlockedUntil = Date.now() + 30000;
+    return { success: false, error: 'Wrong PIN', attemptsLeft: 0, cooldown: 30, alarm: true };
+  }
+  return { success: false, error: 'Wrong PIN', attemptsLeft: pinTries };
+});
+mockNui('keys:pinSet', ({ plate, pin, oldPin }) => {
+  if (oldPin !== storedPin) return { ok: false, error: 'The current PIN is wrong' };
+  storedPin = pin;
+  return { plate, level: 'ghost', pinSet: true, pinRequired: false, cooldown: 0, remoteStart: false };
+});
+mockNui('keys:pinDone', () => null);
+
+const alone = (dialog: KeysOpenData['dialog'], extra: Partial<KeysOpenData> = {}): NuiMessage =>
+  open({ mode: 'physical', keyMode: 'flexible', ranges: RANGES, tracker: true, nearbyPlayers: [], keys: [], view: 'dialog', dialog, ...extra });
+
+registerMock({ id: 'keys-settings', group: 'Key ring', label: 'Settings tab', messages: [init, open({ ...physical(), view: 'settings' })] });
+
+registerMock({
+  id: 'keys-track',
+  group: 'Key ring',
+  label: 'Track vehicle (live map)',
+  messages: [init, open({ ...physical(), focus: 'GTO 88' }), { action: 'update', data: { app: 'keys', data: { dialog: { kind: 'track', plate: 'GTO 88' } } } }],
+});
+
+registerMock({
+  id: 'keys-track-none',
+  group: 'Key ring',
+  label: 'Track: no tracker fitted',
+  messages: [init, open({ ...physical(), focus: '52MZL952' }), { action: 'update', data: { app: 'keys', data: { dialog: { kind: 'track', plate: '52MZL952' } } } }],
+});
+
+registerMock({
+  id: 'keys-give',
+  group: 'Key ring',
+  label: 'Give keys picker (alone)',
+  messages: [init, alone({ kind: 'give', plate: 'KRM 404' }, { keys: physical().keys, nearbyPlayers: NAMED })],
+});
+
+registerMock({
+  id: 'keys-inspect-ground',
+  group: 'Key ring',
+  label: 'Inspect a key on the ground',
+  messages: [
+    init,
+    alone({
+      kind: 'inspect',
+      source: 'ground',
+      id: 'g1',
+      info: {
+        plate: '07CWE819',
+        keyKind: 'fob',
+        keyLabel: 'Fob · 07CWE819',
+        model: 'xls',
+        hash: joaat('xls'),
+        label: 'XLS',
+        make: 'Benefactor',
+        image: 'xls',
+        design: 'luxury',
+        kind: 'item',
+        droppedAgo: 95,
+      },
+    }),
+  ],
+});
+
+registerMock({
+  id: 'keys-inspect-carried',
+  group: 'Key ring',
+  label: 'Inspect a carried key (old locks)',
+  messages: [
+    init,
+    alone({
+      kind: 'inspect',
+      source: 'carried',
+      info: {
+        plate: 'KRM 404',
+        keyKind: 'key',
+        keyLabel: 'Key · KRM 404',
+        model: 'kuruma',
+        hash: joaat('kuruma'),
+        label: 'Kuruma',
+        make: 'Karin',
+        image: 'kuruma',
+        design: 'key',
+        kind: 'item',
+        valid: false,
+        reason: 'version',
+        origin: 'search',
+      },
+    }),
+  ],
+});
+
+registerMock({
+  id: 'keys-pin-enter',
+  group: 'Key ring',
+  label: 'Ghost PIN: driver (1234)',
+  messages: [init, alone({ kind: 'pin', pad: { id: 7, mode: 'enter', plate: 'GTO 88', vehicle: 'Red Rocket', attemptsLeft: 2, length: 4 } })],
+});
+
+registerMock({
+  id: 'keys-pin-cooldown',
+  group: 'Key ring',
+  label: 'Ghost PIN: cooldown',
+  messages: [init, alone({ kind: 'pin', pad: { id: 8, mode: 'enter', plate: 'GTO 88', vehicle: 'Red Rocket', cooldown: 42, attemptsLeft: 0, length: 4 } })],
+});
+
+registerMock({
+  id: 'keys-pin-set',
+  group: 'Key ring',
+  label: 'Ghost PIN: owner sets it',
+  messages: [init, alone({ kind: 'pin', pad: { id: 9, mode: 'set', plate: 'XO 1', vehicle: 'Midnight', pinSet: true, length: 4 } })],
+});
+
+registerMock({
+  id: 'keys-access',
+  group: 'Key ring',
+  label: 'Key access (owner, virtual)',
+  messages: [init, open({ ...virtual(), focus: 'XO 1' })],
 });

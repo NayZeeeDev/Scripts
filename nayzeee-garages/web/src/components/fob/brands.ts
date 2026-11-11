@@ -101,6 +101,9 @@ export function brandModelUrl(slug: BrandSlug): string {
 /** Display name of a slug ('vom-feuer' -> 'Vom Feuer'), for alt texts. */
 export function brandName(slug: BrandSlug): string {
   if (slug === 'bf') return 'BF';
+  if (slug === 'ubermacht') return 'Übermacht';
+  if (slug === 'overflod') return 'Överflöd';
+  if (slug === 'jobuilt') return 'JoBuilt';
   if (slug === 'hvy' || slug === 'mtl' || slug === 'lcc') return slug.toUpperCase();
   return slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
