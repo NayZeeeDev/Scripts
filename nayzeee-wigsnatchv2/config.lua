@@ -1005,16 +1005,34 @@ Config.Studio = {
     },
 }
 
--- 3D wigs: every hairstyle your server streams is turned into a prop for the foam head at the wig
--- tables, by hairkit (tools/hairkit). The Wig Studio shows what's new, changed or gone and builds them;
--- they go into their own resource (nzw_hairprops) next to this one. See README > 3D wigs.
+-- 3D wigs + salon hair: your hairstyles are turned into props (the foam head at the wig tables, and the
+-- slices that go on a head row by row at the salon) by hairkit (tools/hairkit). They go into their own
+-- resource (nzw_hairprops) next to this one. The Wig Studio shows what's new, changed or gone. See README > 3D wigs.
 Config.HairProps = {
     Enabled     = true,
     Resource    = 'nzw_hairprops',   -- Created next to this resource the first time
+
+    -- Your clothing packs with hair in them. Paste the folder of each one (from your server folder, where
+    -- server.cfg is), or just its resource name. A folder like [clothing] with several packs in it works too.
+    -- Only HAIR is read from them (^hair_###_u.ydd and its ^hair_diff_ textures): nothing else in the pack
+    -- is opened or changed. Leave it empty {} to look through every started resource instead.
+    Packs = {
+        -- 'resources/[clothing]/my_hair_pack',
+        -- 'resources/[clothing]/[hair]',
+        -- 'another_hair_pack',
+    },
+
+    -- The drop folder, inside this resource: put a hairstyle's .ydd + .ytd files in hairstyles/<Name>/ and
+    -- restart. It becomes a hairstyle characters can wear (a hair pack inside nzw_hairprops), with its foam
+    -- head prop and salon slices. Name the folder after a salon style ("Knotless Braids", "Box Braids") and
+    -- that style uses it by itself. See hairstyles/README.md. false = off
+    DropFolder  = 'hairstyles',
+
+    Genders     = { 'f' },           -- Female characters only. { 'f', 'm' } for male hair too (not the drop folder: that's female)
     AutoScan    = true,              -- Look for new / changed / removed hair files when the server starts
     AutoBuild   = true,              -- ...and build them straight away (restarts nzw_hairprops)
     TextureSize = 256,               -- Max texture size of each hair prop (128 / 256 / 512)
-    Skip        = {},                -- Resource names to leave out of the scan, e.g. { 'my_test_pack' }
+    Skip        = {},                -- When Packs is empty: resource names to leave out, e.g. { 'my_test_pack' }
     Kit = {                          -- The hairkit program for each server OS (inside this resource)
         windows = 'tools/hairkit/win-x64/hairkit.exe',
         linux   = 'tools/hairkit/linux-x64/hairkit',

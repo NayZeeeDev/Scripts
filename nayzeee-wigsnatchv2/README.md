@@ -193,7 +193,17 @@ The tables are **Dragons Lab's Wig Crafting Tables by SasDragon**. They are not 
 
 GTA can only draw a hairstyle on a ped, so every hairstyle on your server is turned into a prop for the foam head, automatically, by **hairkit** (`tools/hairkit`, ready-to-run for Windows and Linux servers):
 
-- **On server start** it looks through every started resource for hair files, converts new and changed ones into props in `nzw_hairprops` (created next to this resource), removes props whose hair is gone, and restarts `nzw_hairprops`. Your existing hair packs are all it needs: nothing to install.
+- **On server start** it looks through your clothing packs for hair files, converts new and changed ones into props in `nzw_hairprops` (created next to this resource), removes props whose hair is gone, and restarts `nzw_hairprops`. Your existing hair packs are all it needs: nothing to install.
+- **Which packs:** paste each clothing pack's folder (or its resource name) in `Config.HairProps.Packs`, as many as you have:
+  ```lua
+  Packs = {
+      'resources/[clothing]/my_hair_pack',
+      'resources/[clothing]/[hair]',      -- a folder of packs works too
+  },
+  ```
+  Only **hair** is read from them (`…^hair_###_u.ydd` and their `…^hair_diff_…` textures); nothing else in the pack is opened or changed. Left empty, it looks through every started resource.
+- **Female only** by default (`Config.HairProps.Genders = { 'f' }`); `{ 'f', 'm' }` adds male hair.
+- **The drop folder:** put a hairstyle's `.ydd` + `.ytd` in `hairstyles/<Name>/` (inside this resource) and restart. It becomes a hairstyle characters can wear (hairkit makes it a female hair pack inside `nzw_hairprops`, so you don't build a clothing pack yourself), with its foam head prop and salon slices. Name the folder after a salon style (`Knotless Braids`, `Box Braids`, `Cornrows`…) and that style uses it by itself. See `hairstyles/README.md`. Keep `nzw_hairprops` started **after** your clothing packs so their hairstyle numbers don't move.
 - **`/wigstudio` > 3D wigs** shows how many hairstyles have a prop and what's new, changed or gone, with Build, Check again and Rebuild every hairstyle. Hairstyles with a prop get a **3D** tag in the list.
 - Props are matched to hairstyles by pack and slot (the game's collection natives), so they stay right when packs change order.
 - **Base game hair** lives in GTA's own files, which servers don't have: run `hairkit game` once on a PC with GTA and upload `nzw_hairprops`. See `INSTALL/HAIR_PROPS.md`.
@@ -245,7 +255,9 @@ Your hairstyles stay normal clothing hair (`.ydd` / `.ytd` in your packs): the s
 
 A style sits on the player's own hair: a wig goes over it, `/takedown` (or the Vault) takes it down, cutting the hair takes it out, and snatching it takes it like natural hair (the wig keeps the look).
 
-**Giving each style its look (admins).** Each style is one of your hairstyles per model, hand-picked: `/wigstudio`, find the hairstyle (your braid / loc / weave packs), then **Salon look** > pick the style > **Use**. Linking it builds its slices (3D wigs, a few seconds per hairstyle). The Style Book shows "No look" on styles that aren't linked for the client's model yet. Looks are saved in the database.
+**Female characters only** (`Config.Salon.FemaleOnly`): the stylist can be anyone, the client has to be on the female model.
+
+**Giving each style its look (admins).** The easy way: drop the hairstyle in `hairstyles/<Style Name>/` and restart (see 3D wigs); the style picks it up by itself. Or hand-pick one from your packs: `/wigstudio`, find the hairstyle (your braid / loc / weave packs), then **Salon look** > pick the style > **Use**. Linking it builds its slices (3D wigs, a few seconds per hairstyle). The Style Book shows "No look" on styles that aren't linked for the client's model yet. Looks are saved in the database.
 
 **The Beauty Supply** (`Config.BeautySupply`, the same store window as the Hair Supply) sells extension hair by shade, length and texture (longer packs cost more), the products and the tools. Packs of one shade and length count together. Without item metadata (plain ESX inventory) packs are generic and the style keeps the client's colour.
 
@@ -295,7 +307,7 @@ See **3D wigs** above for the hairstyles themselves.
 | `Config.SalonStyles` | `salon.lua` | The styles: steps, moves, hair, products, levels, options |
 | `Config.BeautySupply` | `salon.lua` | The Beauty Supply: ped, location, items, prices per inch |
 | `Config.Supplier` | | Ped, location, blip, accounts, categories, items, prices and levels |
-| `Config.HairProps` | on | 3D wigs: auto scan / auto build on start, texture size, resources to skip, hairkit paths |
+| `Config.HairProps` | on | 3D wigs: your clothing packs (`Packs`, hair only), the `hairstyles/` drop folder, female only, auto scan / build on start, texture size, hairkit paths |
 | `Config.Studio` | `256` px | Photo size, starting backdrop, framing, lights, ox_inventory copy |
 
 Discord webhooks and the admin / studio aces live in `config_server.lua`, which never reaches players.
@@ -313,6 +325,9 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 | The client doesn't sit down | They're not near a chair in `Config.Salon.Chairs` (they stand still instead). Add your salon chair's model there. |
 | The braid colour looks off | Shades are matched to the closest GTA hair colour. Adjust `rgb` in `Config.Salon.Shades`. |
 | A style goes on all at once at the end | Its hairstyle has no slices yet: hairkit isn't installed / allowed, or the build failed (F8 / server console). `/wigstudio` > 3D wigs > Build. |
+| A hairstyle in `hairstyles/` doesn't show up | The console says why when the server starts (empty `.ytd`, a male file, no colour texture). Players see new ones after they reconnect. |
+| A salon style still says "No look" after dropping its hairstyle | The folder name has to match the style (see `hairstyles/README.md`). The number is confirmed by the first players to join (or one admin); or link it in `/wigstudio` > Salon look. |
+| `Config.HairProps.Packs: couldn't find …` in the console | Use the folder from your server folder (`resources/[clothing]/my_pack`), the full path, or the resource name. |
 | The cornrows of a sew-in are the wrong hairstyle | Put your build's cornrow numbers in `Config.Salon.Cornrows` (check them in the Wig Studio), or link a "cornrows" look there. |
 | Slices / the cap sit off the head | `/salonalign` and put the printed values in `Config.Salon.Attach`. |
 | The foam head shows the generic wig | That hairstyle has no prop yet: `/wigstudio` > 3D wigs > Build. Base game hair needs `hairkit game` on a PC with GTA. If the console says it couldn't start `nzw_hairprops`, add the `add_ace` lines from Installation. |

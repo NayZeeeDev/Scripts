@@ -29,6 +29,8 @@ Config.Salon = {
     RequestTimeout = 30,
     MaxMinutes     = 25,            -- A session ends on its own after this long
     MinTime        = 0.6,           -- Anti-cheat: a move can't be done faster than this share of its normal time
+    FemaleOnly     = true,          -- Only female characters can have their hair done (the stylist can be anyone)
+    AutoLink       = true,          -- A hairstyle in hairstyles/<Style Name>/ becomes that style's look by itself
 
     -- What the client pays the stylist (the stylist sets the price in the Style Book, 0 = free).
     -- The money is held when the client says yes, and goes to the stylist when the style is done.
@@ -132,10 +134,10 @@ Config.Salon = {
         hair         = { label = 'Extension Hair',   item = false, prop = { model = `nz_sty_pack`, bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) } },
     },
 
-    -- The braid down under a sew-in: GTA's own cornrows. Female 25 is Pinched Cornrows and male 8 is
-    -- Cornrows on most game builds; check the number in /wigstudio and put yours here (or link the
-    -- "cornrows" look there, which wins over this).
-    Cornrows = { f = { d = 25, t = 0 }, m = { d = 8, t = 0 } },
+    -- The braid down under a sew-in: GTA's own cornrows. Female 25 is Pinched Cornrows on most game
+    -- builds; check the number in /wigstudio and put yours here (or link the "cornrows" look there, which
+    -- wins over this).
+    Cornrows = { f = { d = 25, t = 0 } },
     -- In-between looks you can link in /wigstudio like the styles
     Looks = {
         cornrows = 'Cornrows: the braid down under a sew-in',

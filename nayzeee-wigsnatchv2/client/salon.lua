@@ -15,9 +15,35 @@ local CENTRE = { y = 0.015, z = 0.055 }
 local HAIR = 1.07        -- the guides sit on the hair, a little off the scalp
 
 Salon.Looks = {}
+
+-- a look linked from the hairstyles/ drop folder only knows its hairstyle by pack and slot (its key); the
+-- hairstyle's number on this server comes from the game, so clients tell the server what it is
+local resolving = false
+function Salon.ResolveLooks()
+    if resolving or not HairProps or not HairProps.Drawable then return end
+    local todo = {}
+    for id, per in pairs(Salon.Looks) do
+        for m, l in pairs(type(per) == 'table' and per or {}) do
+            if type(l) == 'table' and l.key and l.d == nil then todo[#todo + 1] = { id = id, m = m, key = l.key } end
+        end
+    end
+    if #todo == 0 then return end
+    resolving = true
+    CreateThread(function()
+        while not CB.IsLoaded() do Wait(1000) end
+        Wait(2000)
+        for _, l in ipairs(todo) do
+            local d = HairProps.Drawable(l.m, l.key)
+            if d then TriggerServerEvent('nz-wig:s:salonResolve', l.id, l.m, l.key, d) end
+        end
+        resolving = false
+    end)
+end
+
 RegisterNetEvent('nz-wig:c:salonLooks', function(looks)
     Salon.Looks = type(looks) == 'table' and looks or {}
     NUI.Send('studio:looks', Salon.Looks)
+    Salon.ResolveLooks()
 end)
 
 -- every style and in-between look the Wig Studio can set

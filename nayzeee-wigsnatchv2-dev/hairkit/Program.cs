@@ -6,6 +6,12 @@
 //   hairkit game  --out <nzw_hairprops> --gta <GTA V folder>          base game + DLC hair (needs GTA)
 //   --slices <file>  hairstyle keys (one per line) that also get slice props for the salon: the hair cut into
 //                    bands by where each strand roots, nape first, crown last (<prop>_s1 .. _s5)
+//   --slice-names <file>  drop folder hairstyles whose name (lower case, letters and digits only) is listed get them too
+//   --drop <folder>  the hair drop folder: hairstyles there become a female hair pack in --out (see Pack.cs)
+//   --genders f      only these models' hair (f, m or fm; default fm)
+//
+// Only hair is read from the roots: <pack>^hair_###_*.ydd and their <pack>^hair_diff_###_*.ytd. Nothing
+// else in a clothing pack is opened or touched.
 //
 // Lines starting with '@' are JSON for the server script; everything else is a log line.
 // Started with no arguments (double-clicked), it asks for the GTA V folder and runs `game`.
@@ -19,7 +25,7 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using CodeWalker.GameFiles;
 
-static class P
+static partial class P
 {
     static readonly Regex HairFile = new(@"^mp_([mf])_freemode_01(?:_([^\^]+))?\^hair_(\d{3})_[a-z]\.ydd$", RegexOptions.IgnoreCase);
     static readonly Regex GameHair = new(@"^hair_(\d{3})_[a-z]\.ydd$", RegexOptions.IgnoreCase);
@@ -42,8 +48,9 @@ static class P
             string outDir = null, gta = null, rootsFile = null;
             bool all = false;
             int texSize = 256;
-            string slicesFile = null;
+            string slicesFile = null, sliceNamesFile = null;
             var roots = new List<string>();
+            var drops = new List<string>();
             for (int i = 1; i < args.Length; i++)
             {
                 switch (args[i])
@@ -54,6 +61,9 @@ static class P
                     case "--all": all = true; break;
                     case "--tex": texSize = int.Parse(args[++i]); break;
                     case "--slices": slicesFile = args[++i]; break;
+                    case "--slice-names": sliceNamesFile = args[++i]; break;
+                    case "--drop": drops.Add(args[++i]); break;
+                    case "--genders": Genders = args[++i].ToLowerInvariant(); break;
                     default: roots.Add(args[i]); break;
                 }
             }
@@ -63,25 +73,37 @@ static class P
             var map = HairMap.Load(outDir);
             if (slicesFile != null && File.Exists(slicesFile))
                 SliceKeys = new HashSet<string>(File.ReadAllLines(slicesFile).Select(l => l.Trim()).Where(l => l.Length > 0));
+            if (sliceNamesFile != null && File.Exists(sliceNamesFile))
+                SliceNames = new HashSet<string>(File.ReadAllLines(sliceNamesFile).Select(l => NameKey(l)).Where(l => l.Length > 0));
+            if (!Genders.Contains('f')) drops.Clear();   // the drop folder pack is female
 
             switch (cmd)
             {
                 case "scan":
                 {
-                    var found = FindServerHair(roots, outDir);
+                    var pack = Pack(drops, outDir, false);
+                    var found = FindServerHair(roots, outDir).Concat(pack.Srcs).ToList();
                     var diff = map.Diff(found, "server");
-                    Emit("scan", diff.ToJson(found.Count, map));
+                    var j = diff.ToJson(found.Count, map);
+                    j["drop"] = pack.ToJson();
+                    j["dropChanged"] = pack.Changed;
+                    Emit("scan", j);
                     return 0;
                 }
                 case "build":
                 {
-                    var found = FindServerHair(roots, outDir);
+                    var pack = Pack(drops, outDir, true);
+                    LastPack = pack;
+                    var found = FindServerHair(roots, outDir).Concat(pack.Srcs).ToList();
                     var diff = map.Diff(found, "server");
                     var todo = all ? found : diff.New.Concat(diff.Changed).ToList();
                     // salon looks that don't have their slices yet
                     foreach (var f in found)
-                        if (SliceKeys.Contains(f.Key) && !todo.Contains(f) && (!map.Entries.TryGetValue(f.Key, out var e) || (e["slices"]?.GetValue<int>() ?? 0) != SliceCount))
+                        if (WantsSlices(f) && !todo.Contains(f) && (!map.Entries.TryGetValue(f.Key, out var e) || (e["slices"]?.GetValue<int>() ?? 0) != SliceCount))
                             todo.Add(f);
+                    // a drop folder hairstyle renamed: just its name changes
+                    foreach (var f in found)
+                        if (f.Label != null && map.Entries.TryGetValue(f.Key, out var e2) && e2["label"]?.GetValue<string>() != f.Label) e2["label"] = f.Label;
                     Build(outDir, map, todo, diff.Removed, texSize);
                     return 0;
                 }
@@ -244,7 +266,7 @@ static class P
 
     public class Src
     {
-        public string Gender, Collection, Path, Ytd, Origin = "server";
+        public string Gender, Collection, Path, Ytd, Label, Origin = "server";
         public int Local;
         public long Size, Mtime;
         public string Key => $"{Gender}|{Collection}|{Local}";
@@ -271,7 +293,7 @@ static class P
         foreach (var f in ydds)
         {
             var m = HairFile.Match(Path.GetFileName(f));
-            if (!m.Success) continue;
+            if (!m.Success || !Genders.Contains(m.Groups[1].Value.ToLowerInvariant())) continue;
             var fi = new FileInfo(f);
             var s = new Src
             {
@@ -281,8 +303,10 @@ static class P
                 Path = f, Size = fi.Length, Mtime = new DateTimeOffset(fi.LastWriteTimeUtc).ToUnixTimeSeconds(),
             };
             var prefix = Path.GetFileName(f).Substring(0, Path.GetFileName(f).IndexOf('^'));
-            var want = $"{prefix}^hair_diff_{m.Groups[3].Value}_a_";
-            s.Ytd = ytds.FirstOrDefault(kv => kv.Key.StartsWith(want, StringComparison.OrdinalIgnoreCase)).Value;
+            var want = $"{prefix}^hair_diff_{m.Groups[3].Value}_";
+            // texture A if it has one (hair_diff_003_a_uni), else whatever it has (hair_diff_003_uni)
+            s.Ytd = ytds.Where(kv => kv.Key.StartsWith(want, StringComparison.OrdinalIgnoreCase)).OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(kv => kv.Value).FirstOrDefault(p => { try { return new FileInfo(p).Length > 0; } catch { return false; } });
             outList[s.Key] = s; // a later resource overrides an earlier one, like streaming does
         }
         return outList.Values.OrderBy(s => s.Key).ToList();
@@ -319,6 +343,7 @@ static class P
         {
             var fm = GameFolder.Match(fe.Parent.Name);
             var hm = GameHair.Match(fe.Name);
+            if (!Genders.Contains(fm.Groups[1].Value.ToLowerInvariant())) continue;
             var s = new Src
             {
                 Origin = "game", Gender = fm.Groups[1].Value.ToLowerInvariant(),
@@ -379,16 +404,35 @@ static class P
     {
         WriteYtyp(outDir, map);
         map.Save(outDir);
-        var manifest = Path.Combine(outDir, "fxmanifest.lua");
-        if (!File.Exists(manifest))
+        WriteManifest(outDir);
+        var done = new JsonObject { ["built"] = ok, ["tried"] = total, ["removed"] = removed, ["props"] = map.Entries.Count };
+        if (LastPack != null) { done["drop"] = LastPack.ToJson(); done["dropChanged"] = LastPack.Changed; }
+        Emit("done", done);
+    }
+
+    // nzw_hairprops' fxmanifest: rewritten every build (with the hair pack's lines when there is one)
+    static void WriteManifest(string outDir)
+    {
+        bool pack = File.Exists(Path.Combine(outDir, PackFull + ".meta"));
+        var sb = new StringBuilder();
+        sb.Append("-- Made by hairkit (Wig Snatch V2) and rewritten on every build: don't edit.\n");
+        sb.Append("fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Hairstyle props for Wig Snatch, and the hairstyles from its hairstyles/ drop folder'\n\n");
+        sb.Append("this_is_a_map 'yes'\ndata_file 'DLC_ITYP_REQUEST' 'stream/nzw_hair.ytyp'\n");
+        if (pack)
         {
-            File.WriteAllText(manifest, "fx_version 'cerulean'\ngame 'gta5'\n\ndescription 'Hairstyle props for Wig Snatch (made by the Wig Studio)'\n\n" +
-                "this_is_a_map 'yes'\ndata_file 'DLC_ITYP_REQUEST' 'stream/nzw_hair.ytyp'\nfiles { 'hairmap.json' }\n");
+            sb.Append($"\n-- the drop folder hairstyles: a female hair pack\nfiles {{ 'hairmap.json', '{PackFull}.meta' }}\n");
+            sb.Append($"data_file 'SHOP_PED_APPAREL_META_FILE' '{PackFull}.meta'\n");
         }
-        Emit("done", new JsonObject { ["built"] = ok, ["tried"] = total, ["removed"] = removed, ["props"] = map.Entries.Count });
+        else sb.Append("files { 'hairmap.json' }\n");
+        File.WriteAllText(Path.Combine(outDir, "fxmanifest.lua"), sb.ToString());
     }
 
     static HashSet<string> SliceKeys = new();
+    static HashSet<string> SliceNames = new();
+    static string Genders = "fm";
+    static PackResult LastPack;
+    static string NameKey(string s) => Regex.Replace((s ?? "").ToLowerInvariant(), "[^a-z0-9]", "");
+    static bool WantsSlices(Src s) => SliceKeys.Contains(s.Key) || (s.Label != null && SliceNames.Contains(NameKey(s.Label)));
     const int SliceCount = 5;
 
     static string PropName(Src s)
@@ -469,7 +513,7 @@ static class P
             map.Set(s, name, mn, mx, outGeos.Sum(g => g.I.Count / 3), alpha);
 
             // salon slices: the same hair in bands, so a style can go on row by row
-            if (SliceKeys.Contains(s.Key))
+            if (WantsSlices(s))
             {
                 // slices go on a ped's head bone, so they're baked into the bone's own space: the freemode rest
                 // pose of SKEL_Head (same for both models), so they attach at offset 0, rotation 0
@@ -880,7 +924,7 @@ static class P
             Entries[s.Key] = new JsonObject
             {
                 ["prop"] = prop, ["m"] = s.Gender, ["collection"] = s.Collection, ["local"] = s.Local, ["origin"] = s.Origin,
-                ["src"] = s.Path, ["size"] = s.Size, ["mtime"] = s.Mtime, ["tris"] = tris, ["cutout"] = cutout,
+                ["src"] = s.Path, ["size"] = s.Size, ["label"] = s.Label, ["mtime"] = s.Mtime, ["tris"] = tris, ["cutout"] = cutout,
                 ["min"] = new JsonArray(mn.X, mn.Y, mn.Z), ["max"] = new JsonArray(mx.X, mx.Y, mx.Z),
             };
         }

@@ -106,6 +106,7 @@ Locales['en'] = {
     salon_cancelled_refund = 'The hair appointment was stopped. Your money was given back',
     salon_wig_on           = '%s has a wig on: they need to take it off first',
     salon_no_look          = '%s has no look for this model yet: an admin sets it in /wigstudio',
+    salon_female_only      = 'The salon is for female characters',
     salon_missing          = "You're missing %s thing(s) for this style",
     salon_client_broke     = "%s can't pay for it",
     salon_done_stylist     = '%s done on %s (%d%%)',

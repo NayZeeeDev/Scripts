@@ -1,0 +1,4 @@
+# your dropped hairstyles stay on your server, not in git
+*
+!.gitignore
+!README.md

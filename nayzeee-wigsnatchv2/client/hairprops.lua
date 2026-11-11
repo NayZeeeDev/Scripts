@@ -48,6 +48,14 @@ function HairProps.Model(m, d)
     return IsModelInCdimage(h) and h or nil
 end
 
+-- the hairstyle number of a key on this client (nil if the game doesn't have it)
+function HairProps.Drawable(m, key)
+    for d, k in pairs(buildKeys(m == 'm' and 'm' or 'f')) do
+        if k == key then return d end
+    end
+    return nil
+end
+
 function HairProps.Has(m, d)
     local key = HairProps.Key(m, d)
     return key ~= nil and HairProps.map[key] ~= nil
@@ -56,6 +64,7 @@ end
 RegisterNetEvent('nz-wig:c:hairmap', function(map, slices)
     HairProps.map = type(map) == 'table' and map or {}
     HairProps.slices = type(slices) == 'table' and slices or {}
+    if Salon and Salon.ResolveLooks then Salon.ResolveLooks() end
 end)
 
 -- the salon slices of a hairstyle: a list of prop hashes, nape first (nil if it has none)

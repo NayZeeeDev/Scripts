@@ -13,7 +13,9 @@ local seq = 0
 local function now() return os.time() end
 
 -- looks: which of the server's hairstyles each salon style shows as, per model -------------------------
--- Salon.Looks['box_braids'] = { f = { d = 132, t = 0 }, m = { d = 80, t = 2 } }
+-- Salon.Looks['box_braids'] = { f = { d = 132, t = 0, key = 'f|mp_f_mypack|4' } }
+-- A look linked from the hairstyles/ drop folder starts with only its key (d = nil): the first players to
+-- join tell the server its number (see nz-wig:s:salonResolve).
 Salon.Looks = {}
 
 local function cleanLooks(t)
@@ -22,9 +24,10 @@ local function cleanLooks(t)
         if type(id) == 'string' and type(per) == 'table' then
             for _, m in ipairs({ 'm', 'f' }) do
                 local l = per[m]
-                if type(l) == 'table' and tonumber(l.d) then
+                local key = type(l) == 'table' and type(l.key) == 'string' and l.key or nil
+                if type(l) == 'table' and (tonumber(l.d) or key) then
                     out[id] = out[id] or {}
-                    out[id][m] = { d = math.floor(tonumber(l.d)), t = math.floor(tonumber(l.t) or 0), key = type(l.key) == 'string' and l.key or nil }
+                    out[id][m] = { d = tonumber(l.d) and math.floor(tonumber(l.d)) or nil, t = math.floor(tonumber(l.t) or 0), key = key, auto = l.auto == true or nil }
                 end
             end
         end
@@ -32,10 +35,93 @@ local function cleanLooks(t)
     return out
 end
 
+local booted = false
 function Salon.Boot()
     Salon.Looks = cleanLooks(DB.GetKV('salon_looks'))
+    booted = true
+    TriggerClientEvent('nz-wig:c:salonLooks', -1, Salon.Looks)
+    Salon.AutoLink()
+end
+
+local function saveLooks()
+    DB.SetKV('salon_looks', Salon.Looks)
     TriggerClientEvent('nz-wig:c:salonLooks', -1, Salon.Looks)
 end
+
+-- the drop folder: a hairstyle in hairstyles/<Style Name>/ is the look of the salon style with that name
+-- (its id, its name, its name without the bit in brackets or after "with", either side of a "/":
+-- "Cornrows", "Knotless Braids", "Goddess Braids", "Butterfly Locs", "Space Buns")
+local function nameKey(v) return (tostring(v or ''):lower():gsub('[^%w]', '')) end
+local function styleNames(id, label)
+    label = tostring(label or '')
+    local out = { nameKey(id), nameKey(label), nameKey((label:gsub('%b()', ''))), nameKey(label:match('^([^:]+)')),
+                  nameKey(label:match('^(.-)%s+with%s')) }
+    for part in label:gsub('%b()', ''):gmatch('[^/]+') do out[#out + 1] = nameKey(part) end
+    local seen, uniq = {}, {}
+    for _, n in ipairs(out) do if n ~= '' and not seen[n] then seen[n] = true uniq[#uniq + 1] = n end end
+    return uniq
+end
+local function eachStyle(fn)
+    for _, st in ipairs(Config.SalonStyles) do fn(st.id, styleNames(st.id, st.label)) end
+    for id, label in pairs(SC.Looks or {}) do fn(id, styleNames(id, label)) end
+end
+
+-- names of the styles with no female look yet: hairkit gives a drop folder hairstyle of that name its slices
+function Salon.SliceNames()
+    local out, seen = {}, {}
+    if SC.AutoLink == false then return out end
+    eachStyle(function(id, names)
+        if not (Salon.Looks[id] and Salon.Looks[id].f) then
+            for _, n in ipairs(names) do if not seen[n] then seen[n] = true out[#out + 1] = n end end
+        end
+    end)
+    return out
+end
+
+function Salon.AutoLink()
+    if not booted or SC.AutoLink == false or not HairProps or not HairProps.labels then return end
+    local byName = {}
+    for key, label in pairs(HairProps.labels) do
+        if key:sub(1, 2) == 'f|' then
+            local n = nameKey(label)
+            if n ~= '' and (not byName[n] or key < byName[n]) then byName[n] = key end
+        end
+    end
+    local changed = false
+    eachStyle(function(id, names)
+        if Salon.Looks[id] and Salon.Looks[id].f then return end
+        for _, n in ipairs(names) do
+            if byName[n] then
+                Salon.Looks[id] = Salon.Looks[id] or {}
+                Salon.Looks[id].f = { key = byName[n], t = 0, auto = true }
+                changed = true
+                print(('^5[%s]^7 Salon: %s uses the hairstyle "%s" from the hairstyles/ folder.'):format(RESOURCE, id, HairProps.labels[byName[n]]))
+                return
+            end
+        end
+    end)
+    if changed then saveLooks() end
+end
+
+-- a client's number for a drop folder look: kept once two players agree (or one Wig Studio admin says so)
+local heard = {}
+RegisterNetEvent('nz-wig:s:salonResolve', function(id, m, key, d)
+    local src = source
+    local l = type(id) == 'string' and (m == 'f' or m == 'm') and Salon.Looks[id] and Salon.Looks[id][m]
+    if not l or l.d ~= nil or l.key ~= key then return end
+    d = SafeNumber(d)
+    if not d or d < 0 or d > 5000 or d ~= math.floor(d) then return end
+    local h = ('%s|%s|%s'):format(id, m, key)
+    heard[h] = heard[h] or {}
+    heard[h][src] = d
+    local agree = IsPlayerAceAllowed(src, 'command.wigstudio') and 2 or 0
+    for p, v in pairs(heard[h]) do if v == d and Players[p] then agree = agree + 1 end end
+    if agree < 2 then return end
+    heard[h] = nil
+    l.d, l.t = d, l.t or 0
+    saveLooks()
+    if HairProps and HairProps.kit and not HairProps.running and not (HairProps.slices or {})[key] then HairProps.Run('build', 0) end
+end)
 
 RegisterNetEvent('nz-wig:s:salonLooks', function()
     TriggerClientEvent('nz-wig:c:salonLooks', source, Salon.Looks)
@@ -57,6 +143,7 @@ RegisterNetEvent('nz-wig:s:salonSetLook', function(id, m, d, t, key)
     local src = source
     if not IsPlayerAceAllowed(src, 'command.wigstudio') then return end
     if type(id) ~= 'string' or (not Salon.Style(id) and not SC.Looks[id]) or (m ~= 'm' and m ~= 'f') then return end
+    if m == 'm' and SC.FemaleOnly ~= false then return Notify(src, L('salon_female_only'), 'error') end
     Salon.Looks[id] = Salon.Looks[id] or {}
     d = SafeNumber(d)
     if d then
@@ -66,8 +153,7 @@ RegisterNetEvent('nz-wig:s:salonSetLook', function(id, m, d, t, key)
         Salon.Looks[id][m] = nil
         if next(Salon.Looks[id]) == nil then Salon.Looks[id] = nil end
     end
-    DB.SetKV('salon_looks', Salon.Looks)
-    TriggerClientEvent('nz-wig:c:salonLooks', -1, Salon.Looks)
+    saveLooks()
     Notify(src, d and L('salon_look_set', (Salon.Style(id) or {}).label or SC.Looks[id]) or L('salon_look_cleared'), 'success')
     -- build its slices (only what's missing is built)
     if d and HairProps and HairProps.kit and not HairProps.running then HairProps.Run('build', src) end
@@ -75,7 +161,8 @@ end)
 
 local function lookFor(id, m)
     local l = Salon.Looks[id]
-    return l and l[m] or nil
+    l = l and l[m] or nil
+    return l and l.d ~= nil and l or nil   -- a drop folder look still waiting for its number isn't ready
 end
 
 -- items ----------------------------------------------------------------------------------------------------
@@ -205,6 +292,7 @@ local function targetInfo(src, target)
     if PedDistance(src, C.src) > SC.Range + 1.0 then return nil, 'no_one_close' end
     local model = Hair.PedModelKey(C.src)
     if not model or not ModelEnabled(model) then return nil, 'wrong_model' end
+    if model ~= 'f' and SC.FemaleOnly ~= false then return nil, 'salon_female_only' end
     return C, nil, model
 end
 

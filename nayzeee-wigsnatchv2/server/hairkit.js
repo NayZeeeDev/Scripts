@@ -17,6 +17,24 @@ function kitFor(kits) {
   return p.startsWith(HERE + path.sep) && fs.existsSync(p) ? p : null;
 }
 
+// a clothing pack folder from Config.HairProps.Packs: absolute, or relative to the server folder (where
+// server.cfg is, e.g. 'resources/[clothing]/my_hair') or to the resources folder ('[clothing]/my_hair')
+function packDir(p) {
+  const clean = String(p).trim().replace(/^["']|["']$/g, '');
+  if (!clean) return null;
+  const tries = [];
+  if (path.isAbsolute(clean)) tries.push(clean);
+  else {
+    const parts = HERE.split(path.sep);
+    const at = parts.lastIndexOf('resources');
+    const server = at > 0 ? parts.slice(0, at).join(path.sep) || path.sep : null;
+    if (server) tries.push(path.resolve(server, clean), path.resolve(server, 'resources', clean));
+    tries.push(path.resolve(process.cwd(), clean), path.resolve(process.cwd(), 'resources', clean));
+  }
+  for (const t of tries) { try { if (fs.statSync(t).isDirectory()) return t; } catch (e) { /* next */ } }
+  return null;
+}
+
 // tell the Lua side whether this server can build 3D wigs at all
 on('nz-wig:hairkit:check', (kits) => {
   const kit = kitFor(kits || {});
@@ -29,12 +47,32 @@ on('nz-wig:hairkit:run', (job) => {
   if (!kit) return emit('nz-wig:hairkit:msg', job.src, 'error', { message: `hairkit for ${process.platform} is missing (tools/hairkit)` });
 
   if (process.platform !== 'win32') { try { fs.chmodSync(kit, 0o755); } catch (e) { /* read-only install: it may already be executable */ } }
+  const roots = (job.roots || []).slice();
+  for (const p of job.packs || []) {
+    const d = packDir(p);
+    if (d) roots.push(d);
+    else emit('nz-wig:hairkit:msg', job.src, 'warn', { message: `Config.HairProps.Packs: couldn't find "${p}" (a resource name, or a folder like resources/[clothing]/my_hair)` });
+  }
   const rootsFile = path.join(path.dirname(kit), '.roots.txt');
-  try { fs.writeFileSync(rootsFile, (job.roots || []).join('\n')); } catch (e) {
+  try { fs.writeFileSync(rootsFile, roots.join('\n')); } catch (e) {
     return emit('nz-wig:hairkit:msg', job.src, 'error', { message: 'could not write ' + rootsFile + ': ' + e.message });
   }
   const args = [job.mode === 'rebuild' ? 'build' : job.mode, '--out', path.resolve(job.out), '--roots-file', rootsFile, '--tex', String(job.tex || 256)];
   if (job.mode === 'rebuild') args.push('--all');
+  if (job.genders) args.push('--genders', String(job.genders));
+  // the hair drop folder (hairstyles/ in this resource)
+  if (job.drop) {
+    const drop = path.resolve(job.drop);
+    if (drop.startsWith(HERE + path.sep)) {
+      try { fs.mkdirSync(drop, { recursive: true }); } catch (e) { /* read-only install */ }
+      args.push('--drop', drop);
+    }
+  }
+  const tmpFiles = [rootsFile];
+  if (job.sliceNames && job.sliceNames.length) {
+    const namesFile = path.join(path.dirname(kit), '.slicenames.txt');
+    try { fs.writeFileSync(namesFile, job.sliceNames.join('\n')); args.push('--slice-names', namesFile); tmpFiles.push(namesFile); } catch (e) { /* none this time */ }
+  }
   // hairstyles the salon uses: they also get slice props (the style goes on row by row)
   if (job.slices && job.slices.length) {
     const slicesFile = path.join(path.dirname(kit), '.slices.txt');
@@ -66,7 +104,7 @@ on('nz-wig:hairkit:run', (job) => {
   running.on('close', (code) => {
     if (buf) line(buf);
     running = null;
-    try { fs.unlinkSync(rootsFile); } catch (e) { /* fine */ }
+    for (const f of tmpFiles) { try { fs.unlinkSync(f); } catch (e) { /* fine */ } }
     emit('nz-wig:hairkit:exit', job.src, job.mode, code === null ? -1 : code, tail.slice(-8).join('\n'));
   });
 });

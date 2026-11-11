@@ -30,7 +30,7 @@ local function sendState(full)
     NUI.Send('studio:state', {
         model = model, d = drawable, t = texture, list = full and list or nil,
         chroma = chroma, orbit = orbit, batch = batch, screenshot = hasScreenshot(),
-        salon = full and Salon.StudioList() or nil, looks = Salon.Looks,
+        salon = full and Salon.StudioList() or nil, looks = Salon.Looks, salonFemale = Config.Salon.FemaleOnly ~= false,
     })
 end
 

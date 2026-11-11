@@ -67,6 +67,7 @@ function studioState(d) {
   if (d.screenshot !== undefined) SD.screenshot = d.screenshot;
   if (d.salon) SD.salon = arr(d.salon);
   if (d.looks) SD.looks = d.looks;
+  if (d.salonFemale !== undefined) SD.salonFemale = !!d.salonFemale;
   if (!SD.on) return;
   if (sdSig() !== before) sdRender();
   else sdOrbitUi();
@@ -302,6 +303,7 @@ function sdSalonCard(busy) {
   const list = arr(SD.salon);
   if (!list.length) return '';
   const m = SD.model, looks = SD.looks || {};
+  if (SD.salonFemale && m === 'm') return `<div class="card sd-card"><div class="sd-ch">Salon look</div><div class="note" style="margin-top:0">The salon is for female characters: switch to the female model to set its looks.</div></div>`;
   const here = list.filter((s) => { const l = (looks[s.id] || {})[m]; return l && l.d === SD.d && (l.t || 0) === SD.t; });
   const set = list.filter((s) => !s.extra && (looks[s.id] || {})[m]).length;
   const total = list.filter((s) => !s.extra).length;
@@ -312,7 +314,7 @@ function sdSalonCard(busy) {
       : '<div class="note" style="margin-top:0">No salon style shows as this hairstyle yet.</div>'}
     <div class="sd-name"><label class="field"><i class="fa-solid fa-wand-magic-sparkles"></i><select id="sdSalon" ${busy ? 'disabled' : ''}>${list.map((s) => {
       const l = (looks[s.id] || {})[m];
-      return `<option value="${esc(s.id)}" ${s.id === SD.salonPick ? 'selected' : ''}>${esc(s.label)}${l ? ` (now #${l.d})` : ''}</option>`;
+      return `<option value="${esc(s.id)}" ${s.id === SD.salonPick ? 'selected' : ''}>${esc(s.label)}${l ? (l.d === undefined || l.d === null ? ' (from hairstyles/, numbering...)' : ` (now #${l.d})`) : ''}</option>`;
     }).join('')}</select></label>
       <button class="btn teal sm" data-sd="salonSet" ${busy ? 'disabled' : ''}><i class="fa-solid fa-check"></i>Use</button></div>
     <div class="note" style="margin-top:0">Players doing this style end up with the hairstyle on screen (this texture), in the hair colour they used.</div>
