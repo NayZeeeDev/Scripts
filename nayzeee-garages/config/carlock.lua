@@ -214,6 +214,25 @@ Config.CarLock = {
     duration = 900,
   },
 
+  -- World props of keys: held in the hand, dropped / thrown on the ground, caught, picked up.
+  -- Each fob design (key ring art) maps to a prop model. The defaults are GTA's own key props;
+  -- custom models (e.g. nz_keyfob_sport) can be streamed from stream/ and named here.
+  fobProps = {
+    fallback = 'lr_prop_carkey_fob',
+    byDesign = {
+      generic = 'lr_prop_carkey_fob',
+      sport = 'lr_prop_carkey_fob',
+      luxury = 'lr_prop_carkey_fob',
+      classic = 'lr_prop_carkey_fob',
+      leather = 'lr_prop_carkey_fob',
+      compact = 'lr_prop_carkey_fob',
+      key = 'p_car_keys_01',          -- plain metal key (standard security profile)
+    },
+    -- right hand (PH_R_Hand); offsets in metres, rotation in degrees: tune in game
+    hand = { bone = 28422, offset = vec3(0.04, 0.0, -0.01), rotation = vec3(-90.0, 0.0, 0.0) },
+    ground = { zOffset = 0.0, randomHeading = true },
+  },
+
   sound = {
     enabled = true,
     lock = { name = 'Remote_Control_Close', set = 'PI_Menu_Sounds' },
