@@ -37,6 +37,8 @@ CLIENT_ONLY_NUI = {
     'admin:interior:edit',
     'keys:refresh', 'keys:lock', 'keys:locate', 'keys:alarm', 'keys:players', 'keys:share', 'keys:holders',
     'keys:revoke', 'locksmith:refresh', 'locksmith:service',
+    'keyadmin:search', 'keyadmin:player', 'keyadmin:give', 'keyadmin:delete', 'keyadmin:plate', 'keyadmin:track',
+    'keyadmin:waypoint', 'keyadmin:settings', 'keyadmin:saveSettings',
 }
 # Client handlers that call a server callback under a different name.
 CLIENT_TO_SERVER = {
@@ -49,6 +51,11 @@ CLIENT_TO_SERVER = {
     'keys:alarm': 'nz:carlock:trackerAlarm', 'keys:players': 'nz:carlock:nearbyPlayers', 'keys:share': 'nz:carlock:share',
     'keys:holders': 'nz:carlock:keyHolders', 'keys:revoke': 'nz:carlock:keyRevoke',
     'locksmith:refresh': 'nz:carlock:locksmith:open', 'locksmith:service': 'nz:carlock:locksmith:service',
+    'keyadmin:search': 'nz:carlock:admin:search', 'keyadmin:player': 'nz:carlock:admin:player',
+    'keyadmin:give': 'nz:carlock:admin:give', 'keyadmin:delete': 'nz:carlock:admin:delete',
+    'keyadmin:plate': 'nz:carlock:admin:plate', 'keyadmin:track': 'nz:carlock:admin:track',
+    'keyadmin:waypoint': 'nz:carlock:admin:track', 'keyadmin:settings': 'nz:carlock:admin:settings',
+    'keyadmin:saveSettings': 'nz:carlock:admin:saveSettings',
 }
 APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior', 'keys', 'locksmith', 'contract'}
 ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint', 'notify'}

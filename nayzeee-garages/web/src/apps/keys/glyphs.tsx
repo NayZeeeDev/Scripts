@@ -75,6 +75,39 @@ export function SignalGlyph(props: GlyphProps) {
   );
 }
 
+/** Engine block: the remote start of the key ring's hold. */
+export function EngineGlyph(props: GlyphProps) {
+  return (
+    <Svg {...props}>
+      <path d="M7 9h8l2 2h2v6h-2l-2 2H8l-2-2H4v-6h2z" />
+      <path d="M9 9V6.5h4V9" />
+      <path d="M8 6.5h6" />
+      <path d="M19 12.5h1.5" />
+    </Svg>
+  );
+}
+
+/** Car window with a down arrow: roll the windows down. */
+export function WindowGlyph(props: GlyphProps) {
+  return (
+    <Svg {...props}>
+      <path d="M4 18V11.5L8.5 6h11v12z" />
+      <path d="M13.5 9.5v5.5" />
+      <path d="M11 12.8l2.5 2.5 2.5-2.5" />
+    </Svg>
+  );
+}
+
+/** Keypad: the Ghost immobiliser PIN. */
+export function KeypadGlyph(props: GlyphProps) {
+  return (
+    <Svg {...props}>
+      <rect x="5" y="3" width="14" height="18" rx="2.5" />
+      <path d="M9 8h.01M12 8h.01M15 8h.01M9 11.5h.01M12 11.5h.01M15 11.5h.01M9 15h.01M12 15h.01M15 15h.01" strokeWidth={2.4} />
+    </Svg>
+  );
+}
+
 /** Glyph of a key kind. */
 export function KindGlyph({ glyph, size = 13, strokeWidth = 1.8, className }: GlyphProps & { glyph: Glyph }) {
   if (glyph === 'fob') return <FobGlyph size={size} strokeWidth={strokeWidth} className={className} />;

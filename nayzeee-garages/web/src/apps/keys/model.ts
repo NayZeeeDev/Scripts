@@ -1,27 +1,20 @@
 /**
- * Key ring model: grouping, labels, countdowns, distances and range status of KeyEntry rows.
- * Pure helpers (no React). Everything the server decides stays the server's (lock range,
- * shareability): these only describe what the data says.
+ * Key ring model: grouping, labels, countdowns, distances, sorting (the player's key order) and
+ * range status of KeyEntry rows. Pure helpers (no React). Everything the server decides stays
+ * the server's (lock range, shareability, tracker access): these only describe what the data says.
  */
 import { t } from '@/lib/i18n';
-import type { KeyEntry, KeyGroup, KeyLive, KeyTracking, KeysOpenData } from '@/lib/types';
+import type { ImmobiliserLevel, KeyEntry, KeyGroup, KeyLive, KeyMode, KeyTracking, KeysOpenData, PlayerKeySettings } from '@/lib/types';
 
 export const GROUPS: KeyGroup[] = ['owned', 'shared', 'temp', 'items'];
 
 export type KeyFilter = 'all' | KeyGroup;
+export type KeyOrder = PlayerKeySettings['keyOrder'];
+/** Distance unit of the key ring: the player's setting (metric / imperial) as the format unit. */
+export type Unit = 'km' | 'mi';
 
-export function groupLabel(g: KeyGroup): string {
-  switch (g) {
-    case 'owned':
-      return t('Owned');
-    case 'shared':
-      return t('Shared with you');
-    case 'temp':
-      return t('Temporary');
-    default:
-      return t('Key items');
-  }
-}
+export const unitOf = (units: PlayerKeySettings['units'] | null | undefined, fallback: Unit): Unit =>
+  units === 'imperial' ? 'mi' : units === 'metric' ? 'km' : fallback;
 
 export function chipLabel(g: KeyFilter): string {
   switch (g) {
@@ -32,9 +25,36 @@ export function chipLabel(g: KeyFilter): string {
     case 'shared':
       return t('Shared');
     case 'temp':
-      return t('Temp');
+      return t('Temporary');
     default:
       return t('Items');
+  }
+}
+
+/** Where the key sits, as the detail pane says it. */
+export function groupLabel(g: KeyGroup): string {
+  switch (g) {
+    case 'owned':
+      return t('Owned');
+    case 'shared':
+      return t('Shared with you');
+    case 'temp':
+      return t('Temporary');
+    default:
+      return t('Key item');
+  }
+}
+
+export function orderLabel(o: KeyOrder): string {
+  switch (o) {
+    case 'name':
+      return t('Name');
+    case 'plate':
+      return t('Plate');
+    case 'distance':
+      return t('Distance');
+    default:
+      return t('Recently used');
   }
 }
 
@@ -50,22 +70,38 @@ export type Glyph = 'key' | 'fob' | 'clock' | 'link';
 
 export interface KindInfo {
   label: string;
-  short: string;
   glyph: Glyph;
-  tone: 'white' | 'teal' | 'amber' | 'blue';
+  tone: 'white' | 'teal' | 'amber' | 'neutral';
 }
 
 /** Badge of a key: Key / Fob (physical items), Temporary, Virtual (owner access or given). */
 export function kindInfo(k: Pick<KeyEntry, 'kind'>): KindInfo {
   switch (k.kind) {
     case 'item':
-      return { label: t('Key'), short: t('Key'), glyph: 'key', tone: 'white' };
+      return { label: t('Key'), glyph: 'key', tone: 'white' };
     case 'fob':
-      return { label: t('Fob'), short: t('Fob'), glyph: 'fob', tone: 'teal' };
+      return { label: t('Fob'), glyph: 'fob', tone: 'teal' };
     case 'temp':
-      return { label: t('Temporary'), short: t('Temp'), glyph: 'clock', tone: 'amber' };
+      return { label: t('Temporary'), glyph: 'clock', tone: 'amber' };
     default:
-      return { label: t('Virtual'), short: t('Virtual'), glyph: 'link', tone: 'blue' };
+      return { label: t('Virtual'), glyph: 'link', tone: 'neutral' };
+  }
+}
+
+/** Fob artwork of a key: a plain key for keys of standard profiles, else the key's design. */
+export function fobOf(k: Pick<KeyEntry, 'keyType' | 'design' | 'kind'>): { design: string; kind: 'key' | 'fob' } {
+  const fob = k.keyType === 'fob' || k.kind === 'fob';
+  return { design: fob ? (k.design || 'classic') : 'key', kind: fob ? 'fob' : 'key' };
+}
+
+export function immobiliserLabel(level: ImmobiliserLevel | null | undefined): string {
+  switch (level) {
+    case 'ghost':
+      return t('Ghost PIN');
+    case 'standard':
+      return t('Standard');
+    default:
+      return t('None');
   }
 }
 
@@ -86,7 +122,8 @@ export function countdown(seconds: number): string {
 export function ago(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return t('some time ago');
   const s = Math.max(0, Math.floor(seconds));
-  if (s < 60) return t('just now');
+  if (s < 10) return t('just now');
+  if (s < 60) return t('{n} s ago', { n: s });
   if (s < 3600) return t('{n} min ago', { n: Math.floor(s / 60) });
   if (s < 86400) return t('{n} h ago', { n: Math.floor(s / 3600) });
   const d = Math.floor(s / 86400);
@@ -116,6 +153,8 @@ export function reasonLabel(reason: string | null | undefined): string {
       return t('Temporary key after new locks');
     case 'contract':
       return t('Sale contract');
+    case 'share':
+      return t('Shared by the owner');
     case 'compat':
     case 'export':
       return t('Given by another service');
@@ -124,15 +163,8 @@ export function reasonLabel(reason: string | null | undefined): string {
   }
 }
 
-/** How the player got this key, for keys that came with a reason (a temporary key, a crime's
- *  key item: back-alley copy, spare key found in a search). */
-export function howObtained(k: Pick<KeyEntry, 'kind' | 'reason'>): string {
-  if (k.kind === 'temp' || k.reason === 'locksmith' || k.reason === 'search') return reasonLabel(k.reason);
-  return t('Key of unknown origin');
-}
-
-/** Metres in, "12 m" / "1.4 km" or "40 ft" / "0.9 mi" out (settings distance unit). */
-export function meters(m: number | null | undefined, unit: 'mi' | 'km'): string {
+/** Metres in, "12 m" / "1.4 km" or "40 ft" / "0.9 mi" out. */
+export function meters(m: number | null | undefined, unit: Unit): string {
   if (m === null || m === undefined || !Number.isFinite(m)) return '—';
   const v = Math.max(0, m);
   if (unit === 'mi') {
@@ -160,6 +192,9 @@ export function merged(k: KeyEntry, live: KeysOpenData['live'], tracking: KeyTra
     label: k.label ?? '',
     make: k.make ?? '',
     trackerAccess: k.trackerAccess !== false,
+    engine: k.engine ?? null,
+    immobiliser: k.immobiliser ?? 'none',
+    usedAt: k.usedAt ?? null,
   };
   if (l) {
     out = {
@@ -168,6 +203,7 @@ export function merged(k: KeyEntry, live: KeysOpenData['live'], tracking: KeyTra
       distance: l.distance ?? out.distance,
       locked: l.locked ?? out.locked,
       alarm: l.alarm ?? out.alarm,
+      engine: l.engine ?? out.engine,
     };
   }
   if (tracking && tracking.plate === k.plate && !tracking.lost && !tracking.stopped && tracking.distance !== null && !l) {
@@ -181,16 +217,6 @@ export function rangeOf(k: Pick<KeyEntry, 'remote'>, ranges: KeysOpenData['range
   return k.remote ? ranges.fob : ranges.key;
 }
 
-export type RangeState = 'in' | 'out' | 'unknown' | 'none';
-
-/** Is the vehicle within lock range as far as this client knows? (the server decides) */
-export function rangeState(k: KeyEntry, ranges: KeysOpenData['ranges'], seatPlate?: string | false | null): RangeState {
-  if (!k.spawned || k.towing) return 'none';
-  if (seatPlate && seatPlate === k.plate) return 'in';
-  if (k.distance === null || k.distance === undefined) return 'unknown';
-  return k.distance <= rangeOf(k, ranges) ? 'in' : 'out';
-}
-
 export function matchesQuery(k: KeyEntry, q: string): boolean {
   const query = q.trim().toLowerCase();
   if (!query) return true;
@@ -200,15 +226,36 @@ export function matchesQuery(k: KeyEntry, q: string): boolean {
   return query.split(/\s+/).every((part) => hay.includes(part) || hay.replace(/\s+/g, '').includes(part));
 }
 
-/** Out and near first, then out far, then not out; by name inside. */
-export function sortKeys(list: KeyEntry[]): KeyEntry[] {
+const byName = (a: KeyEntry, b: KeyEntry) => displayName(a).localeCompare(displayName(b)) || a.plate.localeCompare(b.plate);
+
+/** Vehicles out and near first, then out far, then not out (distance order, and the tie break of the others). */
+function byDistance(a: KeyEntry, b: KeyEntry): number {
   const rank = (k: KeyEntry) => (k.towing ? 3 : !k.spawned ? 4 : k.distance === null ? 2 : 1);
-  return [...list].sort((a, b) => {
-    const r = rank(a) - rank(b);
-    if (r !== 0) return r;
-    if (a.distance !== null && b.distance !== null && a.distance !== b.distance) return a.distance - b.distance;
-    return displayName(a).localeCompare(displayName(b));
-  });
+  const r = rank(a) - rank(b);
+  if (r !== 0) return r;
+  if (a.distance !== null && b.distance !== null && a.distance !== b.distance) return a.distance - b.distance;
+  return byName(a, b);
+}
+
+/** The ring in the player's key order (PlayerKeySettings.keyOrder). */
+export function sortKeys(list: KeyEntry[], order: KeyOrder): KeyEntry[] {
+  const out = [...list];
+  switch (order) {
+    case 'name':
+      return out.sort(byName);
+    case 'plate':
+      return out.sort((a, b) => a.plate.localeCompare(b.plate));
+    case 'distance':
+      return out.sort(byDistance);
+    default:
+      // recently used first; keys never used keep the distance order behind them
+      return out.sort((a, b) => {
+        const ua = a.usedAt ?? 0;
+        const ub = b.usedAt ?? 0;
+        if (ua !== ub) return ub - ua;
+        return byDistance(a, b);
+      });
+  }
 }
 
 /** Seconds left on a temporary key now, from the seconds left when the data arrived. */
@@ -216,3 +263,45 @@ export function leftNow(k: Pick<KeyEntry, 'expiresIn'>, receivedAt: number, now:
   if (k.expiresIn === null || k.expiresIn === undefined) return null;
   return Math.max(0, k.expiresIn - Math.floor((now - receivedAt) / 1000));
 }
+
+/** What sharing does in this key mode (docs/V2_CHANGES.md G.1). */
+export function shareInfo(k: KeyEntry, mode: KeysOpenData['mode'], keyMode: KeyMode | null | undefined) {
+  if (mode === 'virtual' || keyMode === 'virtual') {
+    return {
+      action: t('Share access'),
+      title: t('Share access'),
+      what: t('A virtual key of this vehicle'),
+      effect: t('They can lock, unlock and drive it until you revoke the key. You keep yours.'),
+      done: (name: string, vehicle: string) => t('{name} has a key of {vehicle} now.', { name, vehicle }),
+    };
+  }
+  if (keyMode === 'limited') {
+    return {
+      action: t('Hand over'),
+      title: t('Hand your key over'),
+      what: k.kind === 'fob' ? t('Your fob item') : t('Your key item'),
+      effect: t('The item leaves your pockets: you need another key to use the vehicle.'),
+      done: (name: string, vehicle: string) => t('You handed the key of {vehicle} to {name}.', { name, vehicle }),
+    };
+  }
+  return {
+    action: t('Give a copy'),
+    title: t('Give keys'),
+    what: k.kind === 'fob' ? t('A copy of your fob') : t('A copy of your key'),
+    effect: t('They get their own copy. You keep yours.'),
+    done: (name: string, vehicle: string) => t('{name} got a copy of the key of {vehicle}.', { name, vehicle }),
+  };
+}
+
+/** Engine / windows from the fob need an electronic fob (server rule: nz:carlock:remote). */
+export function remoteCapable(k: KeyEntry): boolean {
+  if (k.towing || !k.spawned) return false;
+  if (k.kind === 'fob') return true;
+  if (k.kind === 'item') return false; // a plain key item never works remotely
+  // a crime's temporary key (hotwire, robbery...) is no fob; a service's is
+  if (k.kind === 'temp' && !SERVICE_REASONS.has(k.reason ?? '')) return false;
+  return k.keyType === 'fob';
+}
+
+/** Temporary key reasons of a service (server: CarLock.isServiceKey). */
+const SERVICE_REASONS = new Set(['garage', 'spawner', 'admin', 'contract', 'export', 'assist', 'rekey', 'share']);

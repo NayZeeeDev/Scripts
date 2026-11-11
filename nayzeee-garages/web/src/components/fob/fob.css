@@ -1,0 +1,99 @@
+/* Key fob artwork (FobArt). Material colours are local to the drawing; light uses the --teal
+   family (admins change the accent) and --red for the panic button. CEF-safe: no color-mix,
+   no :has, no nesting. */
+.nz-fobart {
+  --fob-shell-hi: #2a2f33;
+  --fob-shell: #15181b;
+  --fob-shell-lo: #08090a;
+  --fob-face-hi: #1c2023;
+  --fob-face-lo: #0d0f11;
+  --fob-btn-hi: #2b3034;
+  --fob-btn-lo: #121518;
+  --fob-glass-hi: #1d2226;
+  --fob-glass-lo: #050607;
+  --fob-chrome-hi: #f4f6f7;
+  --fob-chrome-mid: #9aa3a8;
+  --fob-chrome-lo: #4a5257;
+  --fob-well-hi: #23282c;
+  --fob-well-lo: #0a0b0c;
+  --fob-carbon: #1d2125;
+  --fob-leather-hi: #3a302b;
+  --fob-leather-lo: #17120f;
+  --fob-hole: #050607;
+  --fob-ink: #c9d0d4;
+  display: inline-block;
+  position: relative;
+  flex: none;
+  line-height: 0;
+  vertical-align: middle;
+}
+.nz-fobart svg { display: block; overflow: visible; }
+
+.nz-fobart__edge { stroke: rgba(255, 255, 255, .12); stroke-width: 1; }
+.nz-fobart__engrave {
+  font-family: var(--font);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  fill: rgba(255, 255, 255, .14);
+}
+.nz-fobart__stitch {
+  stroke: var(--teal);
+  stroke-opacity: .7;
+  stroke-width: .9;
+  stroke-dasharray: 2.4 2;
+  fill: none;
+}
+.nz-fobart__nfc { stroke: rgba(255, 255, 255, .28); stroke-width: 1.2; stroke-linecap: round; }
+
+/* light pipes: dim at rest, bright while a button is pressed */
+.nz-fobart__pipe {
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: .32;
+  transition: opacity var(--fast);
+}
+.nz-fobart__pipe--side { stroke-width: 1.6; }
+.nz-fobart.is-pressed .nz-fobart__pipe { opacity: 1; }
+
+/* buttons */
+.nz-fobart__btn { color: var(--fob-ink); transition: color var(--fast); }
+.nz-fobart__btn-well { fill: rgba(0, 0, 0, .55); transform: translateY(1px); }
+.nz-fobart__btn-face { transition: transform 90ms cubic-bezier(.4, 0, .2, 1); }
+.nz-fobart__btn-ring { stroke: rgba(255, 255, 255, .1); stroke-width: .8; transition: stroke var(--fast); }
+.nz-fobart__btn--panic .nz-fobart__icon { color: #e8a3a5; }
+.nz-fobart__btn.is-panic { color: #e8a3a5; }
+.nz-fobart__btn-glow {
+  fill: var(--teal);
+  opacity: 0;
+  transition: opacity 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.nz-fobart__btn.is-panic .nz-fobart__btn-glow { fill: var(--red); }
+.nz-fobart__btn.is-active { color: var(--white); }
+.nz-fobart__btn.is-active .nz-fobart__btn-ring { stroke: var(--teal-hi); stroke-width: 1.3; }
+.nz-fobart__btn.is-active.is-panic .nz-fobart__btn-ring { stroke: var(--red); }
+.nz-fobart__btn.is-active .nz-fobart__btn-glow { opacity: .75; animation: nz-fobart-pulse 1.1s ease-in-out infinite; }
+.nz-fobart__btn.is-active .nz-fobart__icon { color: var(--teal-hi); }
+.nz-fobart__btn.is-active.is-panic .nz-fobart__icon { color: #ffd2d3; }
+.nz-fobart__btn.is-active .nz-fobart__btn-face { transform: scale(.94); }
+
+/* badge */
+.nz-fobart__badge-neutral { stroke: rgba(255, 255, 255, .34); fill: rgba(255, 255, 255, .24); }
+
+/* status LED */
+.nz-fobart__led-lens { fill: #1a2a28; stroke: rgba(255, 255, 255, .08); stroke-width: .5; transition: fill var(--fast); }
+.nz-fobart__led-glow { fill: var(--teal); opacity: 0; transition: opacity var(--fast); }
+.nz-fobart__led.is-on .nz-fobart__led-lens { fill: var(--teal-hi); }
+.nz-fobart__led.is-on .nz-fobart__led-glow { opacity: .9; }
+.nz-fobart__led.is-panic .nz-fobart__led-lens { fill: var(--red); }
+.nz-fobart__led.is-panic .nz-fobart__led-glow { fill: var(--red); }
+
+@keyframes nz-fobart-pulse {
+  0%, 100% { opacity: .55; }
+  50% { opacity: .95; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nz-fobart__btn.is-active .nz-fobart__btn-glow { animation: none; }
+  .nz-fobart__btn-face, .nz-fobart__pipe, .nz-fobart__btn-glow { transition: none; }
+}

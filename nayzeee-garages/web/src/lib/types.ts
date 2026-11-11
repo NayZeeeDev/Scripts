@@ -787,10 +787,21 @@ export interface KeyEntry extends VehicleLabel {
   canShare: boolean;
   /** key holders (owner, loaded with keys:holders), null = not loaded */
   holders: number | null;
+  /** fob artwork: the key's own design, else the admin default (keys.defaultFob); 'key' = a plain key */
+  design?: string | null;
+  /** immobiliser of the vehicle (server) */
+  immobiliser?: ImmobiliserLevel | null;
+  /** engine running (this client sees the vehicle), null = unknown */
+  engine?: boolean | null;
+  /** os.time() this player last used the key / drove the vehicle (this client), null = never */
+  usedAt?: number | null;
+  /** key items: inventory slot and key id (drop / inspect / give use them) */
+  slot?: number | null;
+  keyId?: string | null;
 }
 
 /** What this client sees itself, pushed every second while the key ring is open. */
-export interface KeyLive { distance: number | null; locked: boolean | null; alarm?: boolean }
+export interface KeyLive { distance: number | null; locked: boolean | null; alarm?: boolean; engine?: boolean | null }
 
 /** Live readout of the located vehicle (tracker). */
 export interface KeyTracking {
@@ -820,6 +831,111 @@ export interface KeysOpenData {
   tracking?: KeyTracking | null;
   /** the key ring keybind ('F7'): pressing it again while the ring is open closes it */
   closeKey?: string | null;
+  /** what the window shows: the key ring, the player's key settings, or one dialog on its own
+   *  (a ground key picked up, the Ghost PIN pad, the give keys picker...); default 'ring' */
+  view?: KeysView | null;
+  /** a dialog over the ring (or alone with view 'dialog'); null clears it */
+  dialog?: KeyDialog | null;
+  /** key policy (flexible: sharing gives a copy; limited: hands yours over; virtual: access) */
+  keyMode?: KeyMode | null;
+  /** the player's key ring preferences (PlayerKeySettings.keyOrder / units) */
+  prefs?: { keyOrder: PlayerKeySettings['keyOrder']; units: PlayerKeySettings['units'] } | null;
+}
+
+export type KeysView = 'ring' | 'settings' | 'dialog';
+
+/** Dialogs of the keys app (docs/V2_CHANGES.md G.5 / G.8 / G.10). */
+export type KeyDialog =
+  /** a key on the ground (held for 20 s by the server): Keep (keys:groundKeep) / Return (keys:groundReturn) */
+  | { kind: 'inspect'; source: 'ground'; id: string; info: KeyInspectInfo }
+  /** a key the player carries (nz:carlock:inspect) */
+  | { kind: 'inspect'; source: 'carried'; info: KeyInspectInfo }
+  /** give keys picker of one key (keys:players / keys:share) */
+  | { kind: 'give'; plate: string }
+  /** the Ghost immobiliser keypad */
+  | { kind: 'pin'; pad: KeyPinPad }
+  /** track vehicle modal (keys:track) */
+  | { kind: 'track'; plate: string };
+
+/** A key looked at up close (ground key or carried key), vehicle name enriched from `hash`. */
+export interface KeyInspectInfo extends VehicleLabel {
+  plate: string;
+  keyKind: 'key' | 'fob';
+  /** the key's own name (its item label) */
+  keyLabel: string;
+  /** spawn name, null when unknown */
+  model: string | null;
+  hash: number;
+  design: string;
+  /** 'temp' = a robbed driver's key on the ground (picking it up gives a temporary key) */
+  kind: 'item' | 'temp';
+  /** carried keys: fits the current locks (null = not checked: ground keys) */
+  valid?: boolean | null;
+  reason?: CarriedKeyInfo['reason'];
+  /** crime origin of a carried key item ('locksmith' | 'search'), else null */
+  origin?: string | null;
+  /** ground keys: seconds since it was dropped */
+  droppedAgo?: number | null;
+}
+
+/** Ghost immobiliser keypad. enter: the driver's PIN (keys:pinEnter, the pad shows the
+ *  server's answer); set: the owner sets / changes the PIN (keys:pinSet, the current PIN first
+ *  when pinSet); collect: digits returned to Lua (CarLock.pinPrompt). keys:pinDone closes it. */
+export interface KeyPinPad {
+  /** session id: answers of an older pad are ignored */
+  id: number;
+  mode: 'enter' | 'set' | 'collect';
+  plate: string;
+  /** vehicle name when known */
+  vehicle?: string | null;
+  attemptsLeft?: number | null;
+  /** seconds of the wrong-PIN cooldown left */
+  cooldown?: number | null;
+  /** set: a PIN exists (the current PIN is asked first) */
+  pinSet?: boolean;
+  length: number;
+}
+
+/** keys:track { plate }: the track vehicle modal (polled every few seconds while open).
+ *  Positions only for trackable vehicles (tracker fitted, tracker access, out, not towed). */
+export interface KeyTrackData extends VehicleLabel {
+  plate: string;
+  model: string;
+  hash: number;
+  nickname: string | null;
+  profileLabel: string;
+  tracker: boolean;
+  trackerAccess: boolean;
+  trackable: boolean;
+  spawned: boolean;
+  towing: boolean;
+  coords: { x: number; y: number; z: number } | null;
+  /** degrees (GTA heading: 0 = north, counter-clockwise), null when unknown */
+  heading: number | null;
+  street: string | null;
+  area: string | null;
+  /** metres from the player */
+  distance: number | null;
+  /** measured on this client (vehicle in scope), else the tracker's server position */
+  live: boolean;
+  locked: boolean | null;
+  engine: boolean | null;
+  alarm: boolean;
+  immobiliser: ImmobiliserLevel;
+  /** the player's own position (the "you" marker) */
+  me: { x: number; y: number } | null;
+  /** why there is no position */
+  reason: 'notracker' | 'noaccess' | 'notout' | 'towing' | 'disabled' | null;
+}
+
+/** keys:remote: hold = engine, keep holding = windows (nz:carlock:remote, fob only). */
+export interface KeyRemoteAnswer {
+  action: 'engine' | 'windows';
+  on: boolean;
+  plate: string;
+  /** out of the fob's range: the server's words in message */
+  refused?: 'range' | null;
+  message?: string | null;
 }
 
 /** A nearby player for the share picker (server distance in metres). anonymous: the server
@@ -995,6 +1111,9 @@ export interface KeySetting {
   max?: number;
   step?: number;
   integer?: boolean;
+  /** colour settings: the server also accepts an opacity ('#rrggbbaa'); without it the
+   *  picker only edits '#rrggbb' */
+  alpha?: boolean;
 }
 
 /** nz:carlock:admin:settings {} and nz:carlock:admin:saveSettings
@@ -1083,6 +1202,11 @@ export interface KeyAdminRow {
   current?: boolean;
   shared?: 'in' | 'out';
   deletable: boolean;
+  /** added by the client (client/carlock/keyadmin.lua): model hash, display label and make
+   *  (GetMakeNameFromVehicleModel) when the model is known */
+  hash?: number | null;
+  label?: string | null;
+  make?: string | null;
 }
 
 export interface KeyAdminTotals { keys: number; vehicles: number; sharedIn: number; sharedOut: number }
@@ -1116,10 +1240,39 @@ export interface KeyAdminPlateData {
   custody: { id: string; type: 'key' | 'fob'; origin: string; current: boolean; custody: KeyCustody; holder?: string | null; holderName?: string | null }[];
   holders: { identifier: string; name: string; type: 'virtual' | 'temp'; origin?: string | null; expires?: number | null }[];
   ground: { id: string; plate: string; kind: 'item' | 'temp'; keyKind: 'key' | 'fob'; coords: { x: number; y: number; z: number }; bucket: number; droppedBy?: string | null; createdAt: number; expiresAt?: number | null }[];
+  /** added by the client: display label and make of `model` */
+  label?: string | null;
+  make?: string | null;
 }
 
 /** nz:carlock:admin:track { plate } */
 export interface KeyAdminTrack { plate: string; spawned: boolean; bucket?: number; coords?: { x: number; y: number; z: number }; distance?: number | null }
+
+/** Admin key manager window ('keyadmin' app, /vehiclekeysadmin → CarLock.openKeyAdmin(opts)).
+ *  Every field is optional: page / settingsTab pick the start page, identifier opens a player,
+ *  plate opens the plate view, query runs a search. */
+export interface KeyAdminOpenData {
+  page?: 'keys' | 'settings';
+  settingsTab?: KeySettingsTab | null;
+  identifier?: string | null;
+  plate?: string | null;
+  query?: string | null;
+  /** Config.CarLock.fob.defaultDesign (fob renders of key items) */
+  fobDesign?: string | null;
+  /** Config.CarLock.tempKeyHours (default of a temporary key in the give dialog) */
+  tempKeyHours?: number | null;
+  /** NZ.CarLock.keyMode() */
+  keyMode?: KeyMode | null;
+}
+
+/** keyadmin:give request (nz:carlock:admin:give) */
+export interface KeyAdminGive {
+  identifier: string;
+  plate: string;
+  type: 'item' | 'temp' | 'virtual';
+  keyKind?: 'key' | 'fob';
+  hours?: number;
+}
 
 /** nz:carlock:remote { netId? | plate?, action, on? } (fob only; Ghost: no remote start). */
 export interface RemoteResult { action: 'engine' | 'windows'; on: boolean; netId: number; plate: string }
@@ -1135,6 +1288,52 @@ export interface MinigameSupport { pins?: boolean; wires?: boolean; reader?: boo
 export interface PinsPuzzle { pins: number; order: number[]; heights: number[] }
 export interface WiresPuzzle { left: string[]; right: string[] }
 export interface ReaderPuzzle { frequency: number; phase: number; tolerance: { frequency: number; phase: number } }
+
+/* ── minigame app (client/carlock/minigame.lua, docs/V2_CHANGES.md G.6 / G.7) ── */
+
+export type MinigameGame = 'pins' | 'wires' | 'reader';
+
+interface MinigameBase {
+  /** Lua's id of this play: echoed by minigame:started / minigame:finish */
+  token: number;
+  /** seconds the player has before Lua ends the attempt (the server session is shorter than 90 s) */
+  timeLimit: number;
+  /** display only: vehicle name and plate text */
+  vehicle?: { label?: string | null; plate?: string | null } | null;
+}
+
+/** Where the lock is drawn: the door handle on screen (shares of the screen, 0..1); null = centred. */
+export interface MinigameAnchor { x: number; y: number }
+
+export type MinigameOpenData =
+  | (MinigameBase & {
+      game: 'pins';
+      puzzle: PinsPuzzle;
+      /** % chance an overset pin snaps the pick (the server rolls it) */
+      snapChance: number;
+      anchor?: MinigameAnchor | null;
+      /** the tool's item label */
+      tool?: string | null;
+    })
+  | (MinigameBase & { game: 'wires'; puzzle: WiresPuzzle })
+  | (MinigameBase & { game: 'reader'; puzzle: ReaderPuzzle });
+
+/** Lua -> NUI 'update' while a lock is open: the door handle moved on screen. */
+export interface MinigameUpdate { anchor?: MinigameAnchor | null }
+
+/** pins: the pin numbers in the order they were set; wires: answer[i] = right position (1-3) of
+ *  left wire i; reader: the tuned signal. */
+export type MinigameAnswer = number[] | { frequency: number; phase: number };
+
+export interface MinigameFinish {
+  token: number;
+  success: boolean;
+  answer?: MinigameAnswer | null;
+  /** pins: a pin was overset (too far / too fast): the server rolls snapChance for the pick */
+  snapped?: boolean;
+  /** Esc / Close: the player gave up */
+  cancelled?: boolean;
+}
 
 export interface ContractVehicle extends VehicleLabel {
   plate: string;
@@ -1261,9 +1460,9 @@ export interface AppDataMap {
   /** on-screen key fob HUD (filled by the car lock UI wave) */
   fob: Record<string, unknown>;
   /** lockpick / hotwire / reader minigames */
-  minigame: Record<string, unknown>;
+  minigame: MinigameOpenData;
   /** admin key manager + admin key settings */
-  keyadmin: Record<string, unknown>;
+  keyadmin: KeyAdminOpenData;
 }
 
 /** Lua -> NUI messages ({ action, data }). */
@@ -1397,9 +1596,46 @@ export interface NuiCallbacks {
   'keys:share': Cb<{ plate: string; target: number }, null>;
   'keys:holders': Cb<{ plate: string }, KeyHolder[]>;
   'keys:revoke': Cb<{ plate: string; id: string }, KeyHolder[]>;
+  /** hold = engine (on), keep holding = windows (on = down) */
+  'keys:remote': Cb<{ plate: string; action: 'engine' | 'windows'; on: boolean }, KeyRemoteAnswer>;
+  'keys:track': Cb<{ plate: string }, KeyTrackData>;
+  /** a key item of the ring up close (nz:carlock:inspect by its slot / key id) */
+  'keys:inspect': Cb<{ plate: string }, KeyInspectInfo>;
+  /** drop a key item at your feet (nz:carlock:ground:drop) */
+  'keys:drop': Cb<{ plate: string }, { plate: string }>;
+  /** give back a virtual / temporary key someone gave you (nz:carlock:leaveKey) */
+  'keys:leave': Cb<{ plate: string }, null>;
+  'keys:groundKeep': Cb<{ id: string }, { plate: string }>;
+  'keys:groundReturn': Cb<{ id: string }, null>;
+  'keys:settings': Cb<Record<string, never>, PlayerKeySettingsData>;
+  'keys:saveSettings': Cb<{ settings: Partial<PlayerKeySettings> }, PlayerKeySettingsData>;
+  'keys:immobiliser': Cb<{ plate: string }, ImmobiliserInfo>;
+  /** the open 'enter' pad: the driver's PIN for the vehicle Lua asked about */
+  'keys:pinEnter': Cb<{ id: number; pin: string }, PinResult>;
+  'keys:pinSet': Cb<{ plate: string; pin: string; oldPin?: string | null }, ImmobiliserInfo>;
+  /** the pad closed: success (enter / set) or the digits (collect), nothing = cancelled */
+  'keys:pinDone': Cb<{ id: number; pin?: string | null; success?: boolean }, null>;
+
+  /** admin key manager (client/carlock/keyadmin.lua → nz:carlock:admin:*; admin only) */
+  'keyadmin:search': Cb<{ query: string }, KeyAdminSearch>;
+  'keyadmin:player': Cb<{ identifier: string }, KeyAdminPlayerData>;
+  'keyadmin:give': Cb<KeyAdminGive, KeyAdminPlayerData>;
+  'keyadmin:delete': Cb<{ identifier: string; id: string }, KeyAdminPlayerData>;
+  'keyadmin:plate': Cb<{ plate: string }, KeyAdminPlateData>;
+  'keyadmin:track': Cb<{ plate: string }, KeyAdminTrack>;
+  /** asks the server where the vehicle is and sets the map waypoint there */
+  'keyadmin:waypoint': Cb<{ plate: string }, KeyAdminTrack>;
+  'keyadmin:settings': Cb<Record<string, never>, KeySettings>;
+  'keyadmin:saveSettings': Cb<{ values: Record<string, KeySettingValue>; reset?: string[] }, KeySettings>;
 
   'locksmith:refresh': Cb<{ locksmithId: number }, LocksmithOpenData>;
   'locksmith:service': Cb<{ locksmithId: number; service: LocksmithServiceId; plate: string }, { message: string; data: LocksmithOpenData }>;
+
+  /** the minigame screens loaded: Lua offers the NUI minigames to the server from now on */
+  'minigame:ready': Cb<Record<string, never>, null>;
+  /** the game of `token` is on screen (ok = false: it cannot be drawn, e.g. no WebGL) */
+  'minigame:started': Cb<{ token: number; ok: boolean }, null>;
+  'minigame:finish': Cb<MinigameFinish, null>;
 
   'contract:refresh': Cb<Record<string, never>, { vehicles: ContractVehicle[]; buyers: PlayerOption[] }>;
   'contract:send': Cb<{ plate: string; buyer: number; price: number; terms: string; signature: Signature }, { contractId: string; expiresIn: number }>;
