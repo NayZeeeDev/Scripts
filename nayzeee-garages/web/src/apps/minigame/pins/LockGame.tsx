@@ -60,7 +60,7 @@ function useBox(anchor: PinsData['anchor']) {
   }
   left = clamp(left, 16, Math.max(16, vw - w - 16));
   top = clamp(top, 16, Math.max(16, vh - h - bottomSafe));
-  return { w, h, left, top };
+  return { w, h, left, top, helpLeft: left + w + 320 > vw };
 }
 
 export default function LockGame({ data }: { data: PinsData }) {
@@ -304,7 +304,7 @@ export default function LockGame({ data }: { data: PinsData }) {
   return (
     <div className="nz-mg-lock" data-status={ui.status}>
       <div
-        className={`nz-mg-lock__stage${flash ? ` is-${flash}` : ''}`}
+        className={`nz-mg-lock__stage${flash ? ` is-${flash}` : ''}${box.helpLeft ? ' is-help-left' : ''}`}
         style={{ left: box.left, top: box.top, width: box.w, height: box.h }}
       >
         <span className="nz-mg-lock__shadow" aria-hidden="true" />

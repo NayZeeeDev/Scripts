@@ -7,7 +7,7 @@
  * of the server stays under the actions.
  */
 import type { ReactNode, Ref } from 'react';
-import { Badge, Icon, Menu, PlateTag, cx } from '@/components/ui';
+import { Icon, Menu, PlateTag, cx } from '@/components/ui';
 import type { IconName, MenuItem } from '@/components/ui';
 import { FobArt } from '@/components/fob/FobArt';
 import { t } from '@/lib/i18n';

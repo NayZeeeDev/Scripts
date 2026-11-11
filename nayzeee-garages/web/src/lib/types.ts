@@ -1440,6 +1440,74 @@ export interface ContractViewData {
 
 export type ContractOpenData = ContractDraftData | ContractReviewData | ContractViewData;
 
+/* ───────────── fob HUD (docs/V2_CHANGES.md G.4 / G.5): the 'fob' app, client/carlock/fob.lua ───────────── */
+
+export type FobButtonName = 'lock' | 'unlock' | 'trunk' | 'panic';
+
+/** The key drawn on the HUD. */
+export interface FobHudKey {
+  plate: string;
+  /** vehicle name ('Dinka Jester'), else the key's label */
+  label: string;
+  /** vehicle make for the brand badge (translated label or GTA make key), '' when unknown */
+  make: string;
+  /** FobArt design ('classic', 'sport' … or 'key') */
+  design: string;
+  kind: 'key' | 'fob';
+  locked?: boolean | null;
+}
+
+/** HUD placement: centre of the fob as a share of the screen (0-1) and its scale (0.5-2);
+ *  PlayerKeySettings.fobPosition. */
+export interface FobLayout { x: number; y: number; scale: number }
+
+/** Current keys of the side prompts (rebindable key mappings; ESC always closes). */
+export interface FobKeyBinds { throw: string; inspect: string; move: string; help: string; close: string }
+
+/** A button press to animate; seq changes with every press. beep: the NUI plays the fob beep
+ *  (presses the game does not beep for itself, player setting fobBeep). */
+export interface FobPress { button: FobButtonName; seq: number; beep: boolean }
+
+/** Inspect card: a key on the ground (server nz:carlock:ground:inspect) or one you carry
+ *  (nz:carlock:inspect). Everything comes from the server's answer. */
+export interface FobInspect {
+  source: 'ground' | 'carried';
+  /** ground key id (Keep / Return to ground) */
+  id?: string | null;
+  plate: string;
+  /** vehicle name ('' when the server does not know the model) */
+  vehicle: string;
+  /** the key's own label ('Vehicle key ABC123') */
+  keyLabel: string;
+  make: string;
+  design: string;
+  kind: 'key' | 'fob';
+  /** carried: cut for the current locks */
+  valid?: boolean | null;
+  /** ground: an NPC's key (picking it up gives a temporary key) */
+  temp?: boolean;
+  /** ground: seconds since it was dropped (server clock) */
+  droppedAgo?: number | null;
+  /** carried: crime origin ('locksmith' | 'search'), null for a registered key */
+  origin?: string | null;
+}
+
+/** hud: no focus, the fob on screen · edit: move / resize (focus) · help · inspect (focus) */
+export type FobMode = 'hud' | 'edit' | 'help' | 'inspect';
+
+export interface FobHudData {
+  mode: FobMode;
+  key: FobHudKey | null;
+  layout: FobLayout;
+  /** the configured default layout (Reset) */
+  defaults: FobLayout;
+  /** the key is in the player's hand: the side prompts work */
+  holding: boolean;
+  keys: FobKeyBinds;
+  press?: FobPress | null;
+  inspect?: FobInspect | null;
+}
+
 /* ───────────────────────── NUI protocol ───────────────────────── */
 
 export type AppName = 'garage' | 'impound' | 'impoundForm' | 'forSale' | 'admin' | 'creator' | 'setup' | 'interior'
@@ -1457,8 +1525,8 @@ export interface AppDataMap {
   keys: KeysOpenData;
   locksmith: LocksmithOpenData;
   contract: ContractOpenData;
-  /** on-screen key fob HUD (filled by the car lock UI wave) */
-  fob: Record<string, unknown>;
+  /** on-screen key fob HUD, edit mode, help and the key inspect card */
+  fob: FobHudData;
   /** lockpick / hotwire / reader minigames */
   minigame: MinigameOpenData;
   /** admin key manager + admin key settings */
@@ -1645,6 +1713,14 @@ export interface NuiCallbacks {
   'contract:balance': Cb<{ contractId: string }, { canAfford: boolean }>;
   /** the buyer declines, or the seller withdraws a sent contract */
   'contract:decline': Cb<{ contractId: string }, null>;
+
+  /** fob HUD (client/carlock/fob.lua): save the layout (player setting fobPosition), leave a
+   *  focused mode, side prompt clicks, inspect card Keep / Return to ground */
+  'fob:save': Cb<FobLayout, FobLayout>;
+  'fob:cancel': Cb<Record<string, never>, null>;
+  'fob:action': Cb<{ action: 'throw' | 'inspect' | 'move' | 'help' | 'close' }, null>;
+  'fob:keep': Cb<{ id: string }, null>;
+  'fob:return': Cb<{ id: string }, null>;
 }
 
 export type NuiCallbackName = keyof NuiCallbacks;

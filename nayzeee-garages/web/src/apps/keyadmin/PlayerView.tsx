@@ -38,6 +38,21 @@ import type { RowFilter } from './model';
 const ROW_H = 57;
 const HEAD_H = 36;
 
+/** true while the window is narrower than `px` (the spawn code column folds away). */
+function useNarrow(px: number): boolean {
+  const query = `(max-width: ${px}px)`;
+  const [narrow, setNarrow] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(query);
+    const on = () => setNarrow(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [query]);
+  return narrow;
+}
+
 interface Props {
   identifier: string;
   initialName?: string;
@@ -52,6 +67,7 @@ interface Props {
 
 export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, active, changeTick, onBack, onLoaded, nav }: Props) {
   const { distanceUnit } = useSettings();
+  const narrow = useNarrow(1400);
   const [data, setData] = useState<KeyAdminPlayerData | null>(null);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -148,7 +164,6 @@ export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, a
       key: 'model',
       header: t('Spawn code'),
       width: '10%',
-      className: 'nz-kadm-col--hide-sm',
       render: (r) => (r.model ? <span className="nz-kadm-mono nz-kadm-code">{r.model}</span> : <span className="nz-kadm-none">—</span>),
     },
     {
@@ -219,6 +234,7 @@ export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, a
     },
   ];
 
+  const shownColumns = narrow ? columns.filter((c) => c.key !== 'model') : columns;
   const name = data?.player.name ?? initialName ?? t('Player');
 
   if (failed && !data) {
@@ -292,7 +308,7 @@ export function PlayerView({ identifier, initialName, fobDesign, tempKeyHours, a
       <div className="nz-kadm-tablebox" ref={tableRef}>
         <Table<KeyAdminRow>
           className="nz-kadm-table"
-          columns={columns}
+          columns={shownColumns}
           rows={pageRows}
           rowKey={(r) => r.id}
           loading={loading && !data}

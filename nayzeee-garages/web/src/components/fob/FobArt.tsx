@@ -114,7 +114,7 @@ function Btn({ c, name, x, y, shape, tone = 'rubber', iconScale = 1 }: {
   };
   const face = tone === 'glass' ? c.url('glassBtn') : tone === 'metal' ? c.url('metalBtn') : tone === 'touch' ? 'transparent' : c.url('rubber');
   return (
-    <g transform={`translate(${x} ${y})`} className={`nz-fobart__btn nz-fobart__btn--${name}${panic ? ' is-panic' : ''}${on ? ' is-active' : ''}`}>
+    <g transform={`translate(${x} ${y})`} className={`nz-fobart__btn nz-fobart__btn--${name} nz-fobart__btn--${tone}${panic ? ' is-panic' : ''}${on ? ' is-active' : ''}`}>
       {outline(-3.5, { className: 'nz-fobart__btn-glow', filter: c.url('glow') })}
       {tone !== 'touch' && outline(-0.8, { className: 'nz-fobart__btn-well' })}
       {outline(0, { fill: face, className: 'nz-fobart__btn-face' })}
@@ -139,10 +139,11 @@ function Badge({ c, x, y, r, bezel = true }: { c: Ctx; x: number; y: number; r: 
           </clipPath>
           <image
             href={c.badge}
-            x={-r * 0.86}
-            y={-r * 0.86}
-            width={r * 1.72}
-            height={r * 1.72}
+            x={-r * 0.94}
+            y={-r * 0.94}
+            width={r * 1.88}
+            height={r * 1.88}
+            className="nz-fobart__badge-img"
             clipPath={`url(#${clip})`}
             preserveAspectRatio="xMidYMid meet"
             onError={c.badgeFailed}
