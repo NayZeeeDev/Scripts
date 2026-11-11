@@ -90,6 +90,7 @@ vmeta.__sub = function(a, b) return setmetatable({ x = a.x - b.x, y = a.y - b.y,
 vmeta.__len = function(a) return math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z) end
 local function vec3(x, y, z) return setmetatable({ x = x, y = y, z = z }, vmeta) end
 vector3 = vec3
+rawset(_G, 'vec3', vec3) -- config/carlock.lua (fobProps) uses vec3
 function vector4(x, y, z, w) return { x = x, y = y, z = z, w = w } end
 vec4 = vector4
 local function joaat_(s)

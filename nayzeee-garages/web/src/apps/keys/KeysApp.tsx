@@ -60,7 +60,7 @@ const useUnit = (data: KeysOpenData, prefsUnits?: PlayerKeySettings['units'] | n
 
 function DialogAlone({ data, close }: { data: KeysOpenData; close: () => void }) {
   const unit = useUnit(data);
-  const d = data.dialog;
+  const d = data.dialog || null;
   // nothing to show: never leave an invisible app holding the focus
   useEffect(() => {
     if (!d) close();
@@ -337,7 +337,7 @@ function KeyRing({ data, close }: { data: KeysOpenData; close: () => void }) {
   };
 
   /* ── a dialog Lua pushed over the ring ── */
-  const luaDialog: KeyDialog | null = data.dialog ?? null;
+  const luaDialog: KeyDialog | null = data.dialog || null;
   const clearLuaDialog = () => {
     if (isOpen()) useUi.getState().updateApp('keys', { dialog: null });
   };

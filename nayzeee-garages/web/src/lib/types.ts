@@ -834,8 +834,8 @@ export interface KeysOpenData {
   /** what the window shows: the key ring, the player's key settings, or one dialog on its own
    *  (a ground key picked up, the Ghost PIN pad, the give keys picker...); default 'ring' */
   view?: KeysView | null;
-  /** a dialog over the ring (or alone with view 'dialog'); null clears it */
-  dialog?: KeyDialog | null;
+  /** a dialog over the ring (or alone with view 'dialog'); null / false clears it */
+  dialog?: KeyDialog | null | false;
   /** key policy (flexible: sharing gives a copy; limited: hands yours over; virtual: access) */
   keyMode?: KeyMode | null;
   /** the player's key ring preferences (PlayerKeySettings.keyOrder / units) */

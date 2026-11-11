@@ -96,7 +96,8 @@ local function lockedOf(vehicle)
 end
 
 local function engineOf(vehicle)
-  return GetIsVehicleEngineRunning(vehicle) == true or GetIsVehicleEngineRunning(vehicle) == 1
+  local on = GetIsVehicleEngineRunning(vehicle)
+  return on == true or on == 1
 end
 
 --- Plate of the vehicle the player sits in (real plate as this client knows it), or nil.
