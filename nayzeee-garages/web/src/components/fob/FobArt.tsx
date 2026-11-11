@@ -10,6 +10,9 @@ export interface FobArtProps {
   kind?: 'key' | 'fob';
   /** pixel height; width follows the design's aspect */
   size?: number;
+  /** vehicle make (GetMakeNameFromVehicleModel / VehicleLabel.make, any case): shows that brand's badge
+   *  from web/public/brands (see brandSlug in ./brands.ts); unknown makes show a neutral badge */
+  brand?: string | null;
   /** highlight a button: 'lock' | 'unlock' | 'trunk' | 'panic' */
   active?: string | null;
   className?: string;
