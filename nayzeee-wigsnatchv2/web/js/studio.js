@@ -65,6 +65,8 @@ function studioState(d) {
   if (d.orbit) SD.orbit = d.orbit;
   SD.batch = d.batch || null;
   if (d.screenshot !== undefined) SD.screenshot = d.screenshot;
+  if (d.salon) SD.salon = arr(d.salon);
+  if (d.looks) SD.looks = d.looks;
   if (!SD.on) return;
   if (sdSig() !== before) sdRender();
   else sdOrbitUi();
@@ -173,6 +175,8 @@ function sdRight() {
           <button class="btn red sm wide" data-sd="cancel"><i class="fa-solid fa-stop"></i>Stop batch <span class="kc">BACKSPACE</span></button></div>` : ''}
       </div>
 
+      ${sdSalonCard(busy)}
+
       ${sdHairCard(busy)}
 
       <div class="card sd-card">
@@ -215,6 +219,8 @@ sdRoot.addEventListener('click', (e) => {
     case 'gobatch': SD.confirm = false; return post('st:batch', { textures: SD.textures, missing: SD.missing });
     case 'cancel': return post('st:cancel');
     case 'hk': return post('st:hairkit', { mode: v });
+    case 'salonSet': { const id = ($('#sdSalon') || {}).value || SD.salonPick; return post('st:salonLook', { id }); }
+    case 'salonClear': return post('st:salonLook', { id: v, clear: true });
   }
 });
 sdRoot.addEventListener('input', (e) => {
@@ -224,6 +230,7 @@ sdRoot.addEventListener('input', (e) => {
   if (t.id === 'sdLift') { $('#sdLiftV').textContent = (+t.value).toFixed(2); post('st:lift', { set: +t.value }); }
 });
 sdRoot.addEventListener('change', (e) => {
+  if (e.target.id === 'sdSalon') SD.salonPick = e.target.value;
   if (e.target.id === 'sdTex') SD.textures = e.target.checked;
   if (e.target.id === 'sdMissing') SD.missing = e.target.checked;
 });
@@ -289,6 +296,29 @@ function studioSaved(d) {
   if (d.ok && d.key) SD.shots.add(d.key);
   if (SD.on) sdRender();
 }
+
+/* ─────────────── salon looks: which hairstyle each salon style shows as ─────────────── */
+function sdSalonCard(busy) {
+  const list = arr(SD.salon);
+  if (!list.length) return '';
+  const m = SD.model, looks = SD.looks || {};
+  const here = list.filter((s) => { const l = (looks[s.id] || {})[m]; return l && l.d === SD.d && (l.t || 0) === SD.t; });
+  const set = list.filter((s) => !s.extra && (looks[s.id] || {})[m]).length;
+  const total = list.filter((s) => !s.extra).length;
+  if (!SD.salonPick || !list.some((s) => s.id === SD.salonPick)) SD.salonPick = (list.find((s) => !(looks[s.id] || {})[m]) || list[0]).id;
+  return `<div class="card sd-card">
+    <div class="sd-ch">Salon look <em>${set} of ${total} styles have a ${m === 'm' ? 'male' : 'female'} look</em></div>
+    ${here.length ? `<div class="sd-chips">${here.map((s) => `<span class="sd-chip on">${esc(s.label)}<button class="sd-x" data-sd="salonClear" data-v="${esc(s.id)}" ${busy ? 'disabled' : ''}><i class="fa-solid fa-xmark"></i></button></span>`).join('')}</div>`
+      : '<div class="note" style="margin-top:0">No salon style shows as this hairstyle yet.</div>'}
+    <div class="sd-name"><label class="field"><i class="fa-solid fa-wand-magic-sparkles"></i><select id="sdSalon" ${busy ? 'disabled' : ''}>${list.map((s) => {
+      const l = (looks[s.id] || {})[m];
+      return `<option value="${esc(s.id)}" ${s.id === SD.salonPick ? 'selected' : ''}>${esc(s.label)}${l ? ` (now #${l.d})` : ''}</option>`;
+    }).join('')}</select></label>
+      <button class="btn teal sm" data-sd="salonSet" ${busy ? 'disabled' : ''}><i class="fa-solid fa-check"></i>Use</button></div>
+    <div class="note" style="margin-top:0">Players doing this style end up with the hairstyle on screen (this texture), in the hair colour they used.</div>
+  </div>`;
+}
+function studioLooks(looks) { SD.looks = looks || {}; if (SD.on) sdRight(); }
 
 /* ─────────────── 3D wigs (hairkit) ─────────────── */
 function sdHairCard(busy) {

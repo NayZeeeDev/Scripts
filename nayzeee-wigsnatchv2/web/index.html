@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="css/fa.min.css">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/bench.css">
+<link rel="stylesheet" href="css/salon.css">
 </head>
 <body>
 <div id="root" class="root">
@@ -59,6 +60,22 @@
     <div class="cut-side scaled" id="cutSide"></div>
   </div>
   <div id="cutsit" class="cutsit scaled" hidden></div>
+
+  <!-- the salon: doing hair in first person -->
+  <div id="salon" class="salon" hidden>
+    <canvas id="slCanvas" class="sl-canvas"></canvas>
+    <div class="sl-pills" id="slKeys"></div>
+    <div class="sl-cursor" id="slCursor"></div>
+    <div class="sl-top scaled" id="slTop"></div>
+    <div class="sl-steps scaled" id="slSteps"></div>
+    <div class="sl-tray scaled" id="slTray"></div>
+    <div class="sl-obj scaled" id="slObj"></div>
+    <div class="sl-meter scaled" id="slMeter" hidden></div>
+    <div class="sl-flash" id="slFlash"></div>
+  </div>
+  <div id="slResult" class="sl-result scaled" hidden></div>
+  <div id="salonSit" class="salonsit scaled" hidden></div>
+  <div id="salonReveal" class="salonreveal" hidden></div>
 
   <!-- reveal -->
   <div id="reveal" class="reveal scaled" hidden></div>
@@ -161,6 +178,7 @@
         <div class="store-left">
           <div class="store-tabs" id="stTabs"></div>
           <div class="store-grid" id="stGrid"></div>
+          <div class="st-pick" id="stPick" hidden></div>
         </div>
         <aside class="basket">
           <div class="bk-h"><b>Basket</b><span>Click items to add them. Shift-click adds five.</span></div>
@@ -174,6 +192,32 @@
       <div class="statusbar">
         <span><span class="key">ESC</span>Close</span>
         <span><span class="key">Shift</span>Add five</span>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- the Style Book -->
+  <div class="win store book" id="skBook" hidden>
+    <div class="frame"><div class="shell">
+      <div class="bar">
+        <div class="bar-brand">
+          <div class="mark" data-icon="wig"></div>
+          <div><div class="title-txt">STYLE BOOK</div><div class="sub" id="bkSub"></div></div>
+        </div>
+        <div class="bar-mid"></div>
+        <button class="x-close" id="bkClose" aria-label="Close"><span data-icon="x"></span></button>
+      </div>
+      <div class="wm" data-icon="wig"></div>
+      <div class="bk-body">
+        <div class="bk-left">
+          <div class="bk-tabs" id="bkTabs"></div>
+          <div class="bk-grid" id="bkGrid"></div>
+        </div>
+        <aside class="bk-detail" id="bkDetail"></aside>
+      </div>
+      <div class="statusbar">
+        <span><span class="key">ESC</span>Close</span>
+        <span>Admins: give each style a look in /wigstudio</span>
       </div>
     </div></div>
   </div>
@@ -228,6 +272,8 @@
 <script src="js/bench.js"></script>
 <script src="js/keyer.js"></script>
 <script src="js/studio.js"></script>
+<script src="js/salon.js"></script>
+<script src="js/salonbook.js"></script>
 <script src="js/boot.js"></script>
 </body>
 </html>

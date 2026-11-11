@@ -145,6 +145,11 @@ function hairCard(me) {
     icon = 'fa-user-slash'; tone = 't-error';
     title = 'Bald';
     sub = h.bald.u > 0 ? `Regrows in <span data-until="${h.bald.u}" data-done="any second">${left(h.bald.u)}</span> · Regrowth Oil speeds it up` : 'It only comes back with Regrowth Oil';
+  } else if (h.style) {
+    icon = 'fa-wand-magic-sparkles'; tone = 't-success';
+    title = h.style.label;
+    sub = `${h.style.q}% · done by ${esc(h.style.by || 'a stylist')}${h.style.u > 0 ? ` · due in <span data-until="${h.style.u}">${left(h.style.u)}</span>` : ''}`;
+    action = `<button class="btn sm" data-act="takedown"><i class="fa-solid fa-arrow-rotate-left"></i>Take down</button>`;
   } else if (h.cut) {
     icon = 'fa-scissors'; tone = 't-info';
     title = { trim: 'Fresh trim', fade: 'Fade', buzz: 'Buzz cut' }[h.cut.kind] || 'Fresh haircut';
@@ -316,6 +321,7 @@ const VIEWS = {
       if (f.kind === 'snatch') { color = tier(f.tier).color; text = `<b>${esc(f.actor_name)}</b> snatched <b>${esc(f.target_name)}</b>'s <em>${esc(f.label || tier(f.tier).label)}</em>${f.amount ? ` and collected ${money(f.amount)}` : ''}`; }
       else if (f.kind === 'steal') { icon = 'fa-rotate-left'; color = tier(f.tier).color; text = `<b>${esc(f.actor_name)}</b> took their <em>${esc(f.label || 'wig')}</em> back from <b>${esc(f.target_name)}</b>`; }
       else if (f.kind === 'buzz') { icon = 'fa-user-slash'; color = S.prefs.alert; text = `<b>${esc(f.actor_name)}</b> gave <b>${esc(f.target_name)}</b> ${f.label === 'bald' ? 'a shaved head' : f.label === 'face' ? 'a shave they didn\'t ask for' : 'a forced ' + esc(f.label || 'cut')}`; }
+      else if (f.kind === 'style') { icon = 'fa-wand-magic-sparkles'; color = '#e35b9f'; text = `<b>${esc(f.actor_name)}</b> did <b>${esc(f.target_name)}</b>'s hair: <em>${esc(f.label)}</em>`; }
       else if (f.kind === 'product') { icon = 'fa-pump-soap'; color = '#a873ff'; text = `<b>${esc(f.actor_name)}</b> put <em>${esc(f.label)}</em> in <b>${esc(f.target_name)}</b>'s hair`; }
       else if (f.kind === 'bounty') { icon = 'fa-crosshairs'; color = S.prefs.alert; text = `<b>${esc(f.actor_name)}</b> put <em>${money(f.amount)}</em> on <b>${esc(f.target_name)}</b>`; }
       else if (f.kind === 'claim') { icon = 'fa-sack-dollar'; color = '#e5a50a'; text = `<b>${esc(f.actor_name)}</b> collected <em>${money(f.amount)}</em> for <b>${esc(f.target_name)}</b>`; }
@@ -485,6 +491,7 @@ const ACT = {
   wsel: (v) => { S.sel = v; $('#vview').innerHTML = VIEWS.wigs(); paintSwatches(body); },
   wear: (v) => { post('wear', { key: v }); closeApp(true); },
   unwear: () => { post('unwear'); closeApp(true); },
+  takedown: () => { post('takedown'); closeApp(true); },
   repair: (v) => { post('repair', { key: v }); },
   offer: (v) => playerPicker(v, 'offer'),
   putOnNear: (v) => playerPicker(v, 'puton'),

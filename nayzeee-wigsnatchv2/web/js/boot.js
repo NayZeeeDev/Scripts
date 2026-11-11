@@ -11,9 +11,11 @@ const HANDLERS = {
   'clash:start': clashStart, 'clash:tick': clashTick, 'clash:seq': clashSeq, 'clash:end': clashEnd,
   'cut:start': cutStart, 'cut:update': cutUpdate, 'cut:tool': cutTool, 'cut:fx': cutFx, 'cut:end': cutEnd,
   'cut:sit': cutSit, 'cut:sitEnd': cutSitEnd,
+  'salon:book': bookOpen, 'salon:start': slStart, 'salon:move': slMove, 'salon:geo': slGeo, 'salon:wait': slWait, 'salon:end': slEnd,
+  'salon:sit': salonSit, 'salon:progress': salonProgress, 'salon:mirror': salonMirror, 'salon:sitEnd': salonSitEnd, 'salon:reveal': salonReveal,
   reveal,
   'app:open': (d) => openApp(d.view, d.data),
-  'app:close': () => { closeApp(true); Side.hide(); },
+  'app:close': () => { closeApp(true); Side.hide(); bookClose(true); },
   'side:open': (d) => { if (S.view) closeApp(true); Side.open(d); },
   stage: (d) => Side.stage(d),
   result: (d) => Side.result(d),
@@ -28,6 +30,7 @@ const HANDLERS = {
   'studio:process': studioProcess,
   'studio:saved': studioSaved,
   'studio:hairkit': studioHairkit,
+  'studio:looks': studioLooks,
 };
 
 addEventListener('message', (e) => {
@@ -39,6 +42,7 @@ addEventListener('message', (e) => {
 // one keyboard router: settings key capture > minigame > cutting > close
 function onKey(e) {
   if (settingsKey(e)) return;
+  if (salonKey(e)) return;
   if (Side.key(e)) return;
   if (studioKey(e)) return;
   if (gameKey(e)) return;

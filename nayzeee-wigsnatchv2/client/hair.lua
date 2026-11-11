@@ -155,6 +155,11 @@ function Hair.Apply()
         target = { d = w.d, t = w.t, c = w.c, h = w.h }
     elseif s.bald then
         target = { d = s.bald.d, t = s.bald.t }
+    elseif s.style and (s.style.m == nil or s.style.m == m) then
+        -- a salon style: its look, in the extension hair's shade (natural styles keep your colour)
+        target = { d = s.style.d, t = s.style.t or 0, c = nat.c, h = nat.h }
+        local c, hl = Salon.ShadeColour(s.style.shade)
+        if c then target.c, target.h = c, hl end
     elseif s.cut and (s.cut.m == nil or s.cut.m == m) then
         target = { d = s.cut.d, t = s.cut.t or 0, c = nat.c, h = nat.h }
     end
@@ -182,6 +187,17 @@ function Hair.Apply()
         Hair.applied = nil
     end
     applyFace(ped, s)
+end
+
+-- a look shown for a moment (halfway through a salon style); Hair.Apply() puts the real one back
+function Hair.Preview(look, shade)
+    local ped = PlayerPedId()
+    local nat = Hair.natural or readHair(ped)
+    local target = { d = look.d, t = look.t or 0, c = nat.c, h = nat.h }
+    local c, hl = Salon.ShadeColour(shade)
+    if c then target.c, target.h = c, hl end
+    setHair(ped, target)
+    Hair.applied = target
 end
 
 function Hair.Visible()

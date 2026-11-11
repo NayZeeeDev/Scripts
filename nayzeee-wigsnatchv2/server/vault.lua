@@ -51,7 +51,7 @@ lib.callback.register('nz-wig:vault', function(src)
                 revenges = row.revenges, wigs_sold = row.wigs_sold, earned = row.earned,
                 bounties_claimed = row.bounties_claimed, bounty_earned = row.bounty_earned, best_tier = row.best_tier,
                 tackles = row.tackles or 0, ties = row.ties or 0, products = row.products or 0,
-                crafted = row.crafted or 0, stolen_back = row.stolen_back or 0,
+                crafted = row.crafted or 0, stolen_back = row.stolen_back or 0, styled = row.styled or 0,
             },
             cooldownUntil = P.cooldownUntil or 0,
             glueUntil = row.glue_until or 0,

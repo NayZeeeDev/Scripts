@@ -96,10 +96,17 @@ CREATE TABLE IF NOT EXISTS `nz_wig_listings` (
 -- ALTER TABLE `nz_wig_players` ADD COLUMN `products` INT NOT NULL DEFAULT 0;
 -- ALTER TABLE `nz_wig_players` ADD COLUMN `crafted` INT NOT NULL DEFAULT 0;
 -- ALTER TABLE `nz_wig_players` ADD COLUMN `stolen_back` INT NOT NULL DEFAULT 0;
+-- ALTER TABLE `nz_wig_players` ADD COLUMN `styled` INT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS `nz_wig_shots` (
         `name` VARCHAR(32) NOT NULL,
         `png` MEDIUMTEXT NOT NULL,
         `updated` INT NOT NULL DEFAULT 0,
         PRIMARY KEY (`name`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `nz_wig_kv` (
+        `k` VARCHAR(64) NOT NULL,
+        `v` LONGTEXT NOT NULL,
+        PRIMARY KEY (`k`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

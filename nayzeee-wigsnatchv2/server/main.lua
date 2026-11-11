@@ -5,11 +5,13 @@ math.randomseed(os.time() + GetGameTimer())
 CreateThread(function()
     DB.Init()
     Studio.Boot()
+    Salon.Boot()
     Social.LoadBounties()
     Social.LoadFeed()
     Hair.RegisterItems()
     Restrain.RegisterItems()
     Cutting.RegisterItems()
+    Salon.RegisterItems()
     Products.RegisterItems()
 
     Bridge.OnLoaded(function(src)
@@ -105,7 +107,7 @@ exports('GetStats', function(src)
     local lvl, data = GetLevel(P.row.xp)
     return { xp = P.row.xp, level = lvl, title = data.title, snatches = P.row.snatches, defends = P.row.defends,
         snatched = P.row.snatched, streak = P.row.streak, best_streak = P.row.best_streak,
-        tackles = P.row.tackles, ties = P.row.ties, crafted = P.row.crafted, stolen_back = P.row.stolen_back }
+        tackles = P.row.tackles, ties = P.row.ties, crafted = P.row.crafted, stolen_back = P.row.stolen_back, styled = P.row.styled }
 end)
 
 exports('SetHairStatus', function(src, kind, minutes)

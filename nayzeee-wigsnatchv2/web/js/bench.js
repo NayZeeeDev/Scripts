@@ -522,7 +522,7 @@
 
   /* ---------------- supplier store ---------------- */
   // A centred store: category tabs, picture cards (all on screen, no scrolling), a basket on the right.
-  const SH = { shop: null, cart: {}, tab: 'all', acc: null };
+  const SH = { shop: null, cart: {}, tab: 'all', acc: null, pick: null };
   // big balances shortened so the pay chips stay one line: $1.2M, $999.9B
   const shortMoney = (n) => {
     n = Number(n) || 0;
@@ -533,7 +533,7 @@
   const accLabel = (id) => (id === 'bank' ? 'bank' : id === 'black_money' ? 'dirty' : 'cash');
 
   function openShop(shop) {
-    SH.shop = shop; SH.cart = {}; SH.tab = 'all';
+    SH.shop = shop; SH.cart = {}; SH.tab = 'all'; SH.pick = null;
     const accs = arr(shop.accounts);
     if (!accs.some((a) => a.id === SH.acc)) SH.acc = accs.length ? accs[0].id : 'cash';
     side = 'shop';
@@ -547,14 +547,53 @@
   el('stClose').addEventListener('click', closeSide);
 
   const wallet = () => arr(SH.shop.accounts).find((a) => a.id === SH.acc) || { id: SH.acc, money: 0 };
-  const itemOf = (name) => arr(SH.shop.items).find((it) => it.name === name);
+  // basket keys: 'item', or 'item|shade|length|texture' for extension hair
+  const baseOf = (key) => String(key).split('|')[0];
+  const itemOf = (key) => arr(SH.shop.items).find((it) => it.name === baseOf(key));
+  const shadeById = (it, id) => arr(it && it.variants && it.variants.shades).find((s) => s.id === id);
+  function priceOf(key) {
+    const it = itemOf(key); if (!it) return 0;
+    const p = String(key).split('|');
+    if (p.length < 4 || !it.variants) return it.price;
+    return Math.round(it.price + (it.variants.perInch || 0) * Math.max(0, (Number(p[2]) || 0) - (it.variants.base || 0)));
+  }
+  function variantText(key) {
+    const it = itemOf(key), p = String(key).split('|');
+    if (p.length < 4) return '';
+    const sh = shadeById(it, p[1]);
+    return [sh ? sh.label : p[1], p[2] ? p[2] + '"' : '', p[3]].filter(Boolean).join(' · ');
+  }
+  const countOf = (name) => Object.keys(SH.cart).filter((k) => baseOf(k) === name).reduce((a, k) => a + SH.cart[k], 0);
 
-  function add(name, n) {
-    const it = itemOf(name);
+  function add(key, n) {
+    const it = itemOf(key);
     if (!it || it.locked) return;
-    const q = Math.max(0, Math.min(it.max || SH.shop.max || 25, (SH.cart[name] || 0) + n));
-    if (q) SH.cart[name] = q; else delete SH.cart[name];
+    const max = it.max || SH.shop.max || 25;
+    const room = max - countOf(it.name) + (SH.cart[key] || 0);
+    const q = Math.max(0, Math.min(room, (SH.cart[key] || 0) + n));
+    if (q) SH.cart[key] = q; else delete SH.cart[key];
     renderShop();
+  }
+
+  // the colour / length / texture picker for extension hair
+  function openPick(name) {
+    const it = itemOf(name), v = it.variants || {};
+    SH.pick = { name, shade: (arr(v.shades)[0] || {}).id || '', len: arr(v.lengths)[0] || '', tex: arr(v.textures)[0] || '' };
+    renderShop();
+  }
+  const pickKey = () => `${SH.pick.name}|${SH.pick.shade}|${SH.pick.len}|${SH.pick.tex}`;
+  function renderPick() {
+    const box = el('stPick');
+    if (!SH.pick) { box.hidden = true; return; }
+    const it = itemOf(SH.pick.name), v = it.variants || {};
+    const sw = (s) => s.tip ? `linear-gradient(180deg,${s.rgb} 35%,${(shadeById(it, s.tip) || {}).rgb || s.rgb})` : s.rgb;
+    box.hidden = false;
+    box.innerHTML = `<div class="pk-h"><span class="pk-img">${imgTag(it.name)}</span><span><b>${esc(it.label)}</b><small>${esc(it.desc || '')}</small></span><button class="x-close" data-pk="close">${icon('x')}</button></div>
+      ${arr(v.shades).length ? `<div class="pk-row"><span class="pk-l">Colour <em>${esc((shadeById(it, SH.pick.shade) || {}).label || '')}</em></span><div class="pk-sw">${arr(v.shades).map((s) => `<button class="${s.id === SH.pick.shade ? 'on' : ''}" data-pk="shade" data-v="${esc(s.id)}" title="${esc(s.label)}" style="background:${sw(s)}"></button>`).join('')}</div></div>` : ''}
+      ${arr(v.lengths).length ? `<div class="pk-row"><span class="pk-l">Length</span><div class="pk-chips">${arr(v.lengths).map((l) => `<button class="${l === SH.pick.len ? 'on' : ''}" data-pk="len" data-v="${l}">${l}"</button>`).join('')}</div></div>` : ''}
+      ${arr(v.textures).length ? `<div class="pk-row"><span class="pk-l">Texture</span><div class="pk-chips">${arr(v.textures).map((t) => `<button class="${t === SH.pick.tex ? 'on' : ''}" data-pk="tex" data-v="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>` : ''}
+      <div class="pk-foot"><span class="pk-price">${money(priceOf(pickKey()))} <small>a pack</small></span>
+        <button class="btn-ghost" data-pk="add5">+5</button><button class="btn-teal" data-pk="add">${icon('cart')}Add to basket</button></div>`;
   }
 
   function renderShop() {
@@ -566,38 +605,42 @@
 
     const items = arr(sh.items).filter((it) => SH.tab === 'all' || it.cat === SH.tab);
     const grid = el('stGrid');
-    // as few rows as fit, so every item is on screen without scrolling: 2 rows up to 14 items, then 3
+    // as few rows as fit, so every item is on screen without scrolling: 2 rows up to 14 items, then 3, then it scrolls
     const n = items.length;
-    const cols = n <= 4 ? Math.max(3, n) : n <= 14 ? Math.ceil(n / 2) : Math.ceil(n / 3);
+    const cols = n <= 4 ? Math.max(3, n) : n <= 14 ? Math.ceil(n / 2) : n <= 21 ? Math.ceil(n / 3) : 7;
     grid.style.setProperty('--cols', cols);
+    grid.classList.toggle('scroll', n > 21);
+    el('skStore').classList.toggle('tall', n > 21);
     el('skStore').classList.toggle('wide', cols >= 6);
     grid.innerHTML = items.map((it) => {
-      const q = SH.cart[it.name] || 0;
+      const q = countOf(it.name);
       return `<button class="scard ${it.locked ? 'locked' : ''} ${q ? 'in' : ''}" data-item="${esc(it.name)}" ${it.locked ? 'disabled' : ''}>
         ${it.locked ? `<span class="sc-lock">${icon('lock')}Level ${it.level}</span>` : q ? `<span class="sc-qty">${q}</span>` : ''}
         <span class="sc-img">${imgTag(it.name)}</span>
         <b>${esc(it.label)}</b>
         <small>${esc(it.desc || (it.have ? `You have ${it.have}` : ''))}</small>
-        <span class="sc-foot"><span class="sc-price">${money(it.price)}</span><span class="sc-add">${icon('plus')}</span></span>
+        <span class="sc-foot"><span class="sc-price">${it.variants ? 'from ' : ''}${money(it.price)}</span><span class="sc-add">${icon(it.variants ? 'grid' : 'plus')}</span></span>
       </button>`;
     }).join('');
 
     el('stPay').innerHTML = arr(sh.accounts).map((a) => `<button class="${a.id === SH.acc ? 'on' : ''}" data-acc="${esc(a.id)}" title="${money(a.money)}">${accLabel(a.id)} · ${shortMoney(a.money)}</button>`).join('');
 
     let total = 0;
-    const lines = Object.keys(SH.cart).map((name) => {
-      const it = itemOf(name), q = SH.cart[name];
+    const lines = Object.keys(SH.cart).map((key) => {
+      const it = itemOf(key), q = SH.cart[key], price = priceOf(key), vt = variantText(key);
       if (!it) return '';
-      total += it.price * q;
-      return `<div class="bk-line"><span class="bk-img">${imgTag(name)}</span><span class="bk-name"><b>${esc(it.label)}</b><small>${money(it.price)} each</small></span>
-        <span class="stepper"><button data-step="${esc(name)}:-1">${icon('minus')}</button><span>${q}</span><button data-step="${esc(name)}:1">${icon('plus')}</button></span>
-        <span class="bk-sum">${money(it.price * q)}</span></div>`;
+      total += price * q;
+      const sh = shadeById(it, String(key).split('|')[1]);
+      return `<div class="bk-line"><span class="bk-img">${imgTag(it.name)}${sh ? `<i class="bk-dot" style="background:${sh.rgb}"></i>` : ''}</span><span class="bk-name"><b>${esc(it.label)}</b><small>${vt ? esc(vt) + ' · ' : ''}${money(price)} each</small></span>
+        <span class="stepper"><button data-step="${esc(key)}:-1">${icon('minus')}</button><span>${q}</span><button data-step="${esc(key)}:1">${icon('plus')}</button></span>
+        <span class="bk-sum">${money(price * q)}</span></div>`;
     }).join('');
     el('stLines').innerHTML = lines || '<div class="bk-empty">Nothing in the basket yet</div>';
     el('stTotal').textContent = money(total);
     const broke = total > wallet().money;
     setNote(el('stStatus'), 'err', broke ? `That's more than you have in ${accLabel(SH.acc)} (<b>${money(wallet().money)}</b>).` : '');
     el('stBuy').disabled = total === 0 || broke;
+    renderPick();
   }
 
   el('skStore').addEventListener('click', (e) => {
@@ -605,16 +648,25 @@
     if (!b || b.disabled) return;
     if (b.dataset.tab) { SH.tab = b.dataset.tab; return renderShop(); }
     if (b.dataset.acc) { SH.acc = b.dataset.acc; return renderShop(); }
-    if (b.dataset.item) return add(b.dataset.item, e.shiftKey ? 5 : 1);
-    if (b.dataset.step) { const [name, d] = b.dataset.step.split(':'); return add(name, Number(d) * (e.shiftKey ? 5 : 1)); }
+    if (b.dataset.pk) {
+      const k = b.dataset.pk, v = b.dataset.v;
+      if (k === 'close') SH.pick = null;
+      else if (k === 'shade') SH.pick.shade = v;
+      else if (k === 'len') SH.pick.len = Number(v);
+      else if (k === 'tex') SH.pick.tex = v;
+      else if (k === 'add' || k === 'add5') return add(pickKey(), k === 'add5' || e.shiftKey ? 5 : 1);
+      return renderShop();
+    }
+    if (b.dataset.item) { const it = itemOf(b.dataset.item); if (it && it.variants) return openPick(it.name); return add(b.dataset.item, e.shiftKey ? 5 : 1); }
+    if (b.dataset.step) { const i = b.dataset.step.lastIndexOf(':'); return add(b.dataset.step.slice(0, i), Number(b.dataset.step.slice(i + 1)) * (e.shiftKey ? 5 : 1)); }
   });
 
   el('stBuy').addEventListener('click', async () => {
     if (el('stBuy').disabled) return;
     el('stBuy').disabled = true;
-    const res = await post('shopBuy', { cart: SH.cart, account: SH.acc });
+    const res = await post('shopBuy', { cart: SH.cart, account: SH.acc, shop: SH.shop.id });
     if (res && res.ok) {
-      arr(SH.shop.items).forEach((it) => { it.have = (it.have || 0) + (SH.cart[it.name] || 0); });
+      arr(SH.shop.items).forEach((it) => { it.have = (it.have || 0) + countOf(it.name); });
       SH.cart = {};
       if (Array.isArray(res.accounts)) SH.shop.accounts = res.accounts;
     }

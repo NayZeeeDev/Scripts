@@ -3,7 +3,7 @@ game 'gta5'
 lua54 'yes'
 
 author 'NayZeee Development'
-description 'Wig Snatch V2 - snatching, minigames, first person cuts, restraints, products, wig tables, phone app, wig studio'
+description 'Wig Snatch V2 - snatching, minigames, first person cuts, salon styling, restraints, products, wig tables, phone app, wig studio'
 version '2.0.0'
 
 ui_page 'web/index.html'
@@ -14,8 +14,10 @@ data_file 'DLC_ITYP_REQUEST' 'stream/nz_wigsnatch_props.ytyp'
 shared_scripts {
     '@ox_lib/init.lua',
     'config.lua',
+    'salon.lua',
     'locales/*.lua',
     'shared/utils.lua',
+    'shared/salon.lua',
 }
 
 client_scripts {
@@ -29,6 +31,7 @@ client_scripts {
     'client/snatch.lua',
     'client/restrain.lua',
     'client/cutting.lua',
+    'client/salon.lua',
     'client/interact.lua',
     'client/phone.lua',
     'client/hairprops.lua',
@@ -50,6 +53,7 @@ server_scripts {
     'server/clash.lua',
     'server/restrain.lua',
     'server/cutting.lua',
+    'server/salon.lua',
     'server/products.lua',
     'server/tables.lua',
     'server/crafting.lua',
@@ -86,6 +90,7 @@ dependencies {
 -- stream/ (the props) is NOT in here, so the escrow encrypts it
 escrow_ignore {
     'config.lua',
+    'salon.lua',
     'config_server.lua',
     'locales/*.lua',
     'bridge/*.lua',

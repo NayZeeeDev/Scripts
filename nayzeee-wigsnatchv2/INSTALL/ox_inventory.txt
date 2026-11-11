@@ -206,3 +206,189 @@
     close = true,
     description = "A wig crafting table by Dragons Lab. Use it to set it up.",
 },
+
+-- the salon ------------------------------------------------------------------------
+
+['rat_comb'] = {
+    label = 'Rat-tail Comb',
+    weight = 40,
+    stack = false,
+    close = true,
+    description = "Parts clean sections. Use it on someone to open the Style Book.",
+},
+
+['paddle_brush'] = {
+    label = 'Paddle Brush',
+    weight = 120,
+    stack = false,
+    close = true,
+    description = "Brushes and detangles before a style.",
+},
+
+['edge_brush'] = {
+    label = 'Edge Brush',
+    weight = 30,
+    stack = false,
+    close = true,
+    description = "Lays baby hairs and edges.",
+},
+
+['c_needle'] = {
+    label = 'C-Needle',
+    weight = 10,
+    stack = false,
+    close = true,
+    description = "A curved needle for sew-ins and tacking cornrows.",
+},
+
+['crochet_hook'] = {
+    label = 'Crochet Hook',
+    weight = 15,
+    stack = false,
+    close = true,
+    description = "Latches hair in at the root.",
+},
+
+['flat_iron'] = {
+    label = 'Flat Iron',
+    weight = 450,
+    stack = false,
+    close = true,
+    description = "Straightens and blends leave-out. Mind the heat.",
+},
+
+['curl_wand'] = {
+    label = 'Curling Wand',
+    weight = 400,
+    stack = false,
+    close = true,
+    description = "Curls leave-out and ends.",
+},
+
+['blow_dryer'] = {
+    label = 'Blow Dryer',
+    weight = 600,
+    stack = false,
+    close = true,
+    description = "Dries and stretches hair before braiding.",
+},
+
+['braid_gel'] = {
+    label = 'Braiding Gel',
+    weight = 200,
+    stack = true,
+    close = true,
+    description = "Firm hold for clean parts and neat roots.",
+},
+
+['edge_control'] = {
+    label = 'Edge Control',
+    weight = 90,
+    stack = true,
+    close = true,
+    description = "Smooths roots and lays edges.",
+},
+
+['mousse'] = {
+    label = 'Foam Mousse',
+    weight = 200,
+    stack = true,
+    close = true,
+    description = "Sets braids and defines curls.",
+},
+
+['heat_protect'] = {
+    label = 'Heat Protectant',
+    weight = 180,
+    stack = true,
+    close = true,
+    description = "Spray it on before the flat iron.",
+},
+
+['shine_spray'] = {
+    label = 'Shine Spray',
+    weight = 180,
+    stack = true,
+    close = true,
+    description = "The finishing shine.",
+},
+
+['moisturizer'] = {
+    label = 'Moisturizer',
+    weight = 180,
+    stack = true,
+    close = true,
+    description = "Preps natural hair before braiding.",
+},
+
+['elastics'] = {
+    label = 'Hair Elastics',
+    weight = 20,
+    stack = true,
+    close = true,
+    description = "A pack of small elastics for ends and bubbles.",
+},
+
+['bobby_pins'] = {
+    label = 'Bobby Pins',
+    weight = 20,
+    stack = true,
+    close = true,
+    description = "Pins buns and tucked ends.",
+},
+
+['hair_beads'] = {
+    label = 'Beads & Cuffs',
+    weight = 60,
+    stack = true,
+    close = true,
+    description = "Wooden and gold beads and cuffs for braid ends.",
+},
+
+['braid_hair'] = {
+    label = 'Braiding Hair',
+    weight = 100,
+    stack = true,
+    close = true,
+    description = "Pre-stretched Kanekalon braiding hair. The pack says its colour and length.",
+},
+
+['marley_hair'] = {
+    label = 'Marley Hair',
+    weight = 110,
+    stack = true,
+    close = true,
+    description = "Wrapping hair for faux locs.",
+},
+
+['bulk_hair'] = {
+    label = 'Curly Bulk Hair',
+    weight = 100,
+    stack = true,
+    close = true,
+    description = "Water wave or deep wave bulk hair for boho braids.",
+},
+
+['crochet_hair'] = {
+    label = 'Crochet Hair',
+    weight = 110,
+    stack = true,
+    close = true,
+    description = "Water wave or bohemian curl crochet hair for passion twists.",
+},
+
+['locs_hair'] = {
+    label = 'Faux Locs',
+    weight = 150,
+    stack = true,
+    close = true,
+    description = "Pre-looped distressed or butterfly locs.",
+},
+
+['weave_bundle'] = {
+    label = 'Weave Bundle',
+    weight = 120,
+    stack = true,
+    close = true,
+    description = "A 100% human hair weft for sew-ins. The bundle says its texture, colour and length.",
+},

@@ -30,6 +30,7 @@ local function sendState(full)
     NUI.Send('studio:state', {
         model = model, d = drawable, t = texture, list = full and list or nil,
         chroma = chroma, orbit = orbit, batch = batch, screenshot = hasScreenshot(),
+        salon = full and Salon.StudioList() or nil, looks = Salon.Looks,
     })
 end
 
@@ -363,6 +364,12 @@ end)
 RegisterNUICallback('st:cancel', function(_, cb)
     cb(1)
     if batch then batch = nil end
+end)
+
+-- the salon: show a style as the hairstyle on screen (or stop)
+on('st:salonLook', function(d)
+    if type(d.id) ~= 'string' then return end
+    TriggerServerEvent('nz-wig:s:salonSetLook', d.id, model, d.clear and false or drawable, texture)
 end)
 
 on('st:name', function(d)

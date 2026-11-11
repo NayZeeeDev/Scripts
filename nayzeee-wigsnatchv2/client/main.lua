@@ -9,12 +9,14 @@ local function registerTargets()
     CB.AddGlobalPlayer(Cutting.TargetOptions)
     CB.AddGlobalPlayer(Restrain.TargetOptions)
     CB.AddGlobalPlayer(Interact.TargetOptions)
+    CB.AddGlobalPlayer(Salon.TargetOptions)
 end
 
 local function boot()
     registerTargets()
     PhoneBridge.Init()
     TriggerServerEvent('nz-wig:s:styleNames')
+    TriggerServerEvent('nz-wig:s:salonLooks')
     -- give the appearance script time to dress the ped, then ask for our layer
     SetTimeout(2500, function() TriggerServerEvent('nz-wig:s:ready') end)
 end
@@ -192,6 +194,7 @@ AddEventHandler('onResourceStop', function(res)
     if res ~= RESOURCE then return end
     Snatch.Cleanup()
     Cutting.Cleanup()
+    Salon.Cleanup()
     Restrain.Cleanup()
     Phone.Cleanup()
     Studio.Cleanup()

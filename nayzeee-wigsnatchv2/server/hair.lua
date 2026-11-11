@@ -3,6 +3,7 @@
 --   bald   = { d, t, u }            hair lost (snatch / shave / remover), u = regrows at (0 = never)
 --   wig    = meta                   wig being worn
 --   cut    = { d, t, m, kind, u }   haircut from a first person cut
+--   style  = { id, label, d, t, m, shade, q, by, at, u }   a salon style (braids, sew-in...)
 --   face   = { brows, beard, u }    'thin' | 'gone' / 'trim' | 'gone'
 --   dye    = { c, h }               own hair dyed
 --   status = { burn = u, lice = u, dirt = u }
@@ -22,6 +23,8 @@ function Hair.State(P)
         bald   = h.bald and { d = h.bald.d, t = h.bald.t, u = h.bald.u } or nil,
         wig    = h.wig and { hair = h.wig.hair, label = h.wig.label, tier = h.wig.tier, serial = h.wig.serial, cond = h.wig.cond } or nil,
         cut    = h.cut and { d = h.cut.d, t = h.cut.t, m = h.cut.m, kind = h.cut.kind, u = h.cut.u } or nil,
+        style  = h.style and { id = h.style.id, label = h.style.label, d = h.style.d, t = h.style.t, m = h.style.m,
+                               shade = h.style.shade, q = h.style.q, by = h.style.by, at = h.style.at, u = h.style.u } or nil,
         face   = h.face and { brows = h.face.brows, beard = h.face.beard, u = h.face.u } or nil,
         dye    = h.dye,
         status = status,
@@ -62,6 +65,7 @@ local function expiries(P)
     local h, list = P.hair, {}
     if h.bald and (h.bald.u or 0) > 0 then list[#list + 1] = h.bald.u end
     if h.cut and (h.cut.u or 0) > 0 then list[#list + 1] = h.cut.u end
+    if h.style and (h.style.u or 0) > 0 then list[#list + 1] = h.style.u end
     if h.face and (h.face.u or 0) > 0 then list[#list + 1] = h.face.u end
     for _, u in pairs(h.status or {}) do list[#list + 1] = u end
     return list
@@ -72,6 +76,7 @@ local function expire(P)
     local h, t, changed = P.hair, now(), {}
     if h.bald and (h.bald.u or 0) > 0 and h.bald.u <= t then h.bald = nil changed[#changed + 1] = 'bald' end
     if h.cut and (h.cut.u or 0) > 0 and h.cut.u <= t then h.cut = nil changed[#changed + 1] = 'cut' end
+    if h.style and (h.style.u or 0) > 0 and h.style.u <= t then h.style = nil changed[#changed + 1] = 'style' end
     if h.face and (h.face.u or 0) > 0 and h.face.u <= t then h.face = nil changed[#changed + 1] = 'face' end
     if h.status then
         for k, u in pairs(h.status) do
@@ -105,6 +110,7 @@ function Hair.Schedule(P)
                 if k == 'bald' then Notify(src, L('regrown'), 'success')
                 elseif k == 'face' then Notify(src, L('face_regrown'), 'success')
                 elseif k == 'cut' then Notify(src, L('cut_grown_out'), 'info')
+                elseif k == 'style' then Notify(src, L('salon_grown_out'), 'info')
                 elseif Config.Products.Status[k] then Notify(src, L('status_gone', Config.Products.Status[k].Label), 'info') end
             end
         end
@@ -124,8 +130,9 @@ function Hair.SetBald(P, modelKey, minutes)
         t = style.textures[math.random(1, #style.textures)],
         u = regrowAt(minutes or Config.Snatch.RegrowMinutes),
     }
-    -- a haircut and dye go with the hair
+    -- a haircut, a salon style and dye go with the hair
     P.hair.cut = nil
+    P.hair.style = nil
     P.hair.dye = nil
     Hair.Schedule(P)
 end
@@ -137,7 +144,24 @@ end
 
 function Hair.SetCut(P, model, kind, drawable, minutes)
     P.hair.cut = { d = drawable, t = 0, m = model, kind = kind, u = regrowAt(minutes or Config.Snatch.RegrowMinutes) }
+    P.hair.style = nil   -- cutting into braids takes them out
     Hair.Schedule(P)
+end
+
+-- a salon style replaces a haircut; minutes = how long it lasts (nil / 0 = until taken down)
+function Hair.SetStyle(P, style, minutes)
+    style.u = regrowAt(minutes)
+    P.hair.style = style
+    P.hair.cut = nil
+    P.hair.bald = nil
+    Hair.Schedule(P)
+end
+
+function Hair.ClearStyle(P)
+    if not P.hair.style then return false end
+    P.hair.style = nil
+    Hair.Schedule(P)
+    return true
 end
 
 function Hair.SetFace(P, part, value)

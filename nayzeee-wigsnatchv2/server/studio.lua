@@ -193,6 +193,15 @@ local function gather(found)
 end
 
 function Studio.Boot()
+    -- hairstyle names: the database copy survives updating the script (the json file doesn't)
+    local saved = DB.GetKV('style_names')
+    if type(saved) == 'table' then
+        for k, v in pairs(saved) do
+            if type(k) == 'string' and type(v) == 'string' then StyleNames[k] = v end
+        end
+    elseif next(StyleNames) then
+        DB.SetKV('style_names', StyleNames)
+    end
     local rows = MySQL.query.await('SELECT name FROM nz_wig_shots') or {}
     local found = {}
     for _, r in ipairs(rows) do found[r.name] = true end
@@ -247,6 +256,7 @@ RegisterNetEvent('nz-wig:s:studioNames', function(changes)
         end
     end
     SaveResourceFile(RESOURCE, 'data/style_names.json', json.encode(StyleNames), -1)
+    DB.SetKV('style_names', StyleNames)
     TriggerClientEvent('nz-wig:c:styleNames', -1, StyleNames)
     Notify(src, L('studio_names_saved', n), 'success')
     Log('admin', 'Style names', ('%s renamed %d hairstyle(s) in the studio'):format(GetPlayerName(src) or src, n))

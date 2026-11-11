@@ -100,6 +100,13 @@ local schema = {
         `updated` INT NOT NULL DEFAULT 0,
         PRIMARY KEY (`name`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;]],
+
+    -- Small settings made in game (hairstyle names, salon looks), so updating the script keeps them
+    [[CREATE TABLE IF NOT EXISTS `nz_wig_kv` (
+        `k` VARCHAR(64) NOT NULL,
+        `v` LONGTEXT NOT NULL,
+        PRIMARY KEY (`k`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;]],
 }
 
 -- Newer columns added to tables made by older versions. SHOW COLUMNS keeps this working on MySQL and MariaDB.
@@ -109,6 +116,7 @@ local columns = {
     { 'nz_wig_players', 'products',    'INT NOT NULL DEFAULT 0' },
     { 'nz_wig_players', 'crafted',     'INT NOT NULL DEFAULT 0' },
     { 'nz_wig_players', 'stolen_back', 'INT NOT NULL DEFAULT 0' },
+    { 'nz_wig_players', 'styled',      'INT NOT NULL DEFAULT 0' },
 }
 
 local function addColumn(tbl, col, def)
@@ -131,7 +139,7 @@ local SAVE_COLS = {
     'name', 'xp', 'snatches', 'defends', 'fails', 'snatched', 'streak', 'best_streak',
     'buzzes', 'cuts', 'revenges', 'wigs_sold', 'earned', 'bounties_claimed', 'bounty_earned',
     'best_tier', 'catalog_rewards', 'glue_until', 'passive', 'passive_at', 'first_seen', 'last_seen',
-    'tackles', 'ties', 'products', 'crafted', 'stolen_back',
+    'tackles', 'ties', 'products', 'crafted', 'stolen_back', 'styled',
 }
 local SAVE_SQL do
     local sets = {}
@@ -169,6 +177,18 @@ function DB.SavePlayer(row)
     params[n + 1] = json.encode(row.hair or {})
     params[n + 2] = row.identifier
     MySQL.prepare(SAVE_SQL, params)
+end
+
+-- key / value settings (JSON)
+function DB.GetKV(k)
+    local row = MySQL.single.await('SELECT v FROM nz_wig_kv WHERE k = ?', { k })
+    if not row then return nil end
+    local ok, v = pcall(json.decode, row.v)
+    return ok and v or nil
+end
+
+function DB.SetKV(k, v)
+    MySQL.prepare('INSERT INTO nz_wig_kv (k, v) VALUES (?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v)', { k, json.encode(v) })
 end
 
 function DB.AddFeed(kind, actor, actorName, target, targetName, tier, label, amount)
@@ -247,7 +267,7 @@ function DB.CatalogCount(identifier)
     return MySQL.scalar.await('SELECT COUNT(*) FROM nz_wig_catalog WHERE identifier = ?', { identifier }) or 0
 end
 
-local LB_COLS = { snatches = true, defends = true, best_streak = true, earned = true, xp = true, bounty_earned = true, crafted = true, cuts = true }
+local LB_COLS = { snatches = true, defends = true, best_streak = true, earned = true, xp = true, bounty_earned = true, crafted = true, cuts = true, styled = true }
 function DB.Leaderboard(col, limit)
     if not LB_COLS[col] then return {} end
     return MySQL.query.await(('SELECT identifier, name, xp, %s AS value FROM nz_wig_players WHERE %s > 0 ORDER BY %s DESC LIMIT ?'):format(col, col, col), { limit })

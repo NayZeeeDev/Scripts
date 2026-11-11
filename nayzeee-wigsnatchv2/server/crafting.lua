@@ -128,36 +128,86 @@ end)
 
 OnPlayerDrop(function(src) making[src] = nil end)
 
--- supplier ---------------------------------------------------------------------------------------
+-- suppliers: the Hair Supply (wig making) and the Beauty Supply (the salon) -----------------------
 
-local function nearSupplier(src)
-    local ped = GetPlayerPed(src)
-    return ped ~= 0 and #(GetEntityCoords(ped) - SU.Coords.xyz) < 6.0
+local SHOPS = { hair = Config.Supplier, beauty = Config.BeautySupply }
+local function shopOf(id)
+    local sh = SHOPS[id or 'hair']
+    return sh and sh.Enabled and sh or nil
 end
 
--- what the player can pay with (Config.Supplier.Accounts, or the older single Account)
-local function accounts()
-    local list = SU.Accounts or { SU.Account or 'cash' }
+local function nearSupplier(src, sh)
+    local ped = GetPlayerPed(src)
+    return ped ~= 0 and #(GetEntityCoords(ped) - sh.Coords.xyz) < 6.0
+end
+
+-- what the player can pay with (Accounts, or the older single Account)
+local function accounts(sh)
+    local list = sh.Accounts or { sh.Account or 'cash' }
     return #list > 0 and list or { 'cash' }
 end
 
-local function payWith(acc)
-    for _, a in ipairs(accounts()) do if a == acc then return a end end
-    return accounts()[1]
+local function payWith(sh, acc)
+    for _, a in ipairs(accounts(sh)) do if a == acc then return a end end
+    return accounts(sh)[1]
 end
 
-lib.callback.register('nz-wig:supplier', function(src)
+local function wallets(src, sh)
+    local out = {}
+    for i, a in ipairs(accounts(sh)) do out[i] = { id = a, money = Bridge.GetMoney(src, a) } end
+    return out
+end
+
+-- extension hair comes in shades, lengths and textures; a longer pack costs more
+local function variantsOf(name, it)
+    local h = Config.Salon and Config.Salon.Hair[name]
+    if not h or not it.variants then return nil end
+    local shades = {}
+    if h.shades then
+        for i, sh in ipairs(Config.Salon.Shades) do shades[i] = { id = sh.id, label = sh.label, rgb = sh.rgb, tip = sh.tip } end
+    end
+    return { shades = shades, lengths = h.lengths, textures = h.textures, perInch = it.perInch or 0, base = h.lengths and h.lengths[1] or nil }
+end
+
+-- a basket key: 'item' or 'item|shade|length|texture'. Returns item, meta, unit price
+local function parseKey(sh, key)
+    if type(key) ~= 'string' then return nil end
+    local name, shade, len, tex = key:match('^([%w_]+)|([^|]*)|([^|]*)|([^|]*)$')
+    if not name then
+        local it = sh.Items[key]
+        if not it or it.variants then return nil end
+        return key, nil, it.price, it
+    end
+    local it = sh.Items[name]
+    local h = Config.Salon and Config.Salon.Hair[name]
+    if not it or not it.variants or not h then return nil end
+    local okShade = false
+    for _, s in ipairs(Config.Salon.Shades) do if s.id == shade then okShade = true end end
+    if h.shades and not okShade then return nil end
+    len = tonumber(len)
+    local okLen = not h.lengths
+    for _, l in ipairs(h.lengths or {}) do if l == len then okLen = true end end
+    if not okLen then return nil end
+    local okTex = not h.textures
+    for _, t in ipairs(h.textures or {}) do if t == tex then okTex = true end end
+    if not okTex then return nil end
+    local price = it.price + (it.perInch or 0) * math.max(0, (len or 0) - ((h.lengths or {})[1] or 0))
+    return name, Salon.PackMeta(name, h.shades and shade or nil, len, h.textures and tex or nil), math.floor(price + 0.5), it
+end
+
+lib.callback.register('nz-wig:supplier', function(src, shopId)
     local P = GetP(src)
-    if not SU.Enabled or not P or not nearSupplier(src) then return false end
+    local sh = shopOf(shopId)
+    if not sh or not P or not nearSupplier(src, sh) then return false end
     local level = GetLevel(P.row.xp)
     local items = {}
-    for name, it in pairs(SU.Items) do
+    for name, it in pairs(sh.Items) do
         items[#items + 1] = { name = name, label = it.label, desc = it.desc, cat = it.cat, price = it.price, level = it.level or 1, max = it.max,
-                              locked = level < (it.level or 1), have = Inv.Count(src, name) }
+                              locked = level < (it.level or 1), have = Inv.Count(src, name), variants = variantsOf(name, it) }
     end
     -- in tab order, then by level and price
     local catIndex = {}
-    for i, c in ipairs(SU.Categories or {}) do catIndex[c.id] = i end
+    for i, c in ipairs(sh.Categories or {}) do catIndex[c.id] = i end
     table.sort(items, function(a, b)
         local ca, cb = catIndex[a.cat] or 99, catIndex[b.cat] or 99
         if ca ~= cb then return ca < cb end
@@ -165,39 +215,38 @@ lib.callback.register('nz-wig:supplier', function(src)
         if a.price ~= b.price then return a.price < b.price end
         return a.label < b.label
     end)
-    local wallets = {}
-    for i, a in ipairs(accounts()) do wallets[i] = { id = a, money = Bridge.GetMoney(src, a) } end
-    return { title = SU.Label, level = level, accounts = wallets, max = SU.MaxPerItem, items = items, categories = SU.Categories or {} }
+    return { id = shopId or 'hair', title = sh.Label, level = level, accounts = wallets(src, sh), max = sh.MaxPerItem, items = items, categories = sh.Categories or {} }
 end)
 
-lib.callback.register('nz-wig:supplierBuy', function(src, cart, acc)
+lib.callback.register('nz-wig:supplierBuy', function(src, cart, acc, shopId)
     local P = GetP(src)
-    if not SU.Enabled or not P or type(cart) ~= 'table' or not nearSupplier(src) then return false end
-    acc = payWith(acc)
+    local sh = shopOf(shopId)
+    if not sh or not P or type(cart) ~= 'table' or not nearSupplier(src, sh) then return false end
+    acc = payWith(sh, acc)
     local level = GetLevel(P.row.xp)
-    local total, lines = 0, {}
-    for name, qty in pairs(cart) do
-        local it = SU.Items[name]
+    local total, lines, per = 0, {}, {}
+    for key, qty in pairs(cart) do
+        local name, meta, price, it = parseKey(sh, key)
         qty = math.floor(SafeNumber(qty) or 0)
-        if it and qty > 0 then
-            if qty > (it.max or SU.MaxPerItem) then return false end
+        if not name and qty > 0 then return false end
+        if name and qty > 0 then
+            per[name] = (per[name] or 0) + qty
+            if per[name] > (it.max or sh.MaxPerItem) then return false end
             if level < (it.level or 1) then return false, L('level_needed', it.level) end
-            if not Inv.CanCarry(src, name, qty) then return false, L('pockets_full') end
-            total = total + it.price * qty
-            lines[#lines + 1] = { name = name, qty = qty }
+            if not Inv.CanCarry(src, name, qty, meta) then return false, L('pockets_full') end
+            total = total + price * qty
+            lines[#lines + 1] = { name = name, qty = qty, meta = meta, price = price }
         end
     end
     if #lines == 0 then return false end
-    if Bridge.GetMoney(src, acc) < total or not Bridge.RemoveMoney(src, total, acc, 'wig supplies') then
+    if Bridge.GetMoney(src, acc) < total or not Bridge.RemoveMoney(src, total, acc, 'supplies') then
         return false, L('no_money')
     end
     local refund = 0
     for _, l in ipairs(lines) do
-        if not Inv.Add(src, l.name, l.qty) then refund = refund + SU.Items[l.name].price * l.qty end
+        if not Inv.Add(src, l.name, l.qty, l.meta) then refund = refund + l.price * l.qty end
     end
-    if refund > 0 then Bridge.AddMoney(src, refund, acc, 'wig supplies refund') end
-    Log('workshop', 'Supplies bought', ('**%s** spent $%d (%s) at %s'):format(P.name, total - refund, acc, SU.Label))
-    local wallets = {}
-    for i, a in ipairs(accounts()) do wallets[i] = { id = a, money = Bridge.GetMoney(src, a) } end
-    return true, L('bought', total - refund), wallets
+    if refund > 0 then Bridge.AddMoney(src, refund, acc, 'supplies refund') end
+    Log('workshop', 'Supplies bought', ('**%s** spent $%d (%s) at %s'):format(P.name, total - refund, acc, sh.Label))
+    return true, L('bought', total - refund), wallets(src, sh)
 end)
