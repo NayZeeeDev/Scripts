@@ -418,6 +418,10 @@ def bundle():
 
 BUILDERS = [clippers, razor, dye, wig_head, wig_shell, bundle]
 
+# the salon props (salon_props.py)
+import salon_props  # noqa: E402
+BUILDERS += salon_props.PROPS
+
 if __name__ == '__main__':
     OUT = sys.argv[1] if len(sys.argv) > 1 else 'out'
     os.makedirs(OUT, exist_ok=True)

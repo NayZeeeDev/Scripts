@@ -97,7 +97,8 @@ Config.Salon = {
         weave_bundle = { label = 'Weave Bundle',     kind = '100% human hair weft',    lengths = { 14, 18, 22, 26, 30 }, shades = true, textures = { 'Straight', 'Body Wave', 'Deep Wave', 'Kinky Curly' } },
     },
 
-    -- Everything a step can have in hand. item = what the stylist needs (false = nothing),
+    -- Everything a step can have in hand. The nz_sty_* props ship in stream/: tools lie along the hand like the
+    -- clippers, tubs / cans / bottles stand upright in it. Tweak pos / rot if your animations hold them differently. item = what the stylist needs (false = nothing),
     -- use = true: one is used up per style (products), false: a tool you keep.
     -- prop = what others see in the stylist's hand.
     Tools = {
@@ -111,12 +112,12 @@ Config.Salon = {
         curl_wand    = { label = 'Curling Wand',     item = 'curl_wand',    use = false, prop = { model = `nz_sty_wand`,   bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) }, sound = 'sizzle' },
         blow_dryer   = { label = 'Blow Dryer',       item = 'blow_dryer',   use = false, prop = { model = `nz_sty_dryer`,  bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) }, sound = 'dryer' },
         shears       = { label = 'Styling Shears',   item = 'scissors',     use = false, prop = { model = `prop_cs_scissors`, bone = 57005, pos = vec3(0.12, 0.04, 0.01), rot = vec3(-80.0, 0.0, 0.0) }, sound = 'snip' },
-        braid_gel    = { label = 'Braiding Gel',     item = 'braid_gel',    use = true,  prop = { model = `nz_sty_gel`,    bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) } },
-        edge_control = { label = 'Edge Control',     item = 'edge_control', use = true,  prop = { model = `nz_sty_tin`,    bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) } },
-        mousse       = { label = 'Foam Mousse',      item = 'mousse',       use = true,  prop = { model = `nz_sty_mousse`, bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) }, sound = 'spray' },
-        heat_protect = { label = 'Heat Protectant',  item = 'heat_protect', use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) }, sound = 'spray' },
-        shine_spray  = { label = 'Shine Spray',      item = 'shine_spray',  use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) }, sound = 'spray' },
-        moisturizer  = { label = 'Moisturizer',      item = 'moisturizer',  use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, 0.0), rot = vec3(90.0, 0.0, 0.0) }, sound = 'spray' },
+        braid_gel    = { label = 'Braiding Gel',     item = 'braid_gel',    use = true,  prop = { model = `nz_sty_gel`,    bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) } },
+        edge_control = { label = 'Edge Control',     item = 'edge_control', use = true,  prop = { model = `nz_sty_tin`,    bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) } },
+        mousse       = { label = 'Foam Mousse',      item = 'mousse',       use = true,  prop = { model = `nz_sty_mousse`, bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
+        heat_protect = { label = 'Heat Protectant',  item = 'heat_protect', use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
+        shine_spray  = { label = 'Shine Spray',      item = 'shine_spray',  use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
+        moisturizer  = { label = 'Moisturizer',      item = 'moisturizer',  use = true,  prop = { model = `nz_sty_spray`,  bone = 28422, pos = vec3(0.0, 0.0, -0.03), rot = vec3(0.0, 0.0, 0.0) }, sound = 'spray' },
         elastics     = { label = 'Hair Elastics',    item = 'elastics',     use = true },
         bobby_pins   = { label = 'Bobby Pins',       item = 'bobby_pins',   use = true },
         hair_beads   = { label = 'Beads & Cuffs',    item = 'hair_beads',   use = true },

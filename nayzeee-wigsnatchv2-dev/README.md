@@ -7,6 +7,7 @@ you upload it: they are not in `escrow_ignore`) and the compiled hairkit program
 | Path | What it does |
 | --- | --- |
 | `props-source/` | CodeWalker XML + DDS of the props in `stream/` (clippers, razor, dye bottle, foam head, generic wig, hair bundle) and their previews |
+| `props/salon_props.py` | The salon props (comb, brushes, needle, hook, flat iron, wand, dryer, gel, edge control, mousse, spray, braiding hair pack), added to the same ytyp by build.py |
 | `props/build.py` + `props/mesh.py` | Builds those props: `python3 props/build.py props-source`, then `cwtool xml2ydr` / `xml2ytyp` into `../nayzeee-wigsnatchv2/stream/` |
 | `props/icons.py` | Renders every item icon in `INSTALL/images` from 3D models (256 px, three-quarter view, studio light): `python3 props/icons.py out` |
 | `cwtool/` | A small CodeWalker.Core tool for prop work: `ydr2xml`, `xml2ydr`, `ydd2xml`, `ytd2dds`, `ytyp2xml`, `xml2ytyp` |

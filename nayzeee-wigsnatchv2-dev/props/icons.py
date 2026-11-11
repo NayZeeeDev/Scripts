@@ -402,6 +402,100 @@ ITEMS = {
     'lace_full': lambda: lace('full'),
 }
 
+
+# ── the salon ────────────────────────────────────────────────────────────────────────────────────
+import salon_props as SP  # noqa: E402
+
+
+def sp(builder, mat=PLASTIC, view=None, R=None, **kw):
+    _, part, tex, _, _ = builder(**kw) if kw else builder()
+    if R is not None:
+        part = part.transformed(R=R)
+    return [(part, tex, mat)], view or dict(yaw=25, pitch=20)
+
+
+def tool(builder, mat=PLASTIC):
+    # hand tools lie along +Y: stand them diagonally like the clippers icon
+    return sp(builder, mat, dict(yaw=-35, pitch=20), R=rot('x', 62))
+
+
+def elastics():
+    out = []
+    cols = [(14, 14, 16), (14, 14, 16), (40, 40, 44), (8, 175, 162), (236, 92, 160)]
+    for i, c in enumerate(cols):
+        ring = torus(0.012, 0.0028, 28, 10, (0, 0, 1, 1)).transformed(R=rot('x', 70 - i * 9) @ rot('y', i * 30),
+                                                                       t=(-0.03 + (i % 3) * 0.028, (i // 3) * 0.024, i * 0.002))
+        out.append((ring, solid(c, amp=3), GLOSS))
+    return out, dict(yaw=20, pitch=45)
+
+
+def bobby_pins():
+    out = []
+    for i in range(4):
+        a = box((-0.0009, 0.0, -0.0006), (0.0009, 0.06, 0.0006), (0, 0, 1, 1))
+        b = box((-0.0009, 0.0, -0.0006), (0.0009, 0.055, 0.0006), (0, 0, 1, 1)).transformed(R=rot('z', 4), t=(0.0028, 0.0, 0.0))
+        bend = torus(0.0016, 0.0007, 10, 6, (0, 0, 1, 1), a0=180, a1=360).transformed(t=(0.0014, 0.0, 0.0))
+        pin = merge([a, b, bend]).transformed(R=rot('z', -30 + i * 22), t=(i * 0.012, i * 0.006, i * 0.0015))
+        out.append((pin, solid((20, 20, 22), amp=3), METAL))
+    return out, dict(yaw=10, pitch=55)
+
+
+def hair_beads():
+    out = []
+    spots = [((-0.018, 0, 0), (214, 164, 58), 'ball'), ((0.012, 0.006, 0), (138, 90, 43), 'ball'), ((0.0, -0.022, 0), (214, 164, 58), 'cuff'),
+             ((0.03, -0.018, 0.002), (60, 40, 22), 'ball'), ((-0.028, -0.026, 0.002), (8, 175, 162), 'ball')]
+    for (x, y, z), col, kind in spots:
+        if kind == 'ball':
+            prof = [(0.0, -0.009)] + [(0.0095 * math.sin(math.radians(a)), -0.009 * math.cos(math.radians(a))) for a in range(15, 166, 15)] + [(0.0, 0.009)]
+            m = lathe(prof, 24, (0, 0, 1, 1))
+        else:
+            m = lathe([(0.004, -0.008), (0.0085, -0.008), (0.009, 0.0), (0.0085, 0.008), (0.004, 0.008)], 24, (0, 0, 1, 1))
+        out.append((m.transformed(R=rot('x', 70), t=(x, y, z)), solid(col, amp=8), GLOSS if col != (138, 90, 43) else MATTE))
+    return out, dict(yaw=15, pitch=35)
+
+
+def locs():
+    out = []
+    for i in range(5):
+        secs = [(y * 0.03, 0.0045, 0.0045, 2.0, 0.003 * math.sin(y * 2 + i), 0.0) for y in range(9)]
+        loc = loft_y(secs, 12, (0, 0, 1, 1), caps=[(0, (0, 0, 0.05, 0.05)), (1, (0, 0.95, 0.05, 1))])
+        tex = to_img(hair_texture(128, 256, base=(26, 18, 14), mid=(54, 38, 28), hi=(90, 64, 46), seed=60 + i, tips=False))
+        out.append((loc.transformed(R=rot('z', -10 + i * 5), t=(-0.024 + i * 0.012, 0, i * 0.001)), tex, HAIR))
+    return out, dict(yaw=-35, pitch=40)
+
+
+def hair_pack(cols, text, seed):
+    return sp(SP.pack, HAIR, dict(yaw=-35, pitch=40), R=rot('z', 0), hair=cols, lines=[('NZ', 26, TEAL, 800)] + [(t, 15, (18, 19, 21), 700) for t in text], seed=seed)
+
+
+ITEMS.update({
+    'rat_comb': lambda: tool(SP.comb),
+    'paddle_brush': lambda: tool(SP.brush),
+    'edge_brush': lambda: tool(SP.edge_brush),
+    'c_needle': lambda: tool(SP.needle, METAL),
+    'crochet_hook': lambda: tool(SP.hook, METAL),
+    'flat_iron': lambda: tool(SP.flat_iron),
+    'curl_wand': lambda: tool(SP.wand),
+    'blow_dryer': lambda: sp(SP.dryer, PLASTIC, dict(yaw=30, pitch=15), R=rot('x', 90)),
+    'braid_gel': lambda: sp(SP.gel, GLOSS, dict(yaw=0, pitch=22)),
+    'edge_control': lambda: sp(SP.tin, PLASTIC, dict(yaw=0, pitch=30)),
+    'mousse': lambda: sp(SP.mousse, GLOSS, dict(yaw=0, pitch=12)),
+    'shine_spray': lambda: sp(SP.spray, GLOSS, dict(yaw=0, pitch=12)),
+    'heat_protect': lambda: sp(SP.spray, GLOSS, dict(yaw=0, pitch=12), liquid=(245, 240, 236), band=(229, 72, 77),
+                               lines=[('NZ', 44, (255, 255, 255), 800), ('HEAT PROTECT', 19, (255, 255, 255), 700), ('up to 230°', 16, (255, 236, 236), 400)]),
+    'moisturizer': lambda: sp(SP.spray, GLOSS, dict(yaw=0, pitch=12), liquid=(240, 244, 246), band=(120, 170, 220),
+                              lines=[('NZ', 44, (255, 255, 255), 800), ('MOISTURIZER', 19, (255, 255, 255), 700), ('leave-in', 16, (236, 244, 250), 400)]),
+    'elastics': elastics,
+    'bobby_pins': bobby_pins,
+    'hair_beads': hair_beads,
+    'braid_hair': lambda: hair_pack(((150, 104, 56), (200, 150, 90), (240, 205, 150)), ['BRAID', 'HAIR'], 91),
+    'marley_hair': lambda: hair_pack(((24, 17, 13), (44, 31, 23), (74, 54, 40)), ['MARLEY', 'HAIR'], 93),
+    'bulk_hair': lambda: hair_pack(((60, 34, 20), (102, 64, 38), (150, 104, 66)), ['CURLY', 'BULK'], 95),
+    'crochet_hair': lambda: hair_pack(((40, 24, 18), (90, 50, 36), (150, 94, 66)), ['CROCHET', 'WAVE'], 97),
+    'locs_hair': locs,
+    'weave_bundle': lambda: hair_pack(((20, 15, 12), (40, 29, 22), (70, 52, 40)), ['100%', 'HUMAN'], 99),
+})
+
 # Config.Wig.Images = 'tier': one wig per tier, in that tier's look
 TIERS = {
     'common':    ((26, 18, 14), (52, 36, 26), (92, 66, 48)),

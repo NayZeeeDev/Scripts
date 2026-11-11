@@ -8,7 +8,7 @@ version '2.0.0'
 
 ui_page 'web/index.html'
 
--- clippers, straight razor, dye bottle, wig head and hair bundle props (stream/)
+-- the props (stream/): clippers, razor, dye bottle, wig head, hair bundle and the salon tools
 data_file 'DLC_ITYP_REQUEST' 'stream/nz_wigsnatch_props.ytyp'
 
 shared_scripts {
