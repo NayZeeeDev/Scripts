@@ -1,6 +1,6 @@
 # Wig Snatch V2
 
-Player-vs-player wig snatching. Every snatch is a live minigame between both players, every wig is a unique item with a tier, a style, a picture and a history. V2 adds first person haircuts and shaves, tackles, zip ties, holding people still, hair products, wig tables for making and dyeing wigs, a phone app for selling, and a built-in studio that photographs every hairstyle on your server.
+Player-vs-player wig snatching. Every snatch is a live minigame between both players, every wig is a unique item with a tier, a style, a picture and a history. V2 adds the **salon** (doing hair step by step in first person: braids, cornrows, twists, locs and sew-ins), first person haircuts and shaves, tackles, zip ties, holding people still, hair products, wig tables for making and dyeing wigs, a phone app for selling, and a built-in studio that photographs every hairstyle on your server.
 
 ## ✨ Features
 
@@ -23,6 +23,8 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **Hair pricing** | Tier base, condition, provenance, dye, burns, market demand and your title. The phone shows the full breakdown. |
 | **Hair Plug phone app** | Quick sell, meet-ups with a buyer who runs to you, a player marketplace (offline sellers get paid on login), and rotating NPC orders that pay extra. Lives inside lb-phone, YSeries or qs-smartphone. There is no built-in phone. |
 | **Wig Studio** | Built like the nayzeee-backpack icon studio. A head floats in a lit chroma box, you frame it with the orbit camera, and each shot is keyed in the browser into a small transparent PNG that's copied straight into ox_inventory. Shoot one hairstyle or every hairstyle, and name them there: every wig of that style uses the name and the photo. |
+| **The salon** | Do someone's hair, step by step, in first person: 19 styles from a three-strand braid to box braids, knotless, cornrows, stitch braids, Fulani, lemonade, passion twists, faux locs and a full sew-in. Parting, gel, cornrows stitch by stitch, braiding on the beat, feeding in hair, sewing wefts, sprays and irons, with the work building up on their head. They get the style on their own ped at the end. See **Salon** below. |
+| **Beauty Supply** | A second store (an NPC on your map) with braiding hair, bundles, crochet hair and locs in 19 shades and every length, plus gels, sprays and the tools. |
 | **Wear / put on / take off** | Wear any wig that fits, put your wig on someone else, or take a wig off them. Both ask first. |
 | **Notifications** | ox_lib (`lib.notify`). Each player picks where they pop up in Vault > Settings (default `Config.UI.ToastPosition`). |
 | **Player preferences** | Every player picks their own accent and alert colours, UI size, toast position, sounds, banners and minigame keys (Vault > Settings or `/wigsettings`). Saved on their PC. |
@@ -88,6 +90,10 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `wig_glue` | Glue your lace down for 20 minutes |
 | `wig_kit` | Repair a wig's condition (Vault) |
 | `scissors` / `hair_clippers` / `straight_razor` | First person cutting tools. Use one to cut whoever is in front of you |
+| `rat_comb` | Salon tool. Use it on whoever is in front of you to open the Style Book |
+| `paddle_brush` / `edge_brush` / `c_needle` / `crochet_hook` / `flat_iron` / `curl_wand` / `blow_dryer` | Salon tools (kept) |
+| `braid_gel` / `edge_control` / `mousse` / `heat_protect` / `shine_spray` / `moisturizer` / `elastics` / `bobby_pins` / `hair_beads` | Salon products (one is used up per style that needs it) |
+| `braid_hair` / `marley_hair` / `bulk_hair` / `crochet_hair` / `locs_hair` / `weave_bundle` | Extension hair. Every pack carries its shade, length and texture (bought at the Beauty Supply) |
 | `zip_ties` | Tie up whoever is in front of you (they must be restrained) |
 | `hair_remover` / `relaxer` / `lice_jar` / `mud_bag` | Pranks for other people's hair |
 | `shampoo` / `regrowth_oil` | Wash out mud and lice / grow everything back |
@@ -102,6 +108,8 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `/wiguntie` · `/wigcut` | Everyone | Untie / cut whoever is in front of you |
 | `/wigs` | Everyone | Wig Vault |
 | `/wigsettings` | Everyone | Your colours, size, sounds and keys |
+| `/stylebook` | Everyone | Browse every salon style and what it needs |
+| `/takedown` | Everyone | Take down your braids / sew-in (back to your own hair) |
 | `/wigpassive` | Everyone | Passive mode (if enabled) |
 | `/wigstudio` | Ace `command.wigstudio` | Photograph and name hairstyles |
 | `/wigadmin restore\|givewig\|givebundle\|resetcd\|protect\|xp\|glue\|status\|free <id> [value]` | Ace | Admin tools |
@@ -207,9 +215,41 @@ The wig comes out with exactly that hairstyle, texture, colour and length, your 
 
 **Hair Supply** (`Config.Supplier`) sells the materials next to Hair on Hawick by default; move her anywhere. The store shows every item at once in a card grid with category tabs (`Categories`, and a `cat` and `desc` on each item). Click a card to put it in the basket, or shift-click to add five. Items above the player's level show as locked. Players pay from cash or bank (`Accounts`). The four wig tables are sold under a **Tables** tab for $750 each, one per purchase (an item's `max`). Their store icons come from the install images in Dragons Lab's pack, once they're in `ox_inventory/web/images`. Prices are set so a wig is worth more than its materials when sold through a meet-up, less through quick sell.
 
+## 💇🏾‍♀️ Salon
+
+Doing hair, step by step, in first person. Everything is in `salon.lua` (not escrowed: edit the styles, steps, prices and shades).
+
+**Getting a style done**
+1. The stylist looks at someone and picks **Do Hair** (or uses a rat-tail comb on them). The **Style Book** opens: every style as a card with its look, the steps, how long it lasts, what it needs (tools, products, extension hair with the packs you have in each shade), any options (natural or extensions, a leave-out, a closure) and a price.
+2. The client gets a **Hair Appointment** prompt with the style, the time and the price. When they accept, the money is held. They sit in the closest chair (barber chairs and most chairs work, `Config.Salon.Chairs`) and see each step as it happens. **M** turns on a mirror view, **X** gets up (money back).
+3. The stylist's camera moves in on the client's head and every step is played out. The camera turns to where the work is, and **Q / E / W / S** and the scroll wheel move it by hand:
+
+| Move | What you do |
+| --- | --- |
+| Part / cut / lay edges | Hold and follow the dotted line with the rat-tail comb, shears or edge brush |
+| Cornrows | **A / D** stitch by stitch on the beat, keeping the cursor on the braid as it moves down the row. **F** feeds in hair (let go when the piece is the right size); stitch braids also need each stitch line sliced |
+| Braids | Press the strand keys on the beat (**D** right over, **A** left over, under for Dutch). Pick up loose hair (French / Dutch), feed in extensions (knotless gets thicker as you go), leave curls out (boho), drop strands (waterfall) |
+| Gel, pins, elastics, beads, snips | Click each spot |
+| Sew-in | Needle in (click), pull the thread through (flick up), stitch by stitch along each weft track |
+| Sprays, mousse, the blow dryer | Hold and cover the area. Heat stays off one spot too long and it burns |
+| Brushing, the flat iron | Drag from the root to the tip along each strand |
+| Twists, buns, wrapping locs | Hold and turn around the spot the right way |
+| Gathering, puffing bubbles, the cap, the lace | Drag the hair to the ring |
+| Dipping ends, threading the needle | Hold and let go in the green band |
+
+Parts, cornrows, braids, gel, beads and sewn tracks stay drawn on the head as you go, so the style builds up step by step. A sew-in shows its cornrow base halfway (`Config.Salon.Looks`).
+
+4. When the last move is done the client gets the style on their own ped, in the shade of the hair you used (natural styles keep their colour), with a **New Look** reveal while the camera turns around them. The stylist gets paid and XP (more for harder styles and clean work). Every move is scored and the server checks the order and the time each one took. The quality decides how long the style lasts (`days` per style x `Config.Salon.DayMinutes`, or until taken down).
+
+A style sits on the player's own hair: a wig goes over it, `/takedown` (or the Vault) takes it down, cutting the hair takes it out, and snatching it takes it like natural hair (the wig keeps the look).
+
+**Giving each style its look (admins).** GTA can only show hairstyles your server has. So each style is linked to one of your hairstyles per model: `/wigstudio`, find the hairstyle (your braid / loc / weave packs), then **Salon look** > pick the style > **Use**. The Style Book shows "No look" on styles that aren't linked for the client's model yet. Looks are saved in the database.
+
+**The Beauty Supply** (`Config.BeautySupply`, the same store window as the Hair Supply) sells extension hair by shade, length and texture (longer packs cost more), the products and the tools. Packs of one shade and length count together. Without item metadata (plain ESX inventory) packs are generic and the style keeps the client's colour.
+
 ## 🧰 Props
 
-Six props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
+19 props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
 
 | Model | Used for |
 | --- | --- |
@@ -219,6 +259,10 @@ Six props ship in `stream/` with `nz_wigsnatch_props.ytyp`:
 | `nz_wig_head` | The bald foam head on the table. The wig being made or dyed sits on it |
 | `nz_wig_shell` | A generic long wig for the foam head, used for hairstyles that don't have their own prop yet |
 | `nz_hair_bundle` | The bundles laid out on the table |
+| `nz_sty_comb` / `nz_sty_brush` / `nz_sty_edge` / `nz_sty_needle` / `nz_sty_hook` | Rat-tail comb, paddle brush, edge brush, C-needle, crochet hook in the stylist's hand |
+| `nz_sty_iron` / `nz_sty_wand` / `nz_sty_dryer` | Flat iron, curling wand, blow dryer |
+| `nz_sty_gel` / `nz_sty_tin` / `nz_sty_mousse` / `nz_sty_spray` | Braiding gel, edge control, mousse, spray bottle (shine, heat protectant, moisturizer) |
+| `nz_sty_pack` | A pack of braiding hair while feeding it in |
 
 They were made for this script and ship compiled in `stream/`, escrowed (encrypted) with the rest of the resource.
 
@@ -242,6 +286,9 @@ See **3D wigs** above for the hairstyles themselves.
 | `Config.Tables` | | Her table models, fallback, limits, fixed tables, camera, stages and skill checks |
 | `Config.TableProps` | | The props in your hand and on the table during table work, and the hairstyle prop naming |
 | `Config.Crafting` | | Base items, wefts per inch, lengths, laces (tier, level, items), natural colours, XP |
+| `Config.Salon` | `salon.lua` | Chairs, camera, payment, how long styles last, XP, shades, hair types, the tools and their props |
+| `Config.SalonStyles` | `salon.lua` | The styles: steps, moves, hair, products, levels, options |
+| `Config.BeautySupply` | `salon.lua` | The Beauty Supply: ped, location, items, prices per inch |
 | `Config.Supplier` | | Ped, location, blip, accounts, categories, items, prices and levels |
 | `Config.HairProps` | on | 3D wigs: auto scan / auto build on start, texture size, resources to skip, hairkit paths |
 | `Config.Studio` | `256` px | Photo size, starting backdrop, framing, lights, ox_inventory copy |
@@ -256,7 +303,10 @@ Discord webhooks and the admin / studio aces live in `config_server.lua`, which 
 | Wig pictures are missing | Run the studio, then restart this resource and ox_inventory. If the console says it couldn't write into ox_inventory, add the `add_filesystem_permission` line from Installation (or copy `shots/*.png` into `ox_inventory/web/images` by hand). |
 | Studio photos come out black / empty | Start `screenshot-basic` before this resource. If the hair keys out too, switch the backdrop to one the hair doesn't use. |
 | The app isn't on my phone | Check the F8 console for "Could not add the Hair Plug app" or "No supported phone found", and adjust `bridge/phone.lua` for your phone version. |
-| A prop sits oddly in the hand | Different animations hold things differently. Tweak `pos` / `rot` in `Config.Cutting.Props` and `Config.TableProps`. |
+| A prop sits oddly in the hand | Different animations hold things differently. Tweak `pos` / `rot` in `Config.Cutting.Props`, `Config.TableProps` and `Config.Salon.Tools`. |
+| A style says "No look" | Link it to one of your hairstyles: `/wigstudio` > the hairstyle > Salon look. Needed per model (male / female). |
+| The client doesn't sit down | They're not near a chair in `Config.Salon.Chairs` (they stand still instead). Add your salon chair's model there. |
+| The braid colour looks off | Shades are matched to the closest GTA hair colour. Adjust `rgb` in `Config.Salon.Shades`. |
 | The foam head shows the generic wig | That hairstyle has no prop yet: `/wigstudio` > 3D wigs > Build. Base game hair needs `hairkit game` on a PC with GTA. If the console says it couldn't start `nzw_hairprops`, add the `add_ace` lines from Installation. |
 | Tables are plain workbenches | SasDragon's pack isn't started. Buy it from her and `ensure` it before this resource. |
 | No third-eye options | Start ox_target / qb-target before this resource, or use the commands and usable items. |

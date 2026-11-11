@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'NayZeee Development'
 description 'Wig Snatch V2 - snatching, minigames, first person cuts, salon styling, restraints, products, wig tables, phone app, wig studio'
-version '2.0.0'
+version '2.1.0'
 
 ui_page 'web/index.html'
 
