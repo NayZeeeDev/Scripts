@@ -33,50 +33,74 @@ static partial class P
 
     public class DropHair { public string Id, Label, Ydd; public List<string> Ytds = new(); public long Size, Mtime; }
 
-    // every hairstyle in the drop folders: each folder with .ydd files in it is one hairstyle (or several)
+    // every hairstyle in the drop folders. Each folder in hairstyles/ is one hairstyle, named after the folder,
+    // whatever is inside it (a download's own fivem/ + sp/ copies, a stream/ folder...): files that are the same
+    // are counted once. A folder with several different .ydd gives "Name 1", "Name 2". Files right in
+    // hairstyles/ are a hairstyle each, named after the file.
     static List<DropHair> FindDrop(List<string> drops)
     {
         var outList = new List<DropHair>();
         foreach (var root in drops.Distinct())
         {
             if (!Directory.Exists(root)) continue;
-            var dirs = new List<string> { root };
-            try { dirs.AddRange(Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories)); } catch { }
-            foreach (var dir in dirs.OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
+            var groups = new List<(string label, string dir, List<string> files)>();
+            try
             {
-                string[] files;
-                try { files = Directory.GetFiles(dir); } catch { continue; }
-                bool Has(string f) { try { return new FileInfo(f).Length > 0; } catch { return false; } }
-                var ydds = files.Where(f => f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase) && !MaleFile.IsMatch(Path.GetFileName(f)))
-                                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
-                var skipped = files.Where(f => f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase) && MaleFile.IsMatch(Path.GetFileName(f))).ToList();
-                foreach (var f in skipped) Console.WriteLine($"drop: left out {Path.GetFileName(f)} (male, hairstyles here are female only)");
-                var ytds = files.Where(f => f.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase) && !MaleFile.IsMatch(Path.GetFileName(f))).ToList();
-                foreach (var f in ytds.Where(f => !Has(f))) Console.WriteLine($"drop: {Path.GetFileName(f)} is empty (0 bytes), left out");
-                ytds = ytds.Where(Has).ToList();
-                ydds = ydds.Where(f =>
+                foreach (var f in Directory.GetFiles(root).OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                    if (f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var stem = Regex.Replace(Path.GetFileNameWithoutExtension(f), @"_[ur]$", "", RegexOptions.IgnoreCase);
+                        var num = DropNum.Match(Path.GetFileName(f));
+                        var mine = Directory.GetFiles(root).Where(t => t.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase) &&
+                            (num.Success ? DropNum.Match(Path.GetFileName(t)) is var tn && tn.Success && tn.Groups[1].Value == num.Groups[1].Value
+                                         : Path.GetFileName(t).StartsWith(stem, StringComparison.OrdinalIgnoreCase)));
+                        groups.Add((Path.GetFileNameWithoutExtension(f), root, new List<string> { f }.Concat(mine).ToList()));
+                    }
+                foreach (var d in Directory.GetDirectories(root).OrderBy(d => d, StringComparer.OrdinalIgnoreCase))
                 {
-                    if (Has(f)) return true;
-                    Console.WriteLine($"drop: {Path.GetFileName(f)} is empty (0 bytes), left out");
-                    return false;
-                }).ToList();
+                    List<string> files;
+                    try { files = Directory.GetFiles(d, "*", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList(); } catch { continue; }
+                    groups.Add((Path.GetFileName(d.TrimEnd('/', '\\')), d, files));
+                }
+            }
+            catch { continue; }
+            try
+            {
+                foreach (var f in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+                    if (Regex.IsMatch(f, @"\.(rar|zip|7z)$", RegexOptions.IgnoreCase))
+                        Console.WriteLine($"drop: {Path.GetRelativePath(root, f)} is still packed: unpack it into a folder here first (right click > Extract)");
+            }
+            catch { }
+
+            foreach (var (folder, dir, files) in groups)
+            {
+                bool Has(string f) { try { return new FileInfo(f).Length > 0; } catch { return false; } }
+                var hashes = new HashSet<string>();
+                bool Fresh(string f)
+                {
+                    try { using var st = File.OpenRead(f); return hashes.Add(System.Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(st))); }
+                    catch { return false; }
+                }
+                foreach (var f in files.Where(f => (f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase)) && !Has(f)))
+                    Console.WriteLine($"drop: {Path.GetRelativePath(root, f)} is empty (0 bytes), left out");
+                var male = files.Where(f => f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase) && MaleFile.IsMatch(Path.GetFileName(f))).ToList();
+                foreach (var f in male) Console.WriteLine($"drop: left out {Path.GetRelativePath(root, f)} (male, hairstyles here are female only)");
+                var ydds = files.Where(f => f.EndsWith(".ydd", StringComparison.OrdinalIgnoreCase) && !MaleFile.IsMatch(Path.GetFileName(f)) && Has(f) && Fresh(f)).ToList();
+                var ytds = files.Where(f => f.EndsWith(".ytd", StringComparison.OrdinalIgnoreCase) && !MaleFile.IsMatch(Path.GetFileName(f)) && Has(f) && Fresh(f)).ToList();
                 if (ydds.Count == 0) continue;
 
-                var folder = Path.GetFullPath(dir).TrimEnd('/', '\\') == Path.GetFullPath(root).TrimEnd('/', '\\') ? null : Path.GetFileName(dir.TrimEnd('/', '\\'));
                 for (int i = 0; i < ydds.Count; i++)
                 {
                     var y = ydds[i];
                     var fi = new FileInfo(y);
-                    var label = folder ?? Path.GetFileNameWithoutExtension(y);
-                    if (folder != null && ydds.Count > 1) label = $"{folder} {i + 1}";
                     var h = new DropHair
                     {
                         Id = Path.GetRelativePath(root, y).Replace('\\', '/').ToLowerInvariant(),
-                        Label = label.Trim(), Ydd = y, Size = fi.Length,
+                        Label = (ydds.Count > 1 ? $"{folder} {i + 1}" : folder).Trim(), Ydd = y, Size = fi.Length,
                         Mtime = new DateTimeOffset(fi.LastWriteTimeUtc).ToUnixTimeSeconds(),
                     };
                     // its textures: one hairstyle in the folder has them all; with several, they're paired by
-                    // number (hair_003 <-> hair_diff_003) or by name (bob.ydd <-> bob_a.ytd)
+                    // number (hair_003 <-> hair_diff_003), else by name (bob.ydd <-> bob_a.ytd), else same folder
                     IEnumerable<string> mine;
                     if (ydds.Count == 1) mine = ytds;
                     else
@@ -86,8 +110,9 @@ static partial class P
                         mine = ytds.Where(t =>
                         {
                             var tn = DropNum.Match(Path.GetFileName(t));
-                            if (num.Success && tn.Success) return num.Groups[1].Value == tn.Groups[1].Value;
-                            return Path.GetFileName(t).StartsWith(stem, StringComparison.OrdinalIgnoreCase);
+                            if (num.Success && tn.Success) return num.Groups[1].Value == tn.Groups[1].Value && Path.GetDirectoryName(t) == Path.GetDirectoryName(y);
+                            if (Path.GetFileName(t).StartsWith(stem, StringComparison.OrdinalIgnoreCase)) return true;
+                            return !num.Success && Path.GetDirectoryName(t) == Path.GetDirectoryName(y);
                         });
                     }
                     h.Ytds = mine.OrderBy(t => { var m = DropLetter.Match(Path.GetFileName(t)); return m.Success ? m.Groups[1].Value.ToLowerInvariant() : "~"; })

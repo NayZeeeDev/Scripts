@@ -4,6 +4,11 @@ Drop **female** hairstyles here, one folder per hairstyle. The folder name becom
 
 ```
 hairstyles/
+├─ Space Buns/                     ← a whole download, renamed
+│  ├─ fivem/mp_f_freemode_01^hair_001_u.ydd
+│  ├─ fivem/mp_f_freemode_01^hair_diff_001_a_uni.ytd
+│  ├─ sp/ (the same files again: counted once)
+│  └─ read me!.txt
 ├─ Knotless Braids/
 │  ├─ hair_000_u.ydd
 │  ├─ hair_diff_000_a_uni.ytd      ← texture A
@@ -40,7 +45,10 @@ Folder names the salon styles pick up (capitals, spaces and dashes don't matter)
 
 Good to know
 
-- Any file names work. With several `.ydd` in one folder, textures pair by number (`hair_003` ↔ `hair_diff_003`)
+- **Drop the whole download as it comes**, just give its folder the hairstyle's name: whatever is inside
+  (a `fivem/` and an `sp/` copy, a `stream/` folder, a readme, a preview picture) is fine, and files that are
+  the same are only counted once. Unpack `.rar` / `.zip` downloads first (right click > Extract).
+- Any file names work. With several different `.ydd` in one folder, textures pair by number (`hair_003` ↔ `hair_diff_003`)
   or by name (`bob.ydd` ↔ `bob_a.ytd`), and they're called *Name 1*, *Name 2*.
 - Female only: files named `mp_m_…` are left out.
 - A `.ytd` that's 0 bytes is left out. If the colour texture is inside the `.ydd`, it's taken from there.

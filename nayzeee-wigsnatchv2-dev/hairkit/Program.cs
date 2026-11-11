@@ -667,7 +667,8 @@ static partial class P
             var sems = Regex.Matches(vb.Substring(l0, l1 - l0), @"<(\w+) />").Select(x => x.Groups[1].Value).ToList();
             var off = new Dictionary<string, int>(); int cols = 0;
             foreach (var sem in sems) { off[sem] = cols; cols += Sizes.TryGetValue(sem, out var z) ? z : 0; }
-            var data = Regex.Match(vb, @"<Data>(.*?)</Data>", RegexOptions.Singleline).Groups[1].Value;
+            // CodeWalker writes the vertices as <Data>, or <Data2> for buffers that use the second data pointer
+            var data = Regex.Match(vb, @"<Data2?>(.*?)</Data2?>", RegexOptions.Singleline).Groups[1].Value;
             var g = new Geo();
             foreach (var line in data.Split('\n'))
             {
@@ -782,6 +783,18 @@ static partial class P
     static readonly Vector3 Tint = new(0.42f, 0.30f, 0.22f);
     static void TintIfGrey(byte[] rgba)
     {
+        // GTA's dyeable hair textures keep the brightness in green (the game colours it from the hair colour
+        // palette), so raw they look green: take green as the grey, then tint it like a grey texture
+        {
+            double r = 0, g = 0, bl = 0; int c = 0;
+            for (int i = 0; i < rgba.Length; i += 4)
+            {
+                if (rgba[i + 3] < 128) continue;
+                r += rgba[i]; g += rgba[i + 1]; bl += rgba[i + 2]; c++;
+            }
+            if (c > 0 && g > r * 1.3 && g > bl * 1.3)
+                for (int i = 0; i < rgba.Length; i += 4) rgba[i] = rgba[i + 2] = rgba[i + 1];
+        }
         double sat = 0; int n = 0;
         for (int i = 0; i < rgba.Length; i += 4)
         {
