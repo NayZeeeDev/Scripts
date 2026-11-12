@@ -340,3 +340,64 @@ if Config.Cutting.Enabled then
         TriggerEvent('nz-wig:c:useTool')
     end, false)
 end
+
+-- hands up -------------------------------------------------------------------------------------------
+-- Only runs a loop while your hands are up.
+
+local HU = Config.HandsUp or {}
+local handsUp = false
+local NOFIGHT = { 24, 25, 37, 44, 47, 58, 140, 141, 142, 143, 257, 263, 264 }
+
+local function canRaise(ped)
+    return not (IsPedInAnyVehicle(ped, true) or IsPedRagdoll(ped) or IsPedFalling(ped) or IsPedSwimming(ped)
+        or IsEntityDead(ped) or IsPedCuffed(ped) or Restrain.tied or Restrain.held or Restrain.holding or Restrain.acting
+        or (Snatch and Snatch.busy))
+end
+
+local function handsDown()
+    if not handsUp then return end
+    handsUp = false
+    local ped = PlayerPedId()
+    if IsEntityPlayingAnim(ped, HU.Anim.dict, HU.Anim.clip, 3) then StopAnimTask(ped, HU.Anim.dict, HU.Anim.clip, 2.0) end
+    LocalPlayer.state:set('handsUp', false, true)
+    if HU.Notify then CB.Notify(L('hands_down'), 'info') end
+end
+
+local function handsUpToggle()
+    if handsUp then return handsDown() end
+    local ped = PlayerPedId()
+    if NUI.app or not canRaise(ped) then return end
+    if not pcall(lib.requestAnimDict, HU.Anim.dict, 2000) then return end
+    TaskPlayAnim(ped, HU.Anim.dict, HU.Anim.clip, 3.0, 3.0, -1, HU.CanWalk ~= false and 49 or 1, 0.0, false, false, false)
+    RemoveAnimDict(HU.Anim.dict)
+    handsUp = true
+    LocalPlayer.state:set('handsUp', true, true)
+    if HU.Notify then CB.Notify(L('hands_up'), 'info') end
+    CreateThread(function()
+        Wait(300)
+        while handsUp do
+            local p = PlayerPedId()
+            -- tied, held, in a car, knocked over, or another animation took over: hands go down
+            if not canRaise(p) or not IsEntityPlayingAnim(p, HU.Anim.dict, HU.Anim.clip, 3) then
+                handsUp = false
+                LocalPlayer.state:set('handsUp', false, true)
+                break
+            end
+            if HU.NoFight ~= false then
+                for i = 1, #NOFIGHT do DisableControlAction(0, NOFIGHT[i], true) end
+                DisablePlayerFiring(PlayerId(), true)
+            end
+            Wait(0)
+        end
+    end)
+end
+
+if HU.Enabled and HU.Command then
+    RegisterCommand(HU.Command, handsUpToggle, false)
+    if HU.Key then RegisterKeyMapping(HU.Command, 'Hands up', 'keyboard', HU.Key) end
+end
+
+-- a fresh start never has hands up left over
+CreateThread(function() LocalPlayer.state:set('handsUp', false, true) end)
+
+exports('HandsUp', function() return handsUp end)

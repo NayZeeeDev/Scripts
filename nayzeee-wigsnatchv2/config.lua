@@ -208,7 +208,6 @@ Config.Keys = {
 -- Covers most police / ambulance scripts. This script's own tie / hold / tackle states are added automatically.
 Config.RestrainedStates = { 'isCuffed', 'cuffed', 'handcuffed', 'isHandcuffed', 'ziptied', 'isTied' }
 Config.DownedStates     = { 'isDead', 'dead', 'down', 'isDown', 'inLastStand', 'laststand' }
-Config.HandsUpAnim      = { dict = 'random@mugging3', clip = 'handsup_standing_base' }
 
 -- ███████╗████████╗███████╗ █████╗ ██╗         ██████╗  █████╗  ██████╗██╗  ██╗
 -- ██╔════╝╚══██╔══╝██╔════╝██╔══██╗██║         ██╔══██╗██╔══██╗██╔════╝██║ ██╔╝
@@ -276,6 +275,31 @@ Config.Tackle = {
     SelfRagdoll   = 1100,       -- ms the tackler stumbles (0 = stays up)
     DownedWindow  = 8,          -- Seconds the target counts as restrained after a tackle
     Anim = { dict = 'missmic2ig_11', tackler = 'mic_2_ig_11_intro_goon', target = 'mic_2_ig_11_intro_p_one' },
+}
+
+-- Hands up: players put their hands up with a key or the command (press again to put them down).
+-- Hands up counts as "can't fight back": a snatch skips the minigame (Config.Clash.SkipIfRestrained), they
+-- can be zip tied or held still, and products with Requires = 'restrained' work on them.
+-- Hands up from your other scripts (emote menus, robbery / police scripts) counts too: see Detect and States.
+Config.HandsUp = {
+    Enabled  = true,            -- This script's own hands up. false = only notice other scripts' hands up
+    Command  = 'handsup',
+    Key      = 'H',             -- Players can rebind it in GTA settings > Key Bindings > FiveM. false = command only
+    Anim     = { dict = 'missminuteman_1ig_2', clip = 'handsup_base' },
+    CanWalk  = true,            -- Walk with your hands up. false = stand still
+    NoFight  = true,            -- No punching, aiming or shooting with your hands up
+    Notify   = false,           -- Show "Hands up" / "Hands down" notifications
+
+    -- Other scripts' hands up animations that count as hands up
+    Detect = {
+        { dict = 'missminuteman_1ig_2',              clip = 'handsup_base' },           -- most hands up scripts
+        { dict = 'random@mugging3',                  clip = 'handsup_standing_base' },
+        { dict = 'mp_am_hold_up',                    clip = 'handsup_base' },           -- store robberies
+        { dict = 'random@arrests@busted',            clip = 'idle_a' },                 -- on their knees, hands on head
+        { dict = 'anim@mp_player_intuppersurrender', clip = 'idle_a' },                 -- emote menus' "surrender"
+    },
+    -- Statebags other scripts set on a player with their hands up (this script sets 'handsUp')
+    States = { 'handsUp', 'handsup', 'isHandsUp', 'handsupState' },
 }
 
 -- Zip-tie someone who is tackled, cuffed, downed, held or has their hands up.

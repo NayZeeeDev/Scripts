@@ -11,6 +11,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | **First person cuts** | Scissors, clippers and a straight razor. The camera moves in, your cursor becomes the tool, and you work the top, sides, back, eyebrows and beard. What you do decides the result: trim, fade, buzz, bald, thinned or shaved brows, beard trim or clean shave. Sounds and hair clippings for everyone nearby. |
 | **Tackle** | Sprint at someone and press `G`. They hit the floor and count as restrained for a few seconds. |
 | **Zip ties** | Tie up anyone who is tackled, cuffed, held, downed or has their hands up. They can't move until they struggle free or someone unties them. |
+| **Hands up** | `H` or `/handsup`. Hands up means no fighting back: a snatch skips the minigame, and they can be zip tied, held or have products put in. Hands up from your emote menu or robbery scripts counts too (`Config.HandsUp`). |
 | **Hold still** | Grab someone from behind and pin them while a friend snatches, shaves or pranks them. They can struggle out. |
 | **Hair products** | Hair remover (hair falls out), lye relaxer (burns), a lice jar (itching, flies, spreads), mud (washes out in water), shampoo and regrowth oil. Everyone nearby sees smoke, flies and mud. |
 | **Reactions** | Facepalms, crying, shaking it off, celebrating. Every event has its own list in `Config.Reactions`. |
@@ -105,6 +106,7 @@ Player-vs-player wig snatching. Every snatch is a live minigame between both pla
 | `/snatch` | Everyone | Snatch the closest player in front of you |
 | `/wigtackle` (`G` while sprinting) | Everyone | Tackle |
 | `/wighold` · `/wigrelease` (`X`) | Everyone | Grab someone from behind · let go |
+| `/handsup` (`H`) | Everyone | Hands up / down. Counts as "can't fight back" (`Config.HandsUp`) |
 | `/wiguntie` · `/wigcut` | Everyone | Untie / cut whoever is in front of you |
 | `/wigs` | Everyone | Wig Vault |
 | `/wigsettings` | Everyone | Your colours, size, sounds and keys |
@@ -146,6 +148,7 @@ exports['nayzeee-wigsnatchv2']:GetWigImage('f', 12, 0)     -- studio photo URL o
 exports['nayzeee-wigsnatchv2']:ReapplyHair()   -- call after your appearance script reloads the skin
 exports['nayzeee-wigsnatchv2']:GetHairState()
 exports['nayzeee-wigsnatchv2']:IsBusy()
+exports['nayzeee-wigsnatchv2']:HandsUp()        -- true while your hands are up (also LocalPlayer.state.handsUp)
 exports['nayzeee-wigsnatchv2']:OpenVault('wigs')
 exports['nayzeee-wigsnatchv2']:HasPhoneApp()   -- client: the Hair Plug app was added to a phone
 exports['nayzeee-wigsnatchv2']:OpenWigStudio() -- client, admins

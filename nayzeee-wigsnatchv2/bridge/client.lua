@@ -139,11 +139,20 @@ function CB.IsDowned(ped, serverId)
     return false
 end
 
-function CB.HandsUp(ped)
-    return IsEntityPlayingAnim(ped, Config.HandsUpAnim.dict, Config.HandsUpAnim.clip, 3)
+function CB.HandsUp(ped, serverId)
+    local HU = Config.HandsUp or {}
+    for _, a in ipairs(HU.Detect or {}) do
+        if IsEntityPlayingAnim(ped, a.dict, a.clip, 3) then return true end
+    end
+    if HU.Anim and IsEntityPlayingAnim(ped, HU.Anim.dict, HU.Anim.clip, 3) then return true end
+    local st = stateOf(ped, serverId)
+    if st then
+        for _, k in ipairs(HU.States or {}) do if st[k] then return true end end
+    end
+    return false
 end
 
 -- anything that means "can't fight back"
 function CB.Helpless(ped, serverId)
-    return CB.IsRestrained(ped, serverId) or CB.HandsUp(ped) or CB.IsDowned(ped, serverId)
+    return CB.IsRestrained(ped, serverId) or CB.HandsUp(ped, serverId) or CB.IsDowned(ped, serverId)
 end
