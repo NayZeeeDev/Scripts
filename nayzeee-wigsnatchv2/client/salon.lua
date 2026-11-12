@@ -791,52 +791,82 @@ local function showSlices(w, ped)
     end
 end
 
+local function showCap(w, ped)
+    local o = attach(SC.Pieces.cap, ped, nil)
+    if o then w.objs[#w.objs + 1] = o end
+end
+
+-- sectioning clips / bobby pins along a move's points
+local function showPieces(w, ped, kind, idx)
+    local style = Salon.Style(w.style)
+    if not style then return end
+    local moves = Salon.Moves(style, w.opts)
+    local m = moves[tonumber(idx) or 0]
+    local geo = m and Salon.GeoOf(moves, idx)
+    local g = geo and G.Build(geo)
+    if not g or g.kind ~= 'points' then return end
+    local model = SC.Pieces[kind]
+    for i, p in ipairs(G.Slice(g.list, m.from, m.limit)) do
+        if p.s then
+            local o = attach(model, ped, boneOffset(p), (i * 47) % 360)
+            if o then w.objs[#w.objs + 1] = o end
+        end
+    end
+end
+
+-- everything on the head so far, from scratch (a ped streamed in, or we just came close)
+local function rebuild(w, ped)
+    for _, o in ipairs(w.objs) do if DoesEntityExist(o) then DeleteEntity(o) end end
+    w.objs, w.shown, w.ped = {}, 0, ped
+    if w.cap then showCap(w, ped) end
+    for _, pc in ipairs(w.pieces) do showPieces(w, ped, pc.kind, pc.idx) end
+    showSlices(w, ped)
+end
+
+local function newWork(id, b)
+    return { id = id, style = b.style, opts = b.opts or {}, m = b.m, d = b.d, f = 0, shown = 0, objs = {}, cap = false, pieces = {},
+             slices = HairProps.Slices and HairProps.Slices(b.m, b.d) or nil }
+end
+
 RegisterNetEvent('nz-wig:c:salonWork', function(src, id, op, data)
     local ped = PedOf(src)
     if op == 'clear' then return clearWork(src) end
-    if op == 'begin' then
+    if op == 'sync' or op == 'begin' then
+        -- what's on the head so far (sent once to each player, when they first see the appointment)
         clearWork(src)
-        work[src] = { id = id, style = data.style, opts = data.opts or {}, m = data.m, d = data.d, f = 0, shown = 0, objs = {},
-                      slices = HairProps.Slices and HairProps.Slices(data.m, data.d) or nil }
+        local b = op == 'sync' and data.begin or data
+        if type(b) ~= 'table' then return end
+        local w = newWork(id, b)
+        if op == 'sync' then
+            w.f = tonumber(data.f) or 0
+            w.cap = data.cap == true
+            w.pieces = type(data.pieces) == 'table' and data.pieces or {}
+        end
+        work[src] = w
+        if ped ~= 0 then rebuild(w, ped) end
         return
     end
     local w = work[src]
-    if not w or w.id ~= id or ped == 0 then return end
+    if not w or w.id ~= id then return end
     if op == 'reveal' then
         w.f = math.max(w.f, tonumber(data.f) or 0)
-        showSlices(w, ped)
+        if ped ~= 0 then showSlices(w, ped) end
     elseif op == 'cap' then
-        local o = attach(SC.Pieces.cap, ped, nil)
-        if o then w.objs[#w.objs + 1] = o end
+        w.cap = true
+        if ped ~= 0 then showCap(w, ped) end
     elseif op == 'pieces' then
-        local style = Salon.Style(w.style)
-        if not style then return end
-        local moves = Salon.Moves(style, w.opts)
-        local m = moves[tonumber(data.idx) or 0]
-        local geo = m and Salon.GeoOf(moves, data.idx)
-        local g = geo and G.Build(geo)
-        if not g or g.kind ~= 'points' then return end
-        local model = SC.Pieces[data.kind]
-        for i, p in ipairs(G.Slice(g.list, m.from, m.limit)) do
-            if p.s then
-                local o = attach(model, ped, boneOffset(p), (i * 47) % 360)
-                if o then w.objs[#w.objs + 1] = o end
-            end
-        end
+        w.pieces[#w.pieces + 1] = { kind = data.kind, idx = data.idx }
+        if ped ~= 0 then showPieces(w, ped, data.kind, data.idx) end
     end
 end)
 
--- a ped that streamed out and back in (or respawned) gets its pieces back
+-- a ped that streamed out and back in (or respawned) gets everything back: slices, the cap, clips and pins
 CreateThread(function()
     while true do
         Wait(1500)
         for src, w in pairs(work) do
             local ped = PedOf(src)
-            if ped ~= 0 and w.ped ~= ped then
-                for _, o in ipairs(w.objs) do if DoesEntityExist(o) then DeleteEntity(o) end end
-                w.objs, w.shown, w.ped = {}, 0, ped
-                showSlices(w, ped)
-            end
+            if ped ~= 0 and w.ped ~= ped then rebuild(w, ped) end
         end
     end
 end)

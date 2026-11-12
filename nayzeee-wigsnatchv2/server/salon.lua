@@ -327,17 +327,66 @@ end)
 -- asking -------------------------------------------------------------------------------------------------
 
 -- the work on the client's head, for everyone close by: slices of the style going on, the cornrow base,
--- the wig cap, clips and pins (client/salon.lua puts the props on)
+-- the wig cap, clips and pins (client/salon.lua puts the props on). The server keeps what's on the head so
+-- far: a player who walks up part way through gets all of it at once ('sync'), then each change as it happens.
+local FX_RANGE = 60.0
+local function fxState(s)
+    return { begin = s.fx.begin, f = s.fx.f, cap = s.fx.cap, pieces = s.fx.pieces }
+end
+
 local function workFx(s, op, data)
+    if op == 'begin' then
+        s.fx = { begin = data, f = 0, cap = false, pieces = {}, seen = {} }
+    elseif not s.fx then
+        return
+    elseif op == 'reveal' then
+        s.fx.f = math.max(s.fx.f, tonumber(data.f) or 0)
+    elseif op == 'cap' then
+        s.fx.cap = true
+    elseif op == 'pieces' then
+        s.fx.pieces[#s.fx.pieces + 1] = { kind = data.kind, idx = data.idx }
+    end
+    local to = { s.b, s.c }
     local c = PedCoords(s.c)
-    local seen = { [s.b] = true, [s.c] = true }
-    TriggerClientEvent('nz-wig:c:salonWork', s.b, s.c, s.id, op, data)
-    TriggerClientEvent('nz-wig:c:salonWork', s.c, s.c, s.id, op, data)
-    if not c then return end
-    for _, p in ipairs(PlayersNear(c, 60.0)) do
-        if not seen[p] then seen[p] = true TriggerClientEvent('nz-wig:c:salonWork', p, s.c, s.id, op, data) end
+    if c then for _, p in ipairs(PlayersNear(c, FX_RANGE)) do to[#to + 1] = p end end
+    if op == 'clear' then
+        for p in pairs(s.fx.seen) do to[#to + 1] = p end
+        local sent = {}
+        for _, p in ipairs(to) do
+            if not sent[p] then sent[p] = true TriggerClientEvent('nz-wig:c:salonWork', p, s.c, s.id, 'clear', {}) end
+        end
+        s.fx = nil
+        return
+    end
+    for _, p in ipairs(to) do
+        if not s.fx.seen[p] then
+            s.fx.seen[p] = true
+            TriggerClientEvent('nz-wig:c:salonWork', p, s.c, s.id, 'sync', fxState(s))
+        elseif op ~= 'begin' then
+            TriggerClientEvent('nz-wig:c:salonWork', p, s.c, s.id, op, data)
+        end
     end
 end
+
+-- players who come close during an appointment get what's on the head so far
+CreateThread(function()
+    while true do
+        Wait(2000)
+        for _, s in pairs(sessions) do
+            if s.fx and s.stage == 'styling' then
+                local c = PedCoords(s.c)
+                if c then
+                    for _, p in ipairs(PlayersNear(c, FX_RANGE)) do
+                        if not s.fx.seen[p] then
+                            s.fx.seen[p] = true
+                            TriggerClientEvent('nz-wig:c:salonWork', p, s.c, s.id, 'sync', fxState(s))
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
 
 local function release(s)
     sessions[s.id] = nil
