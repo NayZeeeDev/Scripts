@@ -84,8 +84,13 @@ const WheelMgr = (() => {
         }
     }
 
+    // A control can live on another USB device (pedals, shifter, handbrake): src.dev is that device's id
+    function devFor(main, dev) { return dev && (!main || dev !== main.id) ? padById(dev) : main; }
+
     function read(gp, src) {
-        if (!gp || !src) return 0;
+        if (!src) return 0;
+        gp = devFor(gp, src.dev);
+        if (!gp) return 0;
         if (src.type === 'axis') return gp.axes[src.index] ?? 0;
         const b = gp.buttons[src.index];
         return b ? b.value : 0;
@@ -119,8 +124,11 @@ const WheelMgr = (() => {
         return [null, null];
     }
 
-    function pressed(gp, idx) {
-        const b = idx !== undefined && idx !== null ? gp.buttons[idx] : null;
+    // bind = button index on the main device (old profiles) or { dev, index }
+    function pressed(gp, bind) {
+        if (bind === undefined || bind === null) return false;
+        const dev = typeof bind === 'object' ? devFor(gp, bind.dev) : gp;
+        const b = dev ? dev.buttons[typeof bind === 'object' ? bind.index : bind] : null;
         return !!(b && (b.pressed || b.value > .5));
     }
 
@@ -177,11 +185,13 @@ const WheelMgr = (() => {
         return { axes: Array.from(gp.axes), buttons: gp.buttons.map(b => ({ v: b.value, p: b.pressed })) };
     }
 
-    // kind: 'steer' | 'pedal' | 'button'
+    // kind: 'steer' | 'pedal' | 'button'. Listens on every connected device, not just the selected one.
     function startListen(gpId, kind, done) {
-        const gp = padById(gpId);
-        if (!gp) return false;
-        listener = { gpId, kind, done, base: snapshot(gp), phase: 'press', best: null, stableSince: 0, started: performance.now() };
+        const list = pads();
+        if (!list.length) return false;
+        const base = {};
+        list.forEach(gp => { base[gp.id] = snapshot(gp); });
+        listener = { gpId, kind, done, base, phase: 'press', best: null, stableSince: 0, started: performance.now() };
         return true;
     }
 
@@ -193,37 +203,43 @@ const WheelMgr = (() => {
 
     function listen() {
         const l = listener;
-        const gp = padById(l.gpId);
-        if (!gp) return stopListen(null);
-        if (performance.now() - l.started > 12000) return stopListen(null);
+        if (performance.now() - l.started > 15000) return stopListen(null);
         const now = performance.now();
+        const list = pads().filter(gp => l.base[gp.id]);
+        if (!list.length) return stopListen(null);
 
         if (l.kind === 'button') {
-            for (let i = 0; i < gp.buttons.length; i++) {
-                if (gp.buttons[i].pressed && !l.base.buttons[i]?.p) return stopListen({ index: i });
+            for (const gp of list) {
+                const base = l.base[gp.id];
+                for (let i = 0; i < gp.buttons.length; i++) {
+                    if (gp.buttons[i].pressed && !base.buttons[i]?.p) return stopListen({ dev: gp.id, index: i });
+                }
             }
             return;
         }
 
         if (l.phase === 'press') {
             let best = null;
-            gp.axes.forEach((v, i) => {
-                const d = v - l.base.axes[i];
-                if (!best || Math.abs(d) > Math.abs(best.d)) best = { type: 'axis', index: i, d, v };
-            });
-            if (l.kind === 'pedal') {
-                gp.buttons.forEach((b, i) => {
-                    const d = b.value - l.base.buttons[i].v;
-                    if (Math.abs(d) > Math.abs(best?.d || 0) && b.value > 0 && b.value < 1.01) best = { type: 'button', index: i, d, v: b.value };
+            for (const gp of list) {
+                const base = l.base[gp.id];
+                gp.axes.forEach((v, i) => {
+                    const d = v - (base.axes[i] ?? 0);
+                    if (!best || Math.abs(d) > Math.abs(best.d)) best = { dev: gp.id, type: 'axis', index: i, d, v, center: base.axes[i] ?? 0 };
                 });
+                if (l.kind === 'pedal') {
+                    gp.buttons.forEach((b, i) => {
+                        const d = b.value - (base.buttons[i]?.v ?? 0);
+                        if (Math.abs(d) > Math.abs(best?.d || 0) && b.value > 0 && b.value < 1.01) best = { dev: gp.id, type: 'button', index: i, d, v: b.value };
+                    });
+                }
             }
             if (best && Math.abs(best.d) > .45) {
-                if (!l.best || l.best.type !== best.type || l.best.index !== best.index) { l.best = best; l.stableSince = now; }
+                const same = l.best && l.best.dev === best.dev && l.best.type === best.type && l.best.index === best.index;
+                if (!same) { l.best = best; l.stableSince = now; }
                 if (Math.abs(best.v) > Math.abs(l.best.v)) l.best.v = best.v;
                 if (now - l.stableSince > 350) {
-                    if (l.kind === 'steer') {
-                        return stopListen({ src: { type: best.type, index: best.index }, center: l.base.axes[best.index] || 0, invert: best.d < 0 });
-                    }
+                    const src = { dev: best.dev, type: best.type, index: best.index };
+                    if (l.kind === 'steer') return stopListen({ src, center: best.center || 0, invert: best.d < 0 });
                     l.full = l.best.v;
                     l.phase = 'release';
                     l.stableSince = now;
@@ -236,15 +252,24 @@ const WheelMgr = (() => {
         }
 
         // pedal released: capture the true resting value (some pedals report 0 until first touched)
-        const v = read(gp, { type: l.best.type, index: l.best.index });
+        const src = { dev: l.best.dev, type: l.best.type, index: l.best.index };
+        const v = read(null, src);
         if (Math.abs(v - l.full) > .5) {
             if (!l.restSince) l.restSince = now;
-            if (now - l.restSince > 400) {
-                return stopListen({ src: { type: l.best.type, index: l.best.index }, rest: v, full: l.full });
-            }
+            if (now - l.restSince > 400) return stopListen({ src, rest: v, full: l.full });
         } else {
             l.restSince = 0;
         }
+    }
+
+    // every device the main profile reads from (wheel + linked pedals / shifter / handbrake)
+    function linkedDevices(p) {
+        const set = new Set();
+        if (!p) return set;
+        [p.steer, p.throttle, p.brake, p.clutch].forEach(c => { if (c && c.src && c.src.dev) set.add(c.src.dev); });
+        Object.values(p.buttons || {}).forEach(b => { if (b && typeof b === 'object' && b.dev) set.add(b.dev); });
+        set.delete(p.id);
+        return set;
     }
 
     return {
@@ -256,7 +281,8 @@ const WheelMgr = (() => {
         setProfiles(p) { profiles = p && typeof p === 'object' && !Array.isArray(p) ? p : {}; },
         profiles: () => profiles,
         save() { post('wheelSave', { profiles }); },
-        pads, padById, blank, applyPreset, read, startListen, stopListen,
+        pads, padById, blank, applyPreset, read, pressed, startListen, stopListen, linkedDevices,
+        main: () => activeProfile()[1],
         listening: () => !!listener,
         rumble(d) {
             if (!cfg.Rumble) return;
@@ -289,12 +315,29 @@ const WheelUI = (() => {
         return all[selected];
     }
 
-    const srcLabel = s => !s ? 'Not set' : s.type === 'axis' ? `Axis ${s.index}` : `Button ${s.index} · analog`;
+    const shortName = id => (id || '').replace(/\s*\(.*?\)\s*/g, ' ').trim().split(' ').slice(0, 3).join(' ') || 'Device';
+    const onOther = dev => dev && dev !== selected;
+    const srcLabel = s => {
+        if (!s) return 'Not set';
+        const what = s.type === 'axis' ? `Axis ${s.index}` : `Button ${s.index} · analog`;
+        return onOther(s.dev) ? `${shortName(s.dev)} · ${what}` : what;
+    };
+    const bindLabel = b => {
+        if (b === undefined || b === null) return null;
+        if (typeof b === 'object') return onOther(b.dev) ? `${shortName(b.dev)} · B${b.index}` : `B${b.index}`;
+        return `B${b}`;
+    };
     const save = () => WheelMgr.save();
     const objSlider = (label, obj, key, min, max, step, format, desc) =>
         UIx.slider({ label, desc, get: () => obj[key], set: v => { obj[key] = v; }, min, max, step, format, onCommit: save });
     const objToggle = (label, obj, key, desc) =>
-        UIx.toggle({ label, desc, get: () => obj[key], set: v => { obj[key] = v; save(); if (key === 'enabled') { Menu.side(); render(true); } } });
+        UIx.toggle({ label, desc, get: () => obj[key], set: v => {
+            obj[key] = v;
+            // only one main device drives; pedals / shifters on other USB devices are linked to it
+            if (key === 'enabled' && v) Object.values(WheelMgr.profiles()).forEach(o => { if (o && o !== obj) o.enabled = false; });
+            save();
+            if (key === 'enabled') { Menu.side(); render(true); }
+        } });
 
     function devices() {
         const list = WheelMgr.pads();
@@ -304,11 +347,14 @@ const WheelUI = (() => {
         if (!selected || !WheelMgr.padById(selected)) selected = list[0].id;
         const box = el('div', 'p-body');
         box.style.padding = '0';
+        const main = WheelMgr.main();
+        const linked = WheelMgr.linkedDevices(main);
         list.forEach(gp => {
             const p = WheelMgr.profiles()[gp.id];
+            const isMain = p && p.enabled, isLinked = !isMain && linked.has(gp.id);
             const r = el('div', `row${gp.id === selected ? ' sel' : ''}`, `<div class="av">${ICONS.wheel}</div>
                 <div class="row-txt"><b>${esc(gp.id.replace(/\s*\(.*?\)\s*/g, ' ').trim() || gp.id)}</b><span>${gp.axes.length} axes · ${gp.buttons.length} buttons · ${gp.mapping === 'standard' ? 'XInput' : 'DirectInput'}</span></div>
-                <span class="tag ${p && p.enabled ? 'live' : 'off'}">${p && p.enabled ? 'Active' : 'Off'}</span>`);
+                <span class="tag ${isMain ? 'live' : isLinked ? 'hot' : 'off'}">${isMain ? 'Main' : isLinked ? 'Linked' : 'Off'}</span>`);
             r.style.cursor = 'pointer';
             r.onclick = () => { selected = gp.id; render(true); };
             box.appendChild(r);
@@ -341,14 +387,14 @@ const WheelUI = (() => {
 
     function axisRow(label, key, kind) {
         const c = profile()[key];
-        const r = el('div', 'row', `<div class="row-txt"><b>${label}</b><span>${kind === 'steer' ? 'Turn right when asked' : 'Press fully, then let go'}</span></div>
-            <span class="chip ${c.src ? '' : 'off'}">${srcLabel(c.src)}</span><div class="acts"></div>`);
+        const r = el('div', 'row', `<div class="row-txt"><b>${label}</b><span>${kind === 'steer' ? 'Turn right when asked' : 'Press fully, then let go. Works on any connected device.'}</span></div>
+            <span class="chip ${c.src ? (onOther(c.src.dev) ? 'hot' : '') : 'off'}">${esc(srcLabel(c.src))}</span><div class="acts"></div>`);
         const det = UIx.btn('btn-ghost', 'Detect', null, () => {
             det.classList.add('listening');
             prompt(kind === 'steer' ? 'Turn the wheel to the RIGHT and hold it' : `Press the ${label.toUpperCase()} all the way down`);
             WheelMgr.startListen(selected, kind, res => {
                 prompt(null);
-                if (res) { Object.assign(c, res); save(); }
+                if (res) { if (res.src && res.src.dev === selected) delete res.src.dev; Object.assign(c, res); save(); }
                 render(true);
             });
         });
@@ -361,9 +407,8 @@ const WheelUI = (() => {
         const p = profile();
         const grid = el('div', 'bmap');
         BUTTON_ACTIONS.forEach(([action, label]) => {
-            const idx = p.buttons[action];
-            const set = idx !== undefined && idx !== null;
-            const b = el('div', 'row', `<div class="row-txt"><b>${label}</b></div><span class="chip ${set ? '' : 'off'}">${set ? `B${idx}` : 'None'}</span>`);
+            const lbl = bindLabel(p.buttons[action]);
+            const b = el('div', 'row', `<div class="row-txt"><b>${label}</b></div><span class="chip ${lbl ? '' : 'off'}">${esc(lbl || 'None')}</span>`);
             b.dataset.action = action;
             b.onclick = () => {
                 if (WheelMgr.listening()) return;
@@ -371,7 +416,7 @@ const WheelUI = (() => {
                 prompt(`Press the button for ${label.toUpperCase()}`);
                 WheelMgr.startListen(selected, 'button', res => {
                     prompt(null);
-                    if (res) { p.buttons[action] = res.index; save(); }
+                    if (res) { p.buttons[action] = res.dev === selected ? res.index : { dev: res.dev, index: res.index }; save(); }
                     render(true);
                 });
             };
@@ -412,8 +457,8 @@ const WheelUI = (() => {
         WheelMgr.startListen(selected, s.kind, res => {
             if (wizard === null) return;
             if (res) {
-                if (s.kind === 'button') p.buttons[s.key] = res.index;
-                else Object.assign(p[s.key], res);
+                if (s.kind === 'button') p.buttons[s.key] = res.dev === selected ? res.index : { dev: res.dev, index: res.index };
+                else { if (res.src && res.src.dev === selected) delete res.src.dev; Object.assign(p[s.key], res); }
                 save();
                 runWizard(step + 1);
             } else if (s.skip) {
@@ -440,7 +485,7 @@ const WheelUI = (() => {
         if (!body) return el('div');
         body.innerHTML = '';
         root = body;
-        body.appendChild(UIx.sec('Devices', 'Everything Windows lists as a game controller shows here.', devices()));
+        body.appendChild(UIx.sec('Devices', 'Pick your wheel as the main device. Pedals, a shifter or a handbrake on their own USB link to it on their own: just hit Detect or run the wizard and use them.', devices()));
         const p = profile();
         if (!p) {
             body.appendChild(UIx.sec('Supported', null, el('div', 'inc', `<h3>Any wheel Windows can see</h3><p>Logitech, Thrustmaster, Fanatec, Moza, Simagic, Cammus, PXN, Xbox wheels and pads.
@@ -452,7 +497,7 @@ const WheelUI = (() => {
         Object.entries(WHEEL_PRESETS).forEach(([k, v]) => { const o = el('option', '', esc(v.label)); o.value = k; if (k === p.preset) o.selected = true; presetSel.appendChild(o); });
         presetSel.onchange = () => { WheelMgr.applyPreset(p, presetSel.value); save(); render(true); };
         const setup = UIx.sec('Setup', null,
-            objToggle('Use this device', p, 'enabled', 'Drive with it. Keyboard or pad takes over again when it goes idle.'),
+            objToggle('Main device', p, 'enabled', 'Drive with this one. Keyboard or pad takes over again when it goes idle.'),
             UIx.opt('Preset', 'Sets the rotation, and the mapping for Xbox wheels and pads', presetSel));
         const pre = WHEEL_PRESETS[p.preset];
         if (pre && pre.note) setup.appendChild(el('div', 'inc', `<h3>${esc(pre.label)}</h3><p>${esc(pre.note)}</p>`));
@@ -505,6 +550,9 @@ const WheelUI = (() => {
         if (!o) {
             const raw = WheelMgr.read(show, p.steer.src) - (p.steer.center || 0);
             o = { s: clamp(p.steer.invert ? -raw : raw, -1, 1), t: 0, b: 0, c: 0, gear: 0 };
+            // preview linked pedals even before the device is switched on
+            const ped = c => { if (!c || !c.src) return 0; const span = c.full - c.rest; return Math.abs(span) < .05 ? 0 : clamp((WheelMgr.read(show, c.src) - c.rest) / span, 0, 1); };
+            o.t = ped(p.throttle); o.b = ped(p.brake); o.c = ped(p.clutch);
         }
         refs.wheel.style.transform = `rotate(${o.s * Math.min(p.steer.rotation, Math.max(1, p.steer.softLock)) / 2}deg)`;
         refs.t.style.height = `${o.t * 100}%`;
@@ -514,11 +562,7 @@ const WheelUI = (() => {
         refs.steer.textContent = `${Math.round(o.s * 100)}%`;
         refs.raw.innerHTML = show.axes.map((v, i) => `<span>A${i} ${v.toFixed(2)}</span>`).join('')
             + show.buttons.map((b, i) => (b.pressed || b.value > .05) ? `<span class="hot">B${i} ${b.value.toFixed(2)}</span>` : '').join('');
-        $$('.bmap .row', root).forEach(b => {
-            const idx = p.buttons[b.dataset.action];
-            const bt = idx !== undefined && idx !== null ? show.buttons[idx] : null;
-            b.classList.toggle('lit', !!(bt && bt.pressed));
-        });
+        $$('.bmap .row', root).forEach(b => b.classList.toggle('lit', WheelMgr.pressed(show, p.buttons[b.dataset.action])));
     }
 
     return {

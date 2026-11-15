@@ -79,13 +79,15 @@ frame. If Windows lists it under "Set up USB game controllers" (joy.cpl), it wor
 | Simagic | Alpha Mini, Alpha, Alpha U, Evo |
 | Others | Cammus C5 / C12, PXN V9 / V10 / V12, Hori Racing Wheel / Apex, any Xbox or PlayStation pad |
 
-Pedal sets and shifters that plug in on their own USB (Heusinkveld, Fanatec, Simagic, Thrustmaster TH8A, Logitech
-Driving Force Shifter) show up as their own device. The menu drives with one device at a time, so plug pedals and
-shifters into the wheel base where you can.
+**Separate pedals, shifters and handbrakes work too**, whether they plug into the wheel base or into their own
+USB port: Heusinkveld, Simagic P1000 / P2000, Fanatec, Thrustmaster T-LCM / TH8A / TSS, Logitech Driving Force
+Shifter, Moza SR-P / HGP / HBP and any USB handbrake. Pick your wheel as the **main device**, then run the wizard
+or hit Detect and use the pedal, shifter or button: the script finds it on whichever device it lives on and links
+that device to your wheel. The device list shows them as **Main** and **Linked**.
 
 1. Open F5 > Wheel and turn the wheel or press a pedal so Windows wakes it up.
-2. Pick a preset and press **Run setup wizard**: turn right, press each pedal fully then let go, pull the paddles.
-3. Map any extra buttons. Map Gear 1-7 + Reverse for an H-shifter and pick H-Pattern in Driving.
+2. Pick a preset, switch on **Main device** and press **Run setup wizard**: turn right, press each pedal fully then let go, pull the paddles.
+3. Map any extra buttons. For an H-shifter map Gear 1-7 + Reverse and pick H-Pattern in Driving. For a sequential shifter map Shift up / Shift down and pick Sequential.
 
 The **Thrustmaster Ferrari 458 Spider** is an Xbox One wheel with no official PC driver. If Windows shows it as
 an Xbox controller, its preset maps it (wheel on the left stick, pedals on the triggers). If Windows doesn't see

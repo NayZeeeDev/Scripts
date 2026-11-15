@@ -426,6 +426,7 @@ input, select { font: inherit; color: inherit; }
 #menu .chip { font-size: 9.5px; font-weight: 600; letter-spacing: .03em; padding: 2.5px 8px; border-radius: 4px; color: var(--nz-teal); background: var(--nz-teal-wash); border: 1px solid var(--nz-teal-edge); white-space: nowrap; }
 #menu .chip.red { color: var(--nz-red); background: var(--nz-red-wash); border-color: rgba(var(--alert-rgb), .34); }
 #menu .chip.off { color: var(--nz-ink-3); background: var(--nz-raise); border-color: var(--nz-line-soft); }
+#menu .chip.hot { color: var(--nz-amber); background: rgba(229, 165, 10, .1); border-color: rgba(229, 165, 10, .34); }
 #menu .tag { font-size: 10px; font-weight: 500; padding: 3px 9px; border-radius: 999px; border: 1px solid; text-transform: capitalize; flex: none; }
 #menu .tag.live { color: var(--nz-teal); border-color: var(--nz-teal-edge); background: var(--nz-teal-wash); }
 #menu .tag.hot { color: var(--nz-amber); border-color: rgba(229, 165, 10, .34); background: rgba(229, 165, 10, .1); }
