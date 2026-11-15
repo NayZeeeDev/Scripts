@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CUT UP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,500;0,600;0,700;1,700;1,800;1,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============================== HUD ============================== -->
+<div id="hud" class="hidden">
+
+    <div class="score-wrap">
+        <div class="score-panel glass">
+            <div class="score-row">
+                <div class="stat"><b id="h-combo">0X</b><span>Combo</span></div>
+                <i class="sep"></i>
+                <div class="stat"><b id="h-speedmult">1.0X</b><span>Speed</span></div>
+                <i class="sep"></i>
+                <div class="stat"><b id="h-timer">15:00</b><span>Timer</span></div>
+                <div class="mult-tag" id="h-mult">1.0X</div>
+            </div>
+            <div class="score-bar">
+                <div class="fill" id="h-hold"></div>
+                <div class="pts" id="h-score">READY</div>
+            </div>
+        </div>
+        <div class="hearts glass" id="h-hearts">
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.2 3 4.5 6.6 4.5c2.1 0 3.6 1.1 5.4 3 1.8-1.9 3.3-3 5.4-3 3.6 0 5.7 3.7 4.2 7.2C19.5 16.4 12 21 12 21z"/></svg>
+            <div class="pills" id="h-pills"></div>
+        </div>
+    </div>
+
+    <div class="bonus-strip glass" id="h-bonus">
+        <div class="bonus">
+            <svg viewBox="0 0 24 24"><path d="M4 4l16 16M20 4L4 20M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+            <span>Aggro Multiplier</span>
+            <div class="segs" id="b-aggro"><i></i><i></i><i></i><i></i></div>
+        </div>
+        <div class="bonus">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M7 7l10 10M17 7L7 17"/></svg>
+            <span>Physics Bonus</span><i class="dot" id="b-physics"></i>
+        </div>
+        <div class="bonus">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/></svg>
+            <span>FPV Bonus</span><i class="dot" id="b-fpv"></i>
+        </div>
+        <div class="bonus sync-bonus" id="b-syncwrap">
+            <svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+            <span id="b-synclabel">Sync</span><i class="dot" id="b-sync"></i>
+        </div>
+    </div>
+
+    <div class="sync-panel glass hidden" id="h-sync">
+        <div class="sync-head">
+            <b id="s-title">SYNCING</b>
+            <span id="s-partner"></span>
+        </div>
+        <div class="sync-bar"><i id="s-fill"></i></div>
+        <div class="gap-row">
+            <span>GAP</span>
+            <div class="gap-meter"><i id="s-gap"></i></div>
+            <b id="s-gaptext">0 / 0 m</b>
+        </div>
+    </div>
+
+    <div class="pb-card" id="h-pb">
+        <div class="pb-top glass">
+            <div class="pb-label"><b>PB</b><span id="pb-mode">SOLO</span></div>
+            <div class="pb-val" id="pb-val">0</div>
+            <div class="pb-pos" id="pb-pos">#-</div>
+        </div>
+        <div class="rank-row glass">
+            <div class="eye"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/></svg></div>
+            <div class="rank-bar"><i id="rank-fill"></i><b id="rank-name">ROOKIE 1</b><span id="rank-pct">0%</span></div>
+            <div class="eye"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/></svg></div>
+        </div>
+        <div class="rank-next glass" id="rank-next">-</div>
+    </div>
+
+    <div class="tacho" id="h-tacho">
+        <div class="tacho-body glass">
+            <div class="ring rpm-ring" id="t-rpmring"><b id="t-gear">N</b></div>
+            <div class="tacho-mid">
+                <div class="shift-dots" id="t-dots"></div>
+                <span class="lbl">RPM</span>
+                <b id="t-rpm">0</b>
+                <div class="ams"><i id="t-a">A</i><i id="t-m">M</i><i id="t-s">S</i></div>
+            </div>
+            <div class="ring speed-ring" id="t-speedring"><span id="t-unit">KMH</span><b id="t-speed">0</b></div>
+        </div>
+        <div class="tacho-foot glass">
+            <span>ABS</span><i class="lamp" id="t-abs"></i>
+            <span>TC</span><i class="lamp" id="t-tc"></i>
+            <span class="wheel-chip hidden" id="t-wheel">WHEEL</span>
+        </div>
+    </div>
+
+    <div id="popups"></div>
+    <div id="arrows"></div>
+</div>
+
+<div id="toasts" class="top-right"></div>
+
+<!-- ============================== RUN SUMMARY ============================== -->
+<div id="summary" class="hidden">
+    <div class="sum-card glass">
+        <div class="sum-head">
+            <span id="sum-reason">RUN OVER</span>
+            <div class="sum-badges" id="sum-badges"></div>
+        </div>
+        <div class="sum-points" id="sum-points">0</div>
+        <div class="sum-sub">PTS</div>
+        <div class="sum-grid" id="sum-grid"></div>
+    </div>
+</div>
+
+<!-- ============================== LEADERBOARD ============================== -->
+<div id="board" class="overlay hidden">
+    <div class="board-bg"></div>
+    <div class="board-title">
+        <h1 data-text="CUT UP">CUT UP</h1>
+        <h2>LEADERBOARD</h2>
+    </div>
+    <div class="board-tools">
+        <div class="tabs" id="board-tabs">
+            <button data-board="solo" class="active">Solo</button>
+            <button data-board="crewruns">Crew Runs</button>
+            <button data-board="crews">Crews</button>
+        </div>
+        <input id="board-search" placeholder="Search driver, crew or car" spellcheck="false">
+        <button class="icon-btn" id="board-close" title="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+    </div>
+    <div class="board-table glass">
+        <div class="board-headrow" id="board-head"></div>
+        <div class="board-rows" id="board-rows"></div>
+        <div class="board-me" id="board-me"></div>
+    </div>
+</div>
+
+<!-- ============================== MENU ============================== -->
+<div id="menu" class="overlay hidden">
+    <div class="menu-shell glass">
+        <aside class="menu-side">
+            <div class="brand">
+                <b>CUT UP</b>
+                <span>NayZeee Development</span>
+            </div>
+            <nav id="menu-tabs"></nav>
+            <div class="side-foot" id="menu-profile"></div>
+        </aside>
+        <section class="menu-main">
+            <header class="menu-head">
+                <div>
+                    <h3 id="menu-title">Camera</h3>
+                    <p id="menu-sub"></p>
+                </div>
+                <button class="icon-btn" id="menu-close" title="Close">
+                    <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                </button>
+            </header>
+            <div class="menu-body" id="menu-body"></div>
+        </section>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script src="wheel.js"></script>
+</body>
+</html>
