@@ -67,7 +67,7 @@ function Camera.Cycle()
     CU.Settings.camera.mode = Camera.Modes[idx].id
     CU.SaveSettings()
     Camera.SettingsChanged()
-    UI.Toast(L('camera_mode', Camera.Modes[idx].label), nil, 'info')
+    UI.Hint(L('camera_mode', Camera.Modes[idx].label))
 end
 
 function Camera.AdjustFov(delta)
@@ -76,7 +76,7 @@ function Camera.AdjustFov(delta)
     if c.mode == 'native' then return end
     c[key] = Util.Clamp(c[key] + delta, 40.0, 110.0)
     CU.SaveSettings()
-    UI.Toast(L('fov', math.floor(c[key])), nil, 'info')
+    UI.Hint(L('fov', math.floor(c[key])))
 end
 
 function Camera.Impact(severity)

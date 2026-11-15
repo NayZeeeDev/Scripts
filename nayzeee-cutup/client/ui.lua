@@ -5,8 +5,28 @@ function UI.Send(action, data)
     SendNUIMessage({ action = action, data = data })
 end
 
-function UI.Toast(title, msg, kind)
-    UI.Send('toast', { title = title, msg = msg, kind = kind or 'info' })
+-- Notifications: ox_lib when it's running, else the GTA feed. No custom toasts.
+local OX_TYPES = { info = 'inform', success = 'success', warn = 'warning', error = 'error' }
+
+function UI.Notify(title, msg, kind)
+    local mode = Config.Notify
+    if not mode then return end
+    if mode == 'ox_lib' and GetResourceState('ox_lib') == 'started' then
+        TriggerEvent('ox_lib:notify', {
+            title = title, description = msg, type = OX_TYPES[kind or 'info'] or 'inform',
+            position = CU.Settings.ui and CU.Settings.ui.toastPosition or Config.UI.ToastPosition,
+            duration = 4500,
+        })
+        return
+    end
+    BeginTextCommandThefeedPost('STRING')
+    AddTextComponentSubstringPlayerName(msg and ('~h~' .. title .. '~h~~n~' .. msg) or title)
+    EndTextCommandThefeedPostTicker(false, true)
+end
+
+-- Short in-HUD hint for things you just did (camera, FOV, gearbox). Not a notification.
+function UI.Hint(text, kind)
+    UI.Send('hint', { text = text, kind = kind or 'info' })
 end
 
 function UI.Popup(text, sub, color, points)
@@ -25,6 +45,7 @@ function UI.PushConfig()
         crewColors = Config.Crew.Colors,
         crewLimits = { name = Config.Crew.NameLength, tag = Config.Crew.TagLength, max = Config.Crew.MaxMembers },
         tiers = Config.Scoring.Tiers,
+        version = GetResourceMetadata(GetCurrentResourceName(), 'version', 0) or '1.0.0',
         ranks = Config.Ranks,
         wheel = Config.Wheel,
         keys = Config.Keys,
@@ -42,6 +63,7 @@ function UI.OpenMenu(tab)
         profile = CU.Profile,
         wheelProfiles = Wheel and Wheel.GetProfiles() or {},
         cameraModes = Camera and Camera.Modes or {},
+        active = CU.Active,
     })
 end
 

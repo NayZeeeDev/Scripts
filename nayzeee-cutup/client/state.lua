@@ -50,7 +50,8 @@ function CU.BuildDefaults()
         },
         hud = { show = true, tacho = true, pb = true, bonuses = true, popups = true },
         ui = {
-            accent = Config.UI.Accent, accent2 = Config.UI.Accent2, alert = Config.UI.Alert,
+            accent = Config.UI.Accent, alert = Config.UI.Alert,
+            hudAccent = Config.UI.HudAccent, hudAccent2 = Config.UI.HudAccent2,
             scale = Config.UI.Scale, toastPosition = Config.UI.ToastPosition,
             sounds = Config.UI.Sounds, volume = Config.UI.Volume, reduceMotion = Config.UI.ReduceMotion,
         },

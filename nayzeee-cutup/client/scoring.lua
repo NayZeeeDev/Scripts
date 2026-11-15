@@ -31,7 +31,7 @@ function Scoring.StartRun()
         crewFlowTime = 0.0, zones = {}, cams = {}, trans = {},
         car = CU.VehicleLabel(CU.Veh), density = CU.Settings.gameplay.density,
     }
-    UI.Popup(L('run_start'), nil, CU.Settings.ui.accent)
+    UI.Popup(L('run_start'), nil, CU.Settings.ui.hudAccent)
     UI.Send('sound', 'start')
 end
 
@@ -66,7 +66,7 @@ function Scoring.EndRun(reasonKey)
     if payload.points >= Config.Run.MinSubmit then
         TriggerServerEvent('nayzeee-cutup:server:submitRun', payload)
     else
-        UI.Toast(L('run_over'), L('run_too_small'), 'warn')
+        UI.Notify(L('run_over'), L('run_too_small'), 'warn')
     end
 end
 

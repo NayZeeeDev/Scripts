@@ -136,7 +136,7 @@ function Crew.UpdateSync(dt)
     sync.flow = sync.pct >= 100.0 or (wasFlow and sync.pct > 0.0 and breakTimer <= s.BreakGrace)
 
     if sync.flow and not wasFlow then
-        UI.Popup(sync.crew and L('crew_flow') or L('flow_state'), sync.partner, CU.Settings.ui.accent)
+        UI.Popup(sync.crew and L('crew_flow') or L('flow_state'), sync.partner, CU.Settings.ui.hudAccent)
         UI.Send('sound', 'flow')
     elseif not sync.flow and wasFlow then
         UI.Popup(L('flow_broken'), nil, CU.Settings.ui.alert)

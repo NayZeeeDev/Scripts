@@ -12,18 +12,18 @@ local function setActive(on)
     if on == CU.Active then return end
     if on then
         if not Config.CanCutUpHere(GetEntityCoords(PlayerPedId())) then
-            UI.Toast(L('mode_blocked'), nil, 'error') return
+            UI.Notify(L('mode_blocked'), nil, 'error') return
         end
         CU.Active = true
         if Config.DisablePolice then SetMaxWantedLevel(0) end
-        UI.Toast('CUT UP', L('mode_on'), 'success')
+        UI.Notify('CUT UP', L('mode_on'), 'success')
     else
         if CU.Run then Scoring.EndRun('run_over') end
         CU.Active = false
         Traffic.Clear()
         Camera.Stop()
         if Config.DisablePolice then SetMaxWantedLevel(5) end
-        UI.Toast('CUT UP', L('mode_off'), 'info')
+        UI.Notify('CUT UP', L('mode_off'), 'info')
     end
     TriggerServerEvent('nayzeee-cutup:server:setActive', CU.Active)
 end
@@ -98,9 +98,9 @@ map('cutuphud', 'CUT UP: toggle HUD', Config.Keys.ToggleHud)
 if Config.Damage.RepairCommand then
     RegisterCommand(Config.Damage.RepairCommand, function()
         if CU.Veh == 0 or not CU.IsDriver then return end
-        if CU.Run or CU.Speed > 1.0 then UI.Toast(L('repair_denied'), nil, 'warn') return end
+        if CU.Run or CU.Speed > 1.0 then UI.Notify(L('repair_denied'), nil, 'warn') return end
         Collision.Repair(CU.Veh)
-        UI.Toast(L('repaired'), nil, 'success')
+        UI.Notify(L('repaired'), nil, 'success')
     end, false)
 end
 
@@ -115,15 +115,15 @@ end)
 RegisterNetEvent('nayzeee-cutup:client:runResult', function(res)
     if not res then return end
     if not res.ok then
-        UI.Toast(L('run_over'), L('run_rejected', res.reason or '?'), 'error')
+        UI.Notify(L('run_over'), L('run_rejected', res.reason or '?'), 'error')
         UI.Send('summary:result', res)
         return
     end
     UI.Send('summary:result', res)
-    UI.Toast(L('run_over'), L('run_saved', Util.FormatNumber(res.points)), 'success')
-    if res.newPB then UI.Popup(L('new_pb'), '#' .. tostring(res.position), CU.Settings.ui.accent) end
+    UI.Notify(L('run_over'), L('run_saved', Util.FormatNumber(res.points)), 'success')
+    if res.newPB then UI.Popup(L('new_pb'), '#' .. tostring(res.position), CU.Settings.ui.hudAccent) end
     if res.rankUp then
-        UI.Popup(L('rank_up', res.rankUp), nil, CU.Settings.ui.accent2)
+        UI.Popup(L('rank_up', res.rankUp), nil, CU.Settings.ui.hudAccent2)
         UI.Send('sound', 'rankup')
     end
 end)
@@ -135,8 +135,8 @@ RegisterNetEvent('nayzeee-cutup:client:crew', function(data)
     UI.Send('crew', data)
 end)
 
-RegisterNetEvent('nayzeee-cutup:client:toast', function(title, msg, kind)
-    UI.Toast(title, msg, kind)
+RegisterNetEvent('nayzeee-cutup:client:notify', function(title, msg, kind)
+    UI.Notify(title, msg, kind)
 end)
 
 ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ CreateThread(function()
             end
             if not Config.CanCutUpHere(GetEntityCoords(CU.Ped)) then
                 setActive(false)
-                UI.Toast(L('mode_blocked'), nil, 'error')
+                UI.Notify(L('mode_blocked'), nil, 'error')
             end
         elseif Config.AutoEnable and CU.IsDriver then
             setActive(true)

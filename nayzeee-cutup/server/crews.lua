@@ -10,7 +10,7 @@ local function key()
     return s
 end
 
-local function toast(src, msg, kind) TriggerClientEvent('nayzeee-cutup:client:toast', src, 'CREW', msg, kind or 'info') end
+local function toast(src, msg, kind) TriggerClientEvent('nayzeee-cutup:client:notify', src, 'CREW', msg, kind or 'info') end
 
 local function trim(s) return (tostring(s or ''):gsub('^%s+', ''):gsub('%s+$', '')) end
 

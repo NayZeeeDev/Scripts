@@ -169,7 +169,7 @@ RegisterNetEvent('nayzeee-cutup:server:submitRun', function(raw)
     local top = Config.Leaderboard.AnnounceTop
     if newPB and top and pos > 0 and pos <= top then
         local label = run.crewRun and 'CREW' or 'SOLO'
-        TriggerClientEvent('nayzeee-cutup:client:toast', -1, 'LEADERBOARD',
+        TriggerClientEvent('nayzeee-cutup:client:notify', -1, 'LEADERBOARD',
             L('top_announce', p.name, pos, label, Util.FormatNumber(run.points)), 'success')
     end
 end)
@@ -194,7 +194,7 @@ end)
 RegisterCommand('cutupadmin', function(src, args)
     if src ~= 0 and not IsPlayerAceAllowed(src, Config.AdminAce) then return end
     local function reply(msg)
-        if src == 0 then print(msg) else TriggerClientEvent('nayzeee-cutup:client:toast', src, 'ADMIN', msg, 'info') end
+        if src == 0 then print(msg) else TriggerClientEvent('nayzeee-cutup:client:notify', src, 'ADMIN', msg, 'info') end
     end
     local sub = args[1]
     if sub == 'resetboards' then

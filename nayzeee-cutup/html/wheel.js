@@ -22,6 +22,10 @@ const WHEEL_PRESETS = {
     fanatec: { label: 'Fanatec CSL / ClubSport / DD', rotation: 1080, softLock: 540 },
     moza: { label: 'Moza R3 / R5 / R9 / R12', rotation: 900, softLock: 540 },
     simagic: { label: 'Simagic Alpha / Evo', rotation: 900, softLock: 540 },
+    cammus: { label: 'Cammus C5 / C12', rotation: 900, softLock: 540 },
+    pxn: { label: 'PXN V9 / V10 / V12', rotation: 900, softLock: 540 },
+    hori: { label: 'Hori Racing Wheel / Apex', rotation: 270, softLock: 270 },
+    tmx: { label: 'Thrustmaster T80 / T128 / TMX', rotation: 900, softLock: 540 },
     pad: {
         label: 'Gamepad (stick steering)', rotation: 1, softLock: 1,
         map: {
@@ -269,7 +273,7 @@ const WheelMgr = (() => {
 window.WheelMgr = WheelMgr;
 WheelMgr.configure();
 
-/* ============================== WHEEL TAB ============================== */
+/* ============================== WHEEL TAB (NayZeee UI) ============================== */
 const WheelUI = (() => {
     let root = null, selected = null, wizard = null;
     let refs = {};
@@ -285,93 +289,81 @@ const WheelUI = (() => {
         return all[selected];
     }
 
-    const srcLabel = s => !s ? 'Not set' : s.type === 'axis' ? `Axis ${s.index}` : `Button ${s.index} (analog)`;
-
-    function save() { WheelMgr.save(); }
+    const srcLabel = s => !s ? 'Not set' : s.type === 'axis' ? `Axis ${s.index}` : `Button ${s.index} · analog`;
+    const save = () => WheelMgr.save();
+    const objSlider = (label, obj, key, min, max, step, format, desc) =>
+        UIx.slider({ label, desc, get: () => obj[key], set: v => { obj[key] = v; }, min, max, step, format, onCommit: save });
+    const objToggle = (label, obj, key, desc) =>
+        UIx.toggle({ label, desc, get: () => obj[key], set: v => { obj[key] = v; save(); if (key === 'enabled') { Menu.side(); render(true); } } });
 
     function devices() {
-        const box = el('div', 'devices');
         const list = WheelMgr.pads();
         if (!list.length) {
-            box.appendChild(el('div', 'note', 'No wheel or pad found. Plug it in and press any button or turn the wheel so Windows wakes it up. This page checks again on its own.'));
-            return box;
+            return el('div', 'empty', `${ICONS.wheel}<b>No wheel found</b><span>Plug it in, then turn the wheel or press any button so Windows wakes it up. This page checks again on its own.</span>`);
         }
         if (!selected || !WheelMgr.padById(selected)) selected = list[0].id;
+        const box = el('div', 'p-body');
+        box.style.padding = '0';
         list.forEach(gp => {
             const p = WheelMgr.profiles()[gp.id];
-            const d = el('div', `device${gp.id === selected ? ' sel' : ''}`, `${ICONS.wheel}<span class="dev-name">${esc(gp.id)}</span>
-                <span class="muted">${gp.axes.length} axes · ${gp.buttons.length} buttons</span>${p && p.enabled ? '<span class="badge">ACTIVE</span>' : ''}`);
-            d.onclick = () => { selected = gp.id; render(true); };
-            box.appendChild(d);
+            const r = el('div', `row${gp.id === selected ? ' sel' : ''}`, `<div class="av">${ICONS.wheel}</div>
+                <div class="row-txt"><b>${esc(gp.id.replace(/\s*\(.*?\)\s*/g, ' ').trim() || gp.id)}</b><span>${gp.axes.length} axes · ${gp.buttons.length} buttons · ${gp.mapping === 'standard' ? 'XInput' : 'DirectInput'}</span></div>
+                <span class="tag ${p && p.enabled ? 'live' : 'off'}">${p && p.enabled ? 'Active' : 'Off'}</span>`);
+            r.style.cursor = 'pointer';
+            r.onclick = () => { selected = gp.id; render(true); };
+            box.appendChild(r);
         });
         return box;
     }
 
     function liveBlock() {
-        const box = el('div', 'card wheel-live');
-        box.innerHTML = `<svg class="wheel-svg" viewBox="0 0 100 100" id="wl-wheel">
-                <circle cx="50" cy="50" r="44" stroke-width="7"/><circle cx="50" cy="50" r="9" stroke-width="4"/>
-                <path d="M6 50h35M59 50h35M50 59v35" stroke-width="5"/><path class="mark" d="M50 6v8"/></svg>
-            <div>
-                <div class="row" style="align-items:flex-end;gap:1.4rem">
-                    <div class="pedals">
-                        <div class="pedal c"><div class="bar"><i id="wl-c"></i></div>CLU</div>
-                        <div class="pedal b"><div class="bar"><i id="wl-b"></i></div>BRK</div>
-                        <div class="pedal t"><div class="bar"><i id="wl-t"></i></div>THR</div>
+        const box = el('div', 'panel');
+        box.innerHTML = `<div class="p-head"><div><h2>Live input</h2><p>Turn the wheel and press the pedals to check the mapping</p></div><span class="tag live" id="wl-tag">Reading</span></div>
+            <div class="wheel-live">
+                <svg class="wheel-svg" viewBox="0 0 100 100" id="wl-wheel"><circle cx="50" cy="50" r="44" stroke-width="7"/><circle cx="50" cy="50" r="9" stroke-width="4"/>
+                    <path d="M6 50h35M59 50h35M50 59v35" stroke-width="5"/><path class="mark-l" d="M50 6v9"/></svg>
+                <div>
+                    <div class="live-read">
+                        <div class="pedals">
+                            <div class="pedal c"><div class="bar"><i id="wl-c"></i></div>CLU</div>
+                            <div class="pedal b"><div class="bar"><i id="wl-b"></i></div>BRK</div>
+                            <div class="pedal t"><div class="bar"><i id="wl-t"></i></div>THR</div>
+                        </div>
+                        <div class="stat-txt"><span>Gear</span><b id="wl-gear">N</b></div>
+                        <div class="stat-txt"><span>Steering</span><b id="wl-steer">0%</b></div>
                     </div>
-                    <div><small class="muted">Gear</small><div class="gear-live" id="wl-gear">N</div></div>
-                    <div class="spacer"><small class="muted">Steering output</small><div class="num" id="wl-steer" style="font-size:1.6rem">0%</div></div>
+                    <div class="raw" id="wl-raw"></div>
                 </div>
-                <div class="raw" id="wl-raw" style="margin-top:.6rem"></div>
             </div>`;
         refs = { wheel: $('#wl-wheel', box), t: $('#wl-t', box), b: $('#wl-b', box), c: $('#wl-c', box), gear: $('#wl-gear', box), steer: $('#wl-steer', box), raw: $('#wl-raw', box) };
         return box;
     }
 
     function axisRow(label, key, kind) {
-        const p = profile();
-        const c = p[key];
-        const row = el('div', 'map-row', `<b>${label}</b><span class="src ${c.src ? '' : 'none'}">${srcLabel(c.src)}</span>`);
-        const det = el('button', 'btn small ghost', 'Detect');
-        det.onclick = () => {
-            row.classList.add('listening');
+        const c = profile()[key];
+        const r = el('div', 'row', `<div class="row-txt"><b>${label}</b><span>${kind === 'steer' ? 'Turn right when asked' : 'Press fully, then let go'}</span></div>
+            <span class="chip ${c.src ? '' : 'off'}">${srcLabel(c.src)}</span><div class="acts"></div>`);
+        const det = UIx.btn('btn-ghost', 'Detect', null, () => {
+            det.classList.add('listening');
             prompt(kind === 'steer' ? 'Turn the wheel to the RIGHT and hold it' : `Press the ${label.toUpperCase()} all the way down`);
             WheelMgr.startListen(selected, kind, res => {
-                row.classList.remove('listening');
                 prompt(null);
                 if (res) { Object.assign(c, res); save(); }
                 render(true);
             });
-        };
-        const clr = el('button', 'btn small ghost', 'Clear');
-        clr.onclick = () => { c.src = null; save(); render(true); };
-        row.append(det, key === 'steer' ? el('span') : clr);
-        return row;
-    }
-
-    function numField(label, obj, key, min, max, step, format) {
-        const f = el('div', 'field');
-        f.innerHTML = `<div class="field-top"><span>${esc(label)}</span><output>${format(obj[key])}</output></div><input type="range" min="${min}" max="${max}" step="${step}" value="${obj[key]}">`;
-        const input = $('input', f), outp = $('output', f);
-        const paint = () => input.style.setProperty('--fill', `${((input.value - min) / (max - min)) * 100}%`);
-        paint();
-        input.oninput = () => { obj[key] = parseFloat(input.value); outp.textContent = format(obj[key]); paint(); };
-        input.onchange = save;
-        return f;
-    }
-
-    function switchField(label, obj, key, hint) {
-        const f = el('div', 'field', `<div class="field-top"><span>${esc(label)}</span><div class="switch ${obj[key] ? 'on' : ''}"></div></div>${hint ? `<small>${esc(hint)}</small>` : ''}`);
-        $('.switch', f).onclick = e => { obj[key] = !obj[key]; e.target.classList.toggle('on', obj[key]); save(); };
-        return f;
+        });
+        $('.acts', r).appendChild(det);
+        if (key !== 'steer') $('.acts', r).appendChild(UIx.btn('btn-ghost danger', 'Clear', null, () => { c.src = null; save(); render(true); }));
+        return r;
     }
 
     function buttons() {
         const p = profile();
-        const grid = el('div', 'btn-grid');
+        const grid = el('div', 'bmap');
         BUTTON_ACTIONS.forEach(([action, label]) => {
             const idx = p.buttons[action];
-            const b = el('div', 'btn-map', `<span>${label}</span><b class="${idx === undefined || idx === null ? 'none' : ''}">${idx === undefined || idx === null ? '-' : `B${idx}`}</b>`);
+            const set = idx !== undefined && idx !== null;
+            const b = el('div', 'row', `<div class="row-txt"><b>${label}</b></div><span class="chip ${set ? '' : 'off'}">${set ? `B${idx}` : 'None'}</span>`);
             b.dataset.action = action;
             b.onclick = () => {
                 if (WheelMgr.listening()) return;
@@ -390,7 +382,7 @@ const WheelUI = (() => {
     }
 
     function promptEl() {
-        const p = el('div', 'wizard hidden', '<h5></h5><p>Press Esc to cancel</p>');
+        const p = el('div', 'inc hidden', `<div class="inc-top"><span class="chip">LISTENING</span><span class="ref" style="font-size:10.5px;color:var(--nz-ink-3)">Esc to cancel</span></div><h3></h3><p>Waiting for your wheel...</p>`);
         p.id = 'wl-prompt';
         return p;
     }
@@ -399,7 +391,7 @@ const WheelUI = (() => {
         const p = root && $('#wl-prompt', root);
         if (!p) return;
         p.classList.toggle('hidden', !text);
-        if (text) $('h5', p).textContent = text;
+        if (text) $('h3', p).textContent = text;
     }
 
     const WIZARD = [
@@ -407,13 +399,13 @@ const WheelUI = (() => {
         { key: 'throttle', kind: 'pedal', text: 'Press the THROTTLE all the way down' },
         { key: 'brake', kind: 'pedal', text: 'Press the BRAKE all the way down' },
         { key: 'clutch', kind: 'pedal', text: 'Press the CLUTCH all the way down', skip: true },
-        { key: 'shiftUp', kind: 'button', text: 'Pull the paddle / button for SHIFT UP', skip: true },
-        { key: 'shiftDown', kind: 'button', text: 'Pull the paddle / button for SHIFT DOWN', skip: true },
+        { key: 'shiftUp', kind: 'button', text: 'Pull the paddle or button for SHIFT UP', skip: true },
+        { key: 'shiftDown', kind: 'button', text: 'Pull the paddle or button for SHIFT DOWN', skip: true },
     ];
 
     function runWizard(step = 0) {
         const p = profile();
-        if (step >= WIZARD.length) { wizard = null; p.enabled = true; save(); render(true); return; }
+        if (step >= WIZARD.length) { wizard = null; p.enabled = true; save(); render(true); Menu.side(); return; }
         wizard = step;
         render(true);
         const s = WIZARD[step];
@@ -434,19 +426,12 @@ const WheelUI = (() => {
 
     function wizardEl() {
         const s = WIZARD[wizard];
-        const w = el('div', 'wizard', `<div class="steps">${WIZARD.map((_, i) => `<i class="${i < wizard ? 'done' : ''}"></i>`).join('')}</div>
-            <h5>${esc(s.text)}</h5><p>Step ${wizard + 1} of ${WIZARD.length}. Pedals: press fully, then let go.</p>`);
-        const row = el('div', 'row', '');
-        row.style.justifyContent = 'center';
-        if (s.skip) {
-            const sk = el('button', 'btn ghost small', 'Skip');
-            sk.onclick = () => { WheelMgr.stopListen(null); };
-            row.appendChild(sk);
-        }
-        const c = el('button', 'btn ghost small', 'Cancel');
-        c.onclick = () => { wizard = null; WheelMgr.stopListen(null); render(true); };
-        row.appendChild(c);
-        w.appendChild(row);
+        const w = el('div', 'modal', `<div class="modal-b"><div class="tile">${ICONS.wheel}</div><div style="flex:1">
+            <div class="wizard-steps">${WIZARD.map((_, i) => `<i class="${i < wizard ? 'done' : i === wizard ? 'cur' : ''}"></i>`).join('')}</div>
+            <h4>${esc(s.text)}</h4><p>Step ${wizard + 1} of ${WIZARD.length}. Pedals: press fully, then let go so the resting point is saved too.</p></div></div><div class="modal-f"></div>`);
+        const f = $('.modal-f', w);
+        if (s.skip) f.appendChild(UIx.btn('btn-line', "I don't have one", null, () => WheelMgr.stopListen(null)));
+        f.appendChild(UIx.btn('btn-red', 'Cancel', null, () => { wizard = null; WheelMgr.stopListen(null); render(true); }));
         return w;
     }
 
@@ -455,63 +440,57 @@ const WheelUI = (() => {
         if (!body) return el('div');
         body.innerHTML = '';
         root = body;
-        body.appendChild(UIx.group('Devices', devices()));
+        body.appendChild(UIx.sec('Devices', 'Everything Windows lists as a game controller shows here.', devices()));
         const p = profile();
         if (!p) {
-            body.appendChild(el('div', 'note', 'Works with Logitech, Thrustmaster, Fanatec, Moza, Simagic, Xbox wheels and anything else Windows lists as a game controller. There is no force feedback in FiveM, but rumble works on devices that support it.'));
+            body.appendChild(UIx.sec('Supported', null, el('div', 'inc', `<h3>Any wheel Windows can see</h3><p>Logitech, Thrustmaster, Fanatec, Moza, Simagic, Cammus, PXN, Xbox wheels and pads.
+                No force feedback in FiveM, but rumble works on devices that support it.</p>`)));
             return body;
         }
-
-        const top = el('div', 'grid2');
-        const en = switchField('Use this device', p, 'enabled', 'Turn on to drive with it. Keyboard / pad take over again when it goes idle.');
-        const presetF = el('div', 'field', `<div class="field-top"><span>Preset</span></div>`);
-        const sel = el('select', 'text-in');
-        Object.entries(WHEEL_PRESETS).forEach(([k, v]) => { const o = el('option', '', esc(v.label)); o.value = k; if (k === p.preset) o.selected = true; sel.appendChild(o); });
-        sel.onchange = () => { WheelMgr.applyPreset(p, sel.value); save(); render(true); };
-        presetF.appendChild(sel);
-        top.append(en, presetF);
-        body.appendChild(UIx.group('Setup', top));
+        const presetSel = el('select', 'nz-input');
+        presetSel.style.width = '300px';
+        Object.entries(WHEEL_PRESETS).forEach(([k, v]) => { const o = el('option', '', esc(v.label)); o.value = k; if (k === p.preset) o.selected = true; presetSel.appendChild(o); });
+        presetSel.onchange = () => { WheelMgr.applyPreset(p, presetSel.value); save(); render(true); };
+        const setup = UIx.sec('Setup', null,
+            objToggle('Use this device', p, 'enabled', 'Drive with it. Keyboard or pad takes over again when it goes idle.'),
+            UIx.opt('Preset', 'Sets the rotation, and the mapping for Xbox wheels and pads', presetSel));
         const pre = WHEEL_PRESETS[p.preset];
-        if (pre && pre.note) body.appendChild(el('div', 'note', esc(pre.note)));
-
-        if (wizard !== null) body.appendChild(UIx.group(null, wizardEl()));
-        else {
-            const wb = el('button', 'btn', 'Run setup wizard');
-            wb.onclick = () => runWizard(0);
-            const test = el('button', 'btn ghost', 'Test rumble');
-            test.onclick = () => WheelMgr.rumble({ strong: .8, weak: .6, duration: 300 });
-            const row = el('div', 'row'); row.append(wb, test);
-            body.appendChild(UIx.group(null, row));
+        if (pre && pre.note) setup.appendChild(el('div', 'inc', `<h3>${esc(pre.label)}</h3><p>${esc(pre.note)}</p>`));
+        const acts = el('div', 'actions');
+        if (wizard === null) {
+            acts.append(UIx.btn('btn-teal', 'Run setup wizard', 'bolt', () => runWizard(0)),
+                UIx.btn('btn-line', 'Test rumble', null, () => WheelMgr.rumble({ strong: .8, weak: .6, duration: 300 })));
+            setup.appendChild(acts);
+        } else {
+            setup.appendChild(wizardEl());
         }
+        body.appendChild(setup);
         body.appendChild(promptEl());
-        body.appendChild(UIx.group('Live', liveBlock()));
+        body.appendChild(liveBlock());
 
-        body.appendChild(UIx.group('Steering', axisRow('Steering', 'steer', 'steer'), el('div', '', ''),
-            UIx.grid(3,
-                numField('Wheel rotation', p.steer, 'rotation', 1, 1440, 1, v => `${Math.round(v)}°`),
-                numField('Steering lock used', p.steer, 'softLock', 1, 1440, 1, v => `${Math.round(v)}°`),
-                numField('Sensitivity', p.steer, 'sensitivity', .5, 2, .05, v => `${v.toFixed(2)}x`),
-                numField('Deadzone', p.steer, 'deadzone', 0, .2, .005, v => `${Math.round(v * 100)}%`),
-                numField('Curve', p.steer, 'gamma', .5, 3, .05, v => v.toFixed(2)),
-                switchField('Invert', p.steer, 'invert'))));
-        body.appendChild(el('div', 'note', 'Wheel rotation is what your wheel is set to in its driver. Steering lock used is how far you turn for full lock in game (lower = quicker steering).'));
+        const deg = v => `${Math.round(v)}°`, pct = v => `${Math.round(v * 100)}%`;
+        body.appendChild(UIx.sec('Steering', 'Rotation is what your wheel is set to in its own driver. Lock used is how far you turn for full lock in game: lower is quicker.',
+            axisRow('Steering', 'steer', 'steer'),
+            UIx.grid(2,
+                objSlider('Wheel rotation', p.steer, 'rotation', 1, 1440, 1, deg),
+                objSlider('Steering lock used', p.steer, 'softLock', 1, 1440, 1, deg),
+                objSlider('Sensitivity', p.steer, 'sensitivity', .5, 2, .05, v => `${v.toFixed(2)}x`),
+                objSlider('Deadzone', p.steer, 'deadzone', 0, .2, .005, pct),
+                objSlider('Curve', p.steer, 'gamma', .5, 3, .05, v => v.toFixed(2), 'Above 1 = finer control near centre'),
+                objToggle('Invert', p.steer, 'invert'))));
 
-        const pedalsG = UIx.group('Pedals');
+        const ped = UIx.sec('Pedals', null);
         [['Throttle', 'throttle'], ['Brake', 'brake'], ['Clutch', 'clutch']].forEach(([label, key]) => {
-            pedalsG.appendChild(axisRow(label, key, 'pedal'));
-            pedalsG.appendChild(UIx.grid(2,
-                numField(`${label} deadzone`, p[key], 'deadzone', 0, .3, .005, v => `${Math.round(v * 100)}%`),
-                numField(`${label} curve`, p[key], 'gamma', .5, 3, .05, v => v.toFixed(2))));
+            ped.appendChild(axisRow(label, key, 'pedal'));
+            ped.appendChild(UIx.grid(2,
+                objSlider(`${label} deadzone`, p[key], 'deadzone', 0, .3, .005, pct),
+                objSlider(`${label} curve`, p[key], 'gamma', .5, 3, .05, v => v.toFixed(2))));
         });
-        body.appendChild(pedalsG);
-
-        body.appendChild(UIx.group('Buttons & shifter', buttons()));
-        body.appendChild(el('div', 'note', 'Click a slot then press the button. Right-click a slot to clear it. Map Gear 1-7 + Reverse for an H-shifter and pick H-Pattern in Driving.'));
-        body.appendChild(UIx.group('Extras', UIx.grid(2, switchField('Rumble', p, 'rumble', 'Crashes and insane near misses'))));
-
-        const del = el('button', 'btn ghost', 'Forget this device');
-        del.onclick = () => { delete WheelMgr.profiles()[selected]; save(); render(true); };
-        body.appendChild(UIx.group(null, del));
+        body.appendChild(ped);
+        body.appendChild(UIx.sec('Buttons & shifter', 'Click a slot, then press the button. Right-click clears it. Map Gear 1-7 and Reverse for an H-shifter, then pick H-Pattern in Driving.', buttons()));
+        const fin = el('div', 'actions');
+        fin.appendChild(UIx.btn('btn-red', 'Forget this device', 'reset', () => { delete WheelMgr.profiles()[selected]; save(); render(true); Menu.side(); }));
+        body.appendChild(UIx.sec('Extras', null, objToggle('Rumble', p, 'rumble', 'Crashes and insane near misses'), fin));
         return body;
     }
 
@@ -521,23 +500,21 @@ const WheelUI = (() => {
         const count = WheelMgr.pads().length;
         if (count !== lastPadCount) { lastPadCount = count; if (!WheelMgr.listening() && wizard === null) render(true); return; }
         const show = gp || (selected && WheelMgr.padById(selected));
-        if (!refs.wheel || !show) return;
         const p = profile();
+        if (!refs.wheel || !show || !p) return;
         if (!o) {
-            // device not enabled: preview raw steering so mapping can still be tested
-            const raw = WheelMgr.read(show, p?.steer?.src) - (p?.steer?.center || 0);
-            o = { s: clamp((p?.steer?.invert ? -raw : raw), -1, 1), t: 0, b: 0, c: 0, gear: 0 };
+            const raw = WheelMgr.read(show, p.steer.src) - (p.steer.center || 0);
+            o = { s: clamp(p.steer.invert ? -raw : raw, -1, 1), t: 0, b: 0, c: 0, gear: 0 };
         }
-        const rot = p ? p.steer.rotation : 900;
-        refs.wheel.style.transform = `rotate(${o.s * Math.min(rot, Math.max(1, p.steer.softLock)) / 2}deg)`;
+        refs.wheel.style.transform = `rotate(${o.s * Math.min(p.steer.rotation, Math.max(1, p.steer.softLock)) / 2}deg)`;
         refs.t.style.height = `${o.t * 100}%`;
         refs.b.style.height = `${o.b * 100}%`;
         refs.c.style.height = `${o.c * 100}%`;
         refs.gear.textContent = o.gear === -1 ? 'R' : o.gear || 'N';
         refs.steer.textContent = `${Math.round(o.s * 100)}%`;
         refs.raw.innerHTML = show.axes.map((v, i) => `<span>A${i} ${v.toFixed(2)}</span>`).join('')
-            + show.buttons.map((b, i) => (b.pressed || b.value > .05) ? `<span style="color:var(--accent)">B${i} ${b.value.toFixed(2)}</span>` : '').join('');
-        if (p) $$('.btn-map', root).forEach(b => {
+            + show.buttons.map((b, i) => (b.pressed || b.value > .05) ? `<span class="hot">B${i} ${b.value.toFixed(2)}</span>` : '').join('');
+        $$('.bmap .row', root).forEach(b => {
             const idx = p.buttons[b.dataset.action];
             const bt = idx !== undefined && idx !== null ? show.buttons[idx] : null;
             b.classList.toggle('lit', !!(bt && bt.pressed));
@@ -545,7 +522,7 @@ const WheelUI = (() => {
     }
 
     return {
-        render() { root = null; lastPadCount = WheelMgr.pads().length; const r = render(false); return r; },
+        render() { root = null; lastPadCount = WheelMgr.pads().length; return render(false); },
         live, prompt,
         onHide() { if (wizard !== null || WheelMgr.listening()) { wizard = null; WheelMgr.stopListen(null); } },
         cancelListen() {

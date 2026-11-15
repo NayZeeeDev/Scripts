@@ -45,19 +45,34 @@ const State = {
 };
 
 /* ============================== THEME ============================== */
+function shade(hex, to, t) {
+    const a = hexRgb(hex).split(',').map(Number), b = hexRgb(to).split(',').map(Number);
+    return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
 const Theme = {
     apply(ui) {
         if (!ui) return;
         State.ui = ui;
         const r = document.documentElement.style;
-        r.setProperty('--accent', ui.accent); r.setProperty('--accent-rgb', hexRgb(ui.accent));
-        r.setProperty('--accent2', ui.accent2); r.setProperty('--accent2-rgb', hexRgb(ui.accent2));
+        const hud = ui.hudAccent || '#a873ff', hud2 = ui.hudAccent2 || '#ff6fb5', menu = ui.accent || '#08afa2';
+        r.setProperty('--accent', hud); r.setProperty('--accent-rgb', hexRgb(hud));
+        r.setProperty('--accent2', hud2); r.setProperty('--accent2-rgb', hexRgb(hud2));
         r.setProperty('--alert', ui.alert); r.setProperty('--alert-rgb', hexRgb(ui.alert));
+        r.setProperty('--nz-red-lo', shade(ui.alert, '#000000', .2));
+        r.setProperty('--nz-teal', menu); r.setProperty('--nz-teal-rgb', hexRgb(menu));
+        r.setProperty('--nz-teal-hi', shade(menu, '#ffffff', .25));
+        r.setProperty('--nz-teal-lo', shade(menu, '#000000', .28));
+        r.setProperty('--nz-on-teal', shade(menu, '#000000', .87));
         r.setProperty('--scale', ui.scale || 1);
+        this.zoom();
         document.body.classList.toggle('reduce-motion', !!ui.reduceMotion);
-        $('#toasts').className = ui.toastPosition || 'top-right';
+    },
+    zoom() {
+        const scale = State.ui.scale || 1;
+        document.documentElement.style.setProperty('--vz', Math.min(window.innerHeight / 1080, window.innerWidth / 1920 * 1.25) * scale);
     },
 };
+window.addEventListener('resize', () => Theme.zoom());
 
 /* ============================== SOUND (synthesised, no files) ============================== */
 const Sound = {
@@ -246,14 +261,18 @@ const Arrows = {
     },
 };
 
-/* ============================== TOASTS ============================== */
-const Toasts = {
+/* ============================== HINT (in-HUD, replaces toasts) ============================== */
+const Hint = {
+    timer: null,
     show(d) {
-        const box = $('#toasts');
-        const t = el('div', `toast glass ${d.kind || 'info'}`, `<div><b>${esc(d.title)}</b>${d.msg ? `<p>${esc(d.msg)}</p>` : ''}</div>`);
-        box.appendChild(t);
-        while (box.children.length > 5) box.firstChild.remove();
-        setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 4200);
+        const h = $('#hint');
+        h.className = `hint${d.kind === 'warn' ? ' warn' : ''}`;
+        $('#hint-ico').innerHTML = d.kind === 'warn'
+            ? '<svg viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg>'
+            : '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+        $('#hint-txt').textContent = d.text;
+        clearTimeout(this.timer);
+        this.timer = setTimeout(() => { h.classList.add('out'); setTimeout(() => h.classList.add('hidden'), 260); }, 1600);
     },
 };
 
@@ -303,7 +322,7 @@ const Board = {
     },
     select(board) {
         State.board = board;
-        $$('#board-tabs button').forEach(b => b.classList.toggle('active', b.dataset.board === board));
+        $$('#board-tabs button').forEach(b => b.classList.toggle('on', b.dataset.board === board));
         $('#board-rows').innerHTML = '<div class="board-empty">Loading...</div>';
         $('#board-me').innerHTML = '';
         post('leaderboard', { board });
@@ -323,7 +342,7 @@ const Board = {
         if (board === 'crews') {
             wrap.innerHTML = `<div class="brow-main">
                 <div>${this.badge(r.pos)}</div>
-                <div class="player-cell"><span class="crew-chip" style="background:${esc(r.color)}">${esc(r.tag)}</span><span>${esc(r.name)}</span></div>
+                <div class="player-cell"><span class="crew-chip" style="--c:${esc(r.color)};--c-rgb:${hexRgb(r.color)}">${esc(r.tag)}</span><span class="strong">${esc(r.name)}</span></div>
                 <div class="num">${fmt(r.points)}</div>
                 <div>${r.members}</div>
                 <div>${esc(r.bestName || '-')}</div>
@@ -332,10 +351,10 @@ const Board = {
             return wrap;
         }
         const initial = esc((r.name || '?').trim().charAt(0).toUpperCase());
-        const chip = r.crew ? `<span class="crew-chip" style="background:${esc(r.crew.color)}">${esc(r.crew.tag)}</span>` : '';
+        const chip = r.crew ? `<span class="crew-chip" style="--c:${esc(r.crew.color)};--c-rgb:${hexRgb(r.crew.color)}">${esc(r.crew.tag)}</span>` : '';
         wrap.innerHTML = `<div class="brow-main">
             <div>${this.badge(r.pos)}</div>
-            <div class="player-cell"><span class="avatar" style="background:${r.crew ? esc(r.crew.color) : hashColor(r.name)}">${initial}</span><span>${esc(r.name)}</span>${chip}</div>
+            <div class="player-cell"><span class="avatar" style="background:${r.crew ? esc(r.crew.color) : hashColor(r.name)}">${initial}</span><span class="strong">${esc(r.name)}</span>${chip}</div>
             <div class="num">${fmt(r.points)}</div>
             <div><span class="num">${fmt(r.combo)}x</span></div>
             <div>${esc(r.car)}</div>
@@ -372,335 +391,342 @@ const Board = {
         const me = $('#board-me');
         me.innerHTML = '';
         if (data.me && data.myPos > data.rows.length) me.appendChild(this.row(data.me, data.board, true));
+        const what = data.board === 'crews' ? 'crews' : 'drivers';
+        $('#board-meta').innerHTML = `<b>${fmt(data.total)}</b> ${what} ranked · ${esc(State.config?.serverName || '')}${data.myPos ? ` · you are <b>#${fmt(data.myPos)}</b>` : ''}`;
+        $('#board-count').innerHTML = `Showing <b>${list.length}</b> of <b>${fmt(data.total)}</b>`;
     },
 };
 
-/* ============================== MENU ============================== */
+/* ============================== MENU (NayZeee UI) ============================== */
+const svgI = d => `<svg viewBox="0 0 24 24">${d}</svg>`;
 const ICONS = {
-    camera: '<svg viewBox="0 0 24 24"><path d="M3 7h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-    driving: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 14v7M10.2 11L3.5 9M13.8 11l6.7-2"/></svg>',
-    wheel: '<svg viewBox="0 0 24 24"><path d="M6 8h12M6 16h12M8 8v8M16 8v8"/><circle cx="6" cy="8" r="2"/><circle cx="18" cy="16" r="2"/></svg>',
-    crew: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.6 0 4.5 1.6 5 4.4"/></svg>',
-    profile: '<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
-    interface: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16" cy="10" r="1.3"/><path d="M12 21c-1.5 0-2-1-2-2 0-1.5 1-2 2.5-2H15a6 6 0 0 0 6-6"/></svg>',
+    camera: svgI('<path d="M3 7h4l2-3h6l2 3h4v12H3z"/><circle cx="12" cy="13" r="3.5"/>'),
+    driving: svgI('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/><path d="M12 14v7M10.2 11L3.5 9M13.8 11l6.7-2"/>'),
+    wheel: svgI('<path d="M6 8h12M6 16h12M8 8v8M16 8v8"/><circle cx="6" cy="8" r="2"/><circle cx="18" cy="16" r="2"/>'),
+    crew: svgI('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.6 0 4.5 1.6 5 4.4"/>'),
+    profile: svgI('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+    board: svgI('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>'),
+    interface: svgI('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'),
+    check: svgI('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    reset: svgI('<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/>'),
+    flag: svgI('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
+    road: svgI('<path d="M5 21L9 3M19 21L15 3M12 5v2M12 11v2M12 17v2"/>'),
+    gauge: svgI('<path d="M4 18a8 8 0 1 1 16 0"/><path d="M12 18l4-6"/>'),
+    trophy: svgI('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/>'),
+    plus: svgI('<path d="M12 5v14M5 12h14"/>'),
+    alert: svgI('<path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/>'),
+    out: svgI('<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>'),
+    eye: svgI('<circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/>'),
+    bolt: svgI('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'),
+    star: svgI('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>'),
 };
 const CAM_ICONS = {
-    cockpit: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="7"/><circle cx="12" cy="13" r="1.5"/><path d="M5 13h5.5M13.5 13H19M12 14.5V20"/></svg>',
-    hood: '<svg viewBox="0 0 24 24"><path d="M3 17l3-6h12l3 6zM8 11l2-4h4l2 4"/></svg>',
-    bumper: '<svg viewBox="0 0 24 24"><path d="M3 15h18M5 15v3h3v-3M16 15v3h3v-3M4 15l2-5h12l2 5"/></svg>',
-    chase_near: '<svg viewBox="0 0 24 24"><rect x="7" y="10" width="10" height="6" rx="2"/><path d="M12 22v-4M9 4l3 3 3-3"/></svg>',
-    chase_far: '<svg viewBox="0 0 24 24"><rect x="9" y="6" width="6" height="4" rx="1"/><path d="M12 22v-9M8 18l4-3 4 3"/></svg>',
-    cinematic: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>',
-    native: '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 12h16M12 4v16"/></svg>',
+    cockpit: svgI('<circle cx="12" cy="13" r="7"/><circle cx="12" cy="13" r="1.5"/><path d="M5 13h5.5M13.5 13H19M12 14.5V20"/>'),
+    hood: svgI('<path d="M3 17l3-6h12l3 6zM8 11l2-4h4l2 4"/>'),
+    bumper: svgI('<path d="M3 15h18M5 15v3h3v-3M16 15v3h3v-3M4 15l2-5h12l2 5"/>'),
+    chase_near: svgI('<rect x="7" y="10" width="10" height="6" rx="2"/><path d="M12 22v-4M9 4l3 3 3-3"/>'),
+    chase_far: svgI('<rect x="9" y="6" width="6" height="4" rx="1"/><path d="M12 22v-9M8 18l4-3 4 3"/>'),
+    cinematic: svgI('<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/>'),
+    native: svgI('<path d="M4 4h16v16H4zM4 12h16M12 4v16"/>'),
 };
+const clone = o => JSON.parse(JSON.stringify(o));
+const initials = n => esc((String(n || '?').match(/[A-Za-z0-9]/g) || ['?']).slice(0, 2).join('').toUpperCase());
 
 const UIx = {
-    saveTimer: null,
+    saved: null, dirty: false,
+    snapshot() { this.saved = clone(State.settings); this.dirty = false; Menu.status(); },
+    apply() {
+        Theme.apply(State.settings.ui);
+        State.hud = State.settings.hud;
+        HUD.applyConfig();
+    },
     change(path, value) {
         setPath(State.settings, path, value);
-        if (path.startsWith('ui.')) Theme.apply(State.settings.ui);
-        if (path.startsWith('hud.')) { State.hud = State.settings.hud; HUD.applyConfig(); }
+        if (path.startsWith('ui.') || path.startsWith('hud.')) this.apply();
         post('settings', { settings: State.settings, save: false });
-        clearTimeout(this.saveTimer);
-        this.saveTimer = setTimeout(() => post('settings', { settings: State.settings, save: true }), 350);
+        if (!this.dirty) { this.dirty = true; Menu.status(); }
     },
-    group(title, ...children) {
-        const g = el('div', 'group');
-        if (title) g.appendChild(el('h4', '', esc(title)));
-        children.forEach(c => c && g.appendChild(c));
+    save() {
+        post('settings', { settings: State.settings, save: true });
+        Sound.play('ui');
+        this.snapshot();
+        Menu.status('Saved');
+    },
+    revert(rerender = true) {
+        if (!this.saved) return;
+        State.settings = clone(this.saved);
+        this.apply();
+        post('settings', { settings: State.settings, save: false });
+        this.dirty = false;
+        Menu.status();
+        if (rerender) Menu.renderTab();
+    },
+    accessor(o) {
+        if (o.get) return o;
+        return { get: () => getPath(State.settings, o.path), set: v => this.change(o.path, v) };
+    },
+    sec(title, desc, ...kids) {
+        const s = el('section', 'sec');
+        if (title) s.appendChild(el('h4', '', esc(title)));
+        if (desc) s.appendChild(el('div', 'desc', desc));
+        kids.flat().forEach(k => k && s.appendChild(k));
+        return s;
+    },
+    grid(cols, ...kids) {
+        const g = el('div', `opt-grid${cols === 3 ? ' c3' : ''}`);
+        kids.flat().forEach(k => k && g.appendChild(k));
         return g;
     },
-    grid(n, ...children) {
-        const g = el('div', n === 3 ? 'grid3' : 'grid2');
-        children.forEach(c => c && g.appendChild(c));
-        return g;
+    opt(label, desc, control, col) {
+        const o = el('div', `opt${col ? ' col' : ''}`, `<div class="opt-t"><b>${esc(label)}</b>${desc ? `<small>${esc(desc)}</small>` : ''}</div>`);
+        if (control) o.appendChild(control);
+        return o;
     },
-    slider({ label, path, min, max, step = 1, format = v => v, hint }) {
-        const f = el('div', 'field');
-        const v = getPath(State.settings, path);
-        f.innerHTML = `<div class="field-top"><span>${esc(label)}</span><output>${format(v)}</output></div>
-            <input type="range" min="${min}" max="${max}" step="${step}" value="${v}">${hint ? `<small>${esc(hint)}</small>` : ''}`;
-        const input = $('input', f), out = $('output', f);
-        const paint = () => input.style.setProperty('--fill', `${((input.value - min) / (max - min)) * 100}%`);
-        paint();
-        input.addEventListener('input', () => {
-            const n = parseFloat(input.value);
-            out.textContent = format(n); paint(); this.change(path, n);
-        });
-        return f;
+    toggle(o) {
+        const a = this.accessor(o);
+        const sw = el('button', `sw${a.get() ? ' on' : ''}`, '<i></i>');
+        sw.onclick = () => { const v = !sw.classList.contains('on'); sw.classList.toggle('on', v); Sound.play('ui'); a.set(v); if (o.onCommit) o.onCommit(); };
+        return this.opt(o.label, o.desc, sw);
     },
-    toggle({ label, path, hint }) {
-        const f = el('div', 'field');
-        f.innerHTML = `<div class="field-top"><span>${esc(label)}</span><div class="switch ${getPath(State.settings, path) ? 'on' : ''}"></div></div>${hint ? `<small>${esc(hint)}</small>` : ''}`;
-        const sw = $('.switch', f);
-        sw.addEventListener('click', () => {
-            const n = !sw.classList.contains('on');
-            sw.classList.toggle('on', n); Sound.play('ui'); this.change(path, n);
-        });
-        return f;
-    },
-    seg({ label, path, options, hint, onChange }) {
-        const f = el('div', 'field');
-        f.innerHTML = `<div class="field-top"><span>${esc(label)}</span></div><div class="seg"></div>${hint ? `<small>${esc(hint)}</small>` : ''}`;
-        const seg = $('.seg', f), cur = getPath(State.settings, path);
-        options.forEach(o => {
-            const b = el('button', o.v === cur ? 'active' : '', esc(o.l));
-            b.addEventListener('click', () => {
-                $$('button', seg).forEach(x => x.classList.remove('active'));
-                b.classList.add('active'); Sound.play('ui'); this.change(path, o.v);
-                if (onChange) onChange(o.v);
-            });
+    seg(o) {
+        const a = this.accessor(o);
+        const seg = el('div', 'segc');
+        o.options.forEach(opt => {
+            const b = el('button', opt.v === a.get() ? 'on' : '', esc(opt.l));
+            b.onclick = () => {
+                $$('button', seg).forEach(x => x.classList.toggle('on', x === b));
+                Sound.play('ui'); a.set(opt.v);
+                if (o.onChange) o.onChange(opt.v);
+            };
             seg.appendChild(b);
         });
-        return f;
+        return this.opt(o.label, o.desc, seg);
     },
-    color({ label, path }) {
-        const f = el('div', 'field');
+    slider(o) {
+        const a = this.accessor(o);
+        const fmtv = o.format || (v => v);
+        const wrap = el('div', 'rng', `<input type="range" min="${o.min}" max="${o.max}" step="${o.step || 1}" value="${a.get()}"><output>${fmtv(a.get())}</output>`);
+        const input = $('input', wrap), out = $('output', wrap);
+        const paint = () => input.style.setProperty('--fill', `${((input.value - o.min) / (o.max - o.min)) * 100}%`);
+        paint();
+        input.oninput = () => { const n = parseFloat(input.value); out.textContent = fmtv(n); paint(); a.set(n); };
+        if (o.onCommit) input.onchange = o.onCommit;
+        return this.opt(o.label, o.desc, wrap, true);
+    },
+    color(o) {
         const presets = State.config?.presets || [];
-        f.innerHTML = `<div class="field-top"><span>${esc(label)}</span></div><div class="swatches"></div>`;
-        const box = $('.swatches', f);
+        const box = el('div', 'swatches');
+        const input = el('input', 'nz-input');
+        input.maxLength = 7; input.spellcheck = false;
         const paint = () => {
-            const cur = (getPath(State.settings, path) || '').toLowerCase();
-            $$('.swatch', box).forEach(s => s.classList.toggle('active', s.dataset.c.toLowerCase() === cur));
-            input.value = cur;
+            const cur = (getPath(State.settings, o.path) || '').toLowerCase();
+            $$('.swatch', box).forEach(s => s.classList.toggle('on', s.dataset.c.toLowerCase() === cur));
+            input.value = cur.toUpperCase();
         };
         presets.forEach(c => {
-            const s = el('div', 'swatch'); s.dataset.c = c; s.style.background = c;
-            s.addEventListener('click', () => { this.change(path, c); paint(); });
+            const s = el('button', 'swatch'); s.dataset.c = c; s.style.setProperty('--sw', c);
+            s.onclick = () => { this.change(o.path, c); paint(); };
             box.appendChild(s);
         });
-        const input = el('input', 'text-in hex-in');
-        input.maxLength = 7; input.spellcheck = false;
-        input.addEventListener('change', () => {
-            if (/^#[\da-f]{6}$/i.test(input.value)) { this.change(path, input.value); paint(); } else paint();
-        });
+        input.onchange = () => { if (/^#[\da-f]{6}$/i.test(input.value)) this.change(o.path, input.value.toLowerCase()); paint(); };
         box.appendChild(input);
         paint();
-        return f;
+        return this.opt(o.label, o.desc, box, true);
+    },
+    stat(icon, label, value, red) {
+        return el('div', 'stat', `<div class="tile${red ? ' red' : ''}">${ICONS[icon] || ''}</div><div class="stat-txt"><span>${esc(label)}</span><b>${esc(value)}</b></div>`);
+    },
+    btn(cls, label, icon, fn) {
+        const b = el('button', cls, `${icon ? ICONS[icon] : ''}${esc(label)}`);
+        b.onclick = fn;
+        return b;
     },
 };
 
 const Tabs = {
     camera() {
-        const body = el('div');
-        const cards = el('div', 'cam-cards');
+        const cards = el('div', 'cards');
         (State.cameraModes || []).forEach(m => {
-            const c = el('button', `cam-card${State.settings.camera.mode === m.id ? ' active' : ''}`, `${CAM_ICONS[m.id] || ''}${esc(m.label)}`);
-            c.addEventListener('click', () => {
-                $$('.cam-card', cards).forEach(x => x.classList.remove('active'));
-                c.classList.add('active'); Sound.play('ui'); UIx.change('camera.mode', m.id);
-            });
+            const c = el('button', `card${State.settings.camera.mode === m.id ? ' on' : ''}`, `<div class="pv">${CAM_ICONS[m.id] || ''}</div><span>${esc(m.label)}</span>`);
+            c.onclick = () => { $$('.card', cards).forEach(x => x.classList.toggle('on', x === c)); Sound.play('ui'); UIx.change('camera.mode', m.id); };
             cards.appendChild(c);
         });
         const deg = v => `${Math.round(v)}°`, m = v => `${Number(v).toFixed(2)} m`;
-        body.append(
-            UIx.group('Camera', cards),
-            UIx.group('Field of view',
-                UIx.grid(3,
-                    UIx.slider({ label: 'Cockpit FOV', path: 'camera.cockpitFov', min: 40, max: 110, format: deg }),
-                    UIx.slider({ label: 'Hood / Bumper FOV', path: 'camera.hoodFov', min: 40, max: 110, format: deg }),
-                    UIx.slider({ label: 'Chase FOV', path: 'camera.chaseFov', min: 40, max: 110, format: deg }))),
-            UIx.group('Cockpit seat',
-                UIx.grid(2,
-                    UIx.slider({ label: 'Left / Right', path: 'camera.seatX', min: -.4, max: .4, step: .01, format: m }),
-                    UIx.slider({ label: 'Forward / Back', path: 'camera.seatY', min: -.4, max: .4, step: .01, format: m }),
-                    UIx.slider({ label: 'Height', path: 'camera.seatZ', min: -.3, max: .3, step: .01, format: m }),
-                    UIx.slider({ label: 'Tilt', path: 'camera.pitch', min: -20, max: 10, step: .5, format: deg }))),
-            UIx.group('Feel',
-                UIx.grid(2,
-                    UIx.toggle({ label: 'Speed FOV', path: 'camera.speedFov', hint: 'FOV opens up the faster you go' }),
-                    UIx.slider({ label: 'Speed FOV amount', path: 'camera.speedFovAmount', min: 0, max: 25, format: deg }),
-                    UIx.toggle({ label: 'Camera shake', path: 'camera.shake', hint: 'Road vibration and impacts' }),
-                    UIx.slider({ label: 'Free look speed', path: 'camera.lookSpeed', min: 1, max: 15, step: .5, format: v => v.toFixed(1) }))),
-            UIx.group('Chase camera',
-                UIx.grid(2,
-                    UIx.slider({ label: 'Distance', path: 'camera.chaseDistance', min: 3, max: 12, step: .1, format: m }),
-                    UIx.slider({ label: 'Height', path: 'camera.chaseHeight', min: .6, max: 4, step: .05, format: m }),
-                    UIx.slider({ label: 'Smoothing', path: 'camera.chaseLag', min: 0, max: .5, step: .01, format: v => v.toFixed(2), hint: '0 is locked to the car, higher floats behind it' }),
-                    UIx.slider({ label: 'Tilt', path: 'camera.chaseTilt', min: -5, max: 15, step: .5, format: deg }))),
-            el('div', 'note', `Cycle cameras with <kbd>${esc(State.config?.keys?.Camera || 'V')}</kbd>. Change FOV while driving with <kbd>${esc(State.config?.keys?.FovUp || 'PAGEUP')}</kbd> / <kbd>${esc(State.config?.keys?.FovDown || 'PAGEDOWN')}</kbd>. Hold the look-behind key to check your mirror.`),
-        );
-        return body;
+        const k = State.config?.keys || {};
+        return [
+            UIx.sec('Camera', `Pick how you see the road. <kbd>${esc(k.Camera || 'V')}</kbd> cycles them while you drive.`, cards),
+            UIx.sec('Field of view', `Change it on the move with <kbd>${esc(k.FovUp || 'PAGEUP')}</kbd> / <kbd>${esc(k.FovDown || 'PAGEDOWN')}</kbd>.`, UIx.grid(3,
+                UIx.slider({ label: 'Cockpit', path: 'camera.cockpitFov', min: 40, max: 110, format: deg }),
+                UIx.slider({ label: 'Hood & bumper', path: 'camera.hoodFov', min: 40, max: 110, format: deg }),
+                UIx.slider({ label: 'Chase', path: 'camera.chaseFov', min: 40, max: 110, format: deg }))),
+            UIx.sec('Cockpit seat', 'Move the in-car camera until the dash sits where you like it.', UIx.grid(2,
+                UIx.slider({ label: 'Left / right', path: 'camera.seatX', min: -.4, max: .4, step: .01, format: m }),
+                UIx.slider({ label: 'Forward / back', path: 'camera.seatY', min: -.4, max: .4, step: .01, format: m }),
+                UIx.slider({ label: 'Height', path: 'camera.seatZ', min: -.3, max: .3, step: .01, format: m }),
+                UIx.slider({ label: 'Tilt', path: 'camera.pitch', min: -20, max: 10, step: .5, format: deg }))),
+            UIx.sec('Feel', null, UIx.grid(2,
+                UIx.toggle({ label: 'Speed FOV', desc: 'FOV opens up the faster you go', path: 'camera.speedFov' }),
+                UIx.slider({ label: 'Speed FOV amount', path: 'camera.speedFovAmount', min: 0, max: 25, format: deg }),
+                UIx.toggle({ label: 'Camera shake', desc: 'Road vibration and impacts', path: 'camera.shake' }),
+                UIx.slider({ label: 'Free look speed', path: 'camera.lookSpeed', min: 1, max: 15, step: .5, format: v => v.toFixed(1) }))),
+            UIx.sec('Chase camera', null, UIx.grid(2,
+                UIx.slider({ label: 'Distance', path: 'camera.chaseDistance', min: 3, max: 12, step: .1, format: m }),
+                UIx.slider({ label: 'Height', path: 'camera.chaseHeight', min: .6, max: 4, step: .05, format: m }),
+                UIx.slider({ label: 'Smoothing', desc: '0 is locked to the car, higher floats behind it', path: 'camera.chaseLag', min: 0, max: .5, step: .01, format: v => v.toFixed(2) }),
+                UIx.slider({ label: 'Tilt', path: 'camera.chaseTilt', min: -5, max: 15, step: .5, format: deg }))),
+        ];
     },
     driving() {
-        const body = el('div');
-        const desc = { auto: 'GTA shifts for you.', sequential: 'Paddles or keys. Shift up / down one gear at a time.', hpattern: 'Pick any gear from a shifter. Needs the clutch.' };
-        const hint = el('small', '', desc[State.settings.gameplay.transmission]);
-        const trans = UIx.seg({
-            label: 'Gearbox', path: 'gameplay.transmission',
+        const desc = { auto: 'GTA shifts for you', sequential: 'Paddles or keys, one gear at a time', hpattern: 'Pick any gear from a shifter, clutch in first' };
+        const gear = UIx.seg({
+            label: 'Gearbox', desc: desc[State.settings.gameplay.transmission], path: 'gameplay.transmission',
             options: [{ v: 'auto', l: 'Automatic' }, { v: 'sequential', l: 'Sequential' }, { v: 'hpattern', l: 'H-Pattern' }],
-            onChange: v => { hint.textContent = desc[v]; },
+            onChange: v => { $('small', gear).textContent = desc[v]; },
         });
-        trans.appendChild(hint);
-        const dens = v => `${['Light', 'Medium', 'Heavy', 'Insane'][v < .5 ? 0 : v < .9 ? 1 : v < 1.2 ? 2 : 3]} (${Math.round(v * 100)}%)`;
-        const keys = State.config?.keys || {};
-        const k = [['Toggle CUT UP', keys.ToggleMode], ['Menu', keys.Menu], ['Leaderboard', keys.Leaderboard], ['Camera', keys.Camera],
-            ['Shift up', keys.ShiftUp], ['Shift down', keys.ShiftDown], ['Clutch', keys.Clutch], ['Flash high beams', keys.Flash], ['Toggle HUD', keys.ToggleHud]];
-        const keyBox = el('div', 'keys', k.filter(x => x[1]).map(([a, b]) => `<div>${esc(a)}<kbd>${esc(b)}</kbd></div>`).join(''));
-        body.append(
-            UIx.group('Gearbox', trans),
-            UIx.group('Road',
+        const dens = v => `${['Light', 'Medium', 'Heavy', 'Insane'][v < .5 ? 0 : v < .9 ? 1 : v < 1.2 ? 2 : 3]} · ${Math.round(v * 100)}%`;
+        const k = State.config?.keys || {};
+        const keys = el('div', 'keys');
+        [['Toggle CUT UP', k.ToggleMode], ['Menu', k.Menu], ['Leaderboard', k.Leaderboard], ['Camera', k.Camera], ['Shift up', k.ShiftUp],
+            ['Shift down', k.ShiftDown], ['Clutch', k.Clutch], ['Flash high beams', k.Flash], ['Toggle HUD', k.ToggleHud]]
+            .filter(x => x[1]).forEach(([a, b]) => keys.appendChild(UIx.opt(a, null, el('kbd', '', esc(b)))));
+        return [
+            UIx.sec('Gearbox', 'Manual and H-pattern earn the Physics Bonus.', gear),
+            UIx.sec('Road', null,
+                UIx.slider({ label: 'Traffic density', desc: 'How busy the road is around you. The server sets the limit.', path: 'gameplay.density', min: .25, max: 1.5, step: .05, format: dens }),
                 UIx.grid(2,
-                    UIx.slider({ label: 'Traffic density', path: 'gameplay.density', min: .25, max: 1.5, step: .05, format: dens, hint: 'Capped by the server' }),
                     UIx.seg({ label: 'Units', path: 'gameplay.units', options: [{ v: 'kmh', l: 'km/h' }, { v: 'mph', l: 'mph' }] }),
-                    UIx.toggle({ label: 'Threat arrows', path: 'gameplay.showArrows', hint: 'Red arrows for players outside your crew closing in' }),
-                    UIx.toggle({ label: 'See-through ghosts', path: 'gameplay.ghostAlpha', hint: 'Players outside your crew look faded' }))),
-            UIx.group('Keys', keyBox),
-            el('div', 'note', 'Every key can be rebound in Settings > Key Bindings > FiveM.'),
-        );
-        return body;
+                    el('div'),
+                    UIx.toggle({ label: 'Threat arrows', desc: 'Red arrows when non-crew players close in', path: 'gameplay.showArrows' }),
+                    UIx.toggle({ label: 'See-through ghosts', desc: 'Players outside your crew look faded', path: 'gameplay.ghostAlpha' }))),
+            UIx.sec('Keys', 'Rebind any of these in Settings > Key Bindings > FiveM.', keys),
+        ];
     },
     wheel() {
-        return window.WheelUI ? WheelUI.render() : el('div', 'empty', 'Wheel support failed to load.');
+        return window.WheelUI ? WheelUI.render() : el('div', 'empty', '<b>Wheel support failed to load</b>');
     },
     crew() {
-        const body = el('div');
+        const out = [];
         const { crew, invites } = State.crewData || {};
         const limits = State.config?.crewLimits || { name: [3, 20], tag: [2, 4], max: 8 };
-        if (invites && invites.length) {
-            invites.forEach(inv => {
-                const c = el('div', 'invite-card', `<span class="crew-chip" style="background:${esc(inv.color)}">${esc(inv.tag)}</span>
-                    <div class="spacer"><b>${esc(inv.crewName)}</b><br><small class="muted">Invited by ${esc(inv.from)}</small></div>`);
-                const acc = el('button', 'btn small', 'Accept'), dec = el('button', 'btn small ghost', 'Decline');
-                acc.onclick = () => post('crew', { action: 'accept' });
-                dec.onclick = () => post('crew', { action: 'decline' });
-                c.append(acc, dec);
-                body.appendChild(UIx.group('Invite', c));
-            });
-        }
+        (invites || []).forEach(inv => {
+            const c = el('div', 'inc', `<div class="inc-top"><span class="chip">CREW INVITE</span><span class="crew-chip" style="--c:${esc(inv.color)};--c-rgb:${hexRgb(inv.color)}">${esc(inv.tag)}</span></div>
+                <h3>${esc(inv.crewName)}</h3><p>${esc(inv.from)} wants you on the crew. Crew runs count toward their board and you get crew flow with them.</p><div class="acts"></div>`);
+            $('.acts', c).append(UIx.btn('btn-teal', 'Accept', 'check', () => post('crew', { action: 'accept' })), UIx.btn('btn-line', 'Decline', null, () => post('crew', { action: 'decline' })));
+            out.push(c);
+        });
         if (!crew) {
-            const colors = State.config?.crewColors || ['#a873ff'];
+            const colors = State.config?.crewColors || ['#08afa2'];
             let color = colors[0];
-            const form = el('div', 'card');
-            form.innerHTML = `<div class="grid2">
-                <div><small class="muted">Crew name (${limits.name[0]}-${limits.name[1]})</small><input class="text-in" id="c-name" maxlength="${limits.name[1]}" spellcheck="false"></div>
-                <div><small class="muted">Tag (${limits.tag[0]}-${limits.tag[1]} letters)</small><input class="text-in" id="c-tag" maxlength="${limits.tag[1]}" spellcheck="false" style="text-transform:uppercase"></div>
-            </div><div style="margin-top:.7rem"><small class="muted">Colour</small><div class="swatches" id="c-colors" style="margin-top:.35rem"></div></div>
-            <div class="row end" style="margin-top:.9rem"><button class="btn" id="c-create">Create crew</button></div>`;
+            const form = el('div', 'panel', `<div class="p-head"><div><h2>Start a crew</h2><p>Name, a short tag and a colour. You can invite drivers once it's made.</p></div></div>
+                <div class="p-body"><div class="opt-grid">
+                    <div class="field"><label>Crew name (${limits.name[0]}-${limits.name[1]})</label><input class="nz-input" id="c-name" maxlength="${limits.name[1]}" spellcheck="false" placeholder="Night Shift"></div>
+                    <div class="field"><label>Tag (${limits.tag[0]}-${limits.tag[1]} letters)</label><input class="nz-input" id="c-tag" maxlength="${limits.tag[1]}" spellcheck="false" placeholder="NS" style="text-transform:uppercase"></div>
+                </div><div class="field" style="margin-top:6px"><label>Colour</label><div class="swatches" id="c-colors"></div></div><div class="actions" id="c-act"></div></div>`);
             const sw = $('#c-colors', form);
             colors.forEach(c => {
-                const s = el('div', `swatch${c === color ? ' active' : ''}`); s.style.background = c;
-                s.onclick = () => { color = c; $$('.swatch', sw).forEach(x => x.classList.remove('active')); s.classList.add('active'); };
+                const s = el('button', `swatch${c === color ? ' on' : ''}`); s.style.setProperty('--sw', c);
+                s.onclick = () => { color = c; $$('.swatch', sw).forEach(x => x.classList.toggle('on', x === s)); };
                 sw.appendChild(s);
             });
-            $('#c-create', form).onclick = () => post('crew', { action: 'create', payload: { name: $('#c-name', form).value, tag: $('#c-tag', form).value, color } });
-            body.append(
-                UIx.group('Start a crew', form),
-                el('div', 'note', 'Crews share a leaderboard. Drive in sync with crewmates to build CREW FLOW: the more of you on the road together, the bigger the gap you can keep. Players outside your crew are ghosts, they drive straight through you.'),
-            );
-            return body;
+            $('#c-act', form).appendChild(UIx.btn('btn-teal', 'Create crew', 'plus', () => post('crew', { action: 'create', payload: { name: $('#c-name', form).value, tag: $('#c-tag', form).value, color } })));
+            out.push(form);
+            out.push(UIx.sec('How crews work', null, el('div', 'inc', `<h3>Run together, climb together</h3><p>Drive in sync with crewmates to build CREW FLOW. The more of you on the road together, the bigger the gap you can keep and the bigger the bonus.
+                Crew runs go on the crew board. Players outside your crew are ghosts: they drive straight through you.</p>`)));
+            return out;
         }
         const canManage = crew.myRole === 'owner' || crew.myRole === 'officer';
-        const hero = el('div', 'crew-hero', `<span class="crew-tag-big">${esc(crew.tag)}</span>
-            <div class="spacer"><h5>${esc(crew.name)}</h5><p>${crew.members.length}/${crew.max} members · ${fmt(crew.points)} pts · ${crew.position ? `#${crew.position} of ${crew.totalCrews}` : 'unranked'}</p></div>`);
-        hero.style.setProperty('--crew', crew.color);
-        hero.style.setProperty('--crew-rgb', hexRgb(crew.color));
-        const list = el('div', 'members');
+        const online = crew.members.filter(m => m.online).length;
+        const stats = el('div', 'stats');
+        stats.append(UIx.stat('trophy', 'Crew points', fmt(crew.points)), UIx.stat('flag', 'Crew board', crew.position ? `#${crew.position} of ${crew.totalCrews}` : 'Unranked'),
+            UIx.stat('crew', 'Members', `${crew.members.length} / ${crew.max}`));
+        out.push(stats);
+
+        const panel = el('div', 'panel', `<div class="p-head"><div><h2><span class="crew-chip" style="--c:${esc(crew.color)};--c-rgb:${hexRgb(crew.color)};margin-right:8px">${esc(crew.tag)}</span>${esc(crew.name)}</h2>
+            <p>${online} online · you are ${esc(crew.myRole)}</p></div><div class="row-inv" style="display:flex;gap:8px"></div></div><div class="p-body"></div>`);
+        if (canManage) {
+            const inp = el('input', 'nz-input'); inp.placeholder = 'Server ID'; inp.style.width = '110px';
+            $('.row-inv', panel).append(inp, UIx.btn('btn-teal', 'Invite', 'plus', () => post('crew', { action: 'invite', payload: { target: inp.value } })));
+        }
+        const body = $('.p-body', panel);
+        const rank = { member: 1, officer: 2, owner: 3 };
         crew.members.forEach(mb => {
-            const row = el('div', 'member', `<i class="on-dot ${mb.online ? 'on' : ''}"></i>
-                <div><b>${esc(mb.name)}</b>${mb.me ? ' <span class="muted">(you)</span>' : ''}</div>
-                <span class="role ${mb.role}">${mb.role}</span>
-                <span class="num muted">${fmt(mb.pbCrew)}</span><div class="row"></div>`);
-            const actions = $('.row', row);
+            const r = el('div', 'row', `<i class="on-dot ${mb.online ? 'on' : ''}"></i><div class="av">${initials(mb.name)}</div>
+                <div class="row-txt"><b>${esc(mb.name)}${mb.me ? ' <span style="display:inline;color:var(--nz-ink-3)">(you)</span>' : ''}</b><span>Crew PB ${fmt(mb.pbCrew)} · Solo PB ${fmt(mb.pbSolo)}</span></div>
+                <span class="tag ${mb.role === 'owner' ? 'live' : mb.role === 'officer' ? 'hot' : 'off'}">${esc(mb.role)}</span><div class="acts"></div>`);
+            const acts = $('.acts', r);
             if (!mb.me) {
                 if (crew.myRole === 'owner') {
-                    if (mb.role === 'member') { const b = el('button', 'btn small ghost', 'Promote'); b.onclick = () => post('crew', { action: 'promote', payload: { key: mb.key } }); actions.appendChild(b); }
-                    if (mb.role === 'officer') { const b = el('button', 'btn small ghost', 'Demote'); b.onclick = () => post('crew', { action: 'demote', payload: { key: mb.key } }); actions.appendChild(b); }
-                    const t = el('button', 'btn small ghost', 'Make owner'); t.onclick = () => post('crew', { action: 'transfer', payload: { key: mb.key } }); actions.appendChild(t);
+                    if (mb.role === 'member') acts.appendChild(UIx.btn('btn-ghost', 'Promote', null, () => post('crew', { action: 'promote', payload: { key: mb.key } })));
+                    if (mb.role === 'officer') acts.appendChild(UIx.btn('btn-ghost', 'Demote', null, () => post('crew', { action: 'demote', payload: { key: mb.key } })));
+                    acts.appendChild(UIx.btn('btn-ghost', 'Make owner', null, () => post('crew', { action: 'transfer', payload: { key: mb.key } })));
                 }
-                const rank = { member: 1, officer: 2, owner: 3 };
-                if (canManage && rank[crew.myRole] > rank[mb.role]) {
-                    const k = el('button', 'btn small danger', 'Kick'); k.onclick = () => post('crew', { action: 'kick', payload: { key: mb.key } }); actions.appendChild(k);
-                }
+                if (canManage && rank[crew.myRole] > rank[mb.role]) acts.appendChild(UIx.btn('btn-ghost danger', 'Kick', null, () => post('crew', { action: 'kick', payload: { key: mb.key } })));
             }
-            list.appendChild(row);
+            body.appendChild(r);
         });
-        body.append(UIx.group(null, hero), UIx.group('Members', list));
-        if (canManage) {
-            const inv = el('div', 'card', `<div class="row"><input class="text-in" id="c-target" placeholder="Server ID" style="max-width:10rem"><button class="btn" id="c-invite">Send invite</button></div>`);
-            $('#c-invite', inv).onclick = () => post('crew', { action: 'invite', payload: { target: $('#c-target', inv).value } });
-            body.appendChild(UIx.group('Invite a driver', inv));
-        }
+        out.push(panel);
+
         if (crew.myRole === 'owner') {
-            const colors = el('div', 'swatches');
+            const sw = el('div', 'swatches');
             (State.config?.crewColors || []).forEach(c => {
-                const s = el('div', `swatch${c === crew.color ? ' active' : ''}`); s.style.background = c;
+                const s = el('button', `swatch${c === crew.color ? ' on' : ''}`); s.style.setProperty('--sw', c);
                 s.onclick = () => post('crew', { action: 'color', payload: { color: c } });
-                colors.appendChild(s);
+                sw.appendChild(s);
             });
-            body.appendChild(UIx.group('Crew colour', colors));
+            out.push(UIx.sec('Crew colour', 'Shows on the leaderboard and next to every member.', sw));
         }
-        const danger = el('div', 'row');
-        const leave = el('button', 'btn ghost', 'Leave crew'); leave.onclick = () => post('crew', { action: 'leave' });
-        danger.appendChild(leave);
-        if (crew.myRole === 'owner') {
-            const dis = el('button', 'btn danger', 'Disband');
-            let armed = false;
-            dis.onclick = () => {
-                if (!armed) { armed = true; dis.textContent = 'Click again to disband'; setTimeout(() => { armed = false; dis.textContent = 'Disband'; }, 3000); return; }
-                post('crew', { action: 'disband' });
-            };
-            danger.appendChild(dis);
-        }
-        body.appendChild(UIx.group('Danger zone', danger));
-        return body;
+        const danger = el('div', 'actions');
+        const confirm = el('div', 'modal hidden', `<div class="modal-b"><div class="warn">${ICONS.alert}</div><div><h4>Disband ${esc(crew.name)}?</h4>
+            <p>Everyone is removed and the crew leaves the board. Members keep their own runs. This can't be undone.</p></div></div><div class="modal-f"></div>`);
+        $('.modal-f', confirm).append(UIx.btn('btn-line', 'Cancel', null, () => confirm.classList.add('hidden')), UIx.btn('btn-red', 'Disband crew', null, () => post('crew', { action: 'disband' })));
+        danger.appendChild(UIx.btn('btn-line', 'Leave crew', 'out', () => post('crew', { action: 'leave' })));
+        if (crew.myRole === 'owner') danger.appendChild(UIx.btn('btn-red', 'Disband', null, () => confirm.classList.remove('hidden')));
+        out.push(UIx.sec('Danger zone', crew.myRole === 'owner' ? 'Leaving hands the crew to your highest ranked member.' : null, danger, confirm));
+        return out;
     },
     profile() {
         const p = State.profile || {};
         const pb = Math.max(p.pbSolo || 0, p.pbCrew || 0);
         const rank = rankFor(pb);
-        const body = el('div');
-        const rc = el('div', 'card rank-big', `<div><small class="muted">Rank</small><div class="rb-name" style="color:${rank.color}">${esc(rank.name)}</div></div>
-            <div class="rb-bar"><div class="row"><small class="muted">${rank.nextName ? `${fmt(rank.toNext)} pts to ${esc(rank.nextName)}` : 'Max rank'}</small><span class="spacer"></span><b class="num">${rank.pct}%</b></div>
-            <div class="progress"><i style="width:${rank.pct}%"></i></div></div>`);
-        const cards = el('div', 'stat-cards', [
-            ['PB Solo', fmt(p.pbSolo)], ['PB Crew', fmt(p.pbCrew)], ['Solo Position', p.position ? `#${fmt(p.position)} / ${fmt(p.totalPlayers)}` : '-'],
-            ['Crew Run Position', p.crewPosition ? `#${fmt(p.crewPosition)}` : '-'], ['Runs', fmt(p.runs)], ['Total Points', compact(p.totalPoints || 0)],
-            ['Distance', `${fmt((p.totalDistance || 0) / 1000)} km`], ['Crew', p.crew ? `[${p.crew.tag}] ${p.crew.name}` : 'Solo'], ['Server', State.config?.serverName || '-'],
-        ].map(([k, v]) => `<div class="stat-card"><span>${k}</span><b>${esc(v)}</b></div>`).join(''));
-        const open = el('button', 'btn', 'Open leaderboard');
-        open.onclick = () => { Menu.close(true); post('openBoard'); };
-        body.append(UIx.group(null, rc), UIx.group('Stats', cards), UIx.group(null, open));
-        return body;
+        const s1 = el('div', 'stats'), s2 = el('div', 'stats');
+        s1.append(UIx.stat('trophy', 'PB solo', fmt(p.pbSolo)), UIx.stat('crew', 'PB crew', fmt(p.pbCrew)), UIx.stat('bolt', 'Runs', fmt(p.runs)));
+        s2.append(UIx.stat('flag', 'Solo board', p.position ? `#${fmt(p.position)}` : '-'), UIx.stat('flag', 'Crew run board', p.crewPosition ? `#${fmt(p.crewPosition)}` : '-'),
+            UIx.stat('road', 'Distance', `${fmt((p.totalDistance || 0) / 1000)} km`));
+        const rp = el('div', 'panel', `<div class="p-head"><div><h2>${esc(rank.name)}</h2><p>${rank.nextName ? `${fmt(rank.toNext)} pts to ${esc(rank.nextName)}` : 'Top rank'} · ranked by your best run, solo or crew</p></div>
+            <span class="tag live">${rank.pct}%</span></div><div class="p-body"><div class="progress"><i style="width:${rank.pct}%"></i></div>
+            <div class="opt"><div class="opt-t"><b>Total points</b><small>Every run you've finished</small></div><b>${fmt(p.totalPoints)}</b></div>
+            <div class="opt"><div class="opt-t"><b>Crew</b></div><b>${p.crew ? `[${esc(p.crew.tag)}] ${esc(p.crew.name)}` : 'Solo'}</b></div></div>`);
+        const acts = el('div', 'actions');
+        acts.appendChild(UIx.btn('btn-teal', 'Open leaderboard', 'trophy', () => Menu.tab('board')));
+        return [s1, s2, rp, acts];
     },
     interface() {
-        const body = el('div');
+        const out = [];
         if (State.config?.playerPrefs) {
-            body.append(
-                UIx.group('Colours', UIx.grid(3,
-                    UIx.color({ label: 'Accent', path: 'ui.accent' }),
-                    UIx.color({ label: 'Accent fade', path: 'ui.accent2' }),
-                    UIx.color({ label: 'Alert', path: 'ui.alert' }))),
-                UIx.group('Layout', UIx.grid(2,
-                    UIx.slider({ label: 'Size', path: 'ui.scale', min: .8, max: 1.25, step: .01, format: v => `${Math.round(v * 100)}%` }),
-                    UIx.seg({ label: 'Notifications', path: 'ui.toastPosition', options: [
-                        { v: 'top-left', l: 'Top L' }, { v: 'top-center', l: 'Top' }, { v: 'top-right', l: 'Top R' }, { v: 'bottom-left', l: 'Bot L' }, { v: 'bottom-right', l: 'Bot R' }] }))),
-                UIx.group('Sound & motion', UIx.grid(3,
-                    UIx.toggle({ label: 'Sounds', path: 'ui.sounds' }),
+            out.push(
+                UIx.sec('Colours', 'Your own colours. Saved on your PC only.', UIx.grid(2,
+                    UIx.color({ label: 'Menu accent', desc: 'Buttons, toggles and highlights', path: 'ui.accent' }),
+                    UIx.color({ label: 'Alert', desc: 'Crashes, threat arrows, hearts, close', path: 'ui.alert' }),
+                    UIx.color({ label: 'HUD colour', desc: 'Multiplier tag, rings, flow state', path: 'ui.hudAccent' }),
+                    UIx.color({ label: 'HUD fade', desc: 'Score bar and combo hold', path: 'ui.hudAccent2' }))),
+                UIx.sec('Layout', null,
+                    UIx.slider({ label: 'Size', desc: 'Scales the HUD and every menu', path: 'ui.scale', min: .8, max: 1.25, step: .01, format: v => `${Math.round(v * 100)}%` }),
+                    UIx.seg({ label: 'Notifications', desc: 'Where ox_lib notifications pop up', path: 'ui.toastPosition', options: [
+                        { v: 'top-left', l: 'Top left' }, { v: 'top-center', l: 'Top' }, { v: 'top-right', l: 'Top right' }, { v: 'bottom-left', l: 'Bottom left' }, { v: 'bottom-right', l: 'Bottom right' }] })),
+                UIx.sec('Sound & motion', null, UIx.grid(2,
+                    UIx.toggle({ label: 'Sounds', desc: 'Near misses, crashes, shifts', path: 'ui.sounds' }),
                     UIx.slider({ label: 'Volume', path: 'ui.volume', min: 0, max: 1, step: .05, format: v => `${Math.round(v * 100)}%` }),
-                    UIx.toggle({ label: 'Reduce motion', path: 'ui.reduceMotion' }))),
+                    UIx.toggle({ label: 'Reduce motion', desc: 'No scanlines, glows or popup animations', path: 'ui.reduceMotion' }))),
             );
         }
-        body.append(
-            UIx.group('HUD', UIx.grid(3,
-                UIx.toggle({ label: 'Show HUD', path: 'hud.show' }),
-                UIx.toggle({ label: 'Tacho', path: 'hud.tacho' }),
-                UIx.toggle({ label: 'PB & rank', path: 'hud.pb' }),
-                UIx.toggle({ label: 'Bonus strip', path: 'hud.bonuses' }),
-                UIx.toggle({ label: 'Score popups', path: 'hud.popups' }))),
-        );
-        const reset = el('button', 'btn ghost', 'Reset to server defaults');
-        reset.onclick = () => {
-            const d = State.config?.defaults;
-            if (!d) return;
-            State.settings.ui = JSON.parse(JSON.stringify(d.ui));
-            State.settings.hud = JSON.parse(JSON.stringify(d.hud));
-            UIx.change('ui.accent', d.ui.accent);
-            UIx.change('hud.show', d.hud.show);
-            Menu.renderTab();
-        };
-        body.appendChild(UIx.group(null, reset));
-        return body;
+        const chips = el('div', 'chips');
+        [['tacho', 'Tacho', 'gauge'], ['pb', 'PB & rank', 'trophy'], ['bonuses', 'Bonus strip', 'bolt'], ['popups', 'Score popups', 'star']].forEach(([k, l, i]) => {
+            const c = el('button', `chip-t${State.settings.hud[k] ? ' on' : ''}`, `${ICONS[i]}${l}`);
+            c.onclick = () => { const v = !c.classList.contains('on'); c.classList.toggle('on', v); Sound.play('ui'); UIx.change(`hud.${k}`, v); };
+            chips.appendChild(c);
+        });
+        out.push(UIx.sec('HUD', null, UIx.toggle({ label: 'Show HUD', desc: 'Hide everything while you drive', path: 'hud.show' }), UIx.opt('Elements', 'Pick what shows on screen', null, true), chips));
+        return out;
     },
 };
 
@@ -712,6 +738,7 @@ const TAB_META = {
     profile: ['Profile', 'Your bests, rank and stats'],
     interface: ['Interface', 'Colours, size, sounds and HUD'],
 };
+const TAB_GROUPS = [['Driving', ['camera', 'driving', 'wheel']], ['Crew', ['crew', 'profile', 'board']], ['Display', ['interface']]];
 
 function rankFor(points) {
     const ranks = State.config?.ranks || [{ name: 'Rookie 1', min: 0, color: '#a7aeb3' }];
@@ -726,52 +753,105 @@ function rankFor(points) {
 }
 
 const Menu = {
+    active: false,
     open(d) {
         State.menuOpen = true;
         State.settings = d.settings;
         State.profile = d.profile || State.profile;
         State.cameraModes = d.cameraModes || [];
+        this.active = !!d.active;
         if (d.wheelProfiles && window.WheelMgr) WheelMgr.setProfiles(d.wheelProfiles);
-        Theme.apply(State.settings.ui);
-        const nav = $('#menu-tabs');
-        nav.innerHTML = '';
-        Object.keys(TAB_META).forEach(id => {
-            const b = el('button', '', `${ICONS[id]}<span>${TAB_META[id][0]}</span>`);
-            b.dataset.tab = id;
-            b.onclick = () => { Sound.play('ui'); this.tab(id); };
-            nav.appendChild(b);
-        });
+        UIx.apply();
+        UIx.snapshot();
+        $('#m-ver').textContent = `v${State.config?.version || '1.0.0'}`;
+        $('#m-sub').textContent = `Settings · ${State.config?.serverName || ''}`;
+        const k = State.config?.keys || {};
+        $('#m-statusbar').innerHTML = `<span><span class="key">ESC</span>Close</span><span><span class="key">${esc(k.Leaderboard || 'F10')}</span>Leaderboard</span>
+            <span><span class="key">${esc(k.Camera || 'V')}</span>Camera</span><span><span class="key">${esc(k.ToggleMode || 'F6')}</span>CUT UP</span><span class="spacer"></span><span><b>NayZeee</b> Development</span>`;
         $('#menu').classList.remove('hidden');
-        this.side();
         this.tab(d.tab || State.menuTab);
         post('crew', { action: 'refresh' });
     },
     close(silent) {
+        if (UIx.dirty) UIx.revert(false);
         State.menuOpen = false;
         $('#menu').classList.add('hidden');
         if (window.WheelUI) WheelUI.onHide();
         if (!silent) post('close');
     },
+    status(flash) {
+        const p = State.profile || {};
+        const dot = $('#m-dot'), txt = $('#m-status');
+        $('#m-undo').classList.toggle('hidden', !UIx.dirty);
+        if (UIx.dirty) {
+            dot.className = 'dot amber';
+            txt.innerHTML = 'You have <b>unsaved changes</b> · they preview live, Save keeps them';
+        } else if (flash) {
+            dot.className = 'dot';
+            txt.innerHTML = `<b>${esc(flash)}</b> · your settings are stored on this PC`;
+        } else {
+            const pb = Math.max(p.pbSolo || 0, p.pbCrew || 0);
+            dot.className = this.active ? 'dot' : 'dot off';
+            txt.innerHTML = `Driving as <b>${esc(p.name || 'Driver')}</b> · ${esc(rankFor(pb).name)} · PB <b>${fmt(pb)}</b>`;
+        }
+    },
     side() {
         const p = State.profile || {};
         const pb = Math.max(p.pbSolo || 0, p.pbCrew || 0);
         const r = rankFor(pb);
-        $('#menu-profile').innerHTML = `<span>${esc(p.name || 'Driver')}</span><b style="color:${r.color}">${esc(r.name)}</b><span>PB ${fmt(pb)}</span>`;
+        const side = $('#m-side');
+        side.innerHTML = `<div class="who"><div class="av">${initials(p.name)}</div><div class="who-txt"><b>${esc(p.name || 'Driver')}</b><span>${esc(r.name)}${p.crew ? ` · [${esc(p.crew.tag)}]` : ''}</span></div></div>
+            <div class="shift"><span>${compact(pb)} PB</span><b class="${this.active ? '' : 'off'}"><span class="dot ${this.active ? '' : 'off'}"></span>${this.active ? 'Cutting up' : 'Off the road'}</b></div>`;
+        const invites = (State.crewData?.invites || []).length;
+        const wheelOn = window.WheelMgr && Object.values(WheelMgr.profiles()).some(x => x && x.enabled);
+        TAB_GROUPS.forEach(([grp, ids], gi) => {
+            if (gi > 0) side.appendChild(el('div', 'grp', esc(grp)));
+            ids.forEach(id => {
+                const label = id === 'board' ? 'Leaderboard' : TAB_META[id][0];
+                let tally = '';
+                if (id === 'wheel' && wheelOn) tally = '<span class="tally live">ON</span>';
+                if (id === 'crew' && invites) tally = `<span class="tally live">${invites}</span>`;
+                else if (id === 'crew' && State.crewData?.crew) tally = `<span class="tally">${esc(State.crewData.crew.tag)}</span>`;
+                if (id === 'board') tally = `<span class="tally">${esc(State.config?.keys?.Leaderboard || 'F10')}</span>`;
+                const b = el('button', `nav${id === State.menuTab ? ' on' : ''}`, `${ICONS[id]}${esc(label)}${tally}`);
+                b.dataset.tab = id;
+                b.onclick = () => { Sound.play('ui'); this.tab(id); };
+                side.appendChild(b);
+            });
+        });
     },
     tab(id) {
+        if (id === 'board') { this.close(true); post('openBoard'); return; }
+        if (id !== 'wheel' && window.WheelUI) WheelUI.onHide();
         State.menuTab = id;
-        $$('#menu-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
         $('#menu-title').textContent = TAB_META[id][0];
         $('#menu-sub').textContent = TAB_META[id][1];
-        if (id !== 'wheel' && window.WheelUI) WheelUI.onHide();
+        const act = $('#m-headact');
+        act.innerHTML = '';
+        if (id === 'interface') {
+            act.appendChild(UIx.btn('btn-red', 'Reset to default', 'reset', () => {
+                const d = State.config?.defaults;
+                if (!d) return;
+                State.settings.ui = clone(d.ui); State.settings.hud = clone(d.hud);
+                UIx.change('hud.show', d.hud.show);
+                this.renderTab();
+            }));
+        }
+        if (id === 'camera') act.appendChild(el('span', 'tag live', esc((State.cameraModes.find(m => m.id === State.settings.camera.mode) || {}).label || '')));
+        this.side();
+        this.status();
         this.renderTab();
     },
     renderTab() {
         const body = $('#menu-body');
         body.innerHTML = '';
-        body.appendChild(Tabs[State.menuTab]());
+        [].concat(Tabs[State.menuTab]()).forEach(n => n && body.appendChild(n));
+        body.scrollTop = 0;
     },
 };
+
+$('#m-save').onclick = () => UIx.save();
+$('#m-undo').onclick = () => UIx.revert();
 
 /* ============================== MESSAGES ============================== */
 const Handlers = {
@@ -784,13 +864,13 @@ const Handlers = {
     },
     hud(d) { HUD.update(d); },
     popup(d) { Popups.show(d); },
-    toast(d) { Toasts.show(d); },
+    hint(d) { Hint.show(d); },
     arrows(d) { Arrows.render(d || []); },
     sound(name) { Sound.play(name); },
     summary(d) { Summary.show(d); },
     'summary:result'(d) { Summary.result(d); },
-    profile(d) { State.profile = d; if (State.menuOpen) { Menu.side(); if (State.menuTab === 'profile') Menu.renderTab(); } },
-    crew(d) { State.crewData = d || { crew: null, invites: [] }; if (State.menuOpen && State.menuTab === 'crew') Menu.renderTab(); },
+    profile(d) { State.profile = d; if (State.menuOpen) { Menu.side(); Menu.status(); if (State.menuTab === 'profile') Menu.renderTab(); } },
+    crew(d) { State.crewData = d || { crew: null, invites: [] }; if (State.menuOpen) { Menu.side(); if (State.menuTab === 'crew') Menu.renderTab(); } },
     'menu:open'(d) { if (State.boardOpen) Board.close(); Menu.open(d); },
     'menu:close'() { Menu.close(true); },
     'board:open'() { if (State.menuOpen) Menu.close(true); Board.open(); },

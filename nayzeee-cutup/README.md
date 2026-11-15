@@ -40,7 +40,8 @@ If your server uses `sv_entityLockdown strict`, client-spawned traffic is blocke
 | Threat arrows | Red arrows orbit your car while a non-crew player closes in, and drop off once they pass. |
 | Leaderboard | Solo, crew runs and crews boards with expandable run details, search and your pinned position. |
 | Ranks | Rookie through Legend by personal best, with progress to the next rank on the HUD. |
-| Interface | Players pick their own accent colours, size, notification spot, sounds and HUD parts (Config.UI). |
+| Interface | NayZeee UI settings window. Players pick their own menu accent, HUD colours, size, notification spot, sounds and HUD parts (Config.UI). |
+| Notifications | ox_lib (`lib.notify`) when it's running, otherwise the GTA feed. Quick feedback (camera, FOV, gearbox) shows as a small hint on the HUD. |
 
 ## Keys and commands
 
@@ -61,11 +62,26 @@ All keys are rebindable in Settings > Key Bindings > FiveM.
 | | `/cutupadmin resetboards` | Wipe every leaderboard |
 | | `/cutupadmin resetplayer <id>` | Wipe one driver's bests |
 
+ox_lib is optional. Set `Config.Notify` to `'native'` to always use the GTA feed, or `false` to turn notifications off.
+
 ## Race wheels
 
 The menu page reads the wheel through the browser Gamepad API and sends the mapped values into the car every
-frame. Anything Windows sees as a game controller works: Logitech, Thrustmaster, Fanatec, Moza, Simagic,
-Xbox wheels and pads.
+frame. If Windows lists it under "Set up USB game controllers" (joy.cpl), it works. Presets ship for:
+
+| Brand | Wheels |
+| --- | --- |
+| Logitech | G29, G920, G923, G27, G25, Driving Force GT, G Pro |
+| Thrustmaster | T80, T128, TMX, T150, T248, T300RS, TX, T-GT, TS-PC, TS-XW, T-GT II |
+| Thrustmaster (Xbox) | Ferrari 458 Spider, Ferrari 458 Italia (when Windows shows them as an Xbox controller) |
+| Fanatec | CSL Elite, CSL DD, GT DD Pro, ClubSport, Podium DD |
+| Moza | R3, R5, R9, R12, R16, R21 |
+| Simagic | Alpha Mini, Alpha, Alpha U, Evo |
+| Others | Cammus C5 / C12, PXN V9 / V10 / V12, Hori Racing Wheel / Apex, any Xbox or PlayStation pad |
+
+Pedal sets and shifters that plug in on their own USB (Heusinkveld, Fanatec, Simagic, Thrustmaster TH8A, Logitech
+Driving Force Shifter) show up as their own device. The menu drives with one device at a time, so plug pedals and
+shifters into the wheel base where you can.
 
 1. Open F5 > Wheel and turn the wheel or press a pedal so Windows wakes it up.
 2. Pick a preset and press **Run setup wizard**: turn right, press each pedal fully then let go, pull the paddles.

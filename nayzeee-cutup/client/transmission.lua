@@ -23,7 +23,7 @@ function Transmission.SetMode(mode)
     CU.Trans.mode = mode
     CU.Settings.gameplay.transmission = mode
     gear = 1
-    UI.Toast(L('gearbox', LABELS[mode]), nil, 'info')
+    UI.Hint(L('gearbox', LABELS[mode]))
 end
 
 local function clutchIn()
@@ -37,7 +37,7 @@ end
 function Transmission.ShiftUp()
     if not inUse() or CU.Trans.mode == 'auto' then return end
     if CU.Trans.mode == 'hpattern' and Config.Transmission.RequireClutchHPattern and not clutchIn() then
-        UI.Toast(L('no_clutch'), nil, 'warn') UI.Send('sound', 'grind') return
+        UI.Hint(L('no_clutch'), 'warn') UI.Send('sound', 'grind') return
     end
     gear = math.min(maxGear(), gear + 1)
     UI.Send('sound', 'shift')
@@ -46,7 +46,7 @@ end
 function Transmission.ShiftDown()
     if not inUse() or CU.Trans.mode == 'auto' then return end
     if CU.Trans.mode == 'hpattern' and Config.Transmission.RequireClutchHPattern and not clutchIn() then
-        UI.Toast(L('no_clutch'), nil, 'warn') UI.Send('sound', 'grind') return
+        UI.Hint(L('no_clutch'), 'warn') UI.Send('sound', 'grind') return
     end
     gear = math.max(-1, gear - 1)
     UI.Send('sound', 'shift')

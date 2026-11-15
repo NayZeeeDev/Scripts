@@ -55,11 +55,12 @@ Config.Everywhere = {
 -- change their own colours, size and sounds from F5 > Interface.
 -- Their choices are saved on their own PC and never touch the database.
 Config.UI = {
-    Accent        = '#a873ff',   -- Main colour (bars, highlights, score fill, flow state)
-    Accent2       = '#ff6fb5',   -- Second colour the accent fades into (gradients, combo bar)
-    Alert         = '#e5484d',   -- Danger colour (crashes, threat arrows, hearts)
+    Accent        = '#08afa2',   -- Main colour of the menus (buttons, toggles, sliders, highlights)
+    Alert         = '#e5484d',   -- Danger colour (close buttons, crashes, threat arrows, hearts)
+    HudAccent     = '#a873ff',   -- In-game HUD colour (multiplier tag, rings, flow state)
+    HudAccent2    = '#ff6fb5',   -- The colour the HUD accent fades into (score bar, combo hold)
     Scale         = 1.0,         -- 0.8 - 1.25
-    ToastPosition = 'top-right', -- top-right | top-left | top-center | bottom-right | bottom-left
+    ToastPosition = 'top-right', -- where ox_lib notifications pop up: top-right | top-left | top-center | bottom-right | bottom-left
     Sounds        = true,
     Volume        = 0.7,         -- 0.0 - 1.0
     ReduceMotion  = false,       -- Turns off the scanlines, glows and popup animations
@@ -68,8 +69,13 @@ Config.UI = {
     SettingsCommand = 'cutupsettings', -- Opens the settings page. false to disable
 
     -- Swatches shown in the colour picker (players can still type any hex)
-    Presets = { '#a873ff', '#ff6fb5', '#08afa2', '#3d9bff', '#e5a50a', '#46c08a', '#e5484d', '#f2f4f5' },
+    Presets = { '#08afa2', '#3d9bff', '#a873ff', '#ff6fb5', '#e5a50a', '#46c08a', '#e5484d', '#f2f4f5' },
 }
+
+-- Notifications use ox_lib (lib.notify) when it's running, otherwise the GTA feed above the minimap.
+-- Players pick where they pop up in F5 > Interface; Config.UI.ToastPosition is the default.
+--   'ox_lib' = ox_lib, falls back to native   |   'native' = always the GTA feed   |   false = off
+Config.Notify = 'ox_lib'
 
 -- ██╗  ██╗███████╗██╗   ██╗███████╗
 -- ██║ ██╔╝██╔════╝╚██╗ ██╔╝██╔════╝
