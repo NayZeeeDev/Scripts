@@ -1468,32 +1468,8 @@ export interface FobKeyBinds { throw: string; inspect: string; move: string; hel
  *  (presses the game does not beep for itself, player setting fobBeep). */
 export interface FobPress { button: FobButtonName; seq: number; beep: boolean }
 
-/** Inspect card: a key on the ground (server nz:carlock:ground:inspect) or one you carry
- *  (nz:carlock:inspect). Everything comes from the server's answer. */
-export interface FobInspect {
-  source: 'ground' | 'carried';
-  /** ground key id (Keep / Return to ground) */
-  id?: string | null;
-  plate: string;
-  /** vehicle name ('' when the server does not know the model) */
-  vehicle: string;
-  /** the key's own label ('Vehicle key ABC123') */
-  keyLabel: string;
-  make: string;
-  design: string;
-  kind: 'key' | 'fob';
-  /** carried: cut for the current locks */
-  valid?: boolean | null;
-  /** ground: an NPC's key (picking it up gives a temporary key) */
-  temp?: boolean;
-  /** ground: seconds since it was dropped (server clock) */
-  droppedAgo?: number | null;
-  /** carried: crime origin ('locksmith' | 'search'), null for a registered key */
-  origin?: string | null;
-}
-
-/** hud: no focus, the fob on screen · edit: move / resize (focus) · help · inspect (focus) */
-export type FobMode = 'hud' | 'edit' | 'help' | 'inspect';
+/** hud: no focus, the fob on screen · edit: move / resize (focus) · help (focus) */
+export type FobMode = 'hud' | 'edit' | 'help';
 
 export interface FobHudData {
   mode: FobMode;
@@ -1505,7 +1481,6 @@ export interface FobHudData {
   holding: boolean;
   keys: FobKeyBinds;
   press?: FobPress | null;
-  inspect?: FobInspect | null;
 }
 
 /* ───────────────────────── NUI protocol ───────────────────────── */
@@ -1525,7 +1500,7 @@ export interface AppDataMap {
   keys: KeysOpenData;
   locksmith: LocksmithOpenData;
   contract: ContractOpenData;
-  /** on-screen key fob HUD, edit mode, help and the key inspect card */
+  /** on-screen key fob HUD, edit mode and help */
   fob: FobHudData;
   /** lockpick / hotwire / reader minigames */
   minigame: MinigameOpenData;
@@ -1715,12 +1690,10 @@ export interface NuiCallbacks {
   'contract:decline': Cb<{ contractId: string }, null>;
 
   /** fob HUD (client/carlock/fob.lua): save the layout (player setting fobPosition), leave a
-   *  focused mode, side prompt clicks, inspect card Keep / Return to ground */
+   *  focused mode (edit / help), side prompt clicks */
   'fob:save': Cb<FobLayout, FobLayout>;
   'fob:cancel': Cb<Record<string, never>, null>;
   'fob:action': Cb<{ action: 'throw' | 'inspect' | 'move' | 'help' | 'close' }, null>;
-  'fob:keep': Cb<{ id: string }, null>;
-  'fob:return': Cb<{ id: string }, null>;
 }
 
 export type NuiCallbackName = keyof NuiCallbacks;

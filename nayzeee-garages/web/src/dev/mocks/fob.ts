@@ -6,13 +6,10 @@
  *   fob-left         a plain metal key held on the left of the screen (prompts on the right)
  *   fob-edit         edit mode: drag / resize, prompts toggle, Reset / Save
  *   fob-help         the controls help
- *   fob-inspect-ground   a key on the ground: Keep / Return to ground
- *   fob-inspect-temp     an NPC's dropped key (temporary key), unknown make
- *   fob-inspect-carried  a back-alley fob you carry, cut for old locks
  * The handlers answer fob:* like client/carlock/fob.lua (cancel returns to the HUD, save keeps
- * the layout, keep / return close the card).
+ * the layout).
  */
-import type { FobHudData, FobHudKey, FobInspect, FobLayout, NuiMessage } from '../../lib/types';
+import type { FobHudData, FobHudKey, FobLayout, NuiMessage } from '../../lib/types';
 import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui } from '../../lib/nui';
 
@@ -27,7 +24,7 @@ let state: FobHudData = base(jester);
 
 
 function base(key: FobHudKey, extra: Partial<FobHudData> = {}): FobHudData {
-  return { mode: 'hud', key, layout: { ...DEFAULTS }, defaults: DEFAULTS, holding: false, keys: KEYS, press: null, inspect: null, ...extra };
+  return { mode: 'hud', key, layout: { ...DEFAULTS }, defaults: DEFAULTS, holding: false, keys: KEYS, press: null, ...extra };
 }
 
 function open(data: FobHudData): NuiMessage {
@@ -77,23 +74,6 @@ registerMock({
   messages: [open(base(tenF, { mode: 'help', holding: true }))],
 });
 
-const groundKey: FobInspect = {
-  source: 'ground', id: 'a1b2c3d4e5f6', plate: '46EEK572', vehicle: 'Dinka Jester RR', keyLabel: 'Vehicle fob 46EEK572',
-  make: 'DINKA', design: 'sport', kind: 'fob', droppedAgo: 420,
-};
-const tempKey: FobInspect = {
-  source: 'ground', id: 'ffee0011aabb', plate: '82KLM301', vehicle: '', keyLabel: 'Vehicle key 82KLM301',
-  make: '', design: 'key', kind: 'key', temp: true, droppedAgo: 35,
-};
-const carriedKey: FobInspect = {
-  source: 'carried', plate: 'NZ 4210', vehicle: 'Übermacht Zion Classic', keyLabel: 'Vehicle fob NZ 4210',
-  make: 'Übermacht', design: 'leather', kind: 'fob', valid: false, origin: 'locksmith',
-};
-
-registerMock({ id: 'fob-inspect-ground', group: 'Fob HUD', label: 'Inspect: key on the ground', messages: [open(base(jester, { mode: 'inspect', inspect: groundKey }))] });
-registerMock({ id: 'fob-inspect-temp', group: 'Fob HUD', label: "Inspect: an NPC's key (temporary)", messages: [open(base(jester, { mode: 'inspect', inspect: tempKey }))] });
-registerMock({ id: 'fob-inspect-carried', group: 'Fob HUD', label: 'Inspect: back-alley fob, old locks', messages: [open(base(tenF, { mode: 'inspect', holding: true, inspect: carriedKey }))] });
-
 // presses while holding (fob-holding): unlock, trunk, panic (beep), then lock
 let timer: number | undefined;
 window.addEventListener('message', (e: MessageEvent) => {
@@ -113,7 +93,7 @@ window.addEventListener('message', (e: MessageEvent) => {
 });
 
 mockNui('fob:cancel', () => {
-  push({ mode: 'hud', inspect: null });
+  push({ mode: 'hud' });
   return null;
 });
 mockNui('fob:save', (layout) => {
@@ -122,15 +102,6 @@ mockNui('fob:save', (layout) => {
 });
 mockNui('fob:action', ({ action }) => {
   if (action === 'help') push({ mode: 'help' });
-  if (action === 'inspect') push({ mode: 'inspect', inspect: carriedKey });
   if (action === 'throw') push({ mode: 'hud' });
-  return null;
-});
-mockNui('fob:keep', () => {
-  push({ mode: 'hud', inspect: null });
-  return null;
-});
-mockNui('fob:return', () => {
-  push({ mode: 'hud', inspect: null });
   return null;
 });

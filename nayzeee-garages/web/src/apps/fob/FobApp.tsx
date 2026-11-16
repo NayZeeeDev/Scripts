@@ -7,19 +7,16 @@
  *    prompts, Reset / Save (player setting fobPosition; the prompts toggle is kept in this
  *    browser's storage).
  *  - help (focus): what every control does.
- *  - inspect (focus): a key on the ground (Keep / Return to ground) or one you carry, with the
- *    spinning 3D brand logo.
+ * Inspect opens the key ring's inspect card (CarLock.openKeyInspect).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useApp } from '@/lib/store';
 import { request } from '@/lib/nui';
 import { useEscape } from '@/lib/escape';
 import { t } from '@/lib/i18n';
-import type { FobButtonName, FobHudData, FobHudKey, FobInspect, FobKeyBinds, FobLayout } from '@/lib/types';
-import { Badge, Button, Icon, KeyHint, PlateTag, Toggle, Window } from '@/components/ui';
+import type { FobButtonName, FobHudData, FobHudKey, FobKeyBinds, FobLayout } from '@/lib/types';
+import { Button, Icon, KeyHint, PlateTag, Toggle, Window } from '@/components/ui';
 import { FobArt, fobAspect } from '@/components/fob/FobArt';
-import { BrandLogo3D } from '@/components/fob/BrandLogo3D';
-import { brandName, brandSlug } from '@/components/fob/brands';
 import { fobBeep } from './beep';
 import './fob.css';
 
@@ -306,112 +303,6 @@ function HelpWindow({ keys, onClose }: { keys: FobKeyBinds; onClose: () => void 
   );
 }
 
-/* ───────────────────────────── inspect ───────────────────────────── */
-
-const INSPECT_HOLD_S = 20;
-
-function agoLabel(seconds: number): string {
-  if (seconds < 60) return t('just now');
-  const m = Math.floor(seconds / 60);
-  if (m < 60) return t('{n} min ago', { n: m });
-  return t('{n} h ago', { n: Math.floor(m / 60) });
-}
-
-function InspectWindow({ info, onClose }: { info: FobInspect; onClose: () => void }) {
-  const [busy, setBusy] = useState<'keep' | 'return' | null>(null);
-  const [held, setHeld] = useState(INSPECT_HOLD_S);
-  const ground = info.source === 'ground' && !!info.id;
-
-  useEffect(() => {
-    if (!ground) return;
-    setHeld(INSPECT_HOLD_S);
-    const started = Date.now();
-    const id = window.setInterval(() => setHeld(Math.max(0, INSPECT_HOLD_S - Math.floor((Date.now() - started) / 1000))), 500);
-    return () => window.clearInterval(id);
-  }, [ground, info.id]);
-
-  const act = async (what: 'keep' | 'return') => {
-    if (!info.id) return;
-    setBusy(what);
-    const res = await request(what === 'keep' ? 'fob:keep' : 'fob:return', { id: info.id });
-    if (!res.ok) setBusy(null);
-  };
-
-  const origin = info.origin === 'locksmith' ? t('Back-alley copy') : info.origin === 'search' ? t('Spare key found in a vehicle') : null;
-  return (
-    <Window
-      title={ground ? t('Key on the ground') : t('Your key')}
-      subtitle={t('Inspect')}
-      icon="key"
-      width={600}
-      onClose={ground ? () => void act('return') : onClose}
-      closeLabel={ground ? t('Leave it') : undefined}
-      className="nz-fob__inspect"
-      footer={
-        ground ? (
-          <div className="nz-fob__inspect-foot">
-            <span className={`nz-fob__held${held === 0 ? ' is-over' : ''}`}>
-              <Icon name="clock" size={12} />
-              {held > 0 ? t('Held for you · {s} s', { s: held }) : t('Anyone can pick it up again')}
-            </span>
-            <Button variant="line" icon="arrowLeft" disabled={!!busy} loading={busy === 'return'} onClick={() => void act('return')}>
-              {t('Return to ground')}
-            </Button>
-            <Button variant="teal" icon="check" disabled={!!busy} loading={busy === 'keep'} onClick={() => void act('keep')}>
-              {t('Keep')}
-            </Button>
-          </div>
-        ) : (
-          <div className="nz-fob__inspect-foot">
-            <KeyHint keys={['Esc']} label={t('Close')} />
-          </div>
-        )
-      }
-    >
-      <div className="nz-fob__inspect-body">
-        <div className="nz-fob__stage">
-          <span className="nz-fob__stage-glow" />
-          <FobArt design={info.design} kind={info.kind} brand={info.make || null} size={224} className="nz-fob__stage-art" />
-          <span className="nz-fob__stage-logo">
-            <BrandLogo3D brand={info.make || null} size={112} />
-            <span className="nz-fob__stage-brand">{brandSlug(info.make) ? brandName(brandSlug(info.make)!) : t('Unknown make')}</span>
-          </span>
-        </div>
-        <div className="nz-fob__facts">
-          <div className="nz-fob__eyebrow">{info.kind === 'fob' ? t('Electronic fob') : t('Metal key')}</div>
-          <h2 className="nz-fob__vehicle">{info.vehicle || t('Unknown vehicle')}</h2>
-          <div className="nz-fob__facts-plate">
-            <PlateTag plate={info.plate} />
-            {info.temp && <Badge tone="amber" icon="clock">{t('Temporary key')}</Badge>}
-            {info.valid === true && <Badge tone="teal" icon="check">{t('Fits the locks')}</Badge>}
-            {info.valid === false && <Badge tone="red" icon="ban">{t('Locks were changed')}</Badge>}
-          </div>
-          <dl className="nz-fob__list">
-            <div>
-              <dt>{t('Key')}</dt>
-              <dd>{info.keyLabel}</dd>
-            </div>
-            {origin && (
-              <div>
-                <dt>{t('Origin')}</dt>
-                <dd>{origin}</dd>
-              </div>
-            )}
-            {info.droppedAgo != null && (
-              <div>
-                <dt>{t('On the ground')}</dt>
-                <dd>{agoLabel(info.droppedAgo)}</dd>
-              </div>
-            )}
-          </dl>
-          {info.temp && <p className="nz-fob__note">{t('A key someone dropped and ran from: keeping it gives you a temporary key of this vehicle.')}</p>}
-          {info.valid === false && <p className="nz-fob__note is-red">{t('This key was cut before the locks were changed and no longer opens the vehicle.')}</p>}
-        </div>
-      </div>
-    </Window>
-  );
-}
-
 /* ───────────────────────────── root ───────────────────────────── */
 
 export function FobApp() {
@@ -468,7 +359,6 @@ export function FobApp() {
         />
       )}
       {data.mode === 'help' && <HelpWindow keys={data.keys} onClose={cancel} />}
-      {data.mode === 'inspect' && data.inspect && <InspectWindow info={data.inspect} onClose={cancel} />}
     </div>
   );
 }
