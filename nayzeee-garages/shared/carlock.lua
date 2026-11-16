@@ -454,8 +454,8 @@ local SETTINGS = {
     label = 'Catch window (ms)', description = 'Time to catch a thrown key before it falls.' },
   { id = 'ground.markerStyle', tab = 'ground', type = 'enum', path = 'ground.marker.style', options = { 'none', 'chevron', 'ring', 'dot' },
     label = 'Marker style', description = 'Shape drawn above keys on the ground.' },
-  { id = 'ground.markerColor', tab = 'ground', type = 'color', path = 'ground.marker.color',
-    label = 'Marker colour', description = 'Colour of the marker.' },
+  { id = 'ground.markerColor', tab = 'ground', type = 'color', path = 'ground.marker.color', alpha = true,
+    label = 'Marker colour', description = 'Colour and opacity of the marker.' },
   { id = 'ground.markerSize', tab = 'ground', type = 'number', path = 'ground.marker.size', min = 0.05, max = 2, step = 0.05,
     label = 'Marker size', description = 'Size of the marker (m).' },
   { id = 'ground.markerHeight', tab = 'ground', type = 'number', path = 'ground.marker.height', min = 0, max = 2, step = 0.05,
@@ -704,7 +704,9 @@ function CarLock.validateSetting(id, value)
     end
     return false, 'Unknown option'
   elseif t == 'color' then
-    if type(value) ~= 'string' or not value:match('^#%x%x%x%x%x%x$') then return false, 'Expected a colour (#rrggbb)' end
+    if type(value) ~= 'string' or not (value:match('^#%x%x%x%x%x%x$') or (entry.alpha and value:match('^#%x%x%x%x%x%x%x%x$'))) then
+      return false, 'Expected a colour (#rrggbb)'
+    end
     return true, value:lower()
   elseif t == 'classes' then
     local list = cleanList(value, 23, function(v)
@@ -783,7 +785,7 @@ function CarLock.settingsSchema(overrides)
     local raw = readPath(cfg, entry.path)
     local current = conv and conv.get(raw) or raw
     list[#list + 1] = {
-      id = entry.id, tab = entry.tab, type = entry.type,
+      id = entry.id, tab = entry.tab, type = entry.type, alpha = entry.alpha,
       label = L(entry.label), description = L(entry.description),
       value = deepCopy(current), default = deepCopy(base[entry.id]),
       overridden = overrides[entry.id] ~= nil,

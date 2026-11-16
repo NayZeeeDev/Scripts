@@ -717,10 +717,10 @@ local function groundCfg()
 end
 
 local function hexRgb(hex)
-  if type(hex) ~= 'string' then return 45, 212, 191 end
-  local r, g, b = hex:match('^#(%x%x)(%x%x)(%x%x)$')
-  if not r then return 45, 212, 191 end
-  return tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
+  if type(hex) ~= 'string' then return 45, 212, 191, 180 end
+  local r, g, b, a = hex:match('^#(%x%x)(%x%x)(%x%x)(%x?%x?)$')
+  if not r then return 45, 212, 191, 180 end
+  return tonumber(r, 16), tonumber(g, 16), tonumber(b, 16), #a == 2 and tonumber(a, 16) or 180
 end
 
 local function groundCoords(entry)
@@ -883,7 +883,7 @@ CreateThread(function()
         local marker = type(groundCfg().marker) == 'table' and groundCfg().marker or {}
         local mtype = MARKER_TYPES[marker.style]
         if mtype then
-          local r, g, b = hexRgb(marker.color)
+          local r, g, b, a = hexRgb(marker.color)
           local size = Utils.clamp(tonumber(marker.size) or 0.25, 0.05, 2.0)
           local height = Utils.clamp(tonumber(marker.height) or 0.35, 0.0, 2.0)
           for id in pairs(groundNear) do
@@ -891,7 +891,7 @@ CreateThread(function()
             if entry then
               local c = groundCoords(entry)
               DrawMarker(mtype, c.x, c.y, c.z + height, 0.0, 0.0, 0.0, mtype == 20 and 180.0 or 0.0, 0.0, 0.0,
-                size, size, size, r, g, b, 180, mtype == 20, false, 2, false, nil, nil, false)
+                size, size, size, r, g, b, a, mtype == 20, false, 2, false, nil, nil, false)
             end
           end
         end
