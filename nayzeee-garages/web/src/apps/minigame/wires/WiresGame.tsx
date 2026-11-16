@@ -216,10 +216,10 @@ export function WiresGame({ data }: { data: WiresData }) {
   const looseLeft = (i: number) => `M 70 ${128 + i * 42} C 128 ${128 + i * 42}, 140 ${ROWS[i]}, ${LEFT_TIP - 30} ${ROWS[i]}`;
   const looseRight = (j: number) => `M 570 ${128 + j * 42} C 512 ${128 + j * 42}, 500 ${ROWS[j]}, ${RIGHT_TIP + 30} ${ROWS[j]}`;
   const joint = (i: number, j: number) => {
-    const p0 = [LEFT_TIP - 4, ROWS[i]];
-    const p1 = [LEFT_TIP + 70, ROWS[i]];
-    const p2 = [RIGHT_TIP - 70, ROWS[j]];
-    const p3 = [RIGHT_TIP + 4, ROWS[j]];
+    const p0 = [LEFT_TIP - 30, ROWS[i]];
+    const p1 = [LEFT_TIP + 60, ROWS[i]];
+    const p2 = [RIGHT_TIP - 60, ROWS[j]];
+    const p3 = [RIGHT_TIP + 30, ROWS[j]];
     return { d: `M ${p0} C ${p1}, ${p2}, ${p3}`, mid: bezier(p0, p1, p2, p3, 0.5) };
   };
 
@@ -240,7 +240,7 @@ export function WiresGame({ data }: { data: WiresData }) {
         subtitle={vehicle || t('Behind the dashboard')}
         headerExtra={<TimeLeft limit={data.timeLimit} paused={status !== 'play'} />}
         onClose={cancel}
-        width={700}
+        width="min(700px, calc((100vh - 300px) * 1.9))"
         className={`nz-mg-wires is-${status}`}
         bodyClassName="nz-mg-wires__body"
       >

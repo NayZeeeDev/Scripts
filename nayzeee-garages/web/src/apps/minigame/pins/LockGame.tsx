@@ -46,9 +46,9 @@ function useBox(anchor: PinsData['anchor']) {
     window.addEventListener('resize', on);
     return () => window.removeEventListener('resize', on);
   }, []);
-  const w = Math.round(clamp(vw * 0.34, 420, 660));
-  const h = Math.round(w * 0.74);
-  const bottomSafe = 96; // prompt bar
+  const w = Math.round(clamp(vw * 0.32, 400, 620));
+  const h = Math.round(w * 0.66);
+  const bottomSafe = 96 + 100; // prompt bar + the card under the lock
   let left: number;
   let top: number;
   if (anchor && Number.isFinite(anchor.x) && Number.isFinite(anchor.y)) {

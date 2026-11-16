@@ -886,7 +886,7 @@ C.hotwiring.kitRequired = true
 res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
 check(not res.ok and res.error == 'You need a hotwire kit', 'wires + kitRequired, no minigames, no kit: refused')
 C.hotwiring.kitRequired = false
-C.hotwiring.style = hwStyle
+C.hotwiring.style = 'profile' -- the profile methods below (the shipped default is 'wires')
 res = cb('nz:carlock:hotwire', 1, { step = 'start', netId = carNet })
 advance(1500)
 fin = cb('nz:carlock:hotwire', 1, { step = 'finish', id = res.data.id, success = true })

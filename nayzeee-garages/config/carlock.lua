@@ -83,7 +83,7 @@ Config.CarLock = {
   -- The NUI minigames are only used when the player's client says it can play them; until
   -- then the server falls back to skill checks (lockpick) / the profile's method (hotwire).
   -- The fallback only changes the minigame: the signal reader / hotwire kit stays required.
-  lockpicking = { style = 'skillcheck', pins = 5, snapChance = 35, alarmOnSnap = true },
+  lockpicking = { style = 'pins', pins = 5, snapChance = 35, alarmOnSnap = true },
 
   -- Hotwiring (NUI minigames, docs/CARLOCK.md §8). style 'profile' = each security profile's
   -- hotwire method (skill checks / progress / hack); 'wires' = splice three pairs of wires
@@ -91,7 +91,7 @@ Config.CarLock = {
   -- which need items.signalReader (tune frequency / phase). Model overrides work with either
   -- style: readerModels always use the reader, wireModels always use wires.
   hotwiring = {
-    style = 'profile',
+    style = 'wires',
     kitRequired = false,
     readerClasses = { 6, 7 },
     readerModels = {},

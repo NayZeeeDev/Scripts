@@ -258,7 +258,7 @@ export function createLockView(canvas: HTMLCanvasElement, state: LockState): Loc
   root.add(pickPivot);
   const pickSlide = new THREE.Group();
   pickPivot.add(pickSlide);
-  const shaftLen = pinX(n - 1) - x0 + 1.5;
+  const shaftLen = pinX(n - 1) - x0 + 0.9;
   const shaftGeo = new THREE.BoxGeometry(shaftLen, 0.06, 0.045);
   shaftGeo.translate(-shaftLen / 2, 0, 0);
   pickSlide.add(new THREE.Mesh(shaftGeo, steel));
@@ -304,9 +304,9 @@ export function createLockView(canvas: HTMLCanvasElement, state: LockState): Loc
 
   /* ── camera: front-left, a little above; fitted to the lock ── */
   const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
-  const target = new THREE.Vector3((x0 - 2.2 + x0 + length) / 2, 1.0, 0.2);
+  const target = new THREE.Vector3((x0 - 3.0 + x0 + length) / 2, 1.0, 0.2);
   const dir = new THREE.Vector3(-0.5, 0.36, 0.86).normalize();
-  const radius = Math.max((length + 2.6) / 2, 2.6) + 0.6;
+  const radius = Math.max((length + 2.6) / 2, 2.6) * 0.8;
   const fitDistance = (aspect: number) => {
     const vFov = THREE.MathUtils.degToRad(camera.fov);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
