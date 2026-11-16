@@ -1198,7 +1198,13 @@ end
 
 local function spawnProp(rec)
   local props = type(groundCfg().props) == 'table' and groundCfg().props or {}
-  local model = rec.keyKind == 'fob' and (props.fob or 'lr_prop_carkey_fob') or (props.key or 'p_car_keys_01')
+  local fp = type(cfg().fobProps) == 'table' and cfg().fobProps or {}
+  local by = type(fp.byDesign) == 'table' and fp.byDesign or {}
+  local md = type(rec.metadata) == 'table' and rec.metadata or {}
+  local design = rec.keyKind == 'key' and 'key' or (type(md.design) == 'string' and md.design)
+    or (type(cfg().fob) == 'table' and cfg().fob.defaultDesign) or 'classic'
+  local model = by[design] or (rec.keyKind == 'fob' and (fp.fallback or props.fob or 'lr_prop_carkey_fob'))
+    or props.key or 'p_car_keys_01'
   local ok, entity = pcall(CreateObjectNoOffset, joaat(model), rec.coords.x, rec.coords.y, rec.coords.z, true, true, false)
   if not ok or type(entity) ~= 'number' or entity == 0 then return end
   pcall(SetEntityHeading, entity, rec.heading or 0.0)
@@ -1407,7 +1413,8 @@ lib.callback.register('nz:carlock:ground:drop', Utils.safe(function(source, payl
     local base = GetEntityCoords(ped)
     coords = base + forward * 0.45
     coords = vector3(coords.x, coords.y, base.z - 0.6)
-    heading = GetEntityHeading(ped)
+    -- the placement bar's rotation is cosmetic: the position stays the server's
+    heading = tonumber(payload.heading) and (tonumber(payload.heading) % 360.0) or GetEntityHeading(ped)
   end
   if not takeCarried(src, key) then return Utils.fail(L('You do not have that key')) end
   local rec = CarLock.groundCreate(itemRecord(src, key, coords, heading))

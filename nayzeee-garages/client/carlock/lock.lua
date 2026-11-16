@@ -300,6 +300,7 @@ local function feedback(data)
       notify('success', L('Vehicle unlocked'))
     end
   end
+  TriggerEvent('nz:client:carlock:feedback', data) -- fob HUD (client/carlock/fob.lua)
 end
 
 -- A key / fob item was used (server: NZ.CarLock.useKeyItem).
@@ -784,6 +785,7 @@ local function keyPayload(key, extra)
   local payload = {}
   if type(key) == 'table' then
     payload.slot, payload.keyId, payload.plate = key.slot, key.keyId, key.plate
+    payload.heading = tonumber(key.heading)
   else
     payload.slot = key
   end
@@ -924,7 +926,7 @@ CreateThread(function()
       and not IsPedInAnyVehicle(ped, false) and not IsEntityDead(ped) and nearest.id or nil
     if want ~= prompted then
       prompted = want
-      NZ.NUI.prompt(want and L('Pick up the key') or nil, want and 'E' or nil)
+      NZ.NUI.prompt(want and L('Inspect keys') or nil, want and 'E' or nil)
       if want then
         CreateThread(function()
           while prompted == want do

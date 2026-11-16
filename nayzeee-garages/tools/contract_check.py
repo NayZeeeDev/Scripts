@@ -41,6 +41,7 @@ CLIENT_ONLY_NUI = {
     'keys:settings', 'keys:saveSettings', 'keys:immobiliser', 'keys:pinEnter', 'keys:pinSet', 'keys:pinDone',
     'keyadmin:search', 'keyadmin:player', 'keyadmin:give', 'keyadmin:delete', 'keyadmin:plate', 'keyadmin:track',
     'keyadmin:waypoint', 'keyadmin:settings', 'keyadmin:saveSettings',
+    'fob:save', 'fob:cancel', 'fob:action',  # fob HUD (client/carlock/fob.lua)
 }
 # minigame app (client/carlock/minigame.lua): client-only NUI callbacks
 CLIENT_ONLY_NUI |= {'minigame:ready', 'minigame:started', 'minigame:finish'}

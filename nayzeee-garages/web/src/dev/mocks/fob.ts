@@ -14,7 +14,7 @@ import { registerMock } from '../registry';
 import { emitNuiMessage, mockNui } from '../../lib/nui';
 
 const DEFAULTS: FobLayout = { x: 0.86, y: 0.72, scale: 1 };
-const KEYS = { throw: 'T', inspect: 'I', move: 'M', help: 'H', close: 'ESC' };
+const KEYS = { throw: 'Y', inspect: 'I', move: 'M', help: 'H', close: 'ESC' };
 
 const jester: FobHudKey = { plate: '46EEK572', label: 'Dinka Jester RR', make: 'DINKA', design: 'classic', kind: 'fob', locked: true };
 const tenF: FobHudKey = { plate: 'NZ 4210', label: 'Obey 10F Widebody', make: 'Obey', design: 'luxury', kind: 'fob', locked: false };

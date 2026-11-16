@@ -39,7 +39,7 @@ local MODEL_TIMEOUT = 1500
 local FALLBACK_PROPS = { 'lr_prop_carkey_fob', 'p_car_keys_01', 'prop_cuff_keys_01' }
 local CONTROL = {
   pickup = 38, cancelG = 47, headlight = 74, wheelNext = 14, wheelPrev = 15, pause = 200, pauseAlt = 199,
-  back = 177, chat = 245, aim = 25, attack = 24, weaponWheel = 37, melee = 140, melee2 = 141, melee3 = 142,
+  back = 177, aim = 25, attack = 24, weaponWheel = 37, melee = 140, melee2 = 141, melee3 = 142,
 }
 -- animations (dict, clip, ms, flag); names to confirm in game
 local ANIM = {
@@ -319,7 +319,7 @@ end
 local function keyLabels()
   local k = type(hudCfg().keys) == 'table' and hudCfg().keys or {}
   return {
-    throw = keyLabel('throw', k.throw or 'T'), inspect = keyLabel('inspect', k.inspect or 'I'),
+    throw = keyLabel('throw', k.throw or 'Y'), inspect = keyLabel('inspect', k.inspect or 'I'),
     move = keyLabel('move', k.move or 'M'), help = keyLabel('help', k.help or 'H'), close = 'ESC',
   }
 end
@@ -416,12 +416,17 @@ local function onFeedback(data)
   if type(data) ~= 'table' then return end
   local plate = Utils.plate(data.plate)
   if not plate then return end
+  -- one press can arrive through several hooks (lock.lua feedback, the item event): count it once
+  local sig = plate .. ':' .. tostring(data.locked)
+  if state.lastSig == sig and now() - state.lastFeedback <= DEDUPE_MS then return end
+  state.lastSig = sig
   state.lastFeedback = now()
   local vehicle = nil
   local netId = tonumber(data.netId)
   if netId and NetworkDoesNetworkIdExist(netId) then vehicle = NetworkGetEntityFromNetworkId(netId) end
   CreateThread(function()
-    if CarLock.fobShow(plate, { locked = data.locked, vehicle = vehicle ~= 0 and vehicle or nil }) or state.open then
+    local shown = CarLock.fobShow(plate, { locked = data.locked, vehicle = vehicle ~= 0 and vehicle or nil })
+    if shown or (state.open and state.key and state.key.plate == plate) then
       -- the game already played the lock beep (lock.lua feedback): no NUI beep
       CarLock.fobPress(data.locked and 'lock' or 'unlock', { beep = false })
     end
@@ -459,7 +464,8 @@ if type(baseToggle) == 'function' then
       if plate then
         state.lastFeedback = now()
         CreateThread(function()
-          if CarLock.fobShow(plate, { locked = locked, vehicle = target }) or state.open then
+          local shown = CarLock.fobShow(plate, { locked = locked, vehicle = target })
+          if shown or (state.open and state.key and state.key.plate == plate) then
             CarLock.fobPress(locked and 'lock' or 'unlock', { beep = false })
           end
         end)
@@ -544,6 +550,7 @@ function CarLock.holdKey(key)
     notify('error', L('You do not have any keys'))
     return false
   end
+  if state.holding then dropHandProp() end
   state.key, state.ref, state.holding, state.hideAt = hud, ref, true, nil
   state.lastPlate = hud.plate
   for name, kb in pairs(keybinds) do
@@ -552,16 +559,14 @@ function CarLock.holdKey(key)
   showHud()
   push({ holding = true, key = hud })
   attachHandProp()
-  -- per frame only while holding: ESC / Backspace put the key away, the pause menu and the
-  -- chat key (when Throw is bound to T) stay closed, the prop follows getting in / out
+  -- per frame only while holding: ESC / Backspace put the key away (the pause menu stays
+  -- closed), the prop follows getting in / out
   CreateThread(function()
-    local throwOnT = keyLabels().throw == 'T'
     local lastCheck = 0
     while state.holding do
       if not state.busy and state.mode == 'hud' then
         DisableControlAction(0, CONTROL.pause, true)
         DisableControlAction(0, CONTROL.pauseAlt, true)
-        if throwOnT then DisableControlAction(0, CONTROL.chat, true) end
         if IsDisabledControlJustPressed(0, CONTROL.pause) or IsControlJustPressed(0, CONTROL.back) then
           CarLock.putAwayKey()
           break
@@ -993,7 +998,7 @@ if CarLock.enabled() then
       CreateThread(function() CarLock.holdKey(nil) end)
     end
   end)
-  bind('throw', L('Key fob: throw / toss the key'), 'T', function() runAction('throw') end)
+  bind('throw', L('Key fob: throw / toss the key'), 'Y', function() runAction('throw') end)
   bind('inspect', L('Key fob: inspect the key'), 'I', function() runAction('inspect') end)
   bind('move', L('Key fob: move / resize'), 'M', function() runAction('move') end)
   bind('help', L('Key fob: help'), 'H', function() runAction('help') end)

@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Icon, Kbd, Modal, PlateTag, cx } from '@/components/ui';
 import { FobArt } from '@/components/fob/FobArt';
+import { BrandLogo3D } from '@/components/fob/BrandLogo3D';
 import { useEscape } from '@/lib/escape';
 import { request } from '@/lib/nui';
 import { t } from '@/lib/i18n';
@@ -39,6 +40,7 @@ function InspectBody({ info, entry }: { info: KeyInspectInfo; entry?: KeyEntry |
         <FobArt design={fob ? info.design || 'classic' : 'key'} kind={fob ? 'fob' : 'key'} brand={info.make || null} size={118} />
       </span>
       <span className="nz-keys-inspect__text">
+        {info.make && <BrandLogo3D brand={info.make} size={72} />}
         {info.make && <small className="nz-keys-inspect__make">{info.make}</small>}
         <b className="nz-keys-inspect__name" title={name}>
           {name}

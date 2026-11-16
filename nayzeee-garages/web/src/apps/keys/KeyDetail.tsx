@@ -10,6 +10,7 @@ import type { ReactNode, Ref } from 'react';
 import { Icon, Menu, PlateTag, cx } from '@/components/ui';
 import type { IconName, MenuItem } from '@/components/ui';
 import { FobArt } from '@/components/fob/FobArt';
+import { BrandLogo3D } from '@/components/fob/BrandLogo3D';
 import { t } from '@/lib/i18n';
 import type { KeyEntry, KeysOpenData } from '@/lib/types';
 import { HoldButton } from './HoldButton';
@@ -139,6 +140,7 @@ export function KeyDetail(p: KeyDetailProps) {
       <div className={cx('nz-keys-detail__stage', k.alarm && 'is-alarm')}>
         <span className="nz-keys-detail__halo" aria-hidden="true" />
         <FobArt design={fob.design} kind={fob.kind} brand={k.make || null} size={compact ? 124 : 184} active={pressed} className="nz-keys-detail__art" />
+        {k.make && !compact && <BrandLogo3D brand={k.make} size={88} />}
         {k.kind === 'temp' && left !== null && (
           <span className={cx('nz-keys-detail__timer', left < 600 && 'is-low')}>
             <Icon name="clock" size={12} strokeWidth={1.9} />

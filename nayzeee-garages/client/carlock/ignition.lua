@@ -330,7 +330,7 @@ if CarLock.enabled() then
   local keys = type(CarLock.cfg().keys) == 'table' and CarLock.cfg().keys or {}
   local commands = type(CarLock.cfg().commands) == 'table' and CarLock.cfg().commands or {}
   local function engineAsync()
-    if IsPauseMenuActive() or IsNuiFocused() then return end
+    if IsPauseMenuActive() or IsNuiFocused() or (CarLock.fobBusy and CarLock.fobBusy()) then return end
     CreateThread(function() CarLock.toggleEngine() end)
   end
   if type(commands.engine) == 'string' and commands.engine ~= '' then

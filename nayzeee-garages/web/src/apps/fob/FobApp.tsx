@@ -135,7 +135,7 @@ function EditOverlay({
   data, keys, prompts, setPrompts, onSave, onCancel, onAction,
 }: {
   data: FobHudData; keys: FobKeyBinds; prompts: boolean; setPrompts: (on: boolean) => void;
-  onSave: (l: FobLayout) => void; onCancel: () => void; onAction: (a: PromptAction) => void;
+  onSave: (l: FobLayout) => Promise<boolean>; onCancel: () => void; onAction: (a: PromptAction) => void;
 }) {
   const vp = useViewport();
   const fobKey = data.key;
@@ -203,7 +203,8 @@ function EditOverlay({
 
   const save = async () => {
     setSaving(true);
-    onSave(draft);
+    // success: Lua switches back to the HUD (the effect below); failure: try again
+    if (!(await onSave(draft))) setSaving(false);
   };
   useEffect(() => {
     if (data.mode !== 'edit') setSaving(false);
@@ -355,7 +356,7 @@ export function FobApp() {
           setPrompts={setPrompts}
           onCancel={cancel}
           onAction={onAction}
-          onSave={(layout) => void request('fob:save', layout)}
+          onSave={async (layout) => (await request('fob:save', layout)).ok}
         />
       )}
       {data.mode === 'help' && <HelpWindow keys={data.keys} onClose={cancel} />}

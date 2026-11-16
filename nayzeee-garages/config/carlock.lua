@@ -39,7 +39,9 @@ Config.CarLock = {
   lockPrefer = 'nearest',
 
   -- Key fob designs the key ring / fob HUD can draw (the UI wave adds the renders).
-  fob = { defaultDesign = 'classic', designs = { 'classic', 'slim', 'card', 'sport', 'retro' } },
+  fob = { defaultDesign = 'classic', designs = { 'classic', 'generic', 'sport', 'luxury', 'leather', 'compact', 'slim', 'card', 'retro' } },
+  -- on-screen key fob (rebindable keys; false = no keybind). Throw is not T: the chat opens on T.
+  fobHud = { showMs = 4500, keys = { toggle = 'K', throw = 'Y', inspect = 'I', move = 'M', help = 'H' } },
 
   -- Keyless entry / exit (fob keys only: a key item of kind 'fob', or a virtual / owner key of a
   -- vehicle whose profile uses a fob). With the fob on you a locked car unlocks as you get in
@@ -226,6 +228,9 @@ Config.CarLock = {
       classic = 'lr_prop_carkey_fob',
       leather = 'lr_prop_carkey_fob',
       compact = 'lr_prop_carkey_fob',
+      slim = 'lr_prop_carkey_fob',
+      card = 'lr_prop_carkey_fob',
+      retro = 'lr_prop_carkey_fob',
       key = 'p_car_keys_01',          -- plain metal key (standard security profile)
     },
     -- right hand (PH_R_Hand); offsets in metres, rotation in degrees: tune in game
