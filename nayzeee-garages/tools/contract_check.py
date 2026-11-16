@@ -37,6 +37,8 @@ CLIENT_ONLY_NUI = {
     'admin:interior:edit',
     'keys:refresh', 'keys:lock', 'keys:locate', 'keys:alarm', 'keys:players', 'keys:share', 'keys:holders',
     'keys:revoke', 'locksmith:refresh', 'locksmith:service',
+    'keys:remote', 'keys:track', 'keys:inspect', 'keys:drop', 'keys:leave', 'keys:groundKeep', 'keys:groundReturn',
+    'keys:settings', 'keys:saveSettings', 'keys:immobiliser', 'keys:pinEnter', 'keys:pinSet', 'keys:pinDone',
     'keyadmin:search', 'keyadmin:player', 'keyadmin:give', 'keyadmin:delete', 'keyadmin:plate', 'keyadmin:track',
     'keyadmin:waypoint', 'keyadmin:settings', 'keyadmin:saveSettings',
 }
@@ -44,6 +46,7 @@ CLIENT_ONLY_NUI = {
 CLIENT_ONLY_NUI |= {'minigame:ready', 'minigame:started', 'minigame:finish'}
 # Client handlers that call a server callback under a different name.
 CLIENT_TO_SERVER = {
+    'keys:leave': 'nz:carlock:leaveKey',
     'garage:drive': 'nz:garage:retrieve', 'garage:spawner': 'nz:garage:spawner',
     'garage:track': 'nz:garage:track', 'garage:goInside': 'nz:garage:goInside',
     'garage:directions': 'nz:garage:nearestWithSpace', 'forSale:tour': 'nz:forSale:tour',
@@ -52,6 +55,11 @@ CLIENT_TO_SERVER = {
     'keys:refresh': 'nz:carlock:tracker', 'keys:lock': 'nz:carlock:toggleLock', 'keys:locate': 'nz:carlock:tracker',
     'keys:alarm': 'nz:carlock:trackerAlarm', 'keys:players': 'nz:carlock:nearbyPlayers', 'keys:share': 'nz:carlock:share',
     'keys:holders': 'nz:carlock:keyHolders', 'keys:revoke': 'nz:carlock:keyRevoke',
+    'keys:remote': 'nz:carlock:remote', 'keys:track': 'nz:carlock:tracker', 'keys:inspect': 'nz:carlock:inspect',
+    'keys:drop': 'nz:carlock:ground:drop', 'keys:groundKeep': 'nz:carlock:ground:pickup',
+    'keys:groundReturn': 'nz:carlock:ground:release', 'keys:settings': 'nz:carlock:playerSettings',
+    'keys:saveSettings': 'nz:carlock:savePlayerSettings', 'keys:immobiliser': 'nz:carlock:immobiliser',
+    'keys:pinEnter': 'nz:carlock:pin', 'keys:pinSet': 'nz:carlock:setPin',
     'locksmith:refresh': 'nz:carlock:locksmith:open', 'locksmith:service': 'nz:carlock:locksmith:service',
     'keyadmin:search': 'nz:carlock:admin:search', 'keyadmin:player': 'nz:carlock:admin:player',
     'keyadmin:give': 'nz:carlock:admin:give', 'keyadmin:delete': 'nz:carlock:admin:delete',
@@ -59,7 +67,7 @@ CLIENT_TO_SERVER = {
     'keyadmin:waypoint': 'nz:carlock:admin:track', 'keyadmin:settings': 'nz:carlock:admin:settings',
     'keyadmin:saveSettings': 'nz:carlock:admin:saveSettings',
 }
-APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior', 'keys', 'locksmith', 'contract'}
+APPS = {'garage', 'impound', 'impoundForm', 'forSale', 'admin', 'creator', 'setup', 'interior', 'keys', 'locksmith', 'contract', 'fob', 'minigame', 'keyadmin'}
 ACTIONS = {'init', 'settings', 'open', 'update', 'close', 'hud', 'prompt', 'hint', 'notify'}
 
 

@@ -931,7 +931,7 @@ CreateThread(function()
             if IsControlJustPressed(0, 38) and not IsNuiFocused() then
               prompted = nil
               NZ.NUI.prompt(nil)
-              CarLock.keepGroundKey(want)
+              if not (CarLock.openKeyInspect and CarLock.openKeyInspect({ groundId = want })) then CarLock.keepGroundKey(want) end
               break
             end
             Wait(0)

@@ -14,6 +14,9 @@ import { KindGlyph } from './glyphs';
 import { chipLabel, countdown, displayName, fobOf, kindInfo, meters, orderLabel } from './model';
 import type { KeyFilter, KeyOrder, Unit } from './model';
 
+/** small screens (1280×720): smaller fob renders (keys.css shortens the cards too) */
+const COMPACT = () => typeof window !== 'undefined' && window.innerHeight <= 760;
+
 const ORDERS: KeyOrder[] = ['recent', 'name', 'plate', 'distance'];
 
 export interface KeyToolbarProps {
@@ -32,7 +35,7 @@ export function KeyToolbar({ query, onQuery, filter, onFilter, counts, present, 
   return (
     <div className="nz-keys__toolbar">
       <div className="nz-keys__search">
-        <SearchInput value={query} onChange={onQuery} placeholder={t('Search plate, name or model')} shortcut="/" />
+        <SearchInput value={query} onChange={onQuery} placeholder={t('Search keys')} shortcut="/" />
       </div>
       <div className="nz-keys__chips" role="group" aria-label={t('Filter keys')}>
         {chips.map((c) => (
@@ -131,7 +134,7 @@ const KeyCard = memo(function KeyCard({ k, on, left, unit, active, onSelect, onA
         {status.text}
       </span>
       <span className="nz-keys-card__stage" aria-hidden="true">
-        <FobArt design={fob.design} kind={fob.kind} brand={k.make || null} size={112} active={active} className="nz-keys-card__art" />
+        <FobArt design={fob.design} kind={fob.kind} brand={k.make || null} size={COMPACT() ? 90 : 112} active={active} className="nz-keys-card__art" />
       </span>
       <span className="nz-keys-card__name" title={displayName(k)}>
         {displayName(k)}

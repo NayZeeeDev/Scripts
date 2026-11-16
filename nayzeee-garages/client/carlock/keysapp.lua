@@ -675,6 +675,16 @@ end
 local corePinPrompt = CarLock.pinPrompt
 local coreEnterPin = CarLock.enterPin
 
+--- The core's ox_lib prompts (client/carlock/ignition.lua), when they exist.
+local function fallbackPrompt(info)
+  if type(corePinPrompt) == 'function' then return fallbackPrompt(info) end
+  return nil
+end
+local function fallbackEnter(vehicle, info)
+  if type(coreEnterPin) == 'function' then return fallbackEnter(vehicle, info) end
+  return false
+end
+
 --- Can the pad be shown now (over the ring, or alone)?
 local function padUsable()
   if IsPauseMenuActive() then return false end
@@ -721,9 +731,9 @@ end
 ---@return string|nil
 function CarLock.pinPrompt(info)
   info = type(info) == 'table' and info or {}
-  if not padUsable() then return corePinPrompt(info) end
+  if not padUsable() then return fallbackPrompt(info) end
   local res = openPad({ mode = 'collect', plate = Utils.plate(info.plate), attemptsLeft = info.attemptsLeft, cooldown = info.cooldown })
-  if res == nil then return corePinPrompt(info) end
+  if res == nil then return fallbackPrompt(info) end
   local pin = type(res.pin) == 'string' and res.pin or ''
   return pin:match('^%d%d%d%d$') and pin or nil
 end
@@ -737,13 +747,13 @@ end
 function CarLock.enterPin(vehicle, info)
   info = type(info) == 'table' and info or {}
   if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then return false end
-  if not padUsable() or not NetworkGetEntityIsNetworked(vehicle) then return coreEnterPin(vehicle, info) end
+  if not padUsable() or not NetworkGetEntityIsNetworked(vehicle) then return fallbackEnter(vehicle, info) end
   local res = openPad({
     mode = 'enter', plate = Utils.plate(info.plate) or CarLock.plateOf(vehicle), entity = vehicle,
     netId = NetworkGetNetworkIdFromEntity(vehicle), label = vehicleName(GetEntityModel(vehicle)),
     cooldown = info.cooldown, attemptsLeft = info.attemptsLeft,
   })
-  if res == nil then return coreEnterPin(vehicle, info) end
+  if res == nil then return fallbackEnter(vehicle, info) end
   if res.success then
     notify('success', L('PIN accepted')) -- a security step: always confirmed
     if type(CarLock.refreshIgnition) == 'function' then CarLock.refreshIgnition() end

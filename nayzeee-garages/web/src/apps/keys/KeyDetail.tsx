@@ -59,6 +59,8 @@ export function sideActionOf(k: KeyEntry, mode: KeysOpenData['mode']): SideActio
 }
 
 export function KeyDetail(p: KeyDetailProps) {
+  // small screens (1280×720): the stage is shorter (keys.css), so is the fob
+  const compact = typeof window !== 'undefined' && window.innerHeight <= 760;
   const { k, data, left, unit } = p;
   const kind = kindInfo(k);
   const fob = fobOf(k);
@@ -76,7 +78,7 @@ export function KeyDetail(p: KeyDetailProps) {
         : !remote
           ? t('A plain key locks within {range}. Engine and windows need a fob.', { range: meters(rangeOf(k, data.ranges), unit) })
           : ghost
-            ? t('The Ghost immobiliser blocks the remote start.')
+            ? t('The Ghost immobiliser blocks the remote start: windows and engine off still work.')
             : null;
   const side = sideActionOf(k, data.mode);
   const share = shareInfo(k, data.mode, data.keyMode);
@@ -118,6 +120,11 @@ export function KeyDetail(p: KeyDetailProps) {
               {kind.label}
             </span>
             <span className="nz-keys-chip">{groupLabel(k.group)}</span>
+            {k.reason && (
+              <span className="nz-keys-chip is-amber" title={t('How this key was obtained')}>
+                {reasonLabel(k.reason)}
+              </span>
+            )}
             {k.immobiliser && k.immobiliser !== 'none' && (
               <span className={cx('nz-keys-chip', ghost && 'is-teal')} title={ghost ? t('Ghost immobiliser: PIN before the engine starts') : t('Immobiliser: no hotwiring')}>
                 <KeypadGlyph size={11} strokeWidth={1.9} />
@@ -131,14 +138,13 @@ export function KeyDetail(p: KeyDetailProps) {
 
       <div className={cx('nz-keys-detail__stage', k.alarm && 'is-alarm')}>
         <span className="nz-keys-detail__halo" aria-hidden="true" />
-        <FobArt design={fob.design} kind={fob.kind} brand={k.make || null} size={200} active={pressed} className="nz-keys-detail__art" />
+        <FobArt design={fob.design} kind={fob.kind} brand={k.make || null} size={compact ? 124 : 184} active={pressed} className="nz-keys-detail__art" />
         {k.kind === 'temp' && left !== null && (
           <span className={cx('nz-keys-detail__timer', left < 600 && 'is-low')}>
             <Icon name="clock" size={12} strokeWidth={1.9} />
             {t('{time} left', { time: countdown(left) })}
           </span>
         )}
-        {k.reason && <span className="nz-keys-detail__origin">{reasonLabel(k.reason)}</span>}
       </div>
 
       <div className="nz-keys-detail__trio">
@@ -167,7 +173,7 @@ export function KeyDetail(p: KeyDetailProps) {
         locked={k.locked}
         engine={k.engine ?? null}
         canTap={canTap}
-        canRemote={canRemote && !ghost}
+        canRemote={canRemote}
         reason={reason}
         busy={p.busy}
         onTap={p.onTap}

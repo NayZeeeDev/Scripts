@@ -13,6 +13,9 @@ import type { GarageOptions, GarageSummary, GarageVehicle, SpawnerVehicleView } 
 import { ago, countdown, modelName, normDamage, platePreview, primaryKind, vehicleIcon, vehicleKindLabel, vehicleStatus } from './model';
 import { ClassTag, Plate, Stage, StageTitle } from './showroom/Stage';
 import { glyphShape } from './showroom/DamageGlyph';
+// car lock v2 (docs/V2_CHANGES.md G.10): the key ring's Track vehicle modal, opened from here too
+import { TrackModal } from '@/apps/keys/TrackModal';
+import { useSettings } from '@/lib/store';
 import {
   Block,
   ConditionBlock,
@@ -417,6 +420,8 @@ function GarageDock({
       ? t('Pay off the finance first')
       : null;
   const kind = primaryKind(v);
+  const [trackOpen, setTrackOpen] = useState(false);
+  const { distanceUnit } = useSettings();
 
   let primary: ReactNode;
   let reason: { tone: 'neutral' | 'amber' | 'red'; icon: IconName; text: ReactNode } | null = null;
@@ -511,8 +516,20 @@ function GarageDock({
         {canShare && <Tool icon="userPlus" label={t('Share')} onClick={onShare} disabled={busy} badge={v.sharedWith > 0 ? v.sharedWith : undefined} />}
         {canSell && <Tool icon="tag" label={t('Sell')} onClick={onSell} disabled={busy || !!sellLock} tip={sellLock ?? undefined} />}
         {/* A lost vehicle has no known position to track: Recover is the way back. */}
-        {!waypointPrimary && !v.canRecover && <Tool icon="map" label={t('Track')} onClick={onTrack} tip={t('Set a waypoint to this vehicle')} />}
+        {/* out in the city: the live Track vehicle modal (its fallback is this garage's waypoint) */}
+        {v.state === 'out' && <Tool icon="pin" label={t('Track')} onClick={() => setTrackOpen(true)} tip={t('Live position, lock and engine of this vehicle')} />}
+        {!waypointPrimary && !v.canRecover && v.state !== 'out' && <Tool icon="map" label={t('Track')} onClick={onTrack} tip={t('Set a waypoint to this vehicle')} />}
       </div>
+      <TrackModal
+        plate={trackOpen ? v.plate : null}
+        title={v.nickname || v.label}
+        unit={distanceUnit === 'km' ? 'km' : 'mi'}
+        onClose={() => setTrackOpen(false)}
+        onFallback={() => {
+          setTrackOpen(false);
+          onTrack();
+        }}
+      />
     </>
   );
 }

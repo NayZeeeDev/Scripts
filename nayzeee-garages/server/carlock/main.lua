@@ -1760,3 +1760,18 @@ AddEventHandler('entityRemoved', function(entity)
     end
   end
 end)
+
+-- { plate } -> null : give back a virtual / temporary key someone gave you (key ring)
+lib.callback.register('nz:carlock:leaveKey', Utils.safe(function(source, payload)
+  local src = validSrc(source)
+  if not src or type(payload) ~= 'table' then return Utils.fail(L('Invalid request')) end
+  if limited(src, 'revoke') then return Utils.fail(L('Please wait a moment')) end
+  local plate, id = normPlate(payload.plate), identifierOf(src)
+  if not plate or not id then return Utils.fail(L('Invalid request')) end
+  if CarLock.isOwner(src, plate) then return Utils.fail(L('You cannot give this key back')) end
+  local has, kind = CarLock.hasKey(src, plate)
+  if not has or (kind ~= 'virtual' and kind ~= 'temp') then return Utils.fail(L('You cannot give this key back')) end
+  CarLock.revokeVirtual(nil, id, plate)
+  if type(CarLock.revokeTemp) == 'function' then pcall(CarLock.revokeTemp, id, plate) end
+  return Utils.ok(nil)
+end))

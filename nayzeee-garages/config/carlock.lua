@@ -229,7 +229,7 @@ Config.CarLock = {
       key = 'p_car_keys_01',          -- plain metal key (standard security profile)
     },
     -- right hand (PH_R_Hand); offsets in metres, rotation in degrees: tune in game
-    hand = { bone = 28422, offset = vec3(0.04, 0.0, -0.01), rotation = vec3(-90.0, 0.0, 0.0) },
+    hand = { bone = 28422, offset = vector3(0.04, 0.0, -0.01), rotation = vector3(-90.0, 0.0, 0.0) },
     ground = { zOffset = 0.0, randomHeading = true },
   },
 
