@@ -199,12 +199,18 @@ function symPath(w: number, start: [number, number], segs: number[][]): string {
   return `${d}Z`;
 }
 
+/** Transform that shrinks a full-height outline of width `w` evenly by `inset` (rims, stitch lines). */
+function inner(w: number, inset: number, y0 = 0, h = 200): string {
+  const cy = y0 + h / 2;
+  return `translate(${w / 2} ${cy}) scale(${((w - inset * 2) / w).toFixed(4)} ${((h - inset * 2) / h).toFixed(4)}) translate(${-w / 2} ${-cy})`;
+}
+
 /** Shell stack shared by the premium fobs: shadows, machined chrome rim with a specular edge,
- *  a gap line, then the piano-black (or carbon) body with its diagonal glass sheen. */
-function Shell({ c, d, w, inset = 4.2, body = 'piano' }: { c: Ctx; d: string; w: number; inset?: number; body?: 'piano' | 'carbon' }) {
-  const sx = (w - inset * 2) / w;
-  const sy = (200 - inset * 2) / 200;
-  const t = `translate(${w / 2} 100) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-w / 2} -100)`;
+ *  a gap line, then the piano-black (or carbon) body with its diagonal glass sheen.
+ *  `y0` / `h` give the outline's vertical span when it does not fill the drawing. */
+function Shell({ c, d, w, inset = 4.2, body = 'piano', y0 = 0, h = 200 }: {
+  c: Ctx; d: string; w: number; inset?: number; body?: 'piano' | 'carbon'; y0?: number; h?: number;
+}) {
   return (
     <g className="nz-fobart__shell">
       <path d={d} fill="#000" opacity={0.55} transform="translate(0 5)" filter={c.url('shadowWide')} />
@@ -212,8 +218,8 @@ function Shell({ c, d, w, inset = 4.2, body = 'piano' }: { c: Ctx; d: string; w:
       <path d={d} fill={c.url('bezel')} />
       <path d={d} fill={c.url('bezelShade')} />
       <path d={d} fill="none" stroke={c.url('spec')} strokeWidth={0.9} />
-      <path d={d} transform={t} fill="#000" />
-      <g transform={`translate(${w / 2} 100) scale(${((w - inset * 2 - 1) / w).toFixed(4)} ${((200 - inset * 2 - 1) / 200).toFixed(4)}) translate(${-w / 2} -100)`}>
+      <path d={d} transform={inner(w, inset, y0, h)} fill="#000" />
+      <g transform={inner(w, inset + 0.5, y0, h)}>
         <path d={d} fill={c.url(body === 'carbon' ? 'carbonWeave' : 'piano')} />
         {body === 'carbon' && <path d={d} fill={c.url('carbonShade')} />}
         <path d={d} fill={c.url('pianoSheen')} />
@@ -449,6 +455,25 @@ function Defs({ c }: { c: Ctx }) {
         <stop offset="0" style={s('#000000', 0)} />
         <stop offset="1" style={s('#000000', 0.55)} />
       </radialGradient>
+      <linearGradient id={c.id('leatherRich')} x1="0" y1="0" x2=".4" y2="1">
+        <stop offset="0" style={s('#6b4630')} />
+        <stop offset=".5" style={s('#3a2416')} />
+        <stop offset="1" style={s('#1e120a')} />
+      </linearGradient>
+      <pattern id={c.id('leatherGrain')} width="5" height="5" patternUnits="userSpaceOnUse">
+        <circle cx=".8" cy="1.1" r=".55" fill="rgba(0,0,0,.28)" />
+        <circle cx="3.4" cy=".7" r=".4" fill="rgba(0,0,0,.22)" />
+        <circle cx="2.2" cy="2.9" r=".6" fill="rgba(0,0,0,.25)" />
+        <circle cx="4.3" cy="3.6" r=".45" fill="rgba(0,0,0,.2)" />
+        <circle cx="1.2" cy="4.4" r=".35" fill="rgba(255,220,190,.06)" />
+        <circle cx="3.9" cy="2.1" r=".3" fill="rgba(255,220,190,.07)" />
+        <path d="M0 2 Q1.5 1.6 2.6 2.3 M2.8 4.6 Q4 4.1 5 4.5" fill="none" stroke="rgba(0,0,0,.18)" strokeWidth=".3" />
+      </pattern>
+      <radialGradient id={c.id('leatherShade')} cx=".35" cy=".22" r=".95">
+        <stop offset="0" style={s('#ffd9b0', 0.1)} />
+        <stop offset=".45" style={s('#000000', 0)} />
+        <stop offset="1" style={s('#000000', 0.5)} />
+      </radialGradient>
       <filter id={c.id('soft')} x="-30%" y="-30%" width="160%" height="160%">
         <feGaussianBlur stdDeviation="1.1" />
       </filter>
@@ -584,70 +609,111 @@ function Sport({ c }: { c: Ctx }) {
   );
 }
 
-/** Luxury: slim glass capsule in a polished frame; touch buttons under the glass. */
+const LUXURY_D = symPath(78, [39, 8], [
+  [50, 8, 64, 12, 68, 26],
+  [72, 40, 70, 62, 67, 82],
+  [65, 96, 65, 110, 66, 122],
+  [68, 144, 70, 170, 62, 186],
+  [56, 195, 48, 197, 39, 197],
+]);
+
+/** Luxury: slender tapered capsule, polished chrome frame, piano-black body, round domed buttons in
+ *  a chrome-railed column, crimson panic set apart, a chrome signature bar at the tail. */
 function Luxury({ c }: { c: Ctx }) {
   return (
     <>
-      <rect x={4} y={6} width={70} height={188} rx={35} fill={c.url('chrome')} filter={c.url('drop')} />
-      <rect x={7.5} y={9.5} width={63} height={181} rx={31.5} fill="var(--fob-glass-lo)" />
-      <rect x={7.5} y={9.5} width={63} height={181} rx={31.5} fill={c.url('glassBtn')} opacity={0.65} />
-      <Badge c={c} x={39} y={42} r={18} />
-      <path d="M22 70 H56" stroke="rgba(255,255,255,.08)" strokeWidth={0.8} />
-      <Btn c={c} name="lock" x={39} y={88} shape={CIRCLE(13)} tone="touch" />
-      <Btn c={c} name="unlock" x={39} y={118} shape={CIRCLE(13)} tone="touch" />
-      <Btn c={c} name="trunk" x={39} y={148} shape={CIRCLE(13)} tone="touch" />
-      <Btn c={c} name="panic" x={39} y={174} shape={PILL(22, 10)} tone="touch" iconScale={0.7} />
-      <path d="M12 40 Q14 16 39 12" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth={1.4} strokeLinecap="round" />
-      <rect x={7.5} y={9.5} width={63} height={181} rx={31.5} fill={c.url('gloss')} />
-      <Led c={c} x={39} y={186} w={8} h={1.6} />
+      <Shell c={c} d={LUXURY_D} w={78} inset={3.6} />
+      <CrownBadge c={c} x={39} y={34} r={12} />
+      <Column c={c} x={26} y={56} w={26} h={120} r={13} />
+      <Btn c={c} name="lock" x={39} y={72} shape={CIRCLE(10.5)} tone="piano" iconScale={0.9} />
+      <Btn c={c} name="unlock" x={39} y={98} shape={CIRCLE(10.5)} tone="piano" iconScale={0.9} />
+      <Btn c={c} name="trunk" x={39} y={124} shape={CIRCLE(10.5)} tone="piano" iconScale={0.85} />
+      <Led c={c} x={39} y={139} w={7} h={1.5} />
+      <Btn c={c} name="panic" x={39} y={157} shape={CIRCLE(10.5)} tone="piano" iconScale={0.85} />
+      {/* chrome signature bar */}
+      <rect x={29} y={182.4} width={20} height={3.2} rx={1.6} fill="#000" />
+      <rect x={29.6} y={182.8} width={18.8} height={2.2} rx={1.1} fill={c.url('bezel')} />
     </>
   );
 }
 
-/** Leather: the fob in a stitched leather case with a strap loop and D-ring. */
+const LEATHER_D = symPath(100, [50, 12], [
+  [56, 12, 62, 8, 70, 8],
+  [82, 8, 92, 14, 94, 28],
+  [96, 50, 92, 72, 88, 92],
+  [85, 108, 86, 124, 89, 140],
+  [93, 162, 90, 184, 76, 192],
+  [66, 198, 58, 198, 50, 198],
+]);
+
+/** Leather: the fob sewn into a stitched full-grain case (edge-painted rim, cream saddle stitch,
+ *  riveted shoulders); the piano-black button column shows through a chrome-railed window. */
 function Leather({ c }: { c: Ctx }) {
-  const caseP = 'M18 40 H82 Q94 40 94 54 V178 Q94 194 78 194 H22 Q6 194 6 178 V54 Q6 40 18 40 Z';
   return (
     <>
-      <path d="M40 10 H60 Q66 10 66 16 V44 H34 V16 Q34 10 40 10 Z" fill={c.url('leather')} />
-      <path d="M40 14 H60 Q62 14 62 16 V40 M38 40 V16 Q38 14 40 14" fill="none" className="nz-fobart__stitch" />
-      <path d="M36 6 Q50 -4 64 6" fill="none" stroke={c.url('chrome')} strokeWidth={3} strokeLinecap="round" />
-      <rect x={34} y={4} width={32} height={4} rx={2} fill={c.url('chrome')} />
-      <path d={caseP} fill={c.url('leather')} filter={c.url('drop')} />
-      <path d={caseP} fill={c.url('grain')} />
-      <path d="M20 47 H80 Q87 47 87 55 V176 Q87 187 77 187 H23 Q13 187 13 176 V55 Q13 47 20 47 Z" fill="none" className="nz-fobart__stitch" />
-      {/* window over the fob's face */}
-      <rect x={20} y={56} width={60} height={124} rx={12} fill={c.url('shell')} />
-      <rect x={20} y={56} width={60} height={124} rx={12} fill="none" stroke="rgba(0,0,0,.55)" strokeWidth={2} />
-      <Badge c={c} x={50} y={78} r={13} />
-      <Btn c={c} name="lock" x={36} y={112} shape={BTN(22, 22, 11)} />
-      <Btn c={c} name="unlock" x={64} y={112} shape={BTN(22, 22, 11)} />
-      <Btn c={c} name="trunk" x={36} y={142} shape={BTN(22, 22, 11)} />
-      <Btn c={c} name="panic" x={64} y={142} shape={BTN(22, 22, 11)} />
-      <Led c={c} x={50} y={166} w={14} />
-      <path d={caseP} fill={c.url('gloss')} opacity={0.5} />
+      <path d={LEATHER_D} fill="#000" opacity={0.55} transform="translate(0 5)" filter={c.url('shadowWide')} />
+      <path d={LEATHER_D} fill="#000" opacity={0.7} transform="translate(0 1.4)" filter={c.url('soft')} />
+      <path d={LEATHER_D} fill={c.url('leatherRich')} />
+      <path d={LEATHER_D} fill={c.url('leatherGrain')} />
+      <path d={LEATHER_D} fill={c.url('leatherShade')} />
+      {/* painted edge with a soft lit roll on top */}
+      <path d={LEATHER_D} fill="none" stroke="#140b06" strokeWidth={2.2} />
+      <path d={LEATHER_D} fill="none" stroke="rgba(255,226,196,.16)" strokeWidth={0.7} transform={inner(100, 1.6)} />
+      {/* saddle stitch: needle holes, then the thread */}
+      <path d={LEATHER_D} fill="none" stroke="rgba(0,0,0,.55)" strokeWidth={1.1} strokeDasharray="2.2 1.6" transform={`translate(0 .4) ${inner(100, 5.2)}`} />
+      <path d={LEATHER_D} fill="none" className="nz-fobart__thread" transform={inner(100, 5.2)} />
+      {/* shoulder rivets */}
+      {[24, 76].map((x) => (
+        <g key={x}>
+          <circle cx={x} cy={22.5} r={2.9} fill="#000" opacity={0.6} filter={c.url('soft')} />
+          <circle cx={x} cy={22} r={2.6} fill={c.url('bezel')} />
+          <circle cx={x} cy={22} r={2.6} fill="none" stroke={c.url('spec')} strokeWidth={0.5} />
+        </g>
+      ))}
+      <CrownBadge c={c} x={50} y={32} r={12} />
+      <Column c={c} x={32} y={54} w={36} h={124} r={16} />
+      <Btn c={c} name="lock" x={50} y={71} shape={BTN(26, 21, 9)} tone="piano" />
+      <Btn c={c} name="unlock" x={50} y={96} shape={BTN(26, 21, 9)} tone="piano" />
+      <Btn c={c} name="trunk" x={50} y={121} shape={BTN(26, 21, 9)} tone="piano" />
+      <Led c={c} x={50} y={137} w={8} h={1.6} />
+      <Btn c={c} name="panic" x={50} y={155} shape={BTN(26, 21, 9)} tone="piano" />
     </>
   );
 }
 
-/** Compact: a small rounded fob on a teal fabric lanyard. */
+const COMPACT_D = symPath(88, [44, 40], [
+  [58, 40, 76, 44, 80, 60],
+  [84, 76, 82, 98, 78, 116],
+  [75, 132, 80, 150, 78, 166],
+  [76, 184, 62, 194, 44, 194],
+]);
+
+/** Compact: a small pebble fob on a woven teal strap held by a machined chrome clasp; 2x2 piano
+ *  buttons in a chrome-railed well, crimson panic. */
 function Compact({ c }: { c: Ctx }) {
-  const body = 'M22 74 H66 Q82 74 82 92 V170 Q82 192 60 192 H28 Q6 192 6 170 V92 Q6 74 22 74 Z';
+  const loop = 'M34 42 V20 Q34 5 44 5 Q54 5 54 20 V42';
   return (
     <>
-      <path d="M30 76 V22 Q30 6 44 6 Q58 6 58 22 V76" fill="none" stroke={c.url('strap')} strokeWidth={9} />
-      <path d="M30 76 V22 Q30 6 44 6 Q58 6 58 22 V76" fill="none" stroke="rgba(0,0,0,.25)" strokeWidth={9} strokeDasharray="1 2" />
-      <rect x={24} y={60} width={40} height={14} rx={4} fill={c.url('chrome')} />
-      <path d={body} fill={c.url('shell')} filter={c.url('drop')} />
-      <path d={body} fill="none" className="nz-fobart__edge" />
-      <path d="M24 82 H64 Q74 82 74 94 V168 Q74 184 58 184 H30 Q14 184 14 168 V94 Q14 82 24 82 Z" fill={c.url('face')} />
-      <path d={body} fill={c.url('gloss')} />
-      <Badge c={c} x={44} y={100} r={11} />
-      <Btn c={c} name="lock" x={30} y={132} shape={CIRCLE(11)} />
-      <Btn c={c} name="unlock" x={58} y={132} shape={CIRCLE(11)} />
-      <Btn c={c} name="trunk" x={30} y={162} shape={CIRCLE(9)} iconScale={0.8} />
-      <Btn c={c} name="panic" x={58} y={162} shape={CIRCLE(9)} iconScale={0.8} />
-      <Led c={c} x={44} y={180} w={8} h={1.8} />
+      {/* woven strap */}
+      <path d={loop} fill="none" stroke="#000" strokeOpacity={0.5} strokeWidth={10} transform="translate(0 1.2)" filter={c.url('soft')} />
+      <path d={loop} fill="none" stroke={c.url('strap')} strokeWidth={9} />
+      <path d={loop} fill="none" stroke="rgba(0,0,0,.32)" strokeWidth={9} strokeDasharray=".8 1.4" />
+      <path d={loop} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth={0.6} transform="translate(-3.6 0)" />
+      <path d={loop} fill="none" stroke="rgba(0,0,0,.45)" strokeWidth={0.6} transform="translate(3.6 0)" />
+      <Shell c={c} d={COMPACT_D} w={88} inset={3.8} y0={40} h={154} />
+      {/* chrome clasp */}
+      <rect x={27} y={30.6} width={34} height={14} rx={4} fill="#000" opacity={0.6} filter={c.url('soft')} />
+      <rect x={27} y={29} width={34} height={13} rx={4} fill={c.url('bezel')} />
+      <rect x={27} y={29} width={34} height={13} rx={4} fill={c.url('bezelShade')} />
+      <rect x={27} y={29} width={34} height={13} rx={4} fill="none" stroke={c.url('spec')} strokeWidth={0.6} />
+      <rect x={32} y={33.2} width={24} height={3.4} rx={1.7} fill="#050506" />
+      <CrownBadge c={c} x={44} y={64} r={10} />
+      <Column c={c} x={20} y={86} w={48} h={84} r={14} />
+      <Btn c={c} name="lock" x={32} y={107} shape={BTN(18, 32, 8)} tone="piano" iconScale={0.85} />
+      <Btn c={c} name="unlock" x={56} y={107} shape={BTN(18, 32, 8)} tone="piano" iconScale={0.85} />
+      <Btn c={c} name="trunk" x={32} y={149} shape={BTN(18, 32, 8)} tone="piano" iconScale={0.75} />
+      <Btn c={c} name="panic" x={56} y={149} shape={BTN(18, 32, 8)} tone="piano" iconScale={0.75} />
+      <Led c={c} x={44} y={180} w={8} h={1.6} />
     </>
   );
 }

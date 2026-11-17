@@ -90,6 +90,9 @@
 .nz-fobart__btn--piano .nz-fobart__icon { stroke-width: 1.25; }
 .nz-fobart__btn--piano.is-active .nz-fobart__btn-face { transform: translateY(.6px) scale(.97); }
 
+/* saddle stitch thread (leather) */
+.nz-fobart__thread { stroke: #e4d2b4; stroke-opacity: .8; stroke-width: .8; stroke-dasharray: 2.2 1.6; stroke-linecap: round; }
+
 /* badge */
 .nz-fobart__badge-img { filter: brightness(1.18) contrast(1.08); }
 .nz-fobart__badge-neutral { stroke: rgba(255, 255, 255, .34); fill: rgba(255, 255, 255, .24); }
