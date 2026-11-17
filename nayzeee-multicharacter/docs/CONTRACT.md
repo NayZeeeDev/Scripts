@@ -342,7 +342,8 @@ departure = {
     { at = 4000, ['do'] = 'fly',          vehicle = 1, to = vec3(0.0, 60.0, 35.0), speed = 12.0 },
     { at = 4000, ['do'] = 'taxi',         vehicle = 1, to = vec3(0.0, 120.0, 0.0), speed = 14.0 },
     { at = 0,    ['do'] = 'walkTo',       to = vec3(...), speed = 1.0 },
-    { at = 0,    ['do'] = 'anim',         target = 'main', dict = '...', clip = '...', flag = 49, prop = 'phone' },
+    { at = 0,    ['do'] = 'anim',         target = 'main', pose = 'phone', time = 2000 },   -- a Config.Poses id (props included) or dict/clip/flag; time = ms then cleared
+    { at = 0,    ['do'] = 'petFollow' },                    -- pet unfreezes and follows the main ped (TaskFollowToOffsetOfEntity)
     { at = 0,    ['do'] = 'ptfx',         asset = 'core', name = 'ent_dst_dust', offset = vec3(...), scale = 1.5, entity = 'vehicle1' },
     { at = 0,    ['do'] = 'sound',        name = 'NAV_UP_DOWN', set = 'HUD_FRONTEND_DEFAULT_SOUNDSET' },
     { at = 0,    ['do'] = 'doors',        vehicle = 1, open = { 0 } },
@@ -353,3 +354,24 @@ Vehicles may define `crew = { { model = 's_m_m_pilot_02', seat = -1 }, ... }` �
 `SetPedStayInVehicleWhenJacked`, invisible to nameplates; the crew drives/flies for `drive`/`fly`/`taxi`
 when the main character is not in the driver seat. `enterVehicle` passes the exact seat and sets
 `SetPedConfigFlag(ped, 184, true)` so no auto-shuffle to the driver seat.
+
+Step targets: `target = 'main'|'partner'|'pet'` (default main). `vehicle = n` = n-th entry of the theme's
+`vehicles`. `to`/`offset` are rel space of the main slot. `entity = 'vehicle1'|'main'` attaches ptfx.
+Camera point `follow = 'vehicle1'|'main'`: after reaching that point the camera keeps pointing at the
+entity (PointCamAtEntity) until the fade.
+
+---------------------------------------------------------------------------------------------
+## 9. Theme data (config/themes.lua) — what the client reads
+`Config.LobbyThemes[id] = { order, label, description, icon, category, palette, main (vec4), interior,
+weather, hour, minute, mood, moods, timecycle, slots = { [2..4] = placement }, pet = placement,
+poses = { [slot] = poseId }, props = { { model, offset, heading, collision } }, vehicles = { { model,
+offset, heading, color = {p,s}, livery, extras, mods, lights, doorsOpen, crew = { { model, seat } } } },
+lights = { tint, scale, rig, extra }, cameras = { start|squad|duo|body|face = { offset, lookAt, fov } },
+ambience = { preset, url }, departure = §8 }` — placement = `{ offset, heading }` or `{ coords }`,
+resolve with `NZ.Place(main, placement)`.
+Other config: `Config.Moods` (array), `Config.Poses` (array), `Config.CoupleAnimations` (array),
+`Config.GoodbyeAnim`, `Config.WeaponShowcase`, `Config.Pets`, `Config.Camera`, `Config.Lighting`,
+`Config.Audio`, `Config.Squad`, `Config.Spawn`, `Config.StartScreen`, `Config.Scene`, `Config.UI`.
+Shared helpers in shared/utils.lua: `NZ.T, NZ.Decode, NZ.Truthy, NZ.Vec, NZ.Copy, NZ.Trim,
+NZ.Capitalize, NZ.Theme, NZ.MoodById, NZ.PoseById, NZ.CoupleById, NZ.PetById, NZ.ThemeIds,
+NZ.WeaponClass`; shared/math.lua: `NZ.Fwd, NZ.Right, NZ.Rel, NZ.RelH, NZ.Place, NZ.HeadingTo, NZ.Lerp`.
