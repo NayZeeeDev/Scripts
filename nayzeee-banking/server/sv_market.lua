@@ -122,8 +122,21 @@ local function tick()
     end
 end
 
+--- Set an asset's price by hand (the Banking Manager). Kept inside the
+--- asset's floor and ceiling, which the next tick would enforce anyway.
+function Bank.setMarketPrice(id, price)
+    local a, m = assetConfig(id), Bank.market[id]
+    price = tonumber(price)
+    if not a or not m or not price or price ~= price then return false end
+    price = math.max(a.floor, math.min(a.ceiling, price))
+    m.price = math.floor(price * 100) / 100
+    m.history[#m.history + 1] = m.price
+    while #m.history > HISTORY_POINTS do table.remove(m.history, 1) end
+    persist(id)
+    return true, m.price
+end
+
 CreateThread(function()
-    if not Config.Market.enabled then return end
     Wait(3000)
     loadMarket()
 
@@ -131,10 +144,12 @@ CreateThread(function()
     local lastOpen = os.date('%H')
 
     while true do
-        Wait(Config.Market.tickMinutes * 60000)
+        Wait(math.max(1, tonumber(Config.Market.tickMinutes) or 5) * 60000)
 
         -- one bad tick (a database hiccup) must not stop the market for good
-        local ok, err = pcall(function()
+        -- (switched off in the Banking Manager: prices hold until it is back on)
+        local ok, err = true, nil
+        if Config.Market.enabled ~= false then ok, err = pcall(function()
             tick()
 
             local hour = os.date('%H')
@@ -145,7 +160,7 @@ CreateThread(function()
                     persist(id)
                 end
             end
-        end)
+        end) end
         if not ok then Console.log('error', 'market tick failed: %s', tostring(err)) end
     end
 end)

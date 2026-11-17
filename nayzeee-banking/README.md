@@ -887,6 +887,7 @@ nayzeee-banking/
 │  └─ REPLACE_paycheck.lua   optional, pre-1.9 ESX only
 ├─ server/
 │  ├─ sv_bridge.lua      open — billing integrations
+│  ├─ sv_manager.lua     /bankingmanager, the staff panel
 │  ├─ sv_esx.lua         open — framework mirror
 │  ├─ sv_multijob.lua    open — multi-job adapters
 │  └─ …                  protected
@@ -960,13 +961,31 @@ TriggerEvent('nz_bank:paycheck', source, amount, 'Police')
 
 | Command | Description |
 |---|---|
-| `/bankadmin give <id\|account> <amount>` | Add money to an account |
-| `/bankadmin take <id\|account> <amount>` | Remove money |
-| `/bankadmin freeze\|unfreeze <id>` | Lock or unlock every account a player holds |
-| `/bankadmin check <id\|account>` | Print balances and credit score |
-| `/bankadmin credit <id> <score>` | Set a credit score |
-| `/bankadmin wipeloans <id>` | Clear all loans on a player |
+| `/bankingmanager` | Opens the Banking Manager (staff only, see below) |
+| `bankingmanager give\|take <playerId\|account> <amount>` | From the server console or txAdmin: add or remove money |
+| `bankingmanager check <playerId\|account>` | From the console: a balance |
 | `/paysociety <amount>` | Boss payout from society to personal |
+
+---
+
+## 🧑‍💼 Banking Manager
+
+`/bankingmanager` opens one panel for staff to run the bank from in game, with no config editing or restarts for almost everything. Who gets in: anyone with the `nayzeee.banking` ace (`add_ace group.admin nayzeee.banking allow`) or a framework group in `Config.Admin.allowGroups`. Every request is checked on the server again, and every change is written to **Staff activity** (and the Discord log when `Config.Logs` is on) with who made it.
+
+| Page | What you can do |
+|---|---|
+| **Overview** | Money held, accounts by kind, players online, loans owed and defaulted, unpaid and overdue bills, cards, a week of money in and out, the largest accounts, the latest staff changes |
+| **Players** | Everyone online, or search anyone who has banked by name, server ID, identifier or account number. Add, remove or set a balance with a reason, freeze an account, read its history, give or take cash, go to them, set a credit score, block or unblock cards, write off a loan or clear missed payments, cancel a bill |
+| **Societies** | Every job's account: top up, take, freeze, rename, history |
+| **All accounts** | Search every account in the bank |
+| **Branches & tellers** | Every branch on a map of the city (scroll to zoom, drag to move, click anywhere to teleport there). Per branch: rename it, change the teller model, go there, **move the teller** by hand, put the teller where you stand, **place the money counter** and the spot where cash changes hands, or remove the branch. Add a new branch where you stand |
+| **Market** | Prices, today's move and holders; set a price by hand for an event or a crash |
+| **Settings** | 143 settings in 12 groups (general, branches, teller counter, physical cash, ATMs, accounts, cards and credit, loans, savings and overdraft, bills and payroll, investments, phone, papers and sound) as switches, numbers, lists and colour pickers, with search. Each one saves the moment it changes and reaches every player at once. **Reset** brings back the value in config.lua, **Copy to config.lua** gives you the changes as Lua lines to paste in |
+| **Staff activity** | Every change made in the panel, newest first |
+
+**Moving things in the world.** The panel steps aside and a small guide shows the keys. **Moving a teller:** arrows to move (relative to the camera), PAGE UP/DOWN for height, Q/E to turn, G to snap to where you stand. **Placing the money counter:** TAB switches between the machine and the cash spot; arrows move along the counter and toward the customer; Q/E turn the machine. For either, SHIFT moves faster and ALT finer, ENTER saves for everyone and BACKSPACE cancels. The teller has to be spawned near you to place a counter, so go to the branch first.
+
+**Where changes are kept.** config.lua is never edited. Changes are kept as overrides in the resource's KVP, so they survive restarts and replacing the folder with a new version, and players get them through a state bag. Settings marked **RESTART** in the panel (banknotes on or off, the third-eye resource, payroll mode, the phone app, the market tick, the billing watcher, the language file) take hold after `restart nayzeee-banking`. Everything else is live.
 
 ---
 

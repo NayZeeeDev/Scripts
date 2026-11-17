@@ -263,3 +263,16 @@ CREATE TABLE IF NOT EXISTS `nz_bank_credit_history` (
   PRIMARY KEY (`id`),
   KEY `identifier` (`identifier`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Everything done in /bankingmanager: who, what, to whom
+CREATE TABLE IF NOT EXISTS `nz_bank_audit` (
+  `id`         INT(11) NOT NULL AUTO_INCREMENT,
+  `admin`      VARCHAR(64) NOT NULL,
+  `admin_name` VARCHAR(64) NOT NULL,
+  `action`     VARCHAR(48) NOT NULL,
+  `target`     VARCHAR(96) DEFAULT NULL,
+  `detail`     VARCHAR(255) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

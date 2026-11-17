@@ -164,7 +164,7 @@ end
 
 --- Returns true only when the UI actually opened.
 function Bank.openUI(context)
-    if Bank.isOpen then return false end
+    if Bank.isOpen or Bank.managerOpen or Bank.placing then return false end
 
     if context ~= 'atm' and not Bank.branchOpen() then
         Bank.notify(L('branch_closed'), L('branch_opens', Config.WorkingHours.openHour), 'error')
@@ -391,17 +391,23 @@ AddEventHandler('onClientResourceStop', function(resource)
     if resource == Config.Target then branchZones = {} end
 end)
 
-CreateThread(function()
+local blips = {}
+
+--- Blips, tellers and targets for every branch in Config.Banks. Run on start
+--- and again whenever the Banking Manager changes a branch, so a teller moved
+--- there is moved for everyone at once.
+function Bank.buildBranches()
     if Config.Blip.enabled then
         for _, bank in ipairs(Config.Banks) do
             local blip = AddBlipForCoord(bank.coords.x, bank.coords.y, bank.coords.z)
             SetBlipSprite(blip, Config.Blip.sprite)
             SetBlipColour(blip, Config.Blip.colour)
-            SetBlipScale(blip, Config.Blip.scale)
+            SetBlipScale(blip, Config.Blip.scale + 0.0)
             SetBlipAsShortRange(blip, true)
             BeginTextCommandSetBlipName('STRING')
             AddTextComponentString(Config.Blip.name)
             EndTextCommandSetBlipName(blip)
+            blips[#blips + 1] = blip
         end
     end
 
@@ -415,6 +421,43 @@ CreateThread(function()
 
     branchesReady = true
     addTargets()
+end
+
+--- Take every branch down: blips, tellers, their targets and the counters' machines.
+function Bank.clearBranches()
+    clearTargets()
+    for _, blip in ipairs(blips) do
+        if DoesBlipExist(blip) then RemoveBlip(blip) end
+    end
+    blips = {}
+    for _, ped in pairs(Bank.peds) do
+        if DoesEntityExist(ped) then DeleteEntity(ped) end
+    end
+    Bank.peds = {}
+    Bank.sweepTellers()
+    if Bank.clearCounters then Bank.clearCounters() end
+end
+
+CreateThread(Bank.buildBranches)
+
+-- the Banking Manager changed something a branch is built from: build them again
+local REBUILD = { Banks = true, SpawnPeds = true, ['Blip.enabled'] = true, ['Blip.name'] = true,
+    ['Blip.sprite'] = true, ['Blip.colour'] = true, ['Blip.scale'] = true, ['Teller.enabled'] = true }
+
+AddEventHandler('nz_bank:settingsChanged', function(changed)
+    changed = changed or {}
+    local again = false
+    for k in pairs(changed or {}) do if REBUILD[k] then again = true break end end
+    if again then
+        -- a teller scene in progress keeps its teller; the rebuild waits for it
+        CreateThread(function()
+            while Bank.tellerBusy or Bank.placing do Wait(250) end
+            Bank.clearBranches()
+            Bank.buildBranches()
+        end)
+    elseif changed['Teller.banks'] or changed['Teller.machineProp'] or changed['Teller.machineHeading'] then
+        if Bank.clearCounters and not Bank.placing then Bank.clearCounters() end
+    end
 end)
 
 -- key press with a marker, whenever no target system is actually running
@@ -426,6 +469,7 @@ CreateThread(function()
         local near = false
         -- the teller's own "Collect cash" owns E while cash is on the counter
         local useKey = not targetActive() and not Bank.isOpen and not Bank.tellerBusy
+            and not Bank.managerOpen and not Bank.placing
         local pos = GetEntityCoords(PlayerPedId())
 
         for _, bank in ipairs(Config.Banks) do

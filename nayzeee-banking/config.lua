@@ -1030,10 +1030,15 @@ Config.Sounds = {
 -- ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║
 -- ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝
 
+-- /bankingmanager opens one panel for staff: the bank at a glance, every
+-- player's money, societies, branches and tellers on a map, the money counter,
+-- every setting below, the market and a log of what staff did. What is changed
+-- there is laid over this file (kept in the resource's KVP) and "Reset" brings
+-- this file's value back.
 Config.Admin = {
-    command     = 'bankadmin',
+    command     = 'bankingmanager',
     ace         = 'nayzeee.banking',   -- add_ace group.admin nayzeee.banking allow
-    allowGroups = { 'admin', 'superadmin' },
+    allowGroups = { 'admin', 'superadmin', 'god' },
 }
 
 -- ██╗      ██████╗  ██████╗ ███████╗

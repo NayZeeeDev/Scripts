@@ -21,6 +21,7 @@ DROP TABLE IF EXISTS `nz_bank_market`;
 DROP TABLE IF EXISTS `nz_bank_payees`;
 DROP TABLE IF EXISTS `nz_bank_trades`;
 DROP TABLE IF EXISTS `nz_bank_credit_history`;
+DROP TABLE IF EXISTS `nz_bank_audit`;
 DROP TABLE IF EXISTS `nz_bank_accounts`;
 
 SET FOREIGN_KEY_CHECKS = 1;

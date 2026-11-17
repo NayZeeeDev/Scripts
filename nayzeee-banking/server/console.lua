@@ -31,7 +31,7 @@ local LEVEL = {
 }
 
 -- the order rows appear in, whatever order the checks finish in
-local ORDER = { 'ox_lib', 'oxmysql', 'onesync', 'framework', 'inventory', 'database', 'cash', 'billing', 'payroll' }
+local ORDER = { 'ox_lib', 'oxmysql', 'onesync', 'framework', 'inventory', 'database', 'cash', 'billing', 'payroll', 'manager' }
 local rank = {}
 for i, k in ipairs(ORDER) do rank[k] = i end
 

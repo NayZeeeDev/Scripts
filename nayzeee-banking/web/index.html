@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Banking</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/manager.css">
 </head>
 <body>
 
@@ -125,6 +126,89 @@
 </div>
 </div>
 
+<!-- ═══ BANKING MANAGER (/bankingmanager) ═══ -->
+<div class="frame mgr-frame" id="mgr">
+<div class="shell">
+  <div class="bar">
+    <div class="bar-brand">
+      <div class="mark"></div>
+      <div>
+        <div class="title-txt">Banking Manager</div>
+        <div class="sub" id="mgrSub">Staff panel</div>
+      </div>
+    </div>
+    <div class="bar-mid">
+      <span class="dot"></span>
+      <p id="mgrStatus">Signed in as <b>—</b></p>
+      <span class="staff-chip">STAFF</span>
+      <span class="ver" id="mgrVer">v1.0.0</span>
+    </div>
+    <button class="pill-close" id="mgrClose">Close</button>
+  </div>
+
+  <div class="body">
+    <nav class="side" id="mgrNav">
+      <div class="who">
+        <div class="av" id="mgrAv">—</div>
+        <div class="who-txt">
+          <b id="mgrName">—</b>
+          <span id="mgrStack">—</span>
+        </div>
+      </div>
+
+      <div class="grp">Bank</div>
+      <button class="nav on" data-mpage="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Overview
+      </button>
+      <button class="nav" data-mpage="players">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0M16.5 5.4a3.2 3.2 0 0 1 0 5.9M18 19.5a6.4 6.4 0 0 0-2-4.4"/></svg>
+        Players <span class="tally" id="mgrTallyOnline">0</span>
+      </button>
+      <button class="nav" data-mpage="societies">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>
+        Societies
+      </button>
+      <button class="nav" data-mpage="accounts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h3"/></svg>
+        All accounts
+      </button>
+
+      <div class="grp">World</div>
+      <button class="nav" data-mpage="branches">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.4"/></svg>
+        Branches &amp; tellers <span class="tally" id="mgrTallyBranches">0</span>
+      </button>
+      <button class="nav" data-mpage="market">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.5 9 11l4 4 8-8.5"/><path d="M15 6.5h6v6"/></svg>
+        Market
+      </button>
+
+      <div class="grp">Server</div>
+      <button class="nav" data-mpage="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        Settings <span class="tally" id="mgrTallyChanged">0</span>
+      </button>
+      <button class="nav" data-mpage="audit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+        Staff activity
+      </button>
+    </nav>
+
+    <main class="main" id="mgrView"></main>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="key">ESC</span>Close</span>
+    <span>Changes save as you make them and reach every player at once</span>
+    <span class="right"><span><span class="chip amber" style="margin-right:6px">RESTART</span>takes hold after a restart</span></span>
+  </div>
+</div>
+</div>
+
+<!-- placement HUD, shown while staff move a teller or a money counter -->
+<div class="mgr-hud" id="mgrHud"></div>
+
 <div class="pinpad" id="pinpad">
   <div class="pin-box"><div class="pin-in" id="pinInner">
     <div class="pin-brand">
@@ -157,5 +241,6 @@
 </div></div>
 
 <script src="js/app.js"></script>
+<script src="js/manager.js"></script>
 </body>
 </html>

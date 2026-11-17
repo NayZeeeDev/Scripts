@@ -12,7 +12,8 @@ shared_scripts {
     '@ox_lib/init.lua',
     'config.lua',
     'locales/*.lua',
-    'shared/locale.lua'
+    'shared/locale.lua',
+    'shared/sh_manager.lua'       -- what the Banking Manager changed, laid over config.lua
 }
 
 client_scripts {
@@ -21,7 +22,8 @@ client_scripts {
     'client/cl_atm_dui.lua',
     'client/cl_atm_props.lua',
     'client/cl_teller.lua',
-    'client/cl_phone.lua'
+    'client/cl_phone.lua',
+    'client/cl_manager.lua'
 }
 
 server_scripts {
@@ -48,7 +50,7 @@ server_scripts {
     'server/sv_phone.lua',
     'server/sv_bridge.lua',
     'server/sv_esx.lua',
-    'server/sv_admin.lua'
+    'server/sv_manager.lua'        -- /bankingmanager
 }
 
 ui_page 'web/index.html'
@@ -57,6 +59,8 @@ files {
     'web/index.html',
     'web/css/style.css',
     'web/js/app.js',
+    'web/css/manager.css',
+    'web/js/manager.js',
 
     'web/atm.html',
     'web/css/atm.css',

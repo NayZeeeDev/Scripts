@@ -99,19 +99,24 @@ end
 --- the counter's collision to be loaded, so the drop onto it lands. Tellers
 --- spawned late, or put back after /bankclean, get theirs the same way.
 CreateThread(function()
-    if not on() then return end
     sweep()   -- anything a crashed run left behind
-    local hash
     while true do
-        local me = GetEntityCoords(PlayerPedId())
-        for i, ped in pairs(Bank.peds or {}) do
-            if not machines[i] and ped and DoesEntityExist(ped)
-                and #(me - GetEntityCoords(ped)) < 40.0 and HasCollisionLoadedAroundEntity(ped) then
-                hash = hash or model(T.machineProp)
-                if not hash then return end   -- not in the game; said once already
-                local c = branchCfg(i)
-                machines[i] = prop(hash, onCounter(ped, c.machine), homeHeading(i, ped) + c.machineHeading)
+        -- switched on and off from the Banking Manager without a restart; the
+        -- placement tool owns the machines while it runs
+        if on() and not Bank.placing then
+            local me = GetEntityCoords(PlayerPedId())
+            for i, ped in pairs(Bank.peds or {}) do
+                if not machines[i] and ped and DoesEntityExist(ped)
+                    and #(me - GetEntityCoords(ped)) < 40.0 and HasCollisionLoadedAroundEntity(ped) then
+                    local hash = model(T.machineProp)   -- a wrong model is said once and skipped
+                    if hash then
+                        local c = branchCfg(i)
+                        machines[i] = prop(hash, onCounter(ped, c.machine), homeHeading(i, ped) + c.machineHeading)
+                    end
+                end
             end
+        elseif not on() and next(machines) then
+            Bank.clearCounters()
         end
         Wait(1500)
     end
@@ -122,6 +127,51 @@ function Bank.clearCounters()
     for _, obj in pairs(machines) do drop(obj) end
     for obj in pairs(loose) do drop(obj) end
     machines = {}
+end
+
+-- ── the Banking Manager's placement tool ─────────────────
+local preview = { notes = nil }
+
+--- This branch's counter as it stands: machine offset, its turn, the cash spot.
+function Bank.counterConfig(i)
+    local c = branchCfg(i)
+    return { machine = vector3(c.machine.x, c.machine.y, c.machine.z), machineHeading = c.machineHeading,
+             counter = vector3(c.counter.x, c.counter.y, c.counter.z) }
+end
+
+--- Show a branch's counter with these offsets, the machine and a stack of notes
+--- where the cash changes hands, so they can be moved by eye.
+function Bank.counterPreview(i, c)
+    local ped = Bank.peds and Bank.peds[i]
+    if not ped or not DoesEntityExist(ped) then return false end
+    local home = homeHeading(i, ped)
+
+    local mhash = model(T.machineProp)
+    if mhash then
+        local at = onCounter(ped, c.machine)
+        if not machines[i] or not DoesEntityExist(machines[i]) then
+            machines[i] = prop(mhash, at, home + c.machineHeading)
+        else
+            SetEntityCoordsNoOffset(machines[i], at.x, at.y, at.z, false, false, false)
+            SetEntityHeading(machines[i], home + c.machineHeading)
+        end
+    end
+
+    local chash = model(T.cashProp)
+    if chash then
+        local spot = onCounter(ped, c.counter)
+        if not preview.notes or not DoesEntityExist(preview.notes) then
+            preview.notes = prop(chash, spot, home)
+            loose[preview.notes] = true
+        else
+            SetEntityCoordsNoOffset(preview.notes, spot.x, spot.y, spot.z, false, false, false)
+        end
+    end
+    return true, machines[i], preview.notes
+end
+
+function Bank.counterPreviewEnd()
+    if preview.notes then drop(preview.notes) preview.notes = nil end
 end
 
 -- ── moving things ────────────────────────────────────────
