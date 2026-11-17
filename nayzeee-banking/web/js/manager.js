@@ -493,7 +493,7 @@ function branchDetail(r) {
         <button class="tool" data-mact="gotoBranch" data-i="${r.i}">${MI.go}<div><b>Go there</b><span>In front of the teller</span></div></button>
         <button class="tool" data-mact="placeTeller" data-i="${r.i}">${MI.move}<div><b>Move teller</b><span>Arrows, Q/E to turn, ENTER</span></div></button>
         <button class="tool" data-mact="tellerHere" data-i="${r.i}">${MI.me}<div><b>Teller to my spot</b><span>Where you stand, facing your way</span></div></button>
-        <button class="tool" data-mact="placeCounter" data-i="${r.i}">${MI.machine}<div><b>Place money counter</b><span>The machine and the cash spot</span></div></button>
+        <button class="tool" data-mact="placeCounter" data-i="${r.i}">${MI.machine}<div><b>Place money counter</b><span>Aim with the mouse, scroll to turn, E</span></div></button>
         ${r.counter ? `<button class="tool" data-mact="resetCounter" data-i="${r.i}">${MI.undo}<div><b>Default counter</b><span>Drop this branch's layout</span></div></button>` : ''}
         <button class="tool red" data-mact="deleteBranch" data-i="${r.i}">${MI.trash}<div><b>Remove branch</b><span>Teller, blip and all</span></div></button>
       </div>`)}`;

@@ -8,12 +8,17 @@ if BankLocked then return end
 --  in the world: teleporting, and the placement tools that move a
 --  teller, the money counter and the cash spot by eye.
 --
---  Placement keys
+--  Moving a teller
 --    arrows        move          SHIFT  faster    ALT  finer
 --    PAGE UP/DOWN  up and down   Q / E  turn
---    TAB           machine / cash spot (counter only)
---    G             to where you stand (teller only)
+--    G             to where you stand
 --    ENTER         save          BACKSPACE  cancel
+--  Placing a money counter
+--    MOUSE         aim: the prop sits where you look
+--    SCROLL        turn it (SHIFT for fine steps)
+--    E             put it down and save
+--    TAB           put it down and move the cash spot next
+--    BACKSPACE     cancel
 -- ═══════════════════════════════════════════════════════════
 Bank.managerOpen = false
 Bank.placing = false
@@ -109,7 +114,8 @@ local K = {
     turnL = 44, turnR = 38, fast = 21, fine = 19, swap = 37, snap = 47,
     save = 191, cancel = 194,
 }
-local BLOCK = { 172, 173, 174, 175, 10, 11, 44, 38, 21, 19, 37, 47, 191, 194, 24, 25, 140, 141, 142, 200, 199 }
+local BLOCK = { 172, 173, 174, 175, 10, 11, 44, 38, 21, 19, 37, 47, 191, 194, 24, 25, 140, 141, 142, 200, 199,
+    14, 15, 16, 17, 241, 242, 261, 262, 81, 82, 99, 100 }   -- the scroll wheel, whatever it is bound to
 
 local function hud(data) SendNUIMessage({ action = 'mgrHud', data = data }) end
 
@@ -135,7 +141,9 @@ end
 
 --- Run a placement loop until ENTER or BACKSPACE. `frame` moves things and
 --- draws; it returns the HUD rows when something changed. true = saved.
-local function placing(title, keys, frame)   -- frame(first): first = draw the values once
+--- frame(first) returns the HUD rows when they changed, and true/false as a
+--- second value to finish (save / cancel) on its own. saveKey defaults to ENTER.
+local function placing(title, keys, frame, saveKey)
     Bank.placing = true
     SetNuiFocus(false, false)
     SendNUIMessage({ action = 'managerHide' })
@@ -144,9 +152,10 @@ local function placing(title, keys, frame)   -- frame(first): first = draw the v
     local first = true
     while saved == nil do
         for _, c in ipairs(BLOCK) do DisableControlAction(0, c, true) end
-        local rows = frame(first)
+        local rows, done = frame(first)
         if rows or first then hud({ title = title, keys = keys, rows = rows }) first = false end
-        if tapped(K.save) then saved = true end
+        if done ~= nil then saved = done end
+        if saved == nil and saveKey ~= false and tapped(saveKey or K.save) then saved = true end
         if tapped(K.cancel) then saved = false end
         Wait(0)
     end
@@ -246,6 +255,43 @@ local function placeTeller(index, label, pedModel)
 end
 
 -- ── the money counter and the cash spot on a branch's counter ─
+--  Aimed, not keyed: the prop sits wherever the camera looks (a ray from the
+--  camera through the middle of the screen, so moving the mouse moves it),
+--  the scroll wheel turns it and E puts it down. TAB puts the one in hand
+--  down and picks up the other (the machine, then the spot the cash slides to).
+
+local REACH = 2.6          -- how far from the teller either may go (the server allows 3)
+
+--- Where the camera's line of sight first meets the world or an object. Peds
+--- (the player, the teller) are not hit, and the props being placed have no
+--- collision, so the ray goes through them to the counter beneath.
+local function aim(distance)
+    local from = GetGameplayCamCoord()
+    local rot = GetGameplayCamRot(2)
+    local rx, rz = math.rad(rot.x), math.rad(rot.z)
+    local dir = vector3(-math.sin(rz) * math.abs(math.cos(rx)), math.cos(rz) * math.abs(math.cos(rx)), math.sin(rx))
+    local to = from + dir * (distance or 8.0)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(from.x, from.y, from.z, to.x, to.y, to.z, 17, PlayerPedId(), 7)
+    local _, hit, at = GetShapeTestResult(ray)
+    if hit == 1 and at then return at end
+end
+
+--- One notch of the scroll wheel: 1 up, -1 down, 0 none. A notch arrives on
+--- several controls at once (cursor scroll, weapon wheel, next/previous
+--- weapon), so it is read from all of them and counted once.
+local function scrolled()
+    local jp = IsDisabledControlJustPressed
+    if jp(0, 241) or jp(0, 15) or jp(0, 17) then return 1 end
+    if jp(0, 242) or jp(0, 14) or jp(0, 16) then return -1 end
+    return 0
+end
+
+--- Where an entity sits, measured from the teller (x right, y forward, z up).
+local function fromTeller(ped, ent)
+    local p = GetEntityCoords(ent)
+    return GetOffsetFromEntityGivenWorldCoords(ped, p.x, p.y, p.z)
+end
+
 local function placeCounter(index)
     local cfg = Config.Banks[index]
     local ped = Bank.peds[index]
@@ -254,59 +300,96 @@ local function placeCounter(index)
     end
     if not Bank.counterPreview then return back('branches', 'The teller counter is switched off.', false) end
 
+    -- the props as they stand now, from config
     local c = Bank.counterConfig(index)
-    local m = { x = c.machine.x, y = c.machine.y, z = c.machine.z, h = c.machineHeading }
-    local cash = { x = c.counter.x, y = c.counter.y, z = c.counter.z }
-    local which = 'machine'
-
-    local machine, notes
-    local function show()
-        local _, a, b = Bank.counterPreview(index, { machine = vector3(m.x, m.y, m.z), machineHeading = m.h,
-            counter = vector3(cash.x, cash.y, cash.z) })
-        machine, notes = a, b
+    local _, machine, notes = Bank.counterPreview(index, c)
+    if not machine or not DoesEntityExist(machine) then
+        return back('branches', 'The money counter model is not in the game: check Config.Teller.machineProp.', false)
     end
-    show()
+
+    local home = cfg.coords.w
+    local tellerAt = GetEntityCoords(ped)
+    local heading = GetEntityHeading(machine)
+    local which = 'machine'
+    local valid = true
+
+    local function holding() return which == 'machine' and machine or notes end
+    local function rel(h) return ((h - home + 180.0) % 360.0) - 180.0 end
 
     local ok = placing('Money counter · ' .. (cfg.label or 'Bank'), {
-        { 'TAB', 'machine / cash spot' }, { '← →', 'along the counter' }, { '↑ ↓', 'toward the customer' },
-        { 'PG UP / DN', 'up · down' }, { 'Q / E', 'turn the machine' }, { 'SHIFT / ALT', 'faster · finer' },
-        { 'ENTER', 'save' }, { 'BACKSPACE', 'cancel' },
+        { 'MOUSE', 'aim where it goes' }, { 'SCROLL', 'turn it (SHIFT finer)' }, { 'E', 'put it down and save' },
+        { 'TAB', 'put it down, move the cash spot' }, { 'BACKSPACE', 'cancel' },
     }, function(first)
-        local t = which == 'machine' and m or cash
-        local moved = false
-        local s = step(0.01)
-        if held(K.right) then t.x, moved = t.x + s, true end
-        if held(K.left) then t.x, moved = t.x - s, true end
-        if held(K.up) then t.y, moved = t.y + s, true end
-        if held(K.down) then t.y, moved = t.y - s, true end
-        if held(K.raise) then t.z, moved = t.z + s, true end
-        if held(K.lower) then t.z, moved = t.z - s, true end
-        if which == 'machine' and held(K.turnL) then m.h, moved = m.h + step(1.0), true end
-        if which == 'machine' and held(K.turnR) then m.h, moved = m.h - step(1.0), true end
-        if tapped(K.swap) then which, moved = (which == 'machine' and 'cash' or 'machine'), true end
-        if moved then show() end
+        local ent = holding()
+        local changed = first
+        local at = aim()
+        local wasValid = valid
 
-        local ent = which == 'machine' and machine or notes
+        if at and ent and DoesEntityExist(ent) then
+            -- kept on the teller's side of the room
+            valid = #(vector2(at.x, at.y) - vector2(tellerAt.x, tellerAt.y)) <= REACH
+            if valid then
+                local cur = GetEntityCoords(ent)
+                if #(cur - at) > 0.003 then
+                    SetEntityCoordsNoOffset(ent, at.x, at.y, at.z, false, false, false)
+                    changed = true
+                end
+            end
+        end
+
+        if valid ~= wasValid then changed = true end   -- the HUD says when it is too far
+
+        if which == 'machine' then
+            local notch = scrolled()
+            if notch ~= 0 then
+                heading = (heading + notch * (held(K.fast) and 1.0 or 7.5)) % 360.0
+                changed = true
+            end
+            SetEntityHeading(machine, heading)
+        end
+
+        -- what is in hand, and whether it can go there
         if ent and DoesEntityExist(ent) then
-            local at = GetEntityCoords(ent)
-            arrow(at)
-            ring(at)
+            local p = GetEntityCoords(ent)
+            local r, g, b = 8, 175, 162
+            if not valid then r, g, b = 229, 72, 77 end
+            DrawMarker(25, p.x, p.y, p.z + 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.34, 0.34, 0.34,
+                r, g, b, 170, false, false, 2, false, nil, nil, false)
+            DrawMarker(2, p.x, p.y, p.z + 0.5, 0.0, 0.0, 0.0, 180.0, 0.0, 0.0, 0.14, 0.14, 0.14,
+                r, g, b, 220, true, false, 2, false, nil, nil, false)
         end
-        if moved or first then
-            return {
-                { 'Moving', which == 'machine' and 'Money counter' or 'Cash spot' },
-                { 'Machine', ('%s, %s · %.0f°'):format(fmt(m.x), fmt(m.y), m.h) },
-                { 'Cash spot', ('%s, %s'):format(fmt(cash.x), fmt(cash.y)) },
-            }
-        end
-    end)
 
+        if tapped(K.swap) and valid and notes and DoesEntityExist(notes) then
+            which, changed = which == 'machine' and 'cash' or 'machine', true
+        end
+        local done
+        if tapped(K.turnR) then   -- E
+            if valid then done = true else Bank.notify('Banking Manager', 'Too far from the teller: keep it on their counter.', 'error') end
+        end
+
+        if changed then
+            local m = fromTeller(ped, machine)
+            local n = notes and DoesEntityExist(notes) and fromTeller(ped, notes)
+            return {
+                { 'In hand', which == 'machine' and 'Money counter' or 'Cash spot' },
+                { 'Machine', ('%s, %s · %.0f°'):format(fmt(m.x), fmt(m.y), rel(heading)) },
+                { 'Cash spot', n and ('%s, %s'):format(fmt(n.x), fmt(n.y)) or '—' },
+                { 'Spot', valid and 'on the counter' or 'too far from the teller' },
+            }, done
+        end
+        return nil, done
+    end, false)   -- no other save key: E is handled above
+
+    -- the props, measured from the teller the same way config.lua is
+    local m = fromTeller(ped, machine)
+    local n = notes and DoesEntityExist(notes) and fromTeller(ped, notes) or c.counter
     Bank.counterPreviewEnd()
     if Bank.clearCounters then Bank.clearCounters() end
     if not ok then return back('branches', 'Nothing was moved.', true) end
 
     local res = lib.callback.await('nz_bank:mgr:counterSave', false, index, {
-        machine = { x = m.x, y = m.y, z = m.z }, machineHeading = m.h, counter = { x = cash.x, y = cash.y, z = cash.z },
+        machine = { x = m.x, y = m.y, z = m.z }, machineHeading = rel(heading),
+        counter = { x = n.x, y = n.y, z = n.z },
     })
     back('branches', res and res.ok and 'Counter saved for everyone.' or (res and res.msg or 'Not saved.'), res and res.ok)
 end
