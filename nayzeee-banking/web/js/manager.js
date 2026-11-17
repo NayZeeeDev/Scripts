@@ -123,7 +123,7 @@ const kpi = (icon, label, value, note, opts = {}) => `
 const skeleton = (n) => Array.from({ length: n || 6 }, () => '<div class="skel-row"></div>').join('');
 const loadingPage = (title, sub) => {
   mView().innerHTML = `<div class="page">${mHead(title, sub)}<div class="kpis">${'<div class="skel-row" style="height:62px"></div>'.repeat(4)}</div>
-    <div class="panel fill"><div class="pb">${skeleton(7)}</div></div></div>`;
+    <div class="panel m-fill"><div class="pb">${skeleton(7)}</div></div></div>`;
 };
 
 /** Figures count up from zero when a page opens. */
@@ -221,7 +221,7 @@ async function pageOverview() {
       ${kpi(MI.coin, 'Owed on loans', mshort(d.loans.owed), `${d.loans.n} open · <em>${d.loans.bad}</em> defaulted`, { count: d.loans.owed, fmt: 'money', red: d.loans.bad > 0 })}
       ${kpi(MI.bill, 'Unpaid bills', mshort(d.bills.sum), `${d.bills.n} open · <em>${d.bills.late}</em> overdue`, { count: d.bills.sum, fmt: 'money', red: d.bills.late > 0 })}
     </div>
-    <div class="grid fill" style="grid-template-columns:1.55fr 1fr;grid-template-rows:minmax(0,1.25fr) minmax(0,1fr)">
+    <div class="grid m-fill" style="grid-template-columns:1.55fr 1fr;grid-template-rows:minmax(0,1.25fr) minmax(0,1fr)">
       ${mPanel('Cash flow', 'Money in and out by day, without transfers between players. Hover a day.',
         `<div id="mgrFlow" style="display:flex;flex-direction:column;flex:1;min-height:0">${flowHtml(d.days)}</div>`,
         { flat: true, acts: `<div class="seg" id="mgrRange">${[7, 14, 30].map(r => `<button class="${MG.range === r ? 'on' : ''}" data-range="${r}">${r}D</button>`).join('')}</div>` })}
@@ -347,14 +347,14 @@ async function setRange(r) {
 async function pagePlayers() {
   mView().innerHTML = `<div class="page">
     ${mHead('Players', 'Everyone in the city, or anyone who has banked here: search by name, server ID, identifier or account number.')}
-    <div class="grid fill" style="grid-template-columns:310px 1fr">
+    <div class="grid m-fill" style="grid-template-columns:310px 1fr">
       <div class="panel">
         <div style="padding:11px 12px 4px;flex:none"><div class="searchbox">${MI.search}<input id="mgrPlayerQ" placeholder="Name, ID, identifier, account…" value="${esc(MG.playerQ)}"></div></div>
         <div class="pb" id="mgrPlayerList">${skeleton(8)}</div>
         <div class="pfoot" id="mgrPlayerFoot">Loading…</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;min-height:0" id="mgrPlayerView">
-        <div class="panel fill"><div class="pb" style="justify-content:center">${emptyBox('Pick a player', 'Their accounts, cash, cards, loans, bills and activity open here.', MI.users)}</div></div>
+        <div class="panel m-fill"><div class="pb" style="justify-content:center">${emptyBox('Pick a player', 'Their accounts, cash, cards, loans, bills and activity open here.', MI.users)}</div></div>
       </div>
     </div></div>`;
   const input = document.getElementById('mgrPlayerQ');
@@ -386,7 +386,7 @@ async function openPlayer(identifier) {
   const box = document.getElementById('mgrPlayerView');
   if (!box) return;
   const res = await mPost('player', identifier);
-  if (!res.ok) { box.innerHTML = `<div class="panel fill"><div class="pb">${emptyBox('Not found', res.msg || '')}</div></div>`; return; }
+  if (!res.ok) { box.innerHTML = `<div class="panel m-fill"><div class="pb">${emptyBox('Not found', res.msg || '')}</div></div>`; return; }
   const p = MG.player = res.player;
   const own = p.accounts.filter(a => !a.member);
   const held = own.reduce((a, x) => a + x.balance, 0);
@@ -411,7 +411,7 @@ async function openPlayer(identifier) {
       <button class="btn-ghost" data-mact="setCredit">${MI.chart}Set credit score</button>
       ${own[0] ? `<button class="btn-ghost" data-mact="adjust" data-id="${own[0].id}" data-label="${esc(own[0].account_number)}" data-bal="${own[0].balance}">${MI.coin}Money on ${esc(own[0].type)}</button>` : ''}
     </div>
-    <div class="panel fill">
+    <div class="panel m-fill">
       <div class="tabs">${[
         ['accounts', 'Accounts', p.accounts.length], ['cards', 'Cards', p.cards.length], ['loans', 'Loans', activeLoans.length],
         ['bills', 'Bills', p.bills.length], ['activity', 'Activity', p.tx.length]
@@ -552,7 +552,7 @@ async function pageSocieties() {
       ${kpi(MI.lock, 'Frozen', frozen, frozen ? 'cannot pay or be paid' : 'none frozen', { red: frozen > 0 })}
     </div>
     ${mPanel('Society accounts', `${rows.length} accounts`, rows.length ? `<div class="mlist">${rows.map((r, i) => accountLine(r, i, max)).join('')}</div>`
-      : emptyBox('No society accounts', 'Jobs in Config.Accounts.societyAccess and Config.Bills.issuers get one on start.', MI.bank), { cls: 'fill' })}
+      : emptyBox('No society accounts', 'Jobs in Config.Accounts.societyAccess and Config.Bills.issuers get one on start.', MI.bank), { cls: 'm-fill' })}
   </div>`;
   countUp();
 }
@@ -564,7 +564,7 @@ async function pageAccounts() {
       <div class="searchbox">${MI.search}<input id="mgrAccQ" placeholder="NZB-…, a label, an identifier or a job" value="${esc(MG.accQ)}"></div>
       <div class="filters" id="mgrAccKinds"></div>
     </div>
-    <div class="panel fill"><div class="pb" id="mgrAccList">${skeleton(9)}</div><div class="pfoot" id="mgrAccFoot">Loading…</div></div>
+    <div class="panel m-fill"><div class="pb" id="mgrAccList">${skeleton(9)}</div><div class="pfoot" id="mgrAccFoot">Loading…</div></div>
   </div>`;
   const input = document.getElementById('mgrAccQ');
   let t = null;
@@ -613,7 +613,7 @@ function drawBranches() {
     ${mHead('Branches & tellers', 'Pick a branch to move its teller, place its money counter or go there. Click anywhere else on the map to teleport.',
       `<button class="btn-teal" data-mact="addBranch">+ Branch where I stand</button>
        ${b.edited ? `<button class="btn-line" data-mact="resetBranches">Back to config.lua</button>` : ''}`)}
-    <div class="grid fill" style="grid-template-columns:auto 1fr">
+    <div class="grid m-fill" style="grid-template-columns:auto 1fr">
       <div class="panel map-panel"><div class="pb flat">
         <div class="map-wrap" id="mgrMap">
           <div class="map-in" id="mgrMapIn"><img src="images/map.png" alt="">${b.rows.map((r, i) => pinHtml(r, i)).join('')}
@@ -654,7 +654,7 @@ function branchList(custom) {
         ${r.counter ? '<em class="chip">OWN COUNTER</em>' : ''}
         <span class="mini" style="min-width:56px;text-align:right">${fmtDist(distTo(r))}</span>
         <button class="btn-ghost" data-mact="gotoBranch" data-i="${r.i}">${MI.go}Go</button>
-      </div>`).join('') || emptyBox('No branches', 'Stand where a teller should be and add one.', MI.pin)}</div>`, { cls: 'fill' })}`;
+      </div>`).join('') || emptyBox('No branches', 'Stand where a teller should be and add one.', MI.pin)}</div>`, { cls: 'm-fill' })}`;
 }
 
 function branchDetail(r) {
@@ -842,7 +842,7 @@ async function pageMarket() {
           <td class="r mini">${mshort(a.floor)} · ${mshort(a.ceiling)}</td><td class="r">${a.holders}</td><td class="r">${mshort(a.invested || 0)}</td>
           <td class="r" style="white-space:nowrap"><input type="number" step="0.01" id="mkt_${esc(a.id)}" placeholder="${Number(a.price).toFixed(2)}">
             <button class="btn-ghost" style="display:inline-flex;margin-left:6px" data-mact="setPrice" data-id="${esc(a.id)}">Set</button></td></tr>`;
-      }).join('')}</table>` : emptyBox('No assets', 'Add them to Config.Market.assets.', MI.chart), { cls: 'fill' })}
+      }).join('')}</table>` : emptyBox('No assets', 'Add them to Config.Market.assets.', MI.chart), { cls: 'm-fill' })}
   </div>`;
   countUp();
 }
@@ -999,7 +999,7 @@ async function pageAudit() {
       ${rows.map(a => `<tr><td class="mini" style="white-space:nowrap">${mAgo(a.at)}</td><td><b>${esc(a.admin_name)}</b></td><td>${esc(a.action)}</td>
         <td class="mono mini">${esc(a.target || '')}</td><td class="mini">${esc(a.detail || '')}</td></tr>`).join('')}</table>`
       : emptyBox('Nothing yet', 'Changes made here show up in this list.', MI.history),
-      { cls: 'fill', foot: `Page <b>${page}</b> of ${pages}<span class="right pager" style="padding:0">
+      { cls: 'm-fill', foot: `Page <b>${page}</b> of ${pages}<span class="right pager" style="padding:0">
         <button data-apage="${Math.max(1, page - 1)}" ${page <= 1 ? 'disabled' : ''}>‹</button>
         ${nums.map(i => `<button class="${i === page ? 'on' : ''}" data-apage="${i}">${i}</button>`).join('')}
         <button data-apage="${Math.min(pages, page + 1)}" ${page >= pages ? 'disabled' : ''}>›</button></span>` })}

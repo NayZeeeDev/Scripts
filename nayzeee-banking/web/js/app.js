@@ -176,8 +176,10 @@ window.addEventListener('message', (e) => {
     document.body.classList.add('locked');
   } else if (m.action === 'update') {
     S.data = m.data;
+    S.quiet = true;   // a refresh after a payment: redraw without replaying the animations
     render();
     chrome();
+    S.quiet = false;
   } else if (m.action === 'close') {
     closeModal();
     document.body.classList.remove('up');
@@ -781,12 +783,17 @@ function pageDashboard() {
   const first = (d.player.name || '').split(' ')[0];
 
   const peak = Math.max(...d.cashflow.map(m => m.income), 1);
-  const bars = d.cashflow.map(m => {
+  const bars = d.cashflow.map((m, i) => {
     const h = Math.max(5, Math.round((m.income / peak) * 100));
     const isPeak = m.income === peak && peak > 0;
-    return `<div class="cbar ${isPeak ? 'peak' : ''}">
+    const net = (m.income || 0) - (m.spending || 0);
+    return `<div class="cbar ${isPeak ? 'peak' : ''}" style="--i:${i}">
       ${isPeak ? `<span class="flag">${short(m.income)}</span>` : ''}
-      <div class="fill" style="height:${h}%"></div>
+      <div class="ctip"><b>${esc(m.label)}</b>
+        <div>In<em class="in">${money(m.income)}</em></div>
+        <div>Out<em class="out">${money(m.spending || 0)}</em></div>
+        <div>Net<em class="${net >= 0 ? 'in' : 'out'}">${net >= 0 ? '+' : ''}${money(net)}</em></div></div>
+      <div class="fill" style="height:calc((100% - 20px) * ${(h / 100).toFixed(3)})"></div>
       <span>${esc(m.label)}</span>
     </div>`;
   }).join('');
@@ -819,8 +826,8 @@ function pageDashboard() {
             <div class="legend"><span><i></i>Income</span><span><i class="grey"></i>Quiet months</span></div>
           </div>
           <div class="p-body tight">
-            <div class="num" style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--white)">${money(acc.balance)}</div>
-            <div class="chart">${bars}</div>
+            <div class="num" ${S.quiet ? '' : `data-countup="${acc.balance}"`} style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--white)">${money(acc.balance)}</div>
+            <div class="chart ${S.quiet ? '' : 'anim'}">${bars}</div>
           </div>
         </section>
 
@@ -2066,6 +2073,31 @@ function rerenderKeepScroll() {
   if (view) view.scrollTop = top;
 }
 
+/** A figure that counts up from zero as the page appears (the dashboard balance). */
+function countUpFigures() {
+  document.querySelectorAll('[data-countup]').forEach(el => {
+    const to = Number(el.dataset.countup) || 0;
+    el.removeAttribute('data-countup');
+    const t0 = performance.now(), dur = 850;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      el.textContent = money(to * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+/** Play the dashboard chart again (after the intro, which hid its first run). */
+function playChart() {
+  document.querySelectorAll('.chart.anim').forEach(c => {
+    c.classList.remove('anim');
+    void c.offsetWidth;   // restart the CSS animation
+    c.classList.add('anim');
+  });
+  countUpFigures();
+}
+
 function render() {
   if (!S.data) return;
 
@@ -2081,6 +2113,8 @@ function render() {
   view.scrollTop = 0;
 
   if (S.page === 'dashboard' && introSettled !== false) loadRecent();
+  // behind the intro nothing is seen yet; boot() plays it once the bank slides in
+  if (!S.quiet && introSettled !== false) countUpFigures();
   if (S.page === 'transactions') loadTransactions();
   if (S.page === 'shared') { loadMembers(); loadPanelTx('sharedTx', S.sharedId); }
   if (S.page === 'cards') loadStatement();
@@ -2105,6 +2139,7 @@ async function boot() {
   if (S.page === 'dashboard') await loadRecent();
 
   await finishIntro();
+  if (S.page === 'dashboard') playChart();
   setTimeout(() => { introSettled = true; }, 1100);
 }
 

@@ -252,7 +252,10 @@ button:disabled{opacity:.4;pointer-events:none}
 .hero .acct{font-size:10.5px;color:var(--ink-3);font-weight:300;letter-spacing:.08em;margin-top:6px}
 
 /* chart */
-.chart{flex:1;min-height:96px;display:flex;align-items:flex-end;gap:8px;padding:10px 4px 0}
+/* a real height, not just a minimum: the bars are a percentage of it, and a
+   percentage of a height that is only a minimum resolves to nothing (every bar
+   came out the same size) */
+.chart{flex:1 1 auto;height:132px;min-height:96px;display:flex;align-items:flex-end;gap:8px;padding:10px 4px 0}
 .cbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;position:relative}
 .cbar{height:100%;justify-content:flex-end}
 .cbar .fill{width:100%;max-width:26px;border-radius:6px;background:var(--raise-2);min-height:4px;
@@ -261,6 +264,32 @@ button:disabled{opacity:.4;pointer-events:none}
 .cbar span{font-size:9.5px;color:var(--ink-3);font-weight:300}
 .cbar .flag{position:absolute;top:-22px;font-size:9.5px;font-weight:600;color:#00201d;
   background:var(--teal);padding:2px 7px;border-radius:var(--r-xs);white-space:nowrap}
+
+/* the bars grow in one month after another, the peak's tag pops in after its bar */
+.chart.anim .cbar .fill{transform-origin:50% 100%;
+  animation:cGrow 780ms cubic-bezier(.2,.9,.25,1) both;animation-delay:calc(var(--i) * 45ms + 160ms)}
+@keyframes cGrow{0%{transform:scaleY(0);opacity:.3}70%{transform:scaleY(1.05);opacity:1}100%{transform:scaleY(1)}}
+.chart.anim .cbar .flag{animation:flagIn 420ms cubic-bezier(.2,1.3,.4,1) both;animation-delay:calc(var(--i) * 45ms + 820ms)}
+@keyframes flagIn{from{opacity:0;transform:translateY(6px) scale(.85)}to{opacity:1;transform:none}}
+.chart.anim .cbar > span:last-child{animation:fadeUp 400ms ease both;animation-delay:calc(var(--i) * 45ms + 200ms)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* hover a month: its bar lights up and its figures show */
+.cbar{cursor:default}
+.cbar:hover .fill{background:linear-gradient(180deg,var(--teal-hi),var(--teal-lo));filter:brightness(1.15)}
+.cbar:not(.peak):hover .fill{opacity:.75}
+.cbar:hover .flag{opacity:0}
+.ctip{position:absolute;top:0;left:50%;z-index:6;min-width:132px;padding:8px 10px;
+  border-radius:var(--r-sm);background:rgba(8,9,10,.96);border:1px solid var(--line);box-shadow:var(--sh-2);
+  transform:translate(-50%,4px);opacity:0;pointer-events:none;transition:opacity 120ms,transform 120ms}
+.cbar:first-child .ctip,.cbar:nth-child(2) .ctip{left:0;transform:translate(0,4px)}
+.cbar:last-child .ctip,.cbar:nth-last-child(2) .ctip{left:auto;right:0;transform:translate(0,4px)}
+.cbar:hover .ctip{opacity:1;transform:translate(-50%,0)}
+.cbar:first-child:hover .ctip,.cbar:nth-child(2):hover .ctip,.cbar:last-child:hover .ctip,.cbar:nth-last-child(2):hover .ctip{transform:none}
+.ctip b{display:block;font-size:11px;font-weight:600;color:var(--white);margin-bottom:5px}
+.ctip div{display:flex;justify-content:space-between;gap:12px;font-size:10.5px;color:var(--ink-3);font-weight:300;line-height:1.6}
+.ctip em{font-style:normal;font-weight:500;color:var(--white)}
+.ctip em.in{color:var(--teal)} .ctip em.out{color:var(--red)}
 .legend{display:flex;gap:14px;font-size:10.5px;color:var(--ink-3);font-weight:300}
 .legend i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal);margin-right:6px}
 .legend i.grey{background:var(--raise-2)}
