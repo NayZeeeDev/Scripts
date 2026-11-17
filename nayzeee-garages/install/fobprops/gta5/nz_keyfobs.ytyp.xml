@@ -1,0 +1,156 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<CMapTypes>
+  <archetypes>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.0174" y="-0.0334" z="-0.0065" />
+      <bbMax x="0.0174" y="0.052357197" z="0.0078" />
+      <bsCentre x="0.0" y="0.009478599" z="0.0006499998" />
+      <bsRadius value="0.046823677" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_generic</name>
+      <textureDictionary>nz_keyfob_generic</textureDictionary>
+      <physicsDictionary>nz_keyfob_generic</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_generic</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.012" y="-0.055" z="-0.0045" />
+      <bbMax x="0.012" y="0.032357194" z="0.0049" />
+      <bsCentre x="0.0" y="-0.011321403" z="0.00020000013" />
+      <bsRadius value="0.0455402" />
+      <hdTextureDist value="5" />
+      <name>nz_carkey</name>
+      <textureDictionary>nz_carkey</textureDictionary>
+      <physicsDictionary>nz_carkey</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_carkey</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.019000089" y="-0.036376614" z="-0.007" />
+      <bbMax x="0.019000089" y="0.05535719" z="0.0083" />
+      <bsCentre x="0.0" y="0.009490289" z="0.0006499998" />
+      <bsRadius value="0.050232444" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_luxury</name>
+      <textureDictionary>nz_keyfob_luxury</textureDictionary>
+      <physicsDictionary>nz_keyfob_luxury</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_luxury</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.01440003" y="-0.025400307" z="-0.0055" />
+      <bbMax x="0.01440003" y="0.042372387" z="0.0068" />
+      <bsCentre x="0.0" y="0.00848604" z="0.00065000006" />
+      <bsRadius value="0.037329182" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_compact</name>
+      <textureDictionary>nz_keyfob_compact</textureDictionary>
+      <physicsDictionary>nz_keyfob_compact</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_compact</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.027" y="-0.043" z="-0.00175" />
+      <bbMax x="0.027" y="0.043" z="0.00215" />
+      <bsCentre x="0.0" y="0.0" z="0.00020000001" />
+      <bsRadius value="0.050811443" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_card</name>
+      <textureDictionary>nz_keyfob_card</textureDictionary>
+      <physicsDictionary>nz_keyfob_card</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_card</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.0195" y="-0.0285" z="-0.009" />
+      <bbMax x="0.0195" y="0.049342" z="0.0108" />
+      <bsCentre x="0.0" y="0.0104209995" z="0.00090000033" />
+      <bsRadius value="0.044644196" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_retro</name>
+      <textureDictionary>nz_keyfob_retro</textureDictionary>
+      <physicsDictionary>nz_keyfob_retro</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_retro</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.0149" y="-0.0374" z="-0.0045" />
+      <bbMax x="0.0149" y="0.055364788" z="0.0058" />
+      <bsCentre x="0.0" y="0.008982394" z="0.00065000006" />
+      <bsRadius value="0.048988357" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_slim</name>
+      <textureDictionary>nz_keyfob_slim</textureDictionary>
+      <physicsDictionary>nz_keyfob_slim</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_slim</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.0159" y="-0.030400002" z="-0.0075000003" />
+      <bbMax x="0.0159" y="0.0493572" z="0.0088" />
+      <bsCentre x="0.0" y="0.009478598" z="0.0006499998" />
+      <bsRadius value="0.04369823" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_classic</name>
+      <textureDictionary>nz_keyfob_classic</textureDictionary>
+      <physicsDictionary>nz_keyfob_classic</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_classic</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.018" y="-0.034" z="-0.008" />
+      <bbMax x="0.018" y="0.06435719" z="0.0093" />
+      <bsCentre x="0.0" y="0.015178595" z="0.0006499998" />
+      <bsRadius value="0.053078778" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_leather</name>
+      <textureDictionary>nz_keyfob_leather</textureDictionary>
+      <physicsDictionary>nz_keyfob_leather</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_leather</assetName>
+    </Item>
+    <Item type="CBaseArchetypeDef">
+      <lodDist value="60" />
+      <flags value="0" />
+      <specialAttribute value="0" />
+      <bbMin x="-0.016474102" y="-0.0355" z="-0.006" />
+      <bbMax x="0.016474102" y="0.054357193" z="0.0073" />
+      <bsCentre x="0.0" y="0.009428596" z="0.00065000006" />
+      <bsRadius value="0.04831353" />
+      <hdTextureDist value="5" />
+      <name>nz_keyfob_sport</name>
+      <textureDictionary>nz_keyfob_sport</textureDictionary>
+      <physicsDictionary>nz_keyfob_sport</physicsDictionary>
+      <assetType>ASSET_TYPE_DRAWABLE</assetType>
+      <assetName>nz_keyfob_sport</assetName>
+    </Item>
+  </archetypes>
+  <name>nz_keyfobs</name>
+</CMapTypes>

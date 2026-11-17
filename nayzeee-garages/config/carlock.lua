@@ -221,20 +221,24 @@ Config.CarLock = {
   -- custom models (e.g. nz_keyfob_sport) can be streamed from stream/ and named here.
   fobProps = {
     fallback = 'lr_prop_carkey_fob',
+    -- nz_* = the original nayzeee props (install/fobprops). Until their .ydr / .ytyp are streamed
+    -- (see install/fobprops/README.md) they are not in the game and the client uses `fallback`.
     byDesign = {
-      generic = 'lr_prop_carkey_fob',
-      sport = 'lr_prop_carkey_fob',
-      luxury = 'lr_prop_carkey_fob',
-      classic = 'lr_prop_carkey_fob',
-      leather = 'lr_prop_carkey_fob',
-      compact = 'lr_prop_carkey_fob',
-      slim = 'lr_prop_carkey_fob',
-      card = 'lr_prop_carkey_fob',
-      retro = 'lr_prop_carkey_fob',
-      key = 'p_car_keys_01',          -- plain metal key (standard security profile)
+      generic = 'nz_keyfob_generic',
+      sport = 'nz_keyfob_sport',
+      luxury = 'nz_keyfob_luxury',
+      classic = 'nz_keyfob_classic',
+      leather = 'nz_keyfob_leather',
+      compact = 'nz_keyfob_compact',
+      slim = 'nz_keyfob_slim',
+      card = 'nz_keyfob_card',
+      retro = 'nz_keyfob_retro',
+      key = 'p_car_keys_01',              -- plain metal key (standard security profile)
     },
-    -- right hand (PH_R_Hand); offsets in metres, rotation in degrees: tune in game
-    hand = { bone = 28422, offset = vector3(0.04, 0.0, -0.01), rotation = vector3(-90.0, 0.0, 0.0) },
+    -- right hand (PH_R_Hand); offsets in metres, rotation in degrees. The nz_* props have their origin at
+    -- the centre of the fob body (+Y = key ring end, +Z = button face), so the offset is small: the body
+    -- sits in the palm, buttons towards the thumb, ring towards the wrist. Fine-tune in game.
+    hand = { bone = 28422, offset = vector3(0.0, 0.0, 0.015), rotation = vector3(-90.0, 0.0, 0.0) },
     ground = { zOffset = 0.0, randomHeading = true },
   },
 
