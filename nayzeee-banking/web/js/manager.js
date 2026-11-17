@@ -1,13 +1,16 @@
 /* ═══════════════════════════════════════════════════════════
    NAYZEEE BANKING — BANKING MANAGER (/bankingmanager)
    Uses app.js's helpers: esc, initials, notify, openModal,
-   closeModal. Everything the server does is behind a staff
-   check of its own; this page only draws it.
+   closeModal, applyTheme. Everything the server does is behind
+   a staff check of its own; this page only draws it.
+
+   Every page is built to fit the window: the page never
+   scrolls, a long list scrolls inside its own panel.
    ═══════════════════════════════════════════════════════════ */
 const MG = {
-  boot: null, page: 'overview',
-  playerQ: '', players: [], player: null,
-  accQ: '', branches: null, branch: null, me: null,
+  boot: null, page: 'overview', range: 7, overview: null,
+  playerQ: '', players: [], player: null, ptab: 'accounts',
+  accQ: '', accKind: 'all', branches: null, branch: null, me: null,
   settings: null, setGroup: 'general', setQ: '',
   auditPage: 1, map: { z: 1, x: 0, y: 0 }
 };
@@ -17,28 +20,30 @@ const MAP = { w: 695, h: 1045, sx: 0.09266, ox: 305.9, sy: 0.08779, oy: 698.9 };
 const toMap = (x, y) => ({ px: MAP.ox + MAP.sx * x, py: MAP.oy - MAP.sy * y });
 const toWorld = (px, py) => ({ x: (px - MAP.ox) / MAP.sx, y: (MAP.oy - py) / MAP.sy });
 
+const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const MI = {
-  bank:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/></svg>',
-  users:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0M16.5 5.4a3.2 3.2 0 0 1 0 5.9M18 19.5a6.4 6.4 0 0 0-2-4.4"/></svg>',
-  coin:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2a3 3 0 0 0-5.2 2c0 2.4 5 2 5 4.2a3 3 0 0 1-5.2 1.5M12 6.5v11"/></svg>',
-  card:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h3"/></svg>',
-  bill:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9.5 8h5M9.5 12h5"/></svg>',
-  pin:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.4"/></svg>',
-  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>',
-  go:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
-  move:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>',
-  me:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/></svg>',
-  machine:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M8 8V5h8v3M8 13h8M10 16h4"/></svg>',
-  undo:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h11a5 5 0 0 1 0 10H8"/><path d="M8 5 4 9l4 4"/></svg>',
-  trash:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
-  plus:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
-  minus:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M5 12h14"/></svg>',
-  fit:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
-  lock:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
-  history:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
-  export: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/></svg>',
-  chart:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.5 9 11l4 4 8-8.5"/><path d="M15 6.5h6v6"/></svg>',
-  warn:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19L12 4z"/><path d="M12 10v4.5M12 17.5v.01"/></svg>',
+  bank:    svg('<path d="M3 10 12 4l9 6M5 10v9h14v-9M9 19v-5h6v5"/>'),
+  users:   svg('<circle cx="9" cy="8" r="3.2"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0M16.5 5.4a3.2 3.2 0 0 1 0 5.9M18 19.5a6.4 6.4 0 0 0-2-4.4"/>'),
+  coin:    svg('<circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2a3 3 0 0 0-5.2 2c0 2.4 5 2 5 4.2a3 3 0 0 1-5.2 1.5M12 6.5v11"/>'),
+  card:    svg('<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h3"/>'),
+  bill:    svg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9.5 8h5M9.5 12h5"/>'),
+  pin:     svg('<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10" r="2.4"/>'),
+  search:  svg('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+  go:      svg('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  move:    svg('<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>'),
+  me:      svg('<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/>'),
+  machine: svg('<rect x="4" y="8" width="16" height="11" rx="2"/><path d="M8 8V5h8v3M8 13h8M10 16h4"/>'),
+  undo:    svg('<path d="M4 9h11a5 5 0 0 1 0 10H8"/><path d="M8 5 4 9l4 4"/>'),
+  trash:   svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+  plus:    svg('<path d="M12 5v14M5 12h14"/>'),
+  minus:   svg('<path d="M5 12h14"/>'),
+  fit:     svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+  lock:    svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  history: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  export:  svg('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/>'),
+  chart:   svg('<path d="M3 17.5 9 11l4 4 8-8.5"/><path d="M15 6.5h6v6"/>'),
+  pulse:   svg('<path d="M3 12h4l2.5-6 5 12 2.5-6h4"/>'),
+  refresh: svg('<path d="M20 11a8 8 0 0 0-14.5-4.5M4 4v4h4M4 13a8 8 0 0 0 14.5 4.5M20 20v-4h-4"/>'),
 };
 
 /* ── bridge ───────────────────────────────────────────────── */
@@ -86,6 +91,7 @@ const mshort = (n) => {
   if (a >= 1e4) return `${s}${mcur()}${(a / 1e3).toFixed(1)}K`;
   return mm(n);
 };
+const mint = (n) => Math.round(Number(n) || 0).toLocaleString('en-US');
 const mAgo = (t) => {
   if (!t) return '—';
   const s = Math.max(0, Math.floor(Date.now() / 1000 - t));
@@ -95,14 +101,45 @@ const mAgo = (t) => {
   return `${Math.floor(s / 86400)}d ago`;
 };
 const TYPE_COLOUR = { personal: 'var(--teal)', savings: '#0fd4c4', shared: '#9ea5aa', society: '#e5a50a' };
-const view = () => document.getElementById('mgrView');
-const head = (title, sub, acts) => `
-  <div class="head"><div><h1>${esc(title)}</h1><p>${esc(sub)}</p></div>${acts ? `<div class="head-act">${acts}</div>` : ''}</div>`;
-const panel = (title, sub, body, acts) => `
-  <div class="panel"><div class="p-head"><div><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>
-  ${acts ? `<div class="acts">${acts}</div>` : ''}</div><div class="p-body tight">${body}</div></div>`;
+const TYPES = ['personal', 'savings', 'shared', 'society'];
+const mCap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+const mView = () => document.getElementById('mgrView');
+
+/* ── building blocks ──────────────────────────────────────── */
+const mHead = (title, sub, acts) => `
+  <div class="mhead"><div><h1>${esc(title)}</h1><p>${esc(sub)}</p></div>${acts ? `<div class="acts">${acts}</div>` : ''}</div>`;
+const mPanel = (title, sub, body, opts = {}) => `
+  <div class="panel ${opts.cls || ''}">
+    <div class="p-head"><div><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${opts.acts ? `<div class="acts">${opts.acts}</div>` : ''}</div>
+    <div class="pb ${opts.flat ? 'flat' : ''}">${body}</div>
+    ${opts.foot ? `<div class="pfoot">${opts.foot}</div>` : ''}
+  </div>`;
 const emptyBox = (title, text, icon) => `<div class="empty">${icon || MI.search}<b>${esc(title)}</b><span>${esc(text)}</span></div>`;
-const loading = () => { view().innerHTML = `<div class="empty" style="margin-top:40px">${MI.history}<b>Loading</b><span>Asking the server…</span></div>`; };
+const kpi = (icon, label, value, note, opts = {}) => `
+  <div class="kpi ${opts.red ? 'red' : ''}"><div class="tile ${opts.red ? 'red' : ''}">${icon}</div>
+    <div style="min-width:0"><span>${esc(label)}</span>
+      <b ${opts.count != null ? `data-count="${opts.count}" data-fmt="${opts.fmt || 'int'}"` : ''}>${value}</b>
+      ${note ? `<i>${note}</i>` : ''}</div></div>`;
+const skeleton = (n) => Array.from({ length: n || 6 }, () => '<div class="skel-row"></div>').join('');
+const loadingPage = (title, sub) => {
+  mView().innerHTML = `<div class="page">${mHead(title, sub)}<div class="kpis">${'<div class="skel-row" style="height:62px"></div>'.repeat(4)}</div>
+    <div class="panel fill"><div class="pb">${skeleton(7)}</div></div></div>`;
+};
+
+/** Figures count up from zero when a page opens. */
+function countUp(root) {
+  (root || mView()).querySelectorAll('[data-count]').forEach(el => {
+    const to = Number(el.dataset.count) || 0, fmt = el.dataset.fmt;
+    const t0 = performance.now(), dur = 750;
+    const draw = (v) => { el.textContent = fmt === 'money' ? mshort(v) : fmt === 'full' ? mm(v) : mint(v); };
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      draw(to * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
 
 /* ═══════════════════════════════════════════════════════════
    OPEN · CLOSE · NAV
@@ -129,8 +166,7 @@ function mgrClose(tell) {
 function mgrGo(page) {
   MG.page = page;
   document.querySelectorAll('#mgrNav .nav').forEach(b => b.classList.toggle('on', b.dataset.mpage === page));
-  const fn = MPAGES[page] || MPAGES.overview;
-  fn();
+  (MPAGES[page] || MPAGES.overview)();
 }
 
 document.getElementById('mgrNav').addEventListener('click', (e) => {
@@ -156,88 +192,171 @@ document.addEventListener('keydown', (e) => {
   mgrClose();
 });
 
+window.addEventListener('resize', () => { if (MG.page === 'branches') fitMap(); });
+
 /* ═══════════════════════════════════════════════════════════
    OVERVIEW
    ═══════════════════════════════════════════════════════════ */
 async function pageOverview() {
-  loading();
-  const res = await mPost('overview');
+  if (!MG.overview) loadingPage('Overview', 'The whole bank at a glance.');
+  const res = await mPost('overview', MG.range);
   if (MG.page !== 'overview') return;
-  if (!res.ok) return (view().innerHTML = emptyBox('No answer', res.msg || 'The server did not answer.'));
-  const d = res.data;
+  if (!res.ok) return (mView().innerHTML = `<div class="page">${emptyBox('No answer', res.msg || 'The server did not answer.')}</div>`);
+  const d = MG.overview = res.data;
   document.getElementById('mgrTallyOnline').textContent = d.online;
   document.getElementById('mgrTallyBranches').textContent = d.branches;
 
-  const types = ['personal', 'savings', 'shared', 'society'];
   const sum = (t) => (d.byType[t] && d.byType[t].sum) || 0;
-  const count = types.reduce((a, t) => a + ((d.byType[t] && d.byType[t].n) || 0), 0);
-  const positive = types.reduce((a, t) => a + Math.max(0, sum(t)), 0) || 1;
-  const peak = Math.max(1, ...d.days.map(x => Math.max(x.inn, x.out)));
-  const dayName = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short' });
+  const num = (t) => (d.byType[t] && d.byType[t].n) || 0;
+  const count = TYPES.reduce((a, t) => a + num(t), 0);
+  const positive = TYPES.reduce((a, t) => a + Math.max(0, sum(t)), 0) || 1;
+  const topMax = Math.max(1, ...d.top.map(a => a.balance));
 
-  const stat = (icon, label, value, note, red) => `
-    <div class="stat"><div class="tile ${red ? 'red' : ''}">${icon}</div>
-    <div class="stat-txt"><span>${esc(label)}</span><b>${value}</b>${note ? `<i>${esc(note)}</i>` : ''}</div></div>`;
-
-  view().innerHTML = `
-    ${head('Overview', 'The whole bank at a glance: what it holds, who owes it and what staff have done.',
-      `<button class="btn-ghost" data-mact="refresh">${MI.history}Refresh</button>`)}
-    <div class="m-stats">
-      ${stat(MI.bank, 'Held by the bank', mshort(d.total), `${count} accounts`)}
-      ${stat(MI.users, 'Players in the city', d.online, `${d.branches} branches open`)}
-      ${stat(MI.coin, 'Owed on loans', mshort(d.loans.owed), `${d.loans.n} loans · ${d.loans.bad} defaulted`, d.loans.bad > 0)}
-      ${stat(MI.bill, 'Unpaid bills', mshort(d.bills.sum), `${d.bills.n} open · ${d.bills.late} overdue`, d.bills.late > 0)}
+  mView().innerHTML = `<div class="page">
+    ${mHead('Overview', 'What the bank holds, what it is owed, how money is moving and what staff have done.',
+      `<button class="btn-ghost" data-mact="refresh">${MI.refresh}Refresh</button>`)}
+    <div class="kpis">
+      ${kpi(MI.bank, 'Held by the bank', mshort(d.total), `${mint(count)} accounts · <em>+${d.health.fresh}</em> this week`, { count: d.total, fmt: 'money' })}
+      ${kpi(MI.users, 'Players in the city', d.online, `${d.branches} branches · ${mint(d.today.accounts)} accounts used today`, { count: d.online })}
+      ${kpi(MI.coin, 'Owed on loans', mshort(d.loans.owed), `${d.loans.n} open · <em>${d.loans.bad}</em> defaulted`, { count: d.loans.owed, fmt: 'money', red: d.loans.bad > 0 })}
+      ${kpi(MI.bill, 'Unpaid bills', mshort(d.bills.sum), `${d.bills.n} open · <em>${d.bills.late}</em> overdue`, { count: d.bills.sum, fmt: 'money', red: d.bills.late > 0 })}
     </div>
-    <div class="m-cols">
-      ${panel('Money moving', 'Deposits, wages, fees and payments over the last week (transfers between players left out)', `
-        <div class="flow">${d.days.map(x => `
-          <div class="day" title="${esc(x.d)} · in ${mm(x.inn)} · out ${mm(x.out)} · ${x.n} moves">
-            <div class="bars"><i class="in" style="height:${(x.inn / peak) * 100}%"></i><i class="out" style="height:${(x.out / peak) * 100}%"></i></div>
-            <span>${dayName(x.d)}</span></div>`).join('')}</div>
-        <div class="legend-row" style="margin-top:12px"><span><i style="background:var(--teal)"></i>In</span><span><i style="background:var(--red)"></i>Out</span>
-          <span style="margin-left:auto">Week: in ${mshort(d.days.reduce((a, x) => a + x.inn, 0))} · out ${mshort(d.days.reduce((a, x) => a + x.out, 0))}</span></div>`)}
-      ${panel('Where the money sits', `${count} accounts across four kinds`, `
-        <div class="mix">${types.map(t => `<i style="width:${Math.max(0, sum(t)) / positive * 100}%;background:${TYPE_COLOUR[t]}"></i>`).join('')}</div>
-        <div class="mix-key">${types.map(t => `<div><i style="background:${TYPE_COLOUR[t]}"></i>${t[0].toUpperCase() + t.slice(1)}<b>${mshort(sum(t))}</b></div>`).join('')}</div>
-        <div class="kvs" style="margin-top:14px">
-          <div><span>Cards in use</span><b>${d.cards.live}</b></div>
-          <div><span>Blocked or stolen</span><b>${d.cards.stopped}</b></div>
-          <div><span>Owed on credit cards</span><b>${mm(d.cards.owed)}</b></div>
-          <div><span>Accounts</span><b>${count}</b></div>
-        </div>`)}
-    </div>
-    <div class="m-cols half">
-      ${panel('Largest accounts', 'Click one to open its owner', `<div class="m-list">${d.top.map(a => `
-        <div class="row pick" data-owner="${esc(a.type === 'society' ? '' : a.owner)}" data-acc="${a.id}">
+    <div class="grid fill" style="grid-template-columns:1.55fr 1fr;grid-template-rows:minmax(0,1.25fr) minmax(0,1fr)">
+      ${mPanel('Cash flow', 'Money in and out by day, without transfers between players. Hover a day.',
+        `<div id="mgrFlow" style="display:flex;flex-direction:column;flex:1;min-height:0">${flowHtml(d.days)}</div>`,
+        { flat: true, acts: `<div class="seg" id="mgrRange">${[7, 14, 30].map(r => `<button class="${MG.range === r ? 'on' : ''}" data-range="${r}">${r}D</button>`).join('')}</div>` })}
+      ${mPanel('Bank health', `${mint(count)} accounts across four kinds`, `
+        <div class="mix">${TYPES.map((t, i) => `<i style="width:${Math.max(0, sum(t)) / positive * 100}%;background:${TYPE_COLOUR[t]};animation-delay:${i * 90}ms"></i>`).join('')}</div>
+        <div class="mix-key">${TYPES.map(t => `<div><i style="background:${TYPE_COLOUR[t]}"></i>${mCap(t)}<small>${num(t)}</small><b>${mshort(sum(t))}</b></div>`).join('')}</div>
+        <div class="sec-label" style="margin-top:6px">Right now</div>
+        <div class="kvs">
+          <div><span>Frozen accounts</span><b class="${d.health.frozen ? 'red' : ''}">${d.health.frozen}</b></div>
+          <div><span>Overdrawn</span><b class="${d.health.overdrawn ? 'amber' : ''}">${d.health.overdrawn} · ${mshort(d.health.below)}</b></div>
+          <div><span>Moves today</span><b class="teal">${mint(d.today.n)}</b></div>
+          <div><span>Cards in use</span><b>${mint(d.cards.live)}</b></div>
+          <div><span>Blocked or stolen</span><b class="${d.cards.stopped ? 'red' : ''}">${mint(d.cards.stopped)}</b></div>
+          <div><span>Owed on credit cards</span><b>${mshort(d.cards.owed)}</b></div>
+          <div><span>New this week</span><b class="teal">+${mint(d.health.fresh)}</b></div>
+          <div><span>Loans running</span><b>${mint(d.loans.n - d.loans.bad)}</b></div>
+          <div><span>Bills overdue</span><b class="${d.bills.late ? 'red' : ''}">${mint(d.bills.late)}</b></div>
+        </div>`, { flat: true })}
+      ${mPanel('Largest accounts', 'Click one to open its owner', `<div class="mlist">${d.top.map((a, i) => `
+        <div class="row pick" data-owner="${esc(a.type === 'society' ? '' : a.owner)}">
+          <span class="rank">${i + 1}</span>
           <div class="ic">${a.type === 'society' ? MI.bank : MI.card}</div>
           <div class="row-txt"><b>${esc(a.label)}</b><span class="mono">${esc(a.account_number)} · ${esc(a.type)}</span></div>
-          ${a.frozen ? '<span class="tag hot">Frozen</span>' : ''}<span class="amount ${a.balance < 0 ? 'out' : ''}">${mm(a.balance)}</span>
+          ${a.frozen ? '<span class="tag hot">Frozen</span>' : ''}
+          <div class="bar-mini"><i style="width:${Math.max(4, a.balance / topMax * 100)}%;animation-delay:${i * 60}ms"></i></div>
+          <span class="amount ${a.balance < 0 ? 'out' : ''}">${mshort(a.balance)}</span>
         </div>`).join('') || emptyBox('No accounts yet', 'They appear once players have banked.')}</div>`)}
-      ${panel('Staff activity', 'The latest changes made in this panel', `<div class="m-list">${d.audits.map(auditRow).join('') ||
+      ${mPanel('Staff activity', 'The latest changes made in this panel', `<div class="mlist">${d.audits.map(auditRow).join('') ||
         emptyBox('Nothing yet', 'Every change made here is written down, with who made it.', MI.history)}</div>`,
-        `<button class="btn-ghost" data-mpage="audit">All</button>`)}
-    </div>`;
+        { acts: `<button class="btn-ghost" data-mpage="audit">All</button>` })}
+    </div></div>`;
+  countUp();
+  wireFlow();
 }
 
 const auditRow = (a) => `
   <div class="row"><div class="ic">${MI.history}</div>
-    <div class="row-txt"><b>${esc(a.action)}${a.target ? ` · <span class="mono" style="display:inline;font-weight:300">${esc(a.target)}</span>` : ''}</b>
+    <div class="row-txt"><b>${esc(a.action)}${a.target ? ` · <span class="mono" style="display:inline;font-weight:300;font-size:10.5px">${esc(a.target)}</span>` : ''}</b>
       <span>${esc(a.admin_name)}${a.detail ? ` · ${esc(a.detail)}` : ''}</span></div>
-    <span class="mini">${mAgo(a.at)}</span></div>`;
+    <span class="mini" style="flex:none">${mAgo(a.at)}</span></div>`;
+
+/* ── the cash-flow chart ── */
+function niceMax(v) {
+  if (v <= 0) return 1000;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const f = v / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+function flowHtml(days) {
+  const top = niceMax(Math.max(1, ...days.map(x => Math.max(x.inn, x.out))));
+  const n = days.length;
+  const gap = n <= 7 ? 12 : n <= 14 ? 6 : 3;
+  const label = (s, i) => {
+    const dt = new Date(s + 'T12:00:00');
+    if (n <= 7) return dt.toLocaleDateString('en-GB', { weekday: 'short' });
+    if (n <= 14) return (n - 1 - i) % 2 === 0 ? String(dt.getDate()) : '';
+    return (n - 1 - i) % 5 === 0 ? dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '';
+  };
+  const totIn = days.reduce((a, x) => a + x.inn, 0), totOut = days.reduce((a, x) => a + x.out, 0);
+  const moves = days.reduce((a, x) => a + x.n, 0);
+  const net = totIn - totOut;
+  return `
+    <div class="cf" style="--gap:${gap}px">
+      <div class="cf-y">${[0, 1, 2, 3, 4].map(k => `<span style="bottom:${k * 25}%">${k ? mshort(top * k / 4) : '0'}</span>`).join('')}</div>
+      <div class="cf-plot">
+        ${[1, 2, 3, 4].map(k => `<div class="cf-grid" style="bottom:${k * 25}%;animation-delay:${k * 60}ms"></div>`).join('')}
+        <div class="cf-cols">${days.map((x, i) => `
+          <div class="cf-col" data-day="${i}">
+            <i class="cf-bar in" style="height:${x.inn / top * 100}%;--i:${i}"></i>
+            <i class="cf-bar out" style="height:${x.out / top * 100}%;--i:${i}"></i>
+          </div>`).join('')}</div>
+        <div class="cf-tip" id="mgrTip"></div>
+      </div>
+      <div class="cf-x">${days.map((x, i) => `<span>${label(x.d, i)}</span>`).join('')}</div>
+    </div>
+    <div class="cf-sum">
+      <div><span><i style="background:var(--teal)"></i>Money in</span><b data-count="${totIn}" data-fmt="money">${mshort(totIn)}</b></div>
+      <div><span><i style="background:var(--red)"></i>Money out</span><b data-count="${totOut}" data-fmt="money">${mshort(totOut)}</b></div>
+      <div><span><i style="background:${net >= 0 ? 'var(--teal)' : 'var(--red)'}"></i>Net</span><b class="${net >= 0 ? 'm-pos' : 'm-neg'}">${net >= 0 ? '+' : ''}${mshort(net)}</b></div>
+      <div><span><i style="background:var(--ink-3)"></i>Moves</span><b data-count="${moves}">${mint(moves)}</b></div>
+    </div>`;
+}
+
+function wireFlow() {
+  const box = document.getElementById('mgrFlow');
+  if (!box) return;
+  const tip = document.getElementById('mgrTip');
+  const plot = box.querySelector('.cf-plot');
+  box.querySelectorAll('.cf-col').forEach(col => {
+    col.addEventListener('mouseenter', () => {
+      const x = MG.overview.days[Number(col.dataset.day)];
+      const dt = new Date(x.d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      const net = x.inn - x.out;
+      tip.innerHTML = `<b>${esc(dt)}</b>
+        <div>In<em class="m-pos">${mm(x.inn)}</em></div><div>Out<em class="m-neg">${mm(x.out)}</em></div>
+        <div>Net<em class="${net >= 0 ? 'm-pos' : 'm-neg'}">${net >= 0 ? '+' : ''}${mm(net)}</em></div><div>Moves<em>${mint(x.n)}</em></div>`;
+      const pr = plot.getBoundingClientRect(), cr = col.getBoundingClientRect();
+      const tallest = Math.max(...[...col.querySelectorAll('.cf-bar')].map(b => b.getBoundingClientRect().height));
+      const left = Math.max(80, Math.min(pr.width - 80, cr.left - pr.left + cr.width / 2));
+      tip.style.left = `${left}px`;
+      tip.style.top = `${Math.max(96, pr.height - tallest)}px`;
+      tip.classList.add('up');
+    });
+    col.addEventListener('mouseleave', () => tip.classList.remove('up'));
+  });
+  countUp(box);
+}
+
+async function setRange(r) {
+  MG.range = r;
+  document.querySelectorAll('#mgrRange button').forEach(b => b.classList.toggle('on', Number(b.dataset.range) === r));
+  const res = await mPost('overview', r);
+  if (!res.ok || MG.page !== 'overview') return;
+  MG.overview = res.data;
+  const box = document.getElementById('mgrFlow');
+  if (box) { box.innerHTML = flowHtml(res.data.days); wireFlow(); }
+}
 
 /* ═══════════════════════════════════════════════════════════
    PLAYERS
    ═══════════════════════════════════════════════════════════ */
 async function pagePlayers() {
-  view().innerHTML = `
-    ${head('Players', 'Everyone in the city, or search anyone who has banked here by name, ID, identifier or account number.')}
-    <div class="m-cols wide-r">
-      <div class="panel"><div class="p-body tight" style="gap:10px">
-        <div class="searchbox">${MI.search}<input id="mgrPlayerQ" placeholder="Name, server ID, identifier, account…" value="${esc(MG.playerQ)}"></div>
-        <div class="m-list m-scroll" id="mgrPlayerList"><div class="mini">Loading…</div></div>
-      </div></div>
-      <div class="stack" id="mgrPlayerView">${emptyBox('Pick a player', 'Their accounts, cash, cards, loans and bills open here.', MI.users)}</div>
-    </div>`;
+  mView().innerHTML = `<div class="page">
+    ${mHead('Players', 'Everyone in the city, or anyone who has banked here: search by name, server ID, identifier or account number.')}
+    <div class="grid fill" style="grid-template-columns:310px 1fr">
+      <div class="panel">
+        <div style="padding:11px 12px 4px;flex:none"><div class="searchbox">${MI.search}<input id="mgrPlayerQ" placeholder="Name, ID, identifier, account…" value="${esc(MG.playerQ)}"></div></div>
+        <div class="pb" id="mgrPlayerList">${skeleton(8)}</div>
+        <div class="pfoot" id="mgrPlayerFoot">Loading…</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;min-height:0" id="mgrPlayerView">
+        <div class="panel fill"><div class="pb" style="justify-content:center">${emptyBox('Pick a player', 'Their accounts, cash, cards, loans, bills and activity open here.', MI.users)}</div></div>
+      </div>
+    </div></div>`;
   const input = document.getElementById('mgrPlayerQ');
   let t = null;
   input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { MG.playerQ = input.value.trim(); listPlayers(); }, 300); });
@@ -250,12 +369,16 @@ async function listPlayers() {
   const box = document.getElementById('mgrPlayerList');
   if (!box) return;
   MG.players = res.ok ? res.rows : [];
-  box.innerHTML = MG.players.map(p => `
+  const online = MG.players.filter(p => p.src).length;
+  box.innerHTML = MG.players.length ? `<div class="mlist">${MG.players.map(p => `
     <div class="row pick ${MG.player && MG.player.identifier === p.identifier ? 'on' : ''}" data-player="${esc(p.identifier)}">
       <div class="av">${esc(initials(p.name) || '?')}</div>
       <div class="row-txt"><b>${esc(p.name)}</b><span>${p.src ? `ID ${p.src} · ${esc(p.job || '')}` : 'Offline'}</span></div>
-      <div class="r-meta"><b class="amount">${p.bank != null ? mm(p.bank) : '—'}</b>${p.src ? `<small>cash ${mm(p.cash)}</small>` : '<small>bank</small>'}</div>
-    </div>`).join('') || emptyBox(MG.playerQ ? 'Nobody found' : 'Nobody in the city', MG.playerQ ? 'Try a different spelling, an account number or their identifier.' : 'Search finds offline players too.', MI.users);
+      <div class="r-meta"><b class="amount">${p.bank != null ? mshort(p.bank) : '—'}</b><small>${p.src ? `cash ${mshort(p.cash)}` : 'bank'}</small></div>
+    </div>`).join('')}</div>` : emptyBox(MG.playerQ ? 'Nobody found' : 'Nobody in the city',
+      MG.playerQ ? 'Try another spelling, an account number or their identifier.' : 'Search finds offline players too.', MI.users);
+  const foot = document.getElementById('mgrPlayerFoot');
+  if (foot) foot.innerHTML = MG.playerQ ? `<b>${MG.players.length}</b> found · ${online} online` : `<b>${online}</b> in the city`;
 }
 
 async function openPlayer(identifier) {
@@ -263,31 +386,22 @@ async function openPlayer(identifier) {
   const box = document.getElementById('mgrPlayerView');
   if (!box) return;
   const res = await mPost('player', identifier);
-  if (!res.ok) { box.innerHTML = emptyBox('Not found', res.msg || ''); return; }
+  if (!res.ok) { box.innerHTML = `<div class="panel fill"><div class="pb">${emptyBox('Not found', res.msg || '')}</div></div>`; return; }
   const p = MG.player = res.player;
-
-  const accRow = (a) => `
-    <div class="row">
-      <div class="ic ${a.balance < 0 ? 'out' : ''}">${a.type === 'society' ? MI.bank : MI.card}</div>
-      <div class="row-txt"><b>${esc(a.label)} ${a.member ? '<em class="chip dim" style="margin-left:4px;font-style:normal">MEMBER</em>' : ''}</b>
-        <span class="mono">${esc(a.account_number)} · ${esc(a.type)}</span></div>
-      ${a.frozen ? '<span class="tag hot">Frozen</span>' : ''}
-      <span class="amount ${a.balance < 0 ? 'out' : ''}">${mm(a.balance)}</span>
-      <div class="acts">
-        <button class="btn-ghost" data-mact="adjust" data-id="${a.id}" data-label="${esc(a.account_number)}" data-bal="${a.balance}">${MI.coin}Money</button>
-        <button class="btn-ghost" data-mact="history" data-id="${a.id}" data-label="${esc(a.account_number)}">${MI.history}</button>
-        <button class="btn-ghost ${a.frozen ? 'on' : ''}" data-mact="freeze" data-id="${a.id}" data-frozen="${a.frozen ? 1 : 0}" title="${a.frozen ? 'Unfreeze' : 'Freeze'}">${MI.lock}</button>
-      </div>
-    </div>`;
+  const own = p.accounts.filter(a => !a.member);
+  const held = own.reduce((a, x) => a + x.balance, 0);
+  const activeLoans = p.loans.filter(l => l.status !== 'paid');
 
   box.innerHTML = `
     <div class="who-card">
       <div class="av">${esc(initials(p.name) || '?')}</div>
-      <div><h2>${esc(p.name)} ${p.src ? `<span class="tag live">Online · ID ${p.src}</span>` : '<span class="tag off">Offline</span>'}</h2>
+      <div style="min-width:0"><h2>${esc(p.name)} ${p.src ? `<span class="tag live">Online · ID ${p.src}</span>` : '<span class="tag off">Offline</span>'}</h2>
         <p class="mono">${esc(p.identifier)}${p.job ? ` · ${esc(p.job)}` : ''}</p></div>
       <div class="figs">
         ${p.src ? `<div><span>Carrying</span><b>${mm(p.cash)}</b></div>` : ''}
-        <div><span>Credit score</span><b class="teal">${p.credit.score}</b></div>
+        <div><span>In the bank</span><b>${mm(held)}</b></div>
+        <div><span>Owes on loans</span><b>${mm(activeLoans.reduce((a, l) => a + l.remaining, 0))}</b></div>
+        <div><span>Credit</span><b class="teal">${p.credit.score}<small>${esc(p.credit.band)}</small></b></div>
       </div>
     </div>
     <div class="toolbar">
@@ -295,40 +409,69 @@ async function openPlayer(identifier) {
         <button class="btn-ghost" data-mact="wallet" data-mode="remove">${MI.minus}Take cash</button>
         <button class="btn-ghost" data-mact="gotoPlayer">${MI.go}Go to them</button>` : ''}
       <button class="btn-ghost" data-mact="setCredit">${MI.chart}Set credit score</button>
+      ${own[0] ? `<button class="btn-ghost" data-mact="adjust" data-id="${own[0].id}" data-label="${esc(own[0].account_number)}" data-bal="${own[0].balance}">${MI.coin}Money on ${esc(own[0].type)}</button>` : ''}
     </div>
-    ${panel('Accounts', `${p.accounts.length} account${p.accounts.length === 1 ? '' : 's'} · credit ${p.credit.band}`,
-      `<div class="m-list">${p.accounts.map(accRow).join('') || emptyBox('No accounts', 'They get one the first time they open the bank.')}</div>`)}
-    <div class="stack">
-      ${panel('Cards', '', `<div class="m-list">${p.cards.map(c => `
-        <div class="row"><div class="ic ${c.status !== 'active' ? 'out' : ''}">${MI.card}</div>
-          <div class="row-txt"><b>${esc(c.card_type)} <span class="mono" style="display:inline;font-weight:300">${esc(c.card_number)}</span></b>
-            <span>${esc(c.account_number)}${c.kind !== 'debit' ? ` · owes ${mm(c.balance)} of ${mm(c.credit_limit)}` : ''}</span></div>
-          <span class="tag ${c.status === 'active' ? 'live' : 'hot'}">${esc(c.status)}</span>
-          <button class="btn-ghost" data-mact="card" data-id="${c.id}" data-to="${c.status === 'active' ? 'blocked' : 'active'}">${c.status === 'active' ? 'Block' : 'Unblock'}</button>
-        </div>`).join('') || emptyBox('No cards', 'Nothing issued.', MI.card)}</div>`)}
-      ${panel('Loans', '', `<div class="m-list">${p.loans.map(l => `
-        <div class="row"><div class="ic ${l.status === 'defaulted' ? 'out' : ''}">${MI.coin}</div>
-          <div class="row-txt"><b>${esc(l.tier)} · ${mm(l.principal)}</b>
-            <span>${l.status === 'paid' ? 'Paid off' : `${mm(l.remaining)} left · ${l.missed} missed`}</span></div>
-          <span class="tag ${l.status === 'active' ? 'live' : l.status === 'paid' ? 'off' : 'hot'}">${esc(l.status)}</span>
-          ${l.status !== 'paid' ? `<div class="acts">${l.missed > 0 ? `<button class="btn-ghost" data-mact="loan" data-id="${l.id}" data-do="missed">Clear missed</button>` : ''}
-            <button class="btn-ghost" data-mact="loan" data-id="${l.id}" data-do="forgive">Write off</button></div>` : ''}
-        </div>`).join('') || emptyBox('No loans', 'Never borrowed.', MI.coin)}</div>`)}
-    </div>
-    ${p.bills.length ? panel('Open bills', '', `<div class="m-list">${p.bills.map(b => `
-      <div class="row"><div class="ic out">${MI.bill}</div>
-        <div class="row-txt"><b>${esc(b.issuer_label)} · ${mm(b.amount)}</b><span>${esc(b.reason)}</span></div>
-        <span class="tag ${b.status === 'overdue' ? 'hot' : 'off'}">${esc(b.status)}</span>
-        <button class="btn-ghost" data-mact="bill" data-id="${b.id}">Cancel</button></div>`).join('')}</div>`) : ''}
-    ${panel('Recent activity', 'Their last 40 moves across every account', txTable(p.tx, true))}`;
+    <div class="panel fill">
+      <div class="tabs">${[
+        ['accounts', 'Accounts', p.accounts.length], ['cards', 'Cards', p.cards.length], ['loans', 'Loans', activeLoans.length],
+        ['bills', 'Bills', p.bills.length], ['activity', 'Activity', p.tx.length]
+      ].map(([k, l, n]) => `<button class="${MG.ptab === k ? 'on' : ''}" data-ptab="${k}">${l}<span class="tally">${n}</span></button>`).join('')}</div>
+      <div class="pb" id="mgrPTab">${playerTab(p)}</div>
+    </div>`;
+}
+
+function playerTab(p) {
+  if (MG.ptab === 'cards') return p.cards.length ? `<div class="mlist">${p.cards.map(c => `
+    <div class="row"><div class="ic ${c.status !== 'active' ? 'out' : ''}">${MI.card}</div>
+      <div class="row-txt"><b>${esc(mCap(c.card_type))} <span class="mono" style="display:inline;font-weight:300">${esc(c.card_number)}</span></b>
+        <span>${esc(c.holder || '')} · ${esc(c.account_number)}${c.kind !== 'debit' ? ` · owes ${mm(c.balance)} of ${mm(c.credit_limit)}` : ''}</span></div>
+      ${c.kind !== 'debit' ? `<div class="bar-mini" title="Used of the line"><i style="width:${Math.min(100, c.credit_limit ? c.balance / c.credit_limit * 100 : 0)}%"></i></div>` : ''}
+      <span class="tag ${c.status === 'active' ? 'live' : 'hot'}">${esc(c.status)}</span>
+      <button class="btn-ghost" data-mact="card" data-id="${c.id}" data-to="${c.status === 'active' ? 'blocked' : 'active'}">${c.status === 'active' ? 'Block' : 'Unblock'}</button>
+    </div>`).join('')}</div>` : emptyBox('No cards', 'Nothing issued.', MI.card);
+
+  if (MG.ptab === 'loans') return p.loans.length ? `<div class="mlist">${p.loans.map(l => `
+    <div class="row"><div class="ic ${l.status === 'defaulted' ? 'out' : ''}">${MI.coin}</div>
+      <div class="row-txt"><b>${esc(mCap(l.tier))} · ${mm(l.principal)}</b>
+        <span>${l.status === 'paid' ? 'Paid off' : `${mm(l.remaining)} left · ${mm(l.payment)} an instalment · ${l.missed} missed`}</span></div>
+      ${l.status !== 'paid' ? `<div class="bar-mini" title="Paid off so far"><i style="width:${Math.max(3, 100 - l.remaining / Math.max(1, l.principal) * 100)}%"></i></div>` : ''}
+      <span class="tag ${l.status === 'active' ? 'live' : l.status === 'paid' ? 'off' : 'hot'}">${esc(l.status)}</span>
+      ${l.status !== 'paid' ? `<div class="acts">${l.missed > 0 ? `<button class="btn-ghost" data-mact="loan" data-id="${l.id}" data-do="missed">Clear missed</button>` : ''}
+        <button class="btn-ghost" data-mact="loan" data-id="${l.id}" data-do="forgive">Write off</button></div>` : ''}
+    </div>`).join('')}</div>` : emptyBox('No loans', 'Never borrowed.', MI.coin);
+
+  if (MG.ptab === 'bills') return p.bills.length ? `<div class="mlist">${p.bills.map(b => `
+    <div class="row"><div class="ic out">${MI.bill}</div>
+      <div class="row-txt"><b>${esc(b.issuer_label)} · ${mm(b.amount)}</b><span>${esc(b.reason)}</span></div>
+      <span class="tag ${b.status === 'overdue' ? 'hot' : 'off'}">${esc(b.status)}</span>
+      <button class="btn-ghost" data-mact="bill" data-id="${b.id}">Cancel</button></div>`).join('')}</div>`
+    : emptyBox('No open bills', 'Nothing owed to anyone.', MI.bill);
+
+  if (MG.ptab === 'activity') return txTable(p.tx, true);
+
+  return p.accounts.length ? `<div class="mlist">${p.accounts.map(a => `
+    <div class="row">
+      <div class="ic ${a.balance < 0 ? 'out' : ''}">${a.type === 'society' ? MI.bank : MI.card}</div>
+      <div class="row-txt"><b>${esc(a.label)} ${a.member ? '<em class="chip dim" style="margin-left:4px">MEMBER</em>' : ''}</b>
+        <span class="mono">${esc(a.account_number)} · ${esc(a.type)}</span></div>
+      ${a.frozen ? '<span class="tag hot">Frozen</span>' : ''}
+      <span class="amount ${a.balance < 0 ? 'out' : ''}">${mm(a.balance)}</span>
+      <div class="acts">
+        <button class="btn-ghost" data-mact="adjust" data-id="${a.id}" data-label="${esc(a.account_number)}" data-bal="${a.balance}">${MI.coin}Money</button>
+        <button class="btn-ghost" data-mact="history" data-id="${a.id}" data-label="${esc(a.account_number)}" title="History">${MI.history}</button>
+        <button class="btn-ghost" data-mact="rename" data-id="${a.id}" data-label="${esc(a.label)}" title="Rename">Aa</button>
+        <button class="btn-ghost ${a.frozen ? 'on' : ''}" data-mact="freeze" data-id="${a.id}" data-frozen="${a.frozen ? 1 : 0}" title="${a.frozen ? 'Unfreeze' : 'Freeze'}">${MI.lock}</button>
+      </div>
+    </div>`).join('')}</div>` : emptyBox('No accounts', 'They get one the first time they open the bank.');
 }
 
 function txTable(rows, withAccount) {
   if (!rows || !rows.length) return emptyBox('Nothing yet', 'No money has moved.', MI.history);
   return `<table class="m-table"><tr><th>When</th>${withAccount ? '<th>Account</th>' : ''}<th>What</th><th>By</th><th class="r">Amount</th><th class="r">After</th></tr>
-    ${rows.map(t => `<tr><td class="mini">${mAgo(t.at)}</td>${withAccount ? `<td class="mono mini">${esc(t.account_number)}</td>` : ''}
+    ${rows.map(t => `<tr><td class="mini" style="white-space:nowrap">${mAgo(t.at)}</td>${withAccount ? `<td class="mono mini">${esc(t.account_number)}</td>` : ''}
       <td><b>${esc(t.label)}</b> <span class="mini">${esc(t.category)}</span></td><td class="mini">${esc(t.actor_name || '')}</td>
-      <td class="r ${t.direction === 'in' ? 'm-pos' : 'm-neg'}">${t.direction === 'in' ? '+' : '−'}${mm(t.amount)}</td><td class="r">${mm(t.balance_after)}</td></tr>`).join('')}</table>`;
+      <td class="r ${t.direction === 'in' ? 'm-pos' : 'm-neg'}" style="white-space:nowrap">${t.direction === 'in' ? '+' : '−'}${mm(t.amount)}</td>
+      <td class="r" style="white-space:nowrap">${mm(t.balance_after)}</td></tr>`).join('')}</table>`;
 }
 
 /* ── money modals ── */
@@ -361,7 +504,7 @@ document.getElementById('veil').addEventListener('click', (e) => {
 async function historyModal(id, label) {
   const res = await mPost('transactions', id);
   openModal({ title: `History · ${label}`, text: 'The last 60 moves on this account.',
-    body: `<div class="m-scroll" style="max-height:380px">${txTable(res.rows || [], false)}</div>`, confirm: 'Done', cancel: false,
+    body: `<div class="pb" style="max-height:380px;padding:0">${txTable(res.rows || [], false)}</div>`, confirm: 'Done', cancel: false,
     onConfirm: () => closeModal() });
   const m = document.querySelector('#veil .modal');
   if (m) m.style.width = '640px';
@@ -375,57 +518,83 @@ function refreshPage() {
 /* ═══════════════════════════════════════════════════════════
    SOCIETIES · ALL ACCOUNTS
    ═══════════════════════════════════════════════════════════ */
-const accountLine = (a) => `
+const accountLine = (a, i, max) => `
   <div class="row">
+    ${i != null ? `<span class="rank">${i + 1}</span>` : ''}
     <div class="ic ${a.balance < 0 ? 'out' : ''}">${a.type === 'society' ? MI.bank : MI.card}</div>
     <div class="row-txt"><b>${esc(a.label)}</b><span class="mono">${esc(a.account_number)} · ${esc(a.type)}${a.owner ? ` · ${esc(a.owner)}` : ''}${a.members != null ? ` · ${a.members} on it` : ''}</span></div>
     ${a.frozen ? '<span class="tag hot">Frozen</span>' : ''}
-    <span class="amount ${a.balance < 0 ? 'out' : ''}">${mm(a.balance)}</span>
+    ${max ? `<div class="bar-mini"><i style="width:${Math.max(3, Math.max(0, a.balance) / max * 100)}%;animation-delay:${Math.min(i || 0, 12) * 40}ms"></i></div>` : ''}
+    <span class="amount ${a.balance < 0 ? 'out' : ''}" style="min-width:86px;text-align:right">${mm(a.balance)}</span>
     <div class="acts">
-      ${a.type !== 'society' ? `<button class="btn-ghost" data-owner="${esc(a.owner)}">${MI.me}</button>` : ''}
+      ${a.type !== 'society' && a.owner ? `<button class="btn-ghost" data-owner="${esc(a.owner)}" title="Open the owner">${MI.me}</button>` : ''}
       <button class="btn-ghost" data-mact="adjust" data-id="${a.id}" data-label="${esc(a.account_number)}" data-bal="${a.balance}">${MI.coin}Money</button>
-      <button class="btn-ghost" data-mact="history" data-id="${a.id}" data-label="${esc(a.account_number)}">${MI.history}</button>
+      <button class="btn-ghost" data-mact="history" data-id="${a.id}" data-label="${esc(a.account_number)}" title="History">${MI.history}</button>
       <button class="btn-ghost" data-mact="rename" data-id="${a.id}" data-label="${esc(a.label)}" title="Rename">Aa</button>
-      <button class="btn-ghost ${a.frozen ? 'on' : ''}" data-mact="freeze" data-id="${a.id}" data-frozen="${a.frozen ? 1 : 0}">${MI.lock}</button>
+      <button class="btn-ghost ${a.frozen ? 'on' : ''}" data-mact="freeze" data-id="${a.id}" data-frozen="${a.frozen ? 1 : 0}" title="${a.frozen ? 'Unfreeze' : 'Freeze'}">${MI.lock}</button>
     </div>
   </div>`;
 
 async function pageSocieties() {
-  loading();
+  loadingPage('Societies', 'Every job’s account.');
   const res = await mPost('societies');
   if (MG.page !== 'societies') return;
-  const rows = res.rows || [];
+  const rows = (res.rows || []).slice().sort((a, b) => b.balance - a.balance);
   const total = rows.reduce((a, r) => a + r.balance, 0);
-  view().innerHTML = `
-    ${head('Societies', `Every job's account: ${rows.length} accounts holding ${mm(total)}.`)}
-    ${panel('Society accounts', 'Top them up, take from them, freeze them or read their history', `<div class="m-list">${rows.map(accountLine).join('') ||
-      emptyBox('No society accounts', 'Jobs in Config.Accounts.societyAccess and Config.Bills.issuers get one on start.', MI.bank)}</div>`)}`;
+  const max = Math.max(1, ...rows.map(r => r.balance));
+  const frozen = rows.filter(r => r.frozen).length;
+  mView().innerHTML = `<div class="page">
+    ${mHead('Societies', 'Every job’s account, largest first. Top them up, take from them, freeze, rename or read their history.')}
+    <div class="kpis">
+      ${kpi(MI.bank, 'Held by societies', mshort(total), `across ${rows.length} jobs`, { count: total, fmt: 'money' })}
+      ${kpi(MI.chart, 'Largest', rows[0] ? esc(rows[0].label) : '—', rows[0] ? `${mm(rows[0].balance)} · ${Math.round(rows[0].balance / Math.max(1, total) * 100)}% of it` : '')}
+      ${kpi(MI.users, 'People on them', mint(rows.reduce((a, r) => a + (r.members || 0), 0)), 'members with access', {})}
+      ${kpi(MI.lock, 'Frozen', frozen, frozen ? 'cannot pay or be paid' : 'none frozen', { red: frozen > 0 })}
+    </div>
+    ${mPanel('Society accounts', `${rows.length} accounts`, rows.length ? `<div class="mlist">${rows.map((r, i) => accountLine(r, i, max)).join('')}</div>`
+      : emptyBox('No society accounts', 'Jobs in Config.Accounts.societyAccess and Config.Bills.issuers get one on start.', MI.bank), { cls: 'fill' })}
+  </div>`;
+  countUp();
 }
 
 async function pageAccounts() {
-  view().innerHTML = `
-    ${head('All accounts', 'Search every account in the bank by number, name or owner. Largest first.')}
-    <div class="searchbox" style="flex:none">${MI.search}<input id="mgrAccQ" placeholder="NZB-…, a label, an identifier or a job" value="${esc(MG.accQ)}"></div>
-    <div class="m-list" id="mgrAccList"><div class="mini">Loading…</div></div>`;
+  mView().innerHTML = `<div class="page">
+    ${mHead('All accounts', 'Every account in the bank, largest first. Search by number, name, owner or job.')}
+    <div style="display:flex;gap:10px;align-items:center;flex:none">
+      <div class="searchbox">${MI.search}<input id="mgrAccQ" placeholder="NZB-…, a label, an identifier or a job" value="${esc(MG.accQ)}"></div>
+      <div class="filters" id="mgrAccKinds"></div>
+    </div>
+    <div class="panel fill"><div class="pb" id="mgrAccList">${skeleton(9)}</div><div class="pfoot" id="mgrAccFoot">Loading…</div></div>
+  </div>`;
   const input = document.getElementById('mgrAccQ');
   let t = null;
-  const run = async () => {
-    const res = await mPost('accounts', MG.accQ);
-    const box = document.getElementById('mgrAccList');
-    if (box) box.innerHTML = (res.rows || []).map(accountLine).join('') || emptyBox('Nothing found', 'Try part of the number or a job name.');
-  };
-  input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { MG.accQ = input.value.trim(); run(); }, 300); });
-  run();
+  input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { MG.accQ = input.value.trim(); listAccounts(); }, 300); });
+  listAccounts();
+}
+
+async function listAccounts() {
+  const res = await mPost('accounts', MG.accQ, MG.accKind);
+  const box = document.getElementById('mgrAccList');
+  if (!box) return;
+  const rows = res.rows || [];
+  const counts = res.counts || {};
+  const all = TYPES.reduce((a, t) => a + (counts[t] || 0), 0);
+  document.getElementById('mgrAccKinds').innerHTML = [['all', 'All', all], ...TYPES.map(t => [t, mCap(t), counts[t] || 0])]
+    .map(([k, l, n]) => `<button class="${MG.accKind === k ? 'on' : ''}" data-kind="${k}">${l}<small>${mint(n)}</small></button>`).join('');
+  const max = Math.max(1, ...rows.map(r => r.balance));
+  box.innerHTML = rows.length ? `<div class="mlist">${rows.map((r, i) => accountLine(r, i, max)).join('')}</div>` : emptyBox('Nothing found', 'Try part of the number or a job name.');
+  document.getElementById('mgrAccFoot').innerHTML = `Showing <b>${rows.length}</b> of ${mint(MG.accKind === 'all' ? all : counts[MG.accKind] || 0)}
+    <span class="right">In view: <b>${mm(rows.reduce((a, r) => a + r.balance, 0))}</b></span>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
    BRANCHES · MAP · TELLERS · MONEY COUNTER
    ═══════════════════════════════════════════════════════════ */
 async function pageBranches() {
-  loading();
+  if (!MG.branches) loadingPage('Branches & tellers', 'Every branch on the map.');
   const [res, me] = await Promise.all([mPost('branches'), mWorld('here')]);
   if (MG.page !== 'branches') return;
-  if (!res.ok) return (view().innerHTML = emptyBox('No answer', res.msg || ''));
+  if (!res.ok) return (mView().innerHTML = `<div class="page">${emptyBox('No answer', res.msg || '')}</div>`);
   MG.branches = res.data;
   MG.me = me && me.ok ? me.pos : null;
   if (MG.branch != null && !MG.branches.rows[MG.branch - 1]) MG.branch = null;
@@ -433,62 +602,80 @@ async function pageBranches() {
   drawBranches();
 }
 
+const distTo = (r) => MG.me ? Math.hypot(r.x - MG.me.x, r.y - MG.me.y) : null;
+const fmtDist = (m) => m == null ? '—' : m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+
 function drawBranches() {
   const b = MG.branches;
   const sel = MG.branch != null ? b.rows[MG.branch - 1] : null;
-  view().innerHTML = `
-    ${head('Branches & tellers', 'Every branch on the map. Pick one to move its teller, place its money counter or go there; click anywhere else on the map to teleport.',
+  const custom = b.rows.filter(r => r.counter).length;
+  mView().innerHTML = `<div class="page">
+    ${mHead('Branches & tellers', 'Pick a branch to move its teller, place its money counter or go there. Click anywhere else on the map to teleport.',
       `<button class="btn-teal" data-mact="addBranch">+ Branch where I stand</button>
        ${b.edited ? `<button class="btn-line" data-mact="resetBranches">Back to config.lua</button>` : ''}`)}
-    <div class="m-cols map">
-      <div class="panel"><div class="p-body tight">
+    <div class="grid fill" style="grid-template-columns:auto 1fr">
+      <div class="panel map-panel"><div class="pb flat">
         <div class="map-wrap" id="mgrMap">
-          <div class="map-in" id="mgrMapIn"><img src="images/map.png" alt="">${b.rows.map(r => pinHtml(r)).join('')}
+          <div class="map-in" id="mgrMapIn"><img src="images/map.png" alt="">${b.rows.map((r, i) => pinHtml(r, i)).join('')}
             ${MG.me ? (() => { const p = toMap(MG.me.x, MG.me.y); return `<div class="pin me" style="left:${p.px / MAP.w * 100}%;top:${p.py / MAP.h * 100}%"><button><i></i></button></div>`; })() : ''}
           </div>
-          <div class="map-tools"><button data-map="in">${MI.plus}</button><button data-map="out">${MI.minus}</button><button data-map="fit">${MI.fit}</button></div>
+          <div class="map-count"><em>${b.rows.length}</em> branches</div>
+          <div class="map-tools"><button data-map="in" title="Zoom in">${MI.plus}</button><button data-map="out" title="Zoom out">${MI.minus}</button>
+            ${MG.me ? `<button data-map="me" title="Where I am">${MI.me}</button>` : ''}<button data-map="fit" title="Whole map">${MI.fit}</button></div>
           <div class="map-hint">Scroll to zoom · drag to move · <span style="color:var(--red)">●</span> you</div>
         </div>
       </div></div>
-      <div class="stack">${sel ? branchDetail(sel) : branchList()}</div>
-    </div>`;
+      <div style="display:flex;flex-direction:column;gap:12px;min-height:0">${sel ? branchDetail(sel) : branchList(custom)}</div>
+    </div></div>`;
+  fitMap();
   mapWire();
+  countUp();
 }
 
-const pinHtml = (r) => {
+const pinHtml = (r, i) => {
   const p = toMap(r.x, r.y);
-  return `<div class="pin ${MG.branch === r.i ? 'on' : ''}" style="left:${p.px / MAP.w * 100}%;top:${p.py / MAP.h * 100}%">
+  return `<div class="pin ${MG.branch === r.i ? 'on' : ''}" style="left:${p.px / MAP.w * 100}%;top:${p.py / MAP.h * 100}%;--i:${i || 0}">
     <button data-branch="${r.i}"><i><b>${r.i}</b></i><span>${esc(r.label)}</span></button></div>`;
 };
 
-function branchList() {
+function branchList(custom) {
   const rows = MG.branches.rows;
-  return panel(`${rows.length} branches`, 'Each one has a teller, a blip and a money counter', `<div class="m-list m-scroll" style="max-height:560px">${rows.map(r => `
-    <div class="row pick" data-branch="${r.i}">
-      <div class="ic">${MI.pin}</div>
-      <div class="row-txt"><b>${r.i} · ${esc(r.label)}</b><span class="mono">${r.x.toFixed(1)}, ${r.y.toFixed(1)}, ${r.z.toFixed(1)} · ${esc(r.ped)}</span></div>
-      ${r.counter ? '<span class="chip">COUNTER SET</span>' : ''}
-      <button class="btn-ghost" data-mact="gotoBranch" data-i="${r.i}">${MI.go}Go</button>
-    </div>`).join('') || emptyBox('No branches', 'Stand where a teller should be and add one.', MI.pin)}</div>`);
+  const near = MG.me ? rows.slice().sort((a, b) => distTo(a) - distTo(b))[0] : null;
+  return `
+    <div class="kvs" style="flex:none">
+      <div><span>Branches · ${MG.branches.edited ? 'edited in this panel' : 'from config.lua'}</span><b class="teal">${rows.length}</b></div>
+      <div><span>Own counter layout</span><b>${custom} <small class="mini">of ${rows.length}</small></b></div>
+      <div><span>Nearest to you</span><b>${near ? `#${near.i} ${esc(near.label)} · ${fmtDist(distTo(near))}` : '—'}</b></div>
+    </div>
+    ${mPanel('All branches', 'Each one has a teller, a blip and a money counter', `<div class="mlist">${rows.map(r => `
+      <div class="row pick" data-branch="${r.i}">
+        <div class="ic">${MI.pin}</div>
+        <div class="row-txt"><b>${r.i} · ${esc(r.label)}</b><span class="mono">${r.x.toFixed(1)}, ${r.y.toFixed(1)}, ${r.z.toFixed(1)} · ${esc(r.ped)}</span></div>
+        ${r.counter ? '<em class="chip">OWN COUNTER</em>' : ''}
+        <span class="mini" style="min-width:56px;text-align:right">${fmtDist(distTo(r))}</span>
+        <button class="btn-ghost" data-mact="gotoBranch" data-i="${r.i}">${MI.go}Go</button>
+      </div>`).join('') || emptyBox('No branches', 'Stand where a teller should be and add one.', MI.pin)}</div>`, { cls: 'fill' })}`;
 }
 
 function branchDetail(r) {
   const c = r.counter || MG.branches.default || {};
   const v = (o) => o ? `${Number(o.x).toFixed(2)}, ${Number(o.y).toFixed(2)}` : '—';
   return `
-    ${panel(`${r.i} · ${r.label}`, r.counter ? 'This branch has its own counter layout' : 'Uses the default counter layout',
-      `<div class="field row2" style="margin-bottom:10px">
+    ${mPanel(`${r.i} · ${r.label}`, r.counter ? 'This branch has its own counter layout' : 'Uses the default counter layout from Config.Teller', `
+       <div class="field row2">
          <div class="field"><label>Name</label><input id="mgrBLabel" value="${esc(r.label)}" maxlength="40"></div>
          <div class="field"><label>Teller model</label><input id="mgrBPed" value="${esc(r.ped)}" maxlength="40"></div>
        </div>
-       <div class="kvs">
-         <div><span>Teller stands at</span><b class="mono">${r.x.toFixed(2)}, ${r.y.toFixed(2)}, ${r.z.toFixed(2)}</b></div>
+       <div class="kvs" style="margin-top:4px">
+         <div><span>Teller stands at</span><b class="mono">${r.x.toFixed(1)}, ${r.y.toFixed(1)}, ${r.z.toFixed(1)}</b></div>
          <div><span>Facing</span><b>${Math.round(r.w)}°</b></div>
-         <div><span>Money counter (from the teller)</span><b class="mono">${v(c.machine)} · ${Math.round(c.machineHeading || 0)}°</b></div>
-         <div><span>Cash spot (from the teller)</span><b class="mono">${v(c.counter)}</b></div>
+         <div><span>From you</span><b class="teal">${fmtDist(distTo(r))}</b></div>
+         <div><span>Money counter (from teller)</span><b class="mono">${v(c.machine)}</b></div>
+         <div><span>Machine turned</span><b>${Math.round(c.machineHeading || 0)}°</b></div>
+         <div><span>Cash spot (from teller)</span><b class="mono">${v(c.counter)}</b></div>
        </div>`,
-      `<button class="btn-ghost" data-mact="branchBack">All branches</button><button class="btn-teal" data-mact="branchSaveInfo" style="height:27px">Save</button>`)}
-    ${panel('In the world', 'The tools close this panel while you work and bring it back when you finish', `
+      { flat: true, acts: `<button class="btn-ghost" data-mact="branchBack">All branches</button><button class="btn-teal" data-mact="branchSaveInfo" style="height:25px">Save</button>` })}
+    ${mPanel('In the world', 'The tools close this panel while you work and bring it back when you finish', `
       <div class="tool-grid">
         <button class="tool" data-mact="gotoBranch" data-i="${r.i}">${MI.go}<div><b>Go there</b><span>In front of the teller</span></div></button>
         <button class="tool" data-mact="placeTeller" data-i="${r.i}">${MI.move}<div><b>Move teller</b><span>Arrows, Q/E to turn, ENTER</span></div></button>
@@ -496,14 +683,29 @@ function branchDetail(r) {
         <button class="tool" data-mact="placeCounter" data-i="${r.i}">${MI.machine}<div><b>Place money counter</b><span>Aim with the mouse, scroll to turn, E</span></div></button>
         ${r.counter ? `<button class="tool" data-mact="resetCounter" data-i="${r.i}">${MI.undo}<div><b>Default counter</b><span>Drop this branch's layout</span></div></button>` : ''}
         <button class="tool red" data-mact="deleteBranch" data-i="${r.i}">${MI.trash}<div><b>Remove branch</b><span>Teller, blip and all</span></div></button>
-      </div>`)}`;
+      </div>`, { flat: true })}`;
+}
+
+/** The map as large as its panel allows, kept to the image's shape. */
+function fitMap() {
+  const wrap = document.getElementById('mgrMap');
+  if (!wrap) return;
+  const body = wrap.parentElement;
+  const h = Math.max(200, body.clientHeight - 20);
+  const maxW = Math.max(260, mView().clientWidth * 0.46);
+  const w = Math.min(maxW, h * MAP.w / MAP.h);
+  wrap.style.width = `${Math.floor(w)}px`;
+  wrap.style.height = `${Math.floor(w * MAP.h / MAP.w)}px`;
+  mapClamp(wrap);
+  mapApply(true);
 }
 
 /* ── the map: zoom, drag, click ── */
-function mapApply() {
+function mapApply(now) {
   const inner = document.getElementById('mgrMapIn');
   if (!inner) return;
   const { z, x, y } = MG.map;
+  inner.classList.toggle('now', !!now);
   inner.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
   inner.style.setProperty('--pin', (1 / z).toFixed(3));
 }
@@ -514,7 +716,7 @@ function mapClamp(wrap) {
   m.y = Math.min(0, Math.max(h - h * m.z, m.y));
 }
 
-function mapZoom(wrap, factor, cx, cy) {
+function mapZoom(wrap, factor, cx, cy, now) {
   const m = MG.map;
   const z = Math.min(8, Math.max(1, m.z * factor));
   if (cx == null) { cx = wrap.clientWidth / 2; cy = wrap.clientHeight / 2; }
@@ -522,16 +724,16 @@ function mapZoom(wrap, factor, cx, cy) {
   m.y = cy - (cy - m.y) * (z / m.z);
   m.z = z;
   mapClamp(wrap);
-  mapApply();
+  mapApply(now);
 }
 
-/** Centre the map on a branch, zoomed in, so the city's cluster can be told apart. */
-function mapFocus(r) {
+/** Centre the map on a point, zoomed in, so the city's cluster can be told apart. */
+function mapFocus(x, y, zoom) {
   const wrap = document.getElementById('mgrMap');
-  if (!wrap || !r) return;
-  const p = toMap(r.x, r.y);
+  if (!wrap) return;
+  const p = toMap(x, y);
   const m = MG.map;
-  m.z = Math.max(m.z, 3);
+  m.z = Math.max(m.z, zoom || 3);
   m.x = wrap.clientWidth / 2 - (p.px / MAP.w) * wrap.clientWidth * m.z;
   m.y = wrap.clientHeight / 2 - (p.py / MAP.h) * wrap.clientHeight * m.z;
   mapClamp(wrap);
@@ -543,14 +745,13 @@ function closeMapPop() { document.querySelectorAll('.map-pop, .pin.drop').forEac
 function mapWire() {
   const wrap = document.getElementById('mgrMap');
   if (!wrap) return;
-  mapApply();
   let down = null;
 
   wrap.addEventListener('wheel', (e) => {
     e.preventDefault();
     const r = wrap.getBoundingClientRect();
     closeMapPop();
-    mapZoom(wrap, e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top);
+    mapZoom(wrap, e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top, true);
   }, { passive: false });
 
   wrap.addEventListener('mousedown', (e) => {
@@ -563,7 +764,7 @@ function mapWire() {
     if (Math.abs(dx) + Math.abs(dy) > 4) { down.moved = true; wrap.classList.add('drag'); closeMapPop(); }
     if (!down.moved) return;
     MG.map.x = down.mx + dx; MG.map.y = down.my + dy;
-    mapClamp(wrap); mapApply();
+    mapClamp(wrap); mapApply(true);
   };
   window.onmouseup = (e) => {
     if (!down) return;
@@ -577,18 +778,20 @@ function mapWire() {
     const py = ((cy - MG.map.y) / MG.map.z) / wrap.clientHeight * MAP.h;
     const w = toWorld(px, py);
     closeMapPop();
-    const inner = document.getElementById('mgrMapIn');
-    inner.insertAdjacentHTML('beforeend', `<div class="pin drop" style="left:${px / MAP.w * 100}%;top:${py / MAP.h * 100}%"><button><i></i></button></div>`);
-    wrap.insertAdjacentHTML('beforeend', `<div class="map-pop" style="left:${cx}px;top:${cy}px">
+    document.getElementById('mgrMapIn').insertAdjacentHTML('beforeend',
+      `<div class="pin drop" style="left:${px / MAP.w * 100}%;top:${py / MAP.h * 100}%"><button><i></i></button></div>`);
+    wrap.insertAdjacentHTML('beforeend', `<div class="map-pop" style="left:${Math.max(80, Math.min(wrap.clientWidth - 80, cx))}px;top:${Math.max(80, cy)}px">
       <small class="mono">${w.x.toFixed(0)}, ${w.y.toFixed(0)}</small>
-      <button class="btn-teal" style="height:28px" data-mact="teleport" data-x="${w.x.toFixed(1)}" data-y="${w.y.toFixed(1)}">Teleport here</button></div>`);
+      <button class="btn-teal" style="height:27px" data-mact="teleport" data-x="${w.x.toFixed(1)}" data-y="${w.y.toFixed(1)}">Teleport here</button></div>`);
   };
 
   wrap.querySelector('.map-tools').addEventListener('click', (e) => {
     const b = e.target.closest('[data-map]');
     if (!b) return;
+    closeMapPop();
     if (b.dataset.map === 'in') mapZoom(wrap, 1.5);
     else if (b.dataset.map === 'out') mapZoom(wrap, 1 / 1.5);
+    else if (b.dataset.map === 'me' && MG.me) mapFocus(MG.me.x, MG.me.y, 3.5);
     else { MG.map = { z: 1, x: 0, y: 0 }; mapApply(); }
   });
 }
@@ -596,74 +799,104 @@ function mapWire() {
 /* ═══════════════════════════════════════════════════════════
    MARKET
    ═══════════════════════════════════════════════════════════ */
+let sparkId = 0;
+function mSpark(hist, up) {
+  const pts = (hist && hist.length > 1) ? hist.map(Number) : [0, 0];
+  const W = 120, H = 30;
+  const lo = Math.min(...pts), hi = Math.max(...pts), span = hi - lo || 1;
+  const xy = pts.map((v, i) => [i / (pts.length - 1) * W, H - 2 - (v - lo) / span * (H - 4)]);
+  const line = xy.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
+  const hex = up ? '#08afa2' : '#e5484d';
+  const id = `mspark${++sparkId}`;
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${hex}" stop-opacity=".28"/><stop offset="1" stop-color="${hex}" stop-opacity="0"/></linearGradient></defs>
+    <path class="area" d="${line} L${W} ${H} L0 ${H} Z" fill="url(#${id})"/>
+    <path class="line" d="${line}" stroke="${hex}"/></svg>`;
+}
+
 async function pageMarket() {
-  loading();
+  loadingPage('Market', 'The prices in the Investments tab.');
   const res = await mPost('market');
   if (MG.page !== 'market') return;
   const rows = res.rows || [];
-  view().innerHTML = `
-    ${head('Market', 'The prices in the Investments tab. Set one by hand for an event or a crash; it stays between its floor and ceiling and carries on moving from there.')}
-    ${panel('Assets', `${rows.length} listed`, rows.length ? `<table class="m-table">
-      <tr><th>Asset</th><th class="r">Price</th><th class="r">Today</th><th class="r">Floor · ceiling</th><th class="r">Holders</th><th class="r">Set price</th></tr>
+  const invested = rows.reduce((a, r) => a + (r.invested || 0), 0);
+  const holders = rows.reduce((a, r) => a + (r.holders || 0), 0);
+  const chg = (a) => a.open ? (a.price - a.open) / a.open * 100 : 0;
+  const mover = rows.slice().sort((a, b) => Math.abs(chg(b)) - Math.abs(chg(a)))[0];
+  const risk = (v) => { const n = v < 0.025 ? 1 : v < 0.04 ? 2 : 3; return `<span class="risk" title="Risk">${[1, 2, 3].map(k => `<i class="${k <= n ? 'on' : ''}"></i>`).join('')}</span>`; };
+  mView().innerHTML = `<div class="page">
+    ${mHead('Market', 'The prices in the Investments tab. Set one by hand for an event or a crash; it stays between its floor and ceiling and carries on moving from there.')}
+    <div class="kpis">
+      ${kpi(MI.chart, 'Assets listed', rows.length, 'from Config.Market.assets', { count: rows.length })}
+      ${kpi(MI.coin, 'Invested by players', mshort(invested), 'at today’s prices', { count: invested, fmt: 'money' })}
+      ${kpi(MI.users, 'Positions held', mint(holders), 'player and asset pairs', { count: holders })}
+      ${kpi(MI.pulse, 'Biggest move', mover ? esc(mover.id) : '—', mover ? `<em>${chg(mover) >= 0 ? '+' : ''}${chg(mover).toFixed(2)}%</em> since the hour opened` : '', { red: !!mover && chg(mover) < 0 })}
+    </div>
+    ${mPanel('Assets', 'The line is the day so far; the bars are how hard it swings', rows.length ? `<table class="m-table">
+      <tr><th>Asset</th><th>Today</th><th class="r">Price</th><th class="r">Change</th><th class="r">Floor · ceiling</th><th class="r">Holders</th><th class="r">Invested</th><th class="r">Set price</th></tr>
       ${rows.map(a => {
-        const chg = a.open ? (a.price - a.open) / a.open * 100 : 0;
-        return `<tr><td><b>${esc(a.id)}</b> <span class="mini">${esc(a.label)} · ${esc(a.kind)}</span></td>
-          <td class="r"><b>${mm(a.price)}</b></td><td class="r ${chg >= 0 ? 'm-pos' : 'm-neg'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</td>
-          <td class="r mini">${mm(a.floor)} · ${mm(a.ceiling)}</td><td class="r">${a.holders}</td>
-          <td class="r"><input type="number" step="0.01" id="mkt_${esc(a.id)}" placeholder="${Number(a.price).toFixed(2)}">
+        const c = chg(a);
+        return `<tr><td><b>${esc(a.id)}</b>${risk(a.volatility || 0.03)}<div class="mini">${esc(a.label)} · ${esc(a.kind)}</div></td>
+          <td>${mSpark(a.history, c >= 0)}</td>
+          <td class="r"><b>${mm(a.price)}</b></td><td class="r ${c >= 0 ? 'm-pos' : 'm-neg'}">${c >= 0 ? '+' : ''}${c.toFixed(2)}%</td>
+          <td class="r mini">${mshort(a.floor)} · ${mshort(a.ceiling)}</td><td class="r">${a.holders}</td><td class="r">${mshort(a.invested || 0)}</td>
+          <td class="r" style="white-space:nowrap"><input type="number" step="0.01" id="mkt_${esc(a.id)}" placeholder="${Number(a.price).toFixed(2)}">
             <button class="btn-ghost" style="display:inline-flex;margin-left:6px" data-mact="setPrice" data-id="${esc(a.id)}">Set</button></td></tr>`;
-      }).join('')}</table>` : emptyBox('No assets', 'Add them to Config.Market.assets.', MI.chart))}`;
+      }).join('')}</table>` : emptyBox('No assets', 'Add them to Config.Market.assets.', MI.chart), { cls: 'fill' })}
+  </div>`;
+  countUp();
 }
 
 /* ═══════════════════════════════════════════════════════════
    SETTINGS
    ═══════════════════════════════════════════════════════════ */
 async function mPageSettings() {
-  loading();
+  if (!MG.settings) loadingPage('Settings', 'Everything in config.lua.');
   const res = await mPost('settings');
   if (MG.page !== 'settings') return;
-  if (!res.ok) return (view().innerHTML = emptyBox('No answer', res.msg || ''));
+  if (!res.ok) return (mView().innerHTML = `<div class="page">${emptyBox('No answer', res.msg || '')}</div>`);
   MG.settings = res.data;
   drawSettings();
 }
 
+const allItems = () => MG.settings.groups.flatMap(g => g.items);
 function changedCount(group) {
   const s = MG.settings;
-  return (group ? group.items : s.groups.flatMap(g => g.items)).filter(it => s.overridden[it.p]).length;
+  return (group ? group.items : allItems()).filter(it => s.overridden[it.p]).length;
 }
 
-function drawSettings() {
+function drawSettings(keepFocus) {
   const s = MG.settings;
   document.getElementById('mgrTallyChanged').textContent = changedCount();
   const q = MG.setQ.toLowerCase();
-  const groups = q ? s.groups.map(g => ({ ...g, items: g.items.filter(it =>
-    (it.l + ' ' + (it.h || '') + ' ' + it.p).toLowerCase().includes(q)) })).filter(g => g.items.length) : s.groups;
-  const current = q ? null : (s.groups.find(g => g.id === MG.setGroup) || s.groups[0]);
+  const found = q ? allItems().filter(it => (it.l + ' ' + (it.h || '') + ' ' + it.p).toLowerCase().includes(q)) : null;
+  const current = s.groups.find(g => g.id === MG.setGroup) || s.groups[0];
+  const items = found || current.items;
+  const restart = items.filter(it => it.r).length;
 
-  view().innerHTML = `
-    ${head('Settings', 'Everything in config.lua, changed here and live for every player. config.lua stays the starting point: Reset brings its value back.',
-      `<button class="btn-ghost" data-mact="export">${MI.export}Copy to config.lua</button>
-       <button class="btn-line" data-mact="resetAll" style="height:27px">Reset all</button>`)}
-    <div class="searchbox" style="flex:none">${MI.search}<input id="mgrSetQ" placeholder="Find a setting: fee, ATM, teller, interest…" value="${esc(MG.setQ)}"></div>
+  mView().innerHTML = `<div class="page">
+    ${mHead('Settings', 'Everything in config.lua, changed here and live for every player. Reset brings config.lua’s value back.',
+      `<div class="searchbox" style="width:240px">${MI.search}<input id="mgrSetQ" placeholder="Find a setting…" value="${esc(MG.setQ)}"></div>
+       <button class="btn-ghost" data-mact="export">${MI.export}Copy to config.lua</button>
+       <button class="btn-line" data-mact="resetAll" style="height:25px;font-size:11px">Reset all</button>`)}
     <div class="set-wrap">
       <div class="set-groups">${s.groups.map(g => `
-        <button data-sgroup="${g.id}" class="${!q && current && current.id === g.id ? 'on' : ''}">${esc(g.label)}
-          ${changedCount(g) ? `<span class="tally">${changedCount(g)}</span>` : ''}</button>`).join('')}</div>
-      <div class="stack">${(q ? groups : [current]).map(g => panel(g.label, q ? '' : `${g.items.length} settings`,
-        `<div style="margin:-13px -15px -15px">${g.items.map(settingRow).join('')}</div>`)).join('') ||
-        emptyBox('No setting matches', 'Try another word.', MI.search)}</div>
-    </div>`;
+        <button data-sgroup="${g.id}" class="${!q && current.id === g.id ? 'on' : ''}">${esc(g.label)}
+          <small>${g.items.length}</small>${changedCount(g) ? `<span class="tally">${changedCount(g)}</span>` : ''}</button>`).join('')}</div>
+      <div class="panel">
+        <div class="p-head"><div><h2>${q ? `Results for “${esc(MG.setQ)}”` : esc(current.label)}</h2>
+          <p>${items.length} settings · ${items.filter(it => s.overridden[it.p]).length} changed here${restart ? ` · ${restart} need a restart` : ''}</p></div></div>
+        <div class="pb" style="padding:0;gap:0">${items.map(settingRow).join('') || `<div style="padding:12px">${emptyBox('No setting matches', 'Try another word.', MI.search)}</div>`}</div>
+        <div class="pfoot">Saves when you leave a field or press ENTER<span class="right"><b>${changedCount()}</b> changed in total</span></div>
+      </div>
+    </div></div>`;
 
   const input = document.getElementById('mgrSetQ');
+  if (keepFocus) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
   let t = null;
   input.addEventListener('input', () => {
     clearTimeout(t);
-    t = setTimeout(() => {
-      MG.setQ = input.value.trim();
-      drawSettings();
-      const again = document.getElementById('mgrSetQ');
-      again.focus(); again.setSelectionRange(again.value.length, again.value.length);
-    }, 250);
+    t = setTimeout(() => { MG.setQ = input.value.trim(); drawSettings(true); }, 250);
   });
 }
 
@@ -684,12 +917,12 @@ function settingRow(it) {
   } else if (it.t === 'color') {
     ctl = `<span class="hex mono">${esc(v)}</span><input type="color" data-set="${esc(it.p)}" data-kind="color" value="${esc(v || '#000000')}">`;
   } else {
-    ctl = `<input type="text" data-set="${esc(it.p)}" data-kind="text" value="${esc(it.s ? (v ? '••••••••' : '') : v)}"
+    ctl = `<input type="text" data-set="${esc(it.p)}" data-kind="text" value="${esc(v)}"
       ${it.s ? 'placeholder="Paste a new one to change it"' : ''} ${it.max ? `maxlength="${it.max}"` : ''}>`;
   }
   return `
     <div class="set-row ${changed ? 'changed' : ''}" data-row="${esc(it.p)}">
-      <div class="lbl"><b>${esc(it.l)} ${it.r ? '<span class="chip amber">RESTART</span>' : ''}</b>
+      <div class="lbl"><b>${esc(it.l)} ${it.r ? '<em class="chip amber">RESTART</em>' : ''}</b>
         ${it.h ? `<span>${esc(it.h)}</span>` : ''}<div class="path mono">Config.${esc(it.p)}</div></div>
       <div class="ctl">${ctl}</div>
       <div class="state">${changed ? `<button class="dotreset" data-reset="${esc(it.p)}" title="Back to config.lua">Reset</button>` : ''}</div>
@@ -705,14 +938,16 @@ async function saveSetting(path, value, reset) {
   MG.settings.values[path] = res.value;
   MG.settings.overridden[path] = res.overridden;
   if (res.restart) notify('Banking Manager', res.msg, 'inform');
-  const it = MG.settings.groups.flatMap(g => g.items).find(x => x.p === path);
+  const it = allItems().find(x => x.p === path);
   if (row && it) {
     row.outerHTML = settingRow(it);
+    const fresh = document.querySelector(`.set-row[data-row="${CSS.escape(path)}"]`);
+    if (fresh) fresh.classList.add('saved');
     document.getElementById('mgrTallyChanged').textContent = changedCount();
     document.querySelectorAll('.set-groups [data-sgroup]').forEach(b => {
       const g = MG.settings.groups.find(x => x.id === b.dataset.sgroup);
       const n = changedCount(g);
-      b.innerHTML = `${esc(g.label)} ${n ? `<span class="tally">${n}</span>` : ''}`;
+      b.innerHTML = `${esc(g.label)} <small>${g.items.length}</small>${n ? `<span class="tally">${n}</span>` : ''}`;
     });
   }
 }
@@ -720,8 +955,8 @@ async function saveSetting(path, value, reset) {
 /* settings controls: switches save on click, the rest when they change */
 document.getElementById('mgrView').addEventListener('change', (e) => {
   const el = e.target.closest('[data-set]');
-  if (!el) return;
-  const it = MG.settings && MG.settings.groups.flatMap(g => g.items).find(x => x.p === el.dataset.set);
+  if (!el || !MG.settings) return;
+  const it = allItems().find(x => x.p === el.dataset.set);
   if (!it) return;
   let v = el.value;
   if (it.t === 'number') {
@@ -750,19 +985,25 @@ document.getElementById('mgrView').addEventListener('keydown', (e) => {
    STAFF ACTIVITY
    ═══════════════════════════════════════════════════════════ */
 async function pageAudit() {
-  loading();
+  loadingPage('Staff activity', 'Every change made in the Banking Manager.');
   const res = await mPost('audit', MG.auditPage);
   if (MG.page !== 'audit') return;
   const rows = res.rows || [];
-  view().innerHTML = `
-    ${head('Staff activity', 'Every change made in the Banking Manager, newest first. Also sent to the Discord log when Config.Logs is on.')}
-    ${panel('Log', `Page ${res.page || 1} of ${res.pages || 1}`, rows.length ? `<table class="m-table">
+  const pages = res.pages || 1, page = res.page || 1;
+  const nums = [];
+  for (let i = Math.max(1, page - 3); i <= Math.min(pages, page + 3); i++) nums.push(i);
+  mView().innerHTML = `<div class="page">
+    ${mHead('Staff activity', 'Every change made in the Banking Manager, newest first. Also sent to the Discord log when Config.Logs is on.')}
+    ${mPanel('Log', `${mint(res.total || rows.length)} changes on record`, rows.length ? `<table class="m-table">
       <tr><th>When</th><th>Staff</th><th>Did</th><th>To</th><th>Detail</th></tr>
-      ${rows.map(a => `<tr><td class="mini">${mAgo(a.at)}</td><td><b>${esc(a.admin_name)}</b></td><td>${esc(a.action)}</td>
-        <td class="mono mini">${esc(a.target || '')}</td><td class="mini">${esc(a.detail || '')}</td></tr>`).join('')}</table>
-      <div class="pager">${Array.from({ length: Math.min(res.pages || 1, 12) }, (_, i) =>
-        `<button class="${i + 1 === res.page ? 'on' : ''}" data-apage="${i + 1}">${i + 1}</button>`).join('')}</div>`
-      : emptyBox('Nothing yet', 'Changes made here show up in this list.', MI.history))}`;
+      ${rows.map(a => `<tr><td class="mini" style="white-space:nowrap">${mAgo(a.at)}</td><td><b>${esc(a.admin_name)}</b></td><td>${esc(a.action)}</td>
+        <td class="mono mini">${esc(a.target || '')}</td><td class="mini">${esc(a.detail || '')}</td></tr>`).join('')}</table>`
+      : emptyBox('Nothing yet', 'Changes made here show up in this list.', MI.history),
+      { cls: 'fill', foot: `Page <b>${page}</b> of ${pages}<span class="right pager" style="padding:0">
+        <button data-apage="${Math.max(1, page - 1)}" ${page <= 1 ? 'disabled' : ''}>‹</button>
+        ${nums.map(i => `<button class="${i === page ? 'on' : ''}" data-apage="${i}">${i}</button>`).join('')}
+        <button data-apage="${Math.min(pages, page + 1)}" ${page >= pages ? 'disabled' : ''}>›</button></span>` })}
+  </div>`;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -777,6 +1018,18 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
   if (grp) { MG.setGroup = grp.dataset.sgroup; MG.setQ = ''; return drawSettings(); }
   const ap = e.target.closest('[data-apage]');
   if (ap) { MG.auditPage = Number(ap.dataset.apage); return pageAudit(); }
+  const rg = e.target.closest('[data-range]');
+  if (rg) return setRange(Number(rg.dataset.range));
+  const tab = e.target.closest('[data-ptab]');
+  if (tab) {
+    MG.ptab = tab.dataset.ptab;
+    document.querySelectorAll('[data-ptab]').forEach(b => b.classList.toggle('on', b === tab));
+    const box = document.getElementById('mgrPTab');
+    if (box && MG.player) { box.innerHTML = playerTab(MG.player); box.scrollTop = 0; }
+    return;
+  }
+  const kind = e.target.closest('[data-kind]');
+  if (kind && kind.closest('#mgrAccKinds')) { MG.accKind = kind.dataset.kind; return listAccounts(); }
   const pg = e.target.closest('[data-mpage]');
   if (pg) return mgrGo(pg.dataset.mpage);
 
@@ -784,7 +1037,7 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
   if (pl) return openPlayer(pl.dataset.player);
   const owner = e.target.closest('[data-owner]');
   if (owner && owner.dataset.owner && !e.target.closest('[data-mact]')) {
-    MG.playerQ = ''; MG.player = { identifier: owner.dataset.owner };
+    MG.playerQ = ''; MG.player = { identifier: owner.dataset.owner }; MG.ptab = 'accounts';
     return mgrGo('players');
   }
 
@@ -793,7 +1046,8 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
     MG.branch = Number(br.dataset.branch);
     closeMapPop();
     drawBranches();
-    mapFocus(MG.branches.rows[MG.branch - 1]);
+    const r = MG.branches.rows[MG.branch - 1];
+    if (r) mapFocus(r.x, r.y, 3);
     return;
   }
 
@@ -803,7 +1057,7 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
   const p = MG.player;
 
   switch (d.mact) {
-    case 'refresh': return mgrGo(MG.page);
+    case 'refresh': MG.overview = null; return mgrGo(MG.page);
     case 'adjust': return adjustModal(Number(d.id), d.label, Number(d.bal));
     case 'history': return historyModal(Number(d.id), d.label);
     case 'freeze': {

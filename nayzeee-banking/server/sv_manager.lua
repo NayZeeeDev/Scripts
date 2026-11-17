@@ -348,18 +348,30 @@ staff('societies', function()
     return { ok = true, rows = rows }
 end)
 
-staff('accounts', function(src, query)
+local KINDS = { personal = true, savings = true, shared = true, society = true }
+
+staff('accounts', function(src, query, kind)
     query = tostring(query or ''):sub(1, 40)
     local like = '%' .. query .. '%'
-    local rows = accountRows('(account_number LIKE ? OR label LIKE ? OR owner LIKE ?)', { like, like, like },
-        'ORDER BY balance DESC LIMIT 40')
-    return { ok = true, rows = rows }
+    local where, args = '(account_number LIKE ? OR label LIKE ? OR owner LIKE ?)', { like, like, like }
+    if KINDS[kind] then
+        where = where .. ' AND type = ?'
+        args[#args + 1] = kind
+    end
+    local rows = accountRows(where, args, 'ORDER BY balance DESC LIMIT 60')
+    local counts = {}
+    for _, r in ipairs(MySQL.query.await([[SELECT type, COUNT(*) AS n FROM nz_bank_accounts
+        WHERE account_number LIKE ? OR label LIKE ? OR owner LIKE ? GROUP BY type]], { like, like, like }) or {}) do
+        counts[r.type] = tonumber(r.n) or 0
+    end
+    return { ok = true, rows = rows, counts = counts }
 end)
 
 -- ═══════════════════════════════════════════════════════════
 --  THE BANK AT A GLANCE
 -- ═══════════════════════════════════════════════════════════
-staff('overview', function()
+staff('overview', function(src, range)
+    range = ({ [7] = 7, [14] = 14, [30] = 30 })[tonumber(range) or 7] or 7
     local byType, total = {}, 0
     for _, r in ipairs(MySQL.query.await([[SELECT type, COUNT(*) AS n, COALESCE(SUM(balance), 0) AS sum
         FROM nz_bank_accounts GROUP BY type]]) or {}) do
@@ -374,14 +386,14 @@ staff('overview', function()
     local cards = MySQL.single.await([[SELECT SUM(status = 'active') AS live, SUM(status <> 'active') AS stopped,
         COALESCE(SUM(balance), 0) AS owed FROM nz_bank_cards]]) or {}
 
-    -- money in and out, day by day for the last week
+    -- money in and out, day by day over the range
     local days = {}
-    for i = 6, 0, -1 do days[#days + 1] = { d = os.date('%Y-%m-%d', os.time() - i * 86400), inn = 0, out = 0, n = 0 } end
+    for i = range - 1, 0, -1 do days[#days + 1] = { d = os.date('%Y-%m-%d', os.time() - i * 86400), inn = 0, out = 0, n = 0 } end
     local index = {}
     for i, d in ipairs(days) do index[d.d] = i end
     for _, r in ipairs(MySQL.query.await([[SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS d, direction,
         COUNT(*) AS n, COALESCE(SUM(amount), 0) AS sum FROM nz_bank_transactions
-        WHERE created_at >= CURDATE() - INTERVAL 6 DAY AND category NOT IN ('transfer') GROUP BY d, direction]]) or {}) do
+        WHERE created_at >= CURDATE() - INTERVAL ? DAY AND category NOT IN ('transfer') GROUP BY d, direction]], { range - 1 }) or {}) do
         local d = days[index[r.d] or 0]
         if d then
             if r.direction == 'in' then d.inn = tonumber(r.sum) or 0 else d.out = tonumber(r.sum) or 0 end
@@ -389,7 +401,14 @@ staff('overview', function()
         end
     end
 
-    local top = accountRows('1 = 1', {}, 'ORDER BY balance DESC LIMIT 6')
+    local top = accountRows('1 = 1', {}, 'ORDER BY balance DESC LIMIT 8')
+
+    -- how the bank is doing: what is stuck, what is below zero, what is new
+    local health = MySQL.single.await([[SELECT SUM(frozen = 1) AS frozen, SUM(balance < 0) AS overdrawn,
+        COALESCE(SUM(CASE WHEN balance < 0 THEN balance END), 0) AS below,
+        SUM(created_at >= CURDATE() - INTERVAL 6 DAY) AS fresh FROM nz_bank_accounts]]) or {}
+    local today = MySQL.single.await([[SELECT COUNT(*) AS n, COALESCE(SUM(amount), 0) AS sum,
+        COUNT(DISTINCT account_id) AS accounts FROM nz_bank_transactions WHERE created_at >= CURDATE()]]) or {}
     local audits = MySQL.query.await([[SELECT admin_name, action, target, detail, UNIX_TIMESTAMP(created_at) AS at
         FROM nz_bank_audit ORDER BY id DESC LIMIT 8]]) or {}
 
@@ -401,16 +420,19 @@ staff('overview', function()
         loans = { n = tonumber(loans.n) or 0, owed = tonumber(loans.owed) or 0, bad = tonumber(loans.bad) or 0 },
         bills = { n = tonumber(bills.n) or 0, sum = tonumber(bills.sum) or 0, late = tonumber(bills.late) or 0 },
         cards = { live = tonumber(cards.live) or 0, stopped = tonumber(cards.stopped) or 0, owed = tonumber(cards.owed) or 0 },
-        days = days, top = top, audits = audits,
+        days = days, top = top, audits = audits, range = range,
+        health = { frozen = tonumber(health.frozen) or 0, overdrawn = tonumber(health.overdrawn) or 0,
+                   below = tonumber(health.below) or 0, fresh = tonumber(health.fresh) or 0 },
+        today = { n = tonumber(today.n) or 0, sum = tonumber(today.sum) or 0, accounts = tonumber(today.accounts) or 0 },
     } }
 end)
 
 staff('audit', function(src, page)
     page = math.max(1, math.floor(tonumber(page) or 1))
     local rows = MySQL.query.await([[SELECT admin_name, action, target, detail, UNIX_TIMESTAMP(created_at) AS at
-        FROM nz_bank_audit ORDER BY id DESC LIMIT 25 OFFSET ?]], { (page - 1) * 25 }) or {}
+        FROM nz_bank_audit ORDER BY id DESC LIMIT 16 OFFSET ?]], { (page - 1) * 16 }) or {}
     local total = MySQL.scalar.await('SELECT COUNT(*) FROM nz_bank_audit') or 0
-    return { ok = true, rows = rows, pages = math.max(1, math.ceil(total / 25)), page = page }
+    return { ok = true, rows = rows, pages = math.max(1, math.ceil(total / 16)), page = page, total = total }
 end)
 
 -- ═══════════════════════════════════════════════════════════
@@ -624,9 +646,16 @@ staff('market', function()
     local rows = {}
     for _, a in ipairs(Config.Market.assets or {}) do
         local m = Bank.market and Bank.market[a.id]
-        rows[#rows + 1] = { id = a.id, label = a.label, kind = a.kind, price = m and m.price or a.start,
+        local held = MySQL.single.await([[SELECT COUNT(*) AS n, COALESCE(SUM(units), 0) AS units
+            FROM nz_bank_holdings WHERE asset = ? AND units > 0]], { a.id }) or {}
+        local hist = {}
+        local h = m and m.history or {}
+        for i = math.max(1, #h - 59), #h do hist[#hist + 1] = h[i] end
+        local price = m and m.price or a.start
+        rows[#rows + 1] = { id = a.id, label = a.label, kind = a.kind, price = price,
             open = m and m.open or a.start, floor = a.floor, ceiling = a.ceiling, start = a.start,
-            holders = MySQL.scalar.await('SELECT COUNT(*) FROM nz_bank_holdings WHERE asset = ? AND units > 0', { a.id }) or 0 }
+            volatility = a.volatility, history = hist, holders = tonumber(held.n) or 0,
+            units = tonumber(held.units) or 0, invested = math.floor((tonumber(held.units) or 0) * price) }
     end
     return { ok = true, rows = rows }
 end)
