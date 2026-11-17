@@ -97,7 +97,20 @@ const OPEN = ['pending', 'partial', 'overdue'];
 const isOpen = (inv) => OPEN.includes(inv.status);
 const STATUS_LABEL = () => ({ pending: t('status.pending', 'Pending'), partial: t('status.partial', 'Partial'), overdue: t('status.overdue', 'Overdue'),
     disputed: t('status.disputed', 'Disputed'), paid: t('status.paid', 'Paid'), cancelled: t('status.cancelled', 'Cancelled'), refunded: t('status.refunded', 'Refunded') });
-const st = (s) => `<span class="st ${esc(s)}">${esc(STATUS_LABEL()[s] || s)}</span>`;
+const st = (s) => `<span class="st ${esc(s)}"><i></i>${esc(STATUS_LABEL()[s] || s)}</span>`;
+// Initials avatar with a stable colour per name
+const AV_TONES = ['teal', 'blue', 'violet', 'amber', 'cyan', 'rose'];
+function avatar(name, cls = '') {
+    let h = 0; for (const c of String(name || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return `<span class="av sm ${AV_TONES[h % AV_TONES.length]} ${cls}">${initials(name)}</span>`;
+}
+// Due date sub-line: relative and coloured when it matters
+function dueSub(inv) {
+    if (!isOpen(inv) && inv.status !== 'disputed') return `<span class="sub">${esc(fmtTime(inv.dueDate))}</span>`;
+    const d = dueIn(inv.dueDate, inv.status);
+    const dt = toDate(inv.dueDate); const soon = dt && dt.getTime() - Date.now() < 864e5 * 2;
+    return `<span class="sub due ${d.hot ? 'hot' : soon ? 'soon' : ''}">${esc(d.text)}</span>`;
+}
 function debounce(fn, ms) { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; }
 function hexRgba(hex, a) {
     const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || '');
@@ -369,7 +382,7 @@ function renderTop() {
     const p = S.ctx.player;
     const bal = soc ? S.ctx.society.balance : p.bank;
     $('#top').innerHTML = `
-        <div class="top-brand"><div class="mark"></div><div><b><span>${esc(S.brand)}</span>${esc(S.title)}</b><small>${esc(soc ? S.ctx.society.label : t('top.personal', 'Personal billing'))}</small></div></div>
+        <div class="top-brand">${brandHtml(soc ? S.ctx.society.label : t('top.personal', 'Personal billing'))}</div>
         <div class="top-bar">
             <span class="signed"><span class="dot on"></span>${t('top.signed_in', 'Signed in as')} <b>${esc(p.name)}</b></span>
             ${S.ctx.settings && S.ctx.settings.version ? `<span class="ver">v${esc(S.ctx.settings.version)}</span>` : ''}
@@ -381,6 +394,11 @@ function renderTop() {
         </div>`;
 }
 
+// Top-left brand: NAYZEEE | BILLING
+function brandHtml(sub, app) {
+    return `<div class="mark"></div><div class="tb"><div class="tb-name"><span class="tb-brand">${esc(S.brand)}</span><i></i><span class="tb-app">${esc(app || S.title)}</span></div><small>${esc(sub)}</small></div>`;
+}
+
 function renderKeys(list) {
     const keys = list || [
         ['ESC', t('keys.close', 'Close')],
@@ -390,7 +408,7 @@ function renderKeys(list) {
         ['1–9', t('keys.pages', 'Jump to page')],
     ];
     $('#keys').innerHTML = keys.filter(Boolean).map(([k, l]) => `<span><kbd>${esc(k)}</kbd>${esc(l)}</span>`).join('')
-        + `<span class="keys-r">${esc(S.brand)} ${esc(S.title)}</span>`;
+        + `<span class="keys-r">${esc(S.brand)} · ${esc(String(S.title).toUpperCase())}</span>`;
 }
 setInterval(() => { const c = $('#sideClock'); if (c) c.textContent = clockText(); }, 15000);
 
@@ -428,13 +446,17 @@ function setPage(html) {
         const m = PAGE_META()[S.page];
         if (m) head = phead(esc(m[0]), esc(m[1]), pageActions(S.page));
     }
-    $('#page').innerHTML = `<div class="wm-wrap"><div class="wm"></div></div>${head}${html}`;
+    const pg = $('#page');
+    // fade the page in when you navigate to it (not on every re-render)
+    pg.classList.toggle('enter', Date.now() - (S.enterAt || 0) < 700);
+    pg.innerHTML = `<div class="wm-wrap"><div class="wm"></div></div>${head}${html}`;
 }
 
 function go(page) {
     const av = pages();
     if (!av[page]) page = Object.keys(av).find((k) => av[k]) || 'received';
     S.page = page;
+    S.enterAt = Date.now();
     closeRail(); closePop();
     renderSide(); renderTop(); renderKeys();
     ({ overview: pageOverview, received: () => pageTable('received'), sent: () => pageTable('sent'), templates: pageTemplates, activity: pageActivity, permissions: pagePermissions, inspect: pageInspect, admin: pageAdmin }[page] || pageOverview)();
@@ -503,10 +525,44 @@ function fmtWhen(v) {
 }
 const DAYS = () => [t('day.0', 'Sun'), t('day.1', 'Mon'), t('day.2', 'Tue'), t('day.3', 'Wed'), t('day.4', 'Thu'), t('day.5', 'Fri'), t('day.6', 'Sat')];
 
+// Count-up for numbers rendered with data-count (money unless data-fmt="int")
+const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateCounts(root) {
+    $$('[data-count]', root || document).forEach((el) => {
+        const end = num(el.dataset.count); const fmt = el.dataset.fmt === 'int' ? (v) => String(Math.round(v)) : (v) => money(v);
+        if (reduceMotion() || !end) { el.textContent = fmt(end); return; }
+        const t0 = performance.now(); const dur = 900;
+        const step = (now) => {
+            const k = Math.min(1, (now - t0) / dur); const e = 1 - Math.pow(1 - k, 3);
+            el.textContent = fmt(k < 1 ? Math.round(end * e) : end);
+            if (k < 1 && el.isConnected) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    });
+}
+
+// Tiny 7-day trend line for the KPI cards
+function sparkline(values, tone) {
+    const w = 64, h = 22, max = Math.max(1, ...values), n = values.length;
+    if (n < 2) return '';
+    const pts = values.map((v, i) => [Math.round((i * (w - 4)) / (n - 1)) + 2, Math.round(h - 2 - (num(v) / max) * (h - 5))]);
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ');
+    const id = `sp${Math.random().toString(36).slice(2, 8)}`;
+    return `<svg class="spark ${tone}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>
+        <path class="sp-area" d="${line} L${pts[n - 1][0]},${h} L${pts[0][0]},${h} Z" fill="url(#${id})"/><path class="sp-line" d="${line}" pathLength="100"/><circle cx="${pts[n - 1][0]}" cy="${pts[n - 1][1]}" r="2.6"/></svg>`;
+}
+
+// Round a chart maximum up to 1 / 2 / 2.5 / 5 x 10^n so the gridline labels are tidy
+function niceMax(v) {
+    if (v <= 0) return 100;
+    const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v / p;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
 async function pageOverview() {
-    setPage(`<div class="phead"><div><div class="sk" style="height:26px;width:280px"></div><div class="sk" style="height:12px;width:340px;margin-top:10px"></div></div></div>
-        <div class="grid-4">${Array.from({ length: 4 }, () => '<div class="card kpi"><div class="sk" style="width:40px;height:40px"></div><div style="flex:1"><div class="sk" style="height:11px;width:50%"></div><div class="sk" style="height:22px;width:70%;margin-top:8px"></div></div></div>').join('')}</div>
-        <div class="grid-ov"><div class="card pad">${skel(5, 34)}</div><div class="card pad">${skel(6, 34)}</div></div>`);
+    setPage(`<div class="phead"><div><div class="sk" style="height:24px;width:280px"></div><div class="sk" style="height:12px;width:340px;margin-top:10px"></div></div></div>
+        <div class="grid-4">${Array.from({ length: 4 }, () => '<div class="card kpi"><div class="sk" style="width:42px;height:42px"></div><div style="flex:1"><div class="sk" style="height:11px;width:50%"></div><div class="sk" style="height:22px;width:70%;margin-top:8px"></div></div></div>').join('')}</div>
+        <div class="grid-ov"><div class="card pad">${skel(5, 34)}</div><div class="card pad">${skel(5, 34)}</div><div class="card pad">${skel(5, 34)}</div></div>`);
     if (!S.dash || S.dash.account !== S.account) {
         const d = await call('dashboard:get', { account: S.account });
         if (!d || S.page !== 'overview') return;
@@ -520,37 +576,43 @@ async function pageOverview() {
     const greet = hr < 5 ? t('dash.evening', 'Good evening, {name}') : hr < 12 ? t('dash.morning', 'Good morning, {name}') : hr < 18 ? t('dash.afternoon', 'Good afternoon, {name}') : t('dash.evening', 'Good evening, {name}');
     const first = String(p.name || '').split(' ')[0];
     const bal = soc ? S.ctx.society.balance : (d.balance ?? p.bank);
-    const overdue = d.alerts.filter((a) => a.status === 'overdue' && a.direction === 'received').length;
+    const overdueList = d.alerts.filter((a) => a.status === 'overdue' && a.direction === 'received');
+    const overdueAmt = overdueList.reduce((s, a) => s + num(a.remaining), 0);
     const wk = d.weeks || [];
     const wDelta = (key) => (wk.length >= 2 ? pctChange(wk[wk.length - 1][key], wk[wk.length - 2][key]) : null);
-    const deltaTxt = (v) => (v === null ? t('dash.this_week', 'This week') : `<span class="${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '+' : ''}${v}%</span> ${t('dash.vs_last', 'vs last week')}`);
-    const kpi = (icon, tone, label, value, sub, cls = '') => `<div class="card kpi ${cls}"><div class="tile lg ${tone}">${ic(icon)}</div><div class="kv"><span>${label}</span><b>${value}</b><small>${sub}</small></div></div>`;
+    const deltaTxt = (v) => (v === null ? t('dash.this_week', 'This week') : `<span class="${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v)}%</span> ${t('dash.vs_last', 'vs last week')}`);
+    const series = d.series || [];
+    const meter = (pctVal, tone, label) => `<div class="kmeter"><i class="${tone}" style="width:${Math.max(0, Math.min(100, pctVal))}%"></i></div><span class="kmeter-l">${label}</span>`;
+    const kpi = (icon, tone, label, value, sub, extra = '', cls = '') => `<div class="card kpi ${cls}"><div class="tile lg ${tone}">${ic(icon)}</div>
+        <div class="kv"><span>${label}</span><b ${value === null ? '' : `data-count="${num(value)}"`}>${value === null ? '—' : money(value)}</b><small>${sub}</small></div>${extra}</div>`;
+    const outstandingPct = d.unpaid > 0 ? Math.round((overdueAmt / d.unpaid) * 100) : 0;
     const kpis = soc ? [
-        kpi('building', 'teal', t('dash.soc_balance', 'Society balance'), bal === null || bal === undefined ? '—' : money(bal), esc(S.ctx.society.label)),
-        kpi('receive', 'amber', t('dash.owed_to', 'Owed to {name}', { name: esc(S.ctx.society.short || S.ctx.society.label) }), money(d.receivable || 0), t('dash.owed_sub', 'Open invoices you issued')),
-        kpi('arrowdown', 'teal', t('dash.money_in', 'Money in'), money(d.receivedWeek), deltaTxt(wDelta('received'))),
-        kpi('arrowup', 'red', t('dash.to_pay', 'To pay'), money(d.unpaid), t('dash.open_n', '{n} open · {o} overdue', { n: d.due, o: overdue }), d.unpaid > 0 ? 'hot' : ''),
+        kpi('building', 'teal', t('dash.soc_balance', 'Society balance'), bal ?? null, esc(S.ctx.society.label)),
+        kpi('receive', 'amber', t('dash.owed_to', 'Owed to {name}', { name: esc(S.ctx.society.short || S.ctx.society.label) }), d.receivable || 0, t('dash.owed_sub', 'Open invoices you issued')),
+        kpi('arrowdown', 'teal', t('dash.money_in', 'Money in'), d.receivedWeek, deltaTxt(wDelta('received')), sparkline(series.map((x) => x.received), 'teal')),
+        kpi('arrowup', 'red', t('dash.to_pay', 'To pay'), d.unpaid, t('dash.open_n', '{n} open · {o} overdue', { n: d.due, o: overdueList.length }),
+            d.unpaid > 0 ? meter(outstandingPct, 'red', t('dash.pct_overdue', '{n}% overdue', { n: outstandingPct })) : '', d.unpaid > 0 ? 'hot' : ''),
     ] : [
-        kpi('wallet', 'teal', t('dash.bank_balance', 'Bank balance'), bal === null || bal === undefined ? '—' : money(bal), t('dash.personal_acct', 'Personal account')),
-        kpi('alert', 'red', t('dash.outstanding', 'Outstanding'), money(d.unpaid), t('dash.open_n', '{n} open · {o} overdue', { n: d.due, o: overdue }), d.unpaid > 0 ? 'hot' : ''),
-        kpi('arrowdown', 'teal', t('dash.money_in', 'Money in'), money(d.receivedWeek), deltaTxt(wDelta('received'))),
-        kpi('arrowup', 'blue', t('dash.money_out', 'Money out'), money(d.paidWeek), deltaTxt(wDelta('paid'))),
+        kpi('wallet', 'teal', t('dash.bank_balance', 'Bank balance'), bal ?? null, t('dash.cash_line', 'Cash {amount}', { amount: money(p.cash) })),
+        kpi('alert', 'red', t('dash.outstanding', 'Outstanding'), d.unpaid, t('dash.open_n', '{n} open · {o} overdue', { n: d.due, o: overdueList.length }),
+            d.unpaid > 0 ? meter(outstandingPct, 'red', t('dash.pct_overdue', '{n}% overdue', { n: outstandingPct })) : '', d.unpaid > 0 ? 'hot' : ''),
+        kpi('arrowdown', 'teal', t('dash.money_in', 'Money in'), d.receivedWeek, deltaTxt(wDelta('received')), sparkline(series.map((x) => x.received), 'teal')),
+        kpi('arrowup', 'blue', t('dash.money_out', 'Money out'), d.paidWeek, deltaTxt(wDelta('paid')), sparkline(series.map((x) => x.paid), 'blue')),
     ];
     const subline = soc ? t('dash.sub_soc', 'Invoices, payments and cashflow for {name}.', { name: esc(S.ctx.society.label) })
         : t('dash.sub', 'Your invoices, payments and cashflow in one place.');
     setPage(`${phead(esc(greet.replace('{name}', first)), subline, pageActions('overview'))}
         <div class="grid-4">${kpis.join('')}</div>
         <div class="grid-ov">
-            <div class="ov-col">
-                <div class="card cf" id="cf"></div>
-                <div class="card"><div class="ch"><div><h3>${t('dash.latest', 'Latest activity')}</h3><p>${soc ? t('dash.across_soc', 'Across {name}', { name: esc(S.ctx.society.label) }) : t('dash.across', 'Across Personal billing')}</p></div>
-                    ${pages().activity ? `<button class="btn line sm" data-act="go" data-page="activity">${ic('chart')}${t('btn.see_all', 'See all')}</button>` : ''}</div>
-                    <div class="txl">${d.recent.length ? d.recent.slice(0, 5).map(txRow).join('') : emptyState('history', t('dash.no_recent', 'No activity yet'), t('dash.no_recent_sub', 'Invoices and payments show up here.'))}</div></div>
-            </div>
+            <div class="card wk" id="cf"></div>
+            <div class="card ov-act"><div class="ch"><div><h3>${t('dash.latest', 'Latest activity')}</h3><p>${soc ? t('dash.across_soc', 'Across {name}', { name: esc(S.ctx.society.label) }) : t('dash.across', 'Across Personal billing')}</p></div>
+                ${pages().activity ? `<button class="btn line sm" data-act="go" data-page="activity">${t('btn.see_all', 'See all')}${ic('chevr')}</button>` : ''}</div>
+                <div class="txl">${d.recent.length ? d.recent.slice(0, 8).map(txRow).join('') : emptyState('history', t('dash.no_recent', 'No activity yet'), t('dash.no_recent_sub', 'Invoices and payments show up here.'))}</div></div>
             <div class="card nx" id="nx"></div>
         </div>`);
     renderWeekly();
     renderNext();
+    animateCounts($('#page'));
 }
 
 function pctChange(now, before) {
@@ -559,7 +621,7 @@ function pctChange(now, before) {
     return Math.round(((now - before) / before) * 100);
 }
 
-function txRow(r) {
+function txRow(r, i = 0) {
     const map = {
         payment_in: ['arrowdown', 'teal', t('tx.payment_in', 'Payment received'), 'pos'],
         payment_out: ['arrowup', 'red', t('tx.payment_out', 'Invoice paid'), 'neg'],
@@ -568,28 +630,44 @@ function txRow(r) {
         cancelled: ['ban', 'gray', t('tx.cancelled', 'Invoice cancelled'), 'void'],
     }[r.kind] || ['file', 'gray', '', ''];
     const sign = map[3] === 'pos' ? '+ ' : map[3] === 'neg' ? '− ' : '';
-    return `<div class="txr" data-act="view" data-id="${r.id}"><div class="tile ${map[1]}">${ic(map[0])}</div>
-        <div class="tx"><b>${esc(map[2])}${r.name ? ' · ' + esc(r.name) : ''}</b><span>${esc(fmtWhen(r.at))} · <span class="mono">${esc(r.ref)}</span></span></div>
-        <span class="txa ${map[3]}">${sign}${money(r.amount)}</span></div>`;
+    return `<div class="txr" data-act="view" data-id="${r.id}" style="--i:${i}"><div class="tile ${map[1]}">${ic(map[0])}</div>
+        <div class="tx"><b>${esc(r.name || map[2])}</b><span>${esc(map[2])} · ${esc(fmtWhen(r.at))}</span></div>
+        <div class="txa-w"><span class="txa ${map[3]}">${sign}${money(r.amount)}</span><span class="mono">${esc(r.ref)}</span></div></div>`;
 }
 
-// Weekly summary: banking-style bars, received and paid side by side for each of the last 7 days, today highlighted
+// Weekly summary: banking-style bars, received and paid side by side for each of the last 7 days.
+// Bars grow in one after another, today is highlighted, hovering a day shows its numbers.
 function renderWeekly() {
     const el = $('#cf'); const d = S.dash; if (!el || !d) return;
     const series = d.series || [];
     const days = DAYS();
-    const max = Math.max(1, ...series.map((x) => Math.max(num(x.received), num(x.paid))));
-    const h = (v) => (num(v) <= 0 ? 6 : Math.max(10, Math.round((num(v) / max) * 100)));
+    const top = niceMax(Math.max(0, ...series.map((x) => Math.max(num(x.received), num(x.paid)))));
+    const h = (v) => (num(v) <= 0 ? 0 : Math.max(3, (num(v) / top) * 100));
     const recv = series.reduce((s, x) => s + num(x.received), 0), paid = series.reduce((s, x) => s + num(x.paid), 0);
+    const net = recv - paid;
+    const best = series.reduce((b, x) => (num(x.received) > num(b.received) ? x : b), series[0] || { received: 0 });
     const deltaBadge = `<span class="badge ${d.delta >= 0 ? 'ok' : 'bad'}">${ic(d.delta >= 0 ? 'trend' : 'trenddown')}${d.delta >= 0 ? '+' : ''}${d.delta}%</span>`;
-    const bar = (cls, v, label) => `<div class="wb ${cls} ${num(v) <= 0 ? 'quiet' : ''}" style="height:${h(v)}%" title="${esc(label)}: ${esc(money(v))}"><span class="wb-pill">${esc(moneyShort(v))}</span></div>`;
+    const R = t('dash.legend_received', 'Received'), P = t('dash.legend_paid', 'Paid');
+    const bar = (cls, v, i, j) => `<div class="wb ${cls} ${num(v) <= 0 ? 'quiet' : ''}" style="height:${num(v) <= 0 ? 4 : h(v)}%;--i:${i};--j:${j}">${cls === 'r' ? `<span class="wb-pill">${esc(moneyShort(v))}</span>` : ''}</div>`;
     el.innerHTML = `<div class="ch"><div><h3>${t('dash.weekly', 'Weekly Summary')}</h3><p>${t('dash.weekly_sub', 'Received vs paid over the last 7 days')}</p></div>
-            <div class="ch-r"><div class="wk-legend"><span><i class="r"></i>${t('dash.legend_received', 'Received')}</span><span><i class="p"></i>${t('dash.legend_paid', 'Paid')}</span></div></div></div>
-        <div class="wk-top"><b>${money(recv)}</b>${deltaBadge}<span class="wk-paid">${t('dash.legend_paid', 'Paid')} <b>${money(paid)}</b></span></div>
-        <div class="wk-bars" role="img" aria-label="${esc(series.map((x) => `${days[x.dow]}: ${t('dash.legend_received', 'Received')} ${money(x.received)}, ${t('dash.legend_paid', 'Paid')} ${money(x.paid)}`).join('; '))}">
-            ${series.map((x, i) => `<div class="wk-col ${i === series.length - 1 ? 'cur' : ''}"><div class="wk-pair">
-                ${bar('r', x.received, t('dash.legend_received', 'Received'))}${bar('p', x.paid, t('dash.legend_paid', 'Paid'))}</div>
-                <span class="wk-x">${esc(days[x.dow])}</span></div>`).join('')}
+            <div class="ch-r"><div class="wk-legend"><span><i class="r"></i>${R}</span><span><i class="p"></i>${P}</span></div></div></div>
+        <div class="wk-top"><b data-count="${recv}">${money(recv)}</b>${deltaBadge}<span class="wk-paid">${P} <b>${money(paid)}</b></span></div>
+        <div class="wk-chart" role="img" aria-label="${esc(series.map((x) => `${days[x.dow]}: ${R} ${money(x.received)}, ${P} ${money(x.paid)}`).join('; '))}">
+            <div class="wk-grid">${[1, 0.75, 0.5, 0.25, 0].map((f) => `<div style="bottom:${f * 100}%"><span>${esc(moneyShort(top * f))}</span></div>`).join('')}</div>
+            <div class="wk-bars">${series.map((x, i) => {
+                const n = num(x.received) - num(x.paid);
+                return `<div class="wk-col ${i === series.length - 1 ? 'cur' : ''}">
+                    <div class="wk-pair">${bar('r', x.received, i, 0)}${bar('p', x.paid, i, 1)}</div>
+                    <span class="wk-x">${esc(days[x.dow])}</span>
+                    <div class="wk-tip"><b>${esc(days[x.dow])} · ${esc(fmtDate(x.key + 'T12:00:00'))}</b>
+                        <div><i class="r"></i>${R}<span>${money(x.received)}</span></div><div><i class="p"></i>${P}<span>${money(x.paid)}</span></div>
+                        <div class="net">${t('cf.net', 'Net')}<span class="${n >= 0 ? 'up' : 'down'}">${n >= 0 ? '+' : '−'}${money(Math.abs(n))}</span></div></div></div>`;
+            }).join('')}</div>
+        </div>
+        <div class="wk-foot">
+            <div><span>${t('cf.best_day', 'Best day')}</span><b>${num(best.received) > 0 ? `${esc(days[best.dow])} · ${money(best.received)}` : '—'}</b></div>
+            <div><span>${t('cf.avg_day', 'Daily average')}</span><b>${money(series.length ? recv / series.length : 0)}</b></div>
+            <div><span>${t('cf.net_week', 'Net this week')}</span><b class="${net >= 0 ? 'up' : 'down'}">${net >= 0 ? '+' : '−'}${money(Math.abs(net))}</b></div>
         </div>`;
 }
 
@@ -599,13 +677,15 @@ function renderNext() {
     const list = d.alerts || [];
     const i = Math.min(Math.max(S.nx || 0, 0), Math.max(list.length - 1, 0)); S.nx = i;
     const inv = list[i];
-    const head = `<div class="ch"><div><h3>${t('nx.title', 'Up next')}</h3><p>${t('nx.sub', 'Open invoices, most urgent first')}</p></div></div>`;
+    const nav = list.length ? `<div class="nx-nav"><button class="ibtn sm" data-act="nxMove" data-v="-1" ${i === 0 ? 'disabled' : ''}>${ic('chevl')}</button><span class="nx-pos">${i + 1}/${list.length}</span>
+        <button class="ibtn sm" data-act="nxMove" data-v="1" ${i >= list.length - 1 ? 'disabled' : ''}>${ic('chevr')}</button></div>` : '';
+    const head = `<div class="ch"><div><h3>${t('nx.title', 'Up next')}</h3><p>${t('nx.sub', 'Open invoices, most urgent first')}</p></div>${nav}</div>`;
     if (!inv) {
-        el.innerHTML = `${head}<div class="nx-stage"><div class="ticket gray"><div class="tk-top"><span class="tk-chip">${ic('checkc')}</span><span class="tk-tag">${t('nx.clear', 'All clear')}</span></div>
+        el.innerHTML = `${head}<div class="nx-stage"><div class="ticket gray"><div class="tk-top"><span class="tk-chip">${ic('checkc')}</span><span class="tk-from">${t('side.clear', 'All paid up')}</span><span class="tk-tag">${t('nx.clear', 'All clear')}</span></div>
             <div class="tk-amt">${money(0)}</div><div class="tk-reason">${t('nx.none', 'No open invoices')}</div><div class="tk-cut"></div>
             <div class="tk-bot"><div><small>${t('nx.status', 'Status')}</small><b>${t('side.clear', 'All paid up')}</b></div></div></div></div>
             <div class="nx-empty">${t('nx.none_sub', 'New and overdue invoices appear here so you can pay or follow up quickly.')}</div>
-            ${canCreate() ? `<button class="btn pri block" data-act="create">${ic('plus')}${t('btn.new_invoice', 'New Invoice')}</button>` : ''}`;
+            ${canCreate() ? `<div class="nx-btns"><button class="btn pri block" data-act="create">${ic('plus')}${t('btn.new_invoice', 'New Invoice')}</button></div>` : ''}`;
         return;
     }
     const sent = inv.direction === 'sent';
@@ -616,7 +696,6 @@ function renderNext() {
     const tag = sent ? t('nx.owed', 'Owed to you') : inv.status === 'overdue' ? t('status.overdue', 'Overdue') : soon ? t('nx.due_soon', 'Due soon') : (STATUS_LABEL()[inv.status] || inv.status);
     const owed = num(inv.total) + num(inv.lateFee);
     const paidPct = owed > 0 ? Math.min(100, Math.round((num(inv.amountPaid) / owed) * 100)) : 0;
-    const dd = dueTs;
     const canPay = !sent && isOpen(inv) && (S.account === 'personal' || perm('pay'));
     el.innerHTML = `${head}
         <div class="nx-stage"><div class="ticket ${tone}" data-act="view" data-id="${inv.id}">
@@ -625,26 +704,17 @@ function renderNext() {
             <div class="tk-reason">${esc(inv.reason || '')}</div>
             <div class="tk-cut"></div>
             <div class="tk-bot"><div><small>${sent ? t('nx.billed_to', 'Billed to') : t('nx.billed_by', 'Billed by')}</small><b>${esc(sent ? inv.recipient : (inv.senderType === 'society' && inv.senderName ? inv.senderName : inv.sender))}</b></div>
-                <div class="r"><small>${t('nx.due', 'Due')}</small><b>${dd ? dd.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }) : '—'}</b></div></div>
+                <div class="r"><small>${t('nx.due', 'Due')}</small><b>${dueTs ? dueTs.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }) : '—'}</b></div></div>
         </div></div>
-        <div class="nx-ctl">
-            <button class="ibtn" data-act="view" data-id="${inv.id}" title="${t('btn.view', 'View')}">${ic('eye')}</button>
-            <button class="ibtn" data-act="copyRef" data-ref="${esc(inv.ref)}" title="${t('btn.copy', 'Copy')}">${ic('copy')}</button>
-            <button class="ibtn" data-act="nxMove" data-v="-1" ${i === 0 ? 'disabled' : ''}>${ic('chevup')}</button>
-            <button class="ibtn" data-act="nxMove" data-v="1" ${i >= list.length - 1 ? 'disabled' : ''}>${ic('chevron')}</button>
-            <span class="nx-pos">${i + 1}/${list.length}</span>
-            ${canCreate() ? `<button class="ibtn" data-act="create" title="${t('btn.new_invoice', 'New Invoice')}">${ic('plus')}</button>` : ''}
-        </div>
         <div class="nx-rows">
             <div><span>${t('nx.type', 'Type')}</span><b>${inv.senderType === 'society' ? t('nx.society_invoice', 'Society invoice') : t('nx.personal_invoice', 'Personal invoice')}</b></div>
-            <div><span>${sent ? t('nx.to', 'To') : t('nx.from', 'From')}</span><b class="ell">${esc(sent ? inv.recipient : inv.sender)}</b></div>
             <div><span>${t('nx.status', 'Status')}</span><b class="stt ${esc(inv.status)}">${esc(STATUS_LABEL()[inv.status] || inv.status)}</b></div>
             <div><span>${t('nx.paid', 'Paid')}</span><span class="nx-prog"><i style="width:${paidPct}%"></i></span><b>${moneyShort(inv.amountPaid)} / ${moneyShort(owed)}</b></div>
             <div><span>${t('nx.due', 'Due')}</span><b class="${due.hot ? 'hot' : ''}">${esc(due.text)}</b></div>
         </div>
-        <div class="row2"><button class="btn line" data-act="view" data-id="${inv.id}">${t('nx.details', 'View details')}</button>
-            ${canPay ? `<button class="btn pri" data-act="pay" data-id="${inv.id}">${t('nx.pay_now', 'Pay now')}</button>` : `<button class="btn line" data-act="print" data-id="${inv.id}" ${S.ctx.settings.print ? '' : 'disabled'}>${t('menu.print', 'Print')}</button>`}</div>
-        <div class="nx-ref"><button class="refbox mono" data-act="copyRef" data-ref="${esc(inv.ref)}">${esc(inv.ref)}</button><button class="ibtn lg" data-act="copyRef" data-ref="${esc(inv.ref)}" title="${t('btn.copy', 'Copy')}">${ic('copy')}</button></div>`;
+        <div class="nx-ref"><button class="refbox mono" data-act="copyRef" data-ref="${esc(inv.ref)}" title="${t('btn.copy', 'Copy')}"><span>${esc(inv.ref)}</span>${ic('copy')}</button></div>
+        <div class="nx-btns"><button class="btn line" data-act="view" data-id="${inv.id}">${ic('eye')}${t('nx.details', 'Details')}</button>
+            ${canPay ? `<button class="btn pri" data-act="pay" data-id="${inv.id}">${ic('card')}${t('nx.pay_now', 'Pay now')}</button>` : `<button class="btn line" data-act="print" data-id="${inv.id}" ${S.ctx.settings.print ? '' : 'disabled'}>${ic('printer')}${t('menu.print', 'Print')}</button>`}</div>`;
 }
 
 // ═══════════════ RECEIVED / SENT ═══════════════
@@ -700,15 +770,15 @@ function renderTableBody(tb) {
             ${received ? `<th class="cbx-col"><span class="cbx ${allOn ? 'on' : ''} ${payable.length ? '' : 'dis'}" data-act="selAll">${ic('check')}</span></th>` : ''}
             <th>${received ? t('table.sender', 'Sender') : t('table.recipient', 'Recipient')}</th><th>${t('table.reason', 'Reason')}</th><th class="r">${t('table.amount', 'Amount')}</th>
             <th>${t('table.due', 'Due Date')}</th><th>${t('table.status', 'Status')}</th><th>${received ? t('table.received', 'Received') : t('table.created', 'Created')}</th></tr></thead><tbody>
-            ${tb.rows.map((r) => {
+            ${tb.rows.map((r, i) => {
                 const can = payableRow(r);
                 const who = received ? r.sender : r.recipient;
-                return `<tr data-act="row" data-id="${r.id}" class="${tb.selected.has(r.id) ? 'sel' : ''} ${['cancelled', 'refunded'].includes(r.status) ? 'dim' : ''}">
+                return `<tr data-act="row" data-id="${r.id}" style="--i:${i}" class="${tb.selected.has(r.id) ? 'sel' : ''} ${['cancelled', 'refunded'].includes(r.status) ? 'dim' : ''} st-${esc(r.status)}">
                     ${received ? `<td class="cbx-col"><span class="cbx ${tb.selected.has(r.id) ? 'on' : ''} ${can ? '' : 'dis'}" data-act="sel" data-id="${r.id}">${ic('check')}</span></td>` : ''}
-                    <td class="b ell">${esc(who)}${r.senderType === 'society' && received && r.senderName ? `<span class="sub">${esc(r.senderName)}</span>` : ''}</td>
+                    <td class="who-td"><div class="who-c">${avatar(who)}<div><b>${esc(who)}</b><span class="sub">${r.senderType === 'society' && received && r.senderName ? esc(r.senderName) : (r.senderType === 'society' ? t('nx.society_invoice', 'Society invoice') : t('nx.personal_invoice', 'Personal invoice'))}</span></div></div></td>
                     <td class="ell">${esc(r.reason || '')}<span class="sub mono">${esc(r.ref)}</span></td>
                     <td class="amt">${money(isOpen(r) || r.status === 'disputed' ? r.remaining : r.total + r.lateFee)}${r.lateFee > 0 ? `<span class="sub" style="color:var(--danger)">+${money(r.lateFee)} ${t('label.late_fee_short', 'late')}</span>` : ''}</td>
-                    <td><b>${esc(fmtDate(r.dueDate))}</b><span class="sub">${esc(fmtTime(r.dueDate))}</span></td>
+                    <td><b>${esc(fmtDate(r.dueDate))}</b>${dueSub(r)}</td>
                     <td>${st(r.status)}</td><td>${esc(ago(r.createdAt))}</td></tr>`;
             }).join('')}</tbody></table>`;
     }
@@ -1100,8 +1170,8 @@ function renderActivity() {
     const A = S.act; const body = $('#actBody'); if (!body) return;
     const acts = ACTIONS();
     body.innerHTML = A.rows.length ? `<table class="t"><thead><tr><th>${t('act.date', 'Date')}</th><th>${t('act.user', 'User')}</th><th>${t('act.action', 'Action')}</th><th>${t('act.details', 'Details')}</th></tr></thead><tbody>
-        ${A.rows.map((r) => { const a = acts[r.action] || ['mute', r.action, 'file']; const [title, sub] = activityText(r);
-            return `<tr style="cursor:default"><td><b>${esc(fmtDate(r.timestamp))}</b><span class="sub">${esc(fmtTime(r.timestamp))}</span></td><td class="b">${esc(r.player)}</td>
+        ${A.rows.map((r, i) => { const a = acts[r.action] || ['mute', r.action, 'file']; const [title, sub] = activityText(r);
+            return `<tr style="cursor:default;--i:${i}"><td><b>${esc(fmtDate(r.timestamp))}</b><span class="sub">${esc(fmtTime(r.timestamp))}</span></td><td><div class="who-c">${avatar(r.player)}<b>${esc(r.player)}</b></div></td>
                 <td><span class="badge ${BADGE_CLS[a[0]] || 'mute'}">${esc(a[1])}</span></td><td class="ell" style="max-width:360px"><b>${esc(title)}</b><span class="sub">${esc(sub)}</span></td></tr>`; }).join('')}</tbody></table>`
         : emptyState('history', t('act.empty', 'No activity yet'), t('act.empty_sub', 'Invoices, payments and changes are recorded here.'));
     const size = A.pageSize || 8; const n = Math.max(1, Math.ceil(A.total / size));
@@ -1137,11 +1207,12 @@ function renderPermissions() {
             <div class="card-b"><div class="gscroll" id="gscroll">${Pm.groups.map((g) => `<button class="gcard ${Pm.editing === g.id ? 'on' : ''}" data-act="pmEdit" data-id="${esc(g.id)}">${ticon(g.icon, g.color, true)}
                 <div><b>${esc(g.label)}</b><span class="acc-badge acc-${esc(g.access)}">${esc(accLabel[g.access] || g.access)}</span></div></button>`).join('')}
                 <button class="gcard add" data-act="pmNewGroup">${ic('plus')}${t('perm.new_group', 'New group')}</button></div></div></div>
-        <div class="card tcard" style="min-height:280px"><div class="card-h"><span class="lbl" style="letter-spacing:.08em;text-transform:uppercase;font-size:10px;color:var(--ink-3)">${t('perm.permissions', 'Permissions')}</span>
+        <div class="card tcard"><div class="card-h"><span class="lbl" style="letter-spacing:.08em;text-transform:uppercase;font-size:10px;color:var(--ink-3)">${t('perm.permissions', 'Permissions')}</span>
             ${editing ? `<div class="r"><button class="ibtn sm" data-act="pmGroupSettings">${ic('gear')}</button></div>` : ''}</div>
-            <div class="card-b" style="flex:1">${editing ? `<div class="grid-3">${Pm.sections.map((s) => {
+            <div class="card-b" style="flex:1;min-height:0;overflow-y:auto">${editing ? `<div class="grid-3">${Pm.sections.map((s) => {
                 const on = s.perms.filter((p) => Pm.draft[p.key]).length;
                 return `<div class="psec"><div class="psec-h"><b>${esc(t('perm.section.' + s.id, s.label))}</b><span>${on}/${s.perms.length}</span></div>
+                    <div class="psec-meter"><i style="width:${Math.round((on / Math.max(1, s.perms.length)) * 100)}%"></i></div>
                     ${s.perms.map((p) => `<button class="pcheck" data-act="pmToggle" data-k="${esc(p.key)}"><span class="cbx ${Pm.draft[p.key] ? 'on' : ''}">${ic('check')}</span>${esc(t('perm.key.' + p.key, p.label))}</button>`).join('')}</div>`;
             }).join('')}</div>` : emptyState('lock', t('perm.select_group', 'Select a group to view permissions'), t('perm.select_group_sub', 'Choose a group from the list above to manage permissions'))}</div>
             <div class="pfoot">${t('perm.editing', 'Editing Group')}: <b>${esc(editing ? editing.label : t('label.none', 'None'))}</b>
@@ -1246,7 +1317,7 @@ async function pageAdmin() {
     const typeOf = (r) => (r.model ? `<span class="badge acc">${ic('box')}${esc((props.find((p) => p.model === r.model) || {}).label || r.model)}</span>` : `<span class="badge mute">${ic('crosshair')}${t('reg.type_point', 'Map till')}</span>`);
     const regs = I.registers;
     const kpi = (icon, tone, label, value, sub) => `<div class="card kpi"><div class="tile lg ${tone}">${ic(icon)}</div><div class="kv"><span>${label}</span><b>${value}</b><small>${sub}</small></div></div>`;
-    setPage(`<div class="grid-4">
+    setPage(`<div class="grid-4 kpi-sm">
             ${kpi('register', 'teal', t('adm.registers', 'Registers'), regs.length, t('adm.registers_sub', 'Across all societies'))}
             ${kpi('box', 'blue', t('adm.props', 'Spawned tills'), regs.filter((r) => r.model).length, t('adm.props_sub', 'Placed with Spawn prop'))}
             ${kpi('crosshair', 'amber', t('adm.points', 'Map tills'), regs.filter((r) => !r.model).length, t('adm.points_sub', 'Existing registers marked'))}
@@ -1262,7 +1333,7 @@ async function pageAdmin() {
                 <button class="btn pri md" data-act="regAdd">${ic(I.regMode === 'here' ? 'pin' : 'crosshair')}${I.regMode === 'here' ? t('reg.add_here', 'Add at my position') : t('reg.start', 'Start placing')}</button>
             </div>
             <div class="reg-hint">${ic('info')}<span>${esc(how)}</span></div></div></div>
-        <div class="card" style="flex:none"><div class="ch"><div><h3>${t('adm.all_registers', 'All registers')}</h3><p>${t('adm.all_registers_sub', 'Teleport, set a waypoint, move or remove')}</p></div></div><div class="tscroll">${I.registers.length ? `<table class="t"><thead><tr><th>${t('reg.label', 'Label')}</th><th>${t('reg.society', 'Society')}</th><th>${t('reg.type', 'Type')}</th><th>${t('reg.coords', 'Coords')}</th><th>${t('reg.radius', 'Radius (m)')}</th><th>${t('reg.source', 'Source')}</th><th></th></tr></thead><tbody>
+        <div class="card fill"><div class="ch"><div><h3>${t('adm.all_registers', 'All registers')}</h3><p>${t('adm.all_registers_sub', 'Teleport, set a waypoint, move or remove')}</p></div></div><div class="tscroll">${I.registers.length ? `<table class="t"><thead><tr><th>${t('reg.label', 'Label')}</th><th>${t('reg.society', 'Society')}</th><th>${t('reg.type', 'Type')}</th><th>${t('reg.coords', 'Coords')}</th><th>${t('reg.radius', 'Radius (m)')}</th><th>${t('reg.source', 'Source')}</th><th></th></tr></thead><tbody>
             ${I.registers.map((r) => `<tr style="cursor:default"><td class="b">${esc(r.label)}</td><td>${esc(r.societyLabel)}</td><td>${typeOf(r)}</td><td class="mono">${num(r.coords.x).toFixed(1)}, ${num(r.coords.y).toFixed(1)}, ${num(r.coords.z).toFixed(1)}</td><td>${esc(r.radius)}</td>
                 <td>${r.source === 'config' ? `<span class="badge mute">config</span>` : `<span class="badge acc">${t('reg.ingame', 'in-game')}</span>`}</td>
                 <td class="r"><span style="display:inline-flex;gap:6px"><button class="ibtn sm" data-act="regWaypoint" data-id="${esc(r.id)}" title="${t('reg.waypoint', 'Waypoint')}">${ic('pin')}</button><button class="ibtn sm" data-act="regTeleport" data-id="${esc(r.id)}" title="${t('reg.teleport', 'Teleport')}">${ic('teleport')}</button>
@@ -1296,7 +1367,8 @@ function openPos(data) {
     $('#frame').classList.remove('hidden');
     $('#side').innerHTML = `<div class="nav-scroll"><div class="grp"><span>${t('pos.menu', 'Menu')}</span></div>
         ${S.pos.menu.map((c) => `<button class="nav ${S.pos.cat === c.id ? 'on' : ''}" data-act="posCat" data-id="${esc(c.id)}">${ticon(c.icon, c.color)}${esc(c.name)}</button>`).join('')}</div>`;
-    $('#top').innerHTML = `<div class="top-brand"><div class="mark"></div><div><b><span>${esc(S.brand)}</span>POS</b><small>${esc(data.register.societyLabel)}</small></div></div>
+    S.enterAt = Date.now();
+    $('#top').innerHTML = `<div class="top-brand">${brandHtml(data.register.societyLabel, 'POS')}</div>
         <div class="top-bar"><span class="signed"><span class="dot on"></span><b>${esc(data.register.label)}</b></span><span class="ver">${t('pos.vat', 'VAT {rate}', { rate: pct(S.pos.vat) })}</span>
         <div class="top-right"><button class="pill-close" data-act="close">${t('pos.close', 'Close register')}</button></div></div>`;
     renderKeys([['ESC', t('pos.close', 'Close register')]]);
