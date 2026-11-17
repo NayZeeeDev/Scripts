@@ -37,7 +37,7 @@ export interface FobArtProps {
 
 /** viewBox width of each design (the height is always 200). */
 const WIDTH: Record<FobDesign, number> = {
-  classic: 92, generic: 104, sport: 96, luxury: 78, leather: 100, compact: 88, slim: 58, card: 126, retro: 96, key: 66,
+  classic: 92, generic: 96, sport: 96, luxury: 78, leather: 100, compact: 88, slim: 58, card: 126, retro: 96, key: 66,
 };
 
 function resolveDesign(design: string | undefined | null, kind: string | undefined): FobDesign {
@@ -101,8 +101,9 @@ type Shape = { kind: 'rect'; w: number; h: number; r: number } | { kind: 'circle
 
 /** One button: face, light ring (shown when active) and the icon. */
 function Btn({ c, name, x, y, shape, tone = 'rubber', iconScale = 1 }: {
-  c: Ctx; name: FobButton; x: number; y: number; shape: Shape; tone?: 'rubber' | 'glass' | 'metal' | 'touch'; iconScale?: number;
+  c: Ctx; name: FobButton; x: number; y: number; shape: Shape; tone?: 'rubber' | 'glass' | 'metal' | 'touch' | 'piano'; iconScale?: number;
 }) {
+  if (tone === 'piano') return <PianoBtn c={c} name={name} x={x} y={y} shape={shape} iconScale={iconScale} />;
   const on = c.active === name;
   const panic = name === 'panic';
   const outline = (inset = 0, props: Record<string, unknown> = {}) => {
@@ -121,6 +122,103 @@ function Btn({ c, name, x, y, shape, tone = 'rubber', iconScale = 1 }: {
       {tone !== 'touch' && outline(0.8, { fill: 'none', className: 'nz-fobart__btn-sheen', stroke: c.url('sheen') })}
       {outline(0, { className: 'nz-fobart__btn-ring', fill: 'none' })}
       <Icon name={name} scale={iconScale} />
+    </g>
+  );
+}
+
+
+/** Physical piano-black button (crimson for panic): contact shadow, gap, bevelled face with a lit
+ *  top edge and a dark lower lip, glass sheen, micro-engraved icon. */
+function PianoBtn({ c, name, x, y, shape, iconScale = 1 }: { c: Ctx; name: FobButton; x: number; y: number; shape: Shape; iconScale?: number }) {
+  const on = c.active === name;
+  const panic = name === 'panic';
+  const outline = (inset = 0, props: Record<string, unknown> = {}) => {
+    if (shape.kind === 'circle') return <circle r={shape.r - inset} {...props} />;
+    const w = shape.w - inset * 2;
+    const h = shape.h - inset * 2;
+    const r = shape.kind === 'pill' ? h / 2 : Math.max(shape.r - inset, 0);
+    return <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={r} {...props} />;
+  };
+  return (
+    <g transform={`translate(${x} ${y})`} className={`nz-fobart__btn nz-fobart__btn--piano nz-fobart__btn--${name}${panic ? ' is-panic' : ''}${on ? ' is-active' : ''}`}>
+      {outline(-3.5, { className: 'nz-fobart__btn-glow', filter: c.url('glow') })}
+      {/* the gap the button sits in, then its contact shadow */}
+      {outline(-1.1, { fill: '#000', opacity: 0.85 })}
+      {outline(0, { fill: '#000', opacity: 0.6, transform: 'translate(0 1.2)', filter: c.url('soft') })}
+      <g className="nz-fobart__btn-face">
+        {outline(0, { fill: c.url(panic ? 'crimson' : 'pianoBtn') })}
+        {outline(0, { fill: c.url('btnDome') })}
+        {outline(0.35, { fill: 'none', stroke: c.url(panic ? 'crimsonEdge' : 'btnEdge'), strokeWidth: 0.8 })}
+        {outline(1.6, { fill: 'none', stroke: 'rgba(0,0,0,.45)', strokeWidth: 0.6 })}
+      </g>
+      {outline(0, { className: 'nz-fobart__btn-ring', fill: 'none' })}
+      <g transform="translate(0 .55)" className="nz-fobart__engrave-shadow"><Icon name={name} scale={iconScale} /></g>
+      <Icon name={name} scale={iconScale} />
+    </g>
+  );
+}
+
+/** Recessed button column: machined chrome rail around a piano-black well with an inner shadow. */
+function Column({ c, x, y, w, h, r }: { c: Ctx; x: number; y: number; w: number; h: number; r: number }) {
+  return (
+    <g className="nz-fobart__column">
+      <rect x={x - 1.6} y={y - 1.6} width={w + 3.2} height={h + 3.2} rx={r + 1.6} fill={c.url('bezel')} />
+      <rect x={x - 1.6} y={y - 1.6} width={w + 3.2} height={h + 3.2} rx={r + 1.6} fill="none" stroke={c.url('spec')} strokeWidth={0.6} />
+      <rect x={x} y={y} width={w} height={h} rx={r} fill={c.url('wellDeep')} filter={c.url('inset')} />
+    </g>
+  );
+}
+
+/** Recessed metallic brand badge: chrome bezel, dark well, the brand render, a glint. */
+function CrownBadge({ c, x, y, r }: { c: Ctx; x: number; y: number; r: number }) {
+  return (
+    <g className="nz-fobart__crown">
+      <circle cx={x} cy={y + 0.9} r={r + 3.2} fill="#000" opacity={0.55} filter={c.url('soft')} />
+      <circle cx={x} cy={y} r={r + 3} fill={c.url('bezel')} />
+      <circle cx={x} cy={y} r={r + 3} fill="none" stroke={c.url('spec')} strokeWidth={0.6} />
+      <circle cx={x} cy={y} r={r + 1.1} fill={c.url('gunmetal')} filter={c.url('inset')} />
+      <Badge c={c} x={x} y={y} r={r} bezel={false} />
+      <path d={`M${x - r * 0.75} ${y - r * 0.55} A${r} ${r} 0 0 1 ${x + r * 0.2} ${y - r * 0.98}`} fill="none" stroke="rgba(255,255,255,.35)" strokeWidth={0.7} strokeLinecap="round" />
+    </g>
+  );
+}
+
+/** Mirror a right-hand outline (start on the centre line, cubic segments down to the centre line). */
+function symPath(w: number, start: [number, number], segs: number[][]): string {
+  const m = (x: number) => +(w - x).toFixed(2);
+  const pts: [number, number][] = [start];
+  let d = `M${start[0]} ${start[1]} `;
+  for (const s of segs) {
+    d += `C${s[0]} ${s[1]} ${s[2]} ${s[3]} ${s[4]} ${s[5]} `;
+    pts.push([s[4], s[5]]);
+  }
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const s = segs[i];
+    d += `C${m(s[2])} ${s[3]} ${m(s[0])} ${s[1]} ${m(pts[i][0])} ${pts[i][1]} `;
+  }
+  return `${d}Z`;
+}
+
+/** Shell stack shared by the premium fobs: shadows, machined chrome rim with a specular edge,
+ *  a gap line, then the piano-black (or carbon) body with its diagonal glass sheen. */
+function Shell({ c, d, w, inset = 4.2, body = 'piano' }: { c: Ctx; d: string; w: number; inset?: number; body?: 'piano' | 'carbon' }) {
+  const sx = (w - inset * 2) / w;
+  const sy = (200 - inset * 2) / 200;
+  const t = `translate(${w / 2} 100) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-w / 2} -100)`;
+  return (
+    <g className="nz-fobart__shell">
+      <path d={d} fill="#000" opacity={0.55} transform="translate(0 5)" filter={c.url('shadowWide')} />
+      <path d={d} fill="#000" opacity={0.7} transform="translate(0 1.4)" filter={c.url('soft')} />
+      <path d={d} fill={c.url('bezel')} />
+      <path d={d} fill={c.url('bezelShade')} />
+      <path d={d} fill="none" stroke={c.url('spec')} strokeWidth={0.9} />
+      <path d={d} transform={t} fill="#000" />
+      <g transform={`translate(${w / 2} 100) scale(${((w - inset * 2 - 1) / w).toFixed(4)} ${((200 - inset * 2 - 1) / 200).toFixed(4)}) translate(${-w / 2} -100)`}>
+        <path d={d} fill={c.url(body === 'carbon' ? 'carbonWeave' : 'piano')} />
+        {body === 'carbon' && <path d={d} fill={c.url('carbonShade')} />}
+        <path d={d} fill={c.url('pianoSheen')} />
+        <path d={d} fill="none" stroke="rgba(255,255,255,.10)" strokeWidth={0.6} />
+      </g>
     </g>
   );
 }
@@ -264,6 +362,110 @@ function Defs({ c }: { c: Ctx }) {
         <circle cx="3" cy="2.6" r=".5" fill="rgba(0,0,0,.25)" />
         <circle cx="2.2" cy="3.6" r=".35" fill="rgba(255,255,255,.035)" />
       </pattern>
+      {/* ── premium materials (classic / generic / sport) ── */}
+      <linearGradient id={c.id('piano')} x1="0" y1="0" x2=".35" y2="1">
+        <stop offset="0" style={s('#1a1a1f')} />
+        <stop offset=".42" style={s('#0f0f13')} />
+        <stop offset="1" style={s('#08080a')} />
+      </linearGradient>
+      <linearGradient id={c.id('pianoSheen')} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" style={s('#ffffff', 0.13)} />
+        <stop offset=".18" style={s('#ffffff', 0.03)} />
+        <stop offset=".31" style={s('#ffffff', 0)} />
+        <stop offset=".335" style={s('#ffffff', 0.12)} />
+        <stop offset=".44" style={s('#ffffff', 0.025)} />
+        <stop offset=".45" style={s('#ffffff', 0)} />
+        <stop offset=".86" style={s('#ffffff', 0)} />
+        <stop offset="1" style={s('#ffffff', 0.05)} />
+      </linearGradient>
+      <linearGradient id={c.id('bezel')} x1="0" y1="0" x2="1" y2=".22">
+        <stop offset="0" style={s('#3d4247')} />
+        <stop offset=".07" style={s('#f7f8f9')} />
+        <stop offset=".16" style={s('#9aa1a7')} />
+        <stop offset=".3" style={s('#2c3035')} />
+        <stop offset=".46" style={s('#d9dde0')} />
+        <stop offset=".54" style={s('#ffffff')} />
+        <stop offset=".63" style={s('#8b9298')} />
+        <stop offset=".78" style={s('#24282c')} />
+        <stop offset=".9" style={s('#c3c8cc')} />
+        <stop offset="1" style={s('#4b5157')} />
+      </linearGradient>
+      <linearGradient id={c.id('bezelShade')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={s('#ffffff', 0.18)} />
+        <stop offset=".3" style={s('#ffffff', 0)} />
+        <stop offset=".72" style={s('#000000', 0)} />
+        <stop offset="1" style={s('#000000', 0.38)} />
+      </linearGradient>
+      <linearGradient id={c.id('spec')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={s('#ffffff', 0.95)} />
+        <stop offset=".35" style={s('#ffffff', 0.35)} />
+        <stop offset=".7" style={s('#000000', 0.25)} />
+        <stop offset="1" style={s('#000000', 0.65)} />
+      </linearGradient>
+      <linearGradient id={c.id('gunmetal')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={s('#3a3f45')} />
+        <stop offset=".55" style={s('#22262a')} />
+        <stop offset="1" style={s('#131518')} />
+      </linearGradient>
+      <linearGradient id={c.id('wellDeep')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={s('#050506')} />
+        <stop offset="1" style={s('#0d0d10')} />
+      </linearGradient>
+      <linearGradient id={c.id('pianoBtn')} x1="0" y1="0" x2=".2" y2="1">
+        <stop offset="0" style={s('#24242a')} />
+        <stop offset=".5" style={s('#141418')} />
+        <stop offset="1" style={s('#0a0a0c')} />
+      </linearGradient>
+      <radialGradient id={c.id('btnDome')} cx=".38" cy=".12" r=".9">
+        <stop offset="0" style={s('#ffffff', 0.16)} />
+        <stop offset=".45" style={s('#ffffff', 0.03)} />
+        <stop offset="1" style={s('#000000', 0.25)} />
+      </radialGradient>
+      <linearGradient id={c.id('btnEdge')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={s('#ffffff', 0.42)} />
+        <stop offset=".4" style={s('#ffffff', 0.06)} />
+        <stop offset="1" style={s('#000000', 0.7)} />
+      </linearGradient>
+      <linearGradient id={c.id('crimson')} x1="0" y1="0" x2=".2" y2="1">
+        <stop offset="0" style={s('#e0353a')} />
+        <stop offset=".45" style={s('#b91c1c')} />
+        <stop offset="1" style={s('#6e1010')} />
+      </linearGradient>
+      <linearGradient id={c.id('crimsonEdge')} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style={s('#ffb3b3', 0.7)} />
+        <stop offset=".45" style={s('#ffffff', 0.05)} />
+        <stop offset="1" style={s('#2a0505', 0.85)} />
+      </linearGradient>
+      <pattern id={c.id('carbonWeave')} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="5" height="5" fill="#0a0b0d" />
+        <rect width="2.5" height="2.5" fill="#202328" />
+        <rect x="2.5" y="2.5" width="2.5" height="2.5" fill="#202328" />
+        <rect width="2.5" height=".7" fill="rgba(255,255,255,.09)" />
+        <rect x="2.5" y="2.5" width="2.5" height=".7" fill="rgba(255,255,255,.09)" />
+        <rect x="2.5" width=".6" height="2.5" fill="rgba(255,255,255,.05)" />
+        <rect y="2.5" width=".6" height="2.5" fill="rgba(255,255,255,.05)" />
+      </pattern>
+      <radialGradient id={c.id('carbonShade')} cx=".35" cy=".25" r=".9">
+        <stop offset="0" style={s('#000000', 0)} />
+        <stop offset="1" style={s('#000000', 0.55)} />
+      </radialGradient>
+      <filter id={c.id('soft')} x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="1.1" />
+      </filter>
+      <filter id={c.id('shadowWide')} x="-40%" y="-30%" width="180%" height="170%">
+        <feGaussianBlur stdDeviation="5" />
+      </filter>
+      <filter id={c.id('inset')} x="-20%" y="-20%" width="140%" height="140%">
+        <feFlood floodColor="#000" floodOpacity=".95" result="ink" />
+        <feComposite in="ink" in2="SourceGraphic" operator="out" result="ring" />
+        <feGaussianBlur in="ring" stdDeviation="1.6" result="blur" />
+        <feOffset in="blur" dy="1.4" result="shift" />
+        <feComposite in="shift" in2="SourceGraphic" operator="in" result="inner" />
+        <feMerge>
+          <feMergeNode in="SourceGraphic" />
+          <feMergeNode in="inner" />
+        </feMerge>
+      </filter>
       <filter id={c.id('glow')} x="-60%" y="-60%" width="220%" height="220%">
         <feGaussianBlur stdDeviation="2.6" />
       </filter>
@@ -288,77 +490,96 @@ const BTN = (w: number, h: number, r: number): Shape => ({ kind: 'rect', w, h, r
 const CIRCLE = (r: number): Shape => ({ kind: 'circle', r });
 const PILL = (w: number, h: number): Shape => ({ kind: 'pill', w, h });
 
-/** Classic: pebble shell with the NayZeee chamfer at the bottom right, 2x2 buttons, panic bar. */
+const CLASSIC_D = symPath(92, [46, 9], [
+  [52, 9, 58, 7, 64, 7],
+  [75, 7, 83, 11, 86, 22],
+  [88, 36, 87, 58, 84, 76],
+  [81, 92, 80, 104, 80, 116],
+  [80, 134, 86, 154, 86, 172],
+  [86, 188, 72, 196, 46, 196],
+]);
+
+/** Classic: tall piano-black fob with a notched chrome crown, tapered waist, full machined rim and a
+ *  recessed chrome-railed column of stacked buttons, crimson panic at the bottom. */
 function Classic({ c }: { c: Ctx }) {
-  const body = 'M36 18 H56 Q86 18 86 50 V170 L70 192 H34 Q6 192 6 164 V50 Q6 18 36 18 Z';
   return (
     <>
-      <Ring c={c} x={46} y={11} r={8} />
-      <path d="M38 16 Q46 8 54 16 V22 H38 Z" fill={c.url('shell')} />
-      <path d={body} fill={c.url('shell')} filter={c.url('drop')} />
-      <path d={body} fill="none" className="nz-fobart__edge" />
-      <path d="M36 26 H56 Q78 26 78 52 V166 L66 184 H35 Q14 184 14 162 V52 Q14 26 36 26 Z" fill={c.url('face')} />
-      <path d="M36 26 H56 Q78 26 78 52 V166 L66 184 H35 Q14 184 14 162 V52 Q14 26 36 26 Z" fill={c.url('grain')} opacity={0.8} />
-      <path d={body} fill={c.url('gloss')} />
-      <Badge c={c} x={46} y={50} r={15} />
-      <Led c={c} x={46} y={75} w={14} />
-      <Btn c={c} name="lock" x={31} y={100} shape={BTN(24, 24, 7)} />
-      <Btn c={c} name="unlock" x={61} y={100} shape={BTN(24, 24, 7)} />
-      <Btn c={c} name="trunk" x={31} y={132} shape={BTN(24, 24, 7)} />
-      <Btn c={c} name="panic" x={61} y={132} shape={BTN(24, 24, 7)} />
-      <path d="M22 160 H56" className="nz-fobart__pipe" stroke={c.url('pipe')} />
-      <text x={46} y={175} className="nz-fobart__engrave" textAnchor="middle">NZ</text>
+      <Shell c={c} d={CLASSIC_D} w={92} />
+      <CrownBadge c={c} x={46} y={35} r={13} />
+      <Column c={c} x={31} y={62} w={30} h={110} r={13} />
+      <Btn c={c} name="lock" x={46} y={77} shape={BTN(24, 21, 9)} tone="piano" />
+      <Btn c={c} name="unlock" x={46} y={101} shape={BTN(24, 21, 9)} tone="piano" />
+      <Btn c={c} name="trunk" x={46} y={125} shape={BTN(24, 21, 9)} tone="piano" />
+      <Btn c={c} name="panic" x={46} y={154} shape={BTN(24, 22, 9)} tone="piano" />
+      <Led c={c} x={46} y={140} w={8} h={1.6} />
+      {/* emergency blade slot */}
+      <rect x={36} y={182} width={20} height={4.4} rx={2.2} fill="#000" />
+      <rect x={37} y={182.6} width={18} height={3.2} rx={1.6} fill={c.url('bezel')} opacity={0.9} />
     </>
   );
 }
 
-/** Generic: flip key — rounded shell with the folded blade along its right side + release button. */
+const GENERIC_D = symPath(96, [48, 10], [
+  [66, 10, 82, 16, 86, 32],
+  [90, 48, 88, 70, 85, 90],
+  [83, 104, 83, 118, 85, 132],
+  [88, 150, 90, 172, 82, 186],
+  [76, 195, 62, 197, 48, 197],
+]);
+
+/** Generic: grand-tourer fob: broad sculpted shell with a pinched waist, recessed chrome badge,
+ *  a chrome-framed 2x2 button cluster (crimson panic) and a machined blade release. */
 function Generic({ c }: { c: Ctx }) {
-  const body = 'M20 24 H64 Q78 24 78 40 V176 Q78 190 64 190 H20 Q6 190 6 176 V40 Q6 24 20 24 Z';
   return (
     <>
-      <Ring c={c} x={24} y={13} r={8} />
-      <path d="M16 20 Q24 12 32 20 V28 H16 Z" fill={c.url('shell')} />
-      {/* folded blade */}
-      <path d="M80 30 H90 Q96 30 96 38 V150 L92 158 L88 150 V44 H80 Z" fill={c.url('brushed')} filter={c.url('drop')} />
-      <path d="M88 52 L92 56 L88 60 L92 66 L88 72 L92 78 L88 86 L92 94 L88 100 L92 108 L88 116 L92 124 L88 132" fill="none" stroke="rgba(0,0,0,.35)" strokeWidth={0.7} />
-      <path d="M70 26 H84 Q90 26 90 32 V48 H70 Z" fill={c.url('chrome')} />
-      <path d={body} fill={c.url('shell')} filter={c.url('drop')} />
-      <path d={body} fill="none" className="nz-fobart__edge" />
-      <rect x={13} y={34} width={58} height={148} rx={10} fill={c.url('face')} />
-      <path d={body} fill={c.url('gloss')} />
-      <Badge c={c} x={42} y={55} r={14} />
-      <Btn c={c} name="lock" x={42} y={93} shape={BTN(40, 22, 8)} />
-      <Btn c={c} name="unlock" x={42} y={120} shape={BTN(40, 22, 8)} />
-      <Btn c={c} name="trunk" x={30} y={150} shape={CIRCLE(10)} iconScale={0.85} />
-      <Btn c={c} name="panic" x={54} y={150} shape={CIRCLE(10)} iconScale={0.85} />
-      <Led c={c} x={42} y={174} w={12} />
-      {/* blade release */}
-      <rect x={73} y={60} width={6} height={18} rx={3} fill={c.url('metalBtn')} />
+      <Shell c={c} d={GENERIC_D} w={96} />
+      {/* sculpted side rails */}
+      <path d="M14 58 C11 90 11 120 15 150" fill="none" stroke="rgba(255,255,255,.10)" strokeWidth={1} strokeLinecap="round" />
+      <path d="M82 58 C85 90 85 120 81 150" fill="none" stroke="rgba(0,0,0,.6)" strokeWidth={1} strokeLinecap="round" />
+      <CrownBadge c={c} x={48} y={38} r={13} />
+      <Column c={c} x={21} y={68} w={54} h={92} r={14} />
+      <Btn c={c} name="lock" x={35} y={92} shape={BTN(22, 36, 9)} tone="piano" />
+      <Btn c={c} name="unlock" x={61} y={92} shape={BTN(22, 36, 9)} tone="piano" />
+      <Btn c={c} name="trunk" x={35} y={137} shape={BTN(22, 36, 9)} tone="piano" />
+      <Btn c={c} name="panic" x={61} y={137} shape={BTN(22, 36, 9)} tone="piano" />
+      <Led c={c} x={48} y={170} w={10} h={1.8} />
+      {/* blade release slider */}
+      <rect x={36} y={178} width={24} height={7} rx={3.5} fill="#000" />
+      <rect x={37} y={178.8} width={22} height={5.4} rx={2.7} fill={c.url('bezel')} />
+      <path d="M41 180 V183 M45 180 V183 M49 180 V183 M53 180 V183" stroke="rgba(0,0,0,.45)" strokeWidth={0.6} />
     </>
   );
 }
 
-/** Sport: angular carbon-fibre shell, teal side light bars, round buttons in a column. */
+const SPORT_D = symPath(96, [48, 8], [
+  [58, 8, 66, 12, 70, 22],
+  [73, 30, 74, 40, 80, 50],
+  [86, 58, 86, 74, 82, 86],
+  [79, 96, 79, 110, 82, 122],
+  [87, 134, 89, 156, 86, 172],
+  [83, 188, 66, 196, 48, 196],
+]);
+
+/** Sport: car-shaped fob seen from above (nose, flared fenders, pinched doors, wide haunches) with a
+ *  machined chrome rim, carbon-fibre body, a piano-black spine of stacked buttons, panic up front. */
 function Sport({ c }: { c: Ctx }) {
-  const body = 'M22 16 H74 L90 38 V168 L70 194 H26 L6 168 V38 Z';
   return (
     <>
-      <path d={body} fill={c.url('carbon')} filter={c.url('drop')} />
-      <path d={body} fill={c.url('gloss')} />
-      <path d={body} fill="none" className="nz-fobart__edge" />
-      <path d="M26 22 H70 L83 40 V164 L66 186 H30 L13 164 V40 Z" fill="none" stroke="rgba(255,255,255,.07)" strokeWidth={1} />
-      <path d="M9 52 V150" className="nz-fobart__pipe nz-fobart__pipe--side" stroke={c.url('pipe')} />
-      <path d="M87 52 V150" className="nz-fobart__pipe nz-fobart__pipe--side" stroke={c.url('pipe')} />
-      {/* hex badge plate */}
-      <path d="M48 26 L64 35 V53 L48 62 L32 53 V35 Z" fill={c.url('chrome')} />
-      <path d="M48 29 L61.5 37 V51.5 L48 59 L34.5 51.5 V37 Z" fill={c.url('badgeWell')} />
-      <Badge c={c} x={48} y={44} r={11} bezel={false} />
-      <Led c={c} x={48} y={72} w={18} h={2} />
-      <Btn c={c} name="lock" x={48} y={94} shape={CIRCLE(12.5)} tone="metal" />
-      <Btn c={c} name="unlock" x={48} y={124} shape={CIRCLE(12.5)} tone="metal" />
-      <Btn c={c} name="trunk" x={48} y={154} shape={CIRCLE(10.5)} tone="metal" iconScale={0.9} />
-      <Btn c={c} name="panic" x={48} y={180} shape={PILL(26, 11)} iconScale={0.7} />
+      <Shell c={c} d={SPORT_D} w={96} body="carbon" />
+      {/* bonnet and haunch creases */}
+      <path d="M36 44 C40 52 56 52 60 44" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth={0.8} />
+      <path d="M22 140 C26 160 30 170 36 178 M74 140 C70 160 66 170 60 178" fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={0.8} />
+      <CrownBadge c={c} x={48} y={27} r={10} />
+      <Column c={c} x={35} y={50} w={26} h={126} r={13} />
+      <Btn c={c} name="panic" x={48} y={63} shape={PILL(20, 12)} tone="piano" iconScale={0.7} />
+      <Btn c={c} name="trunk" x={48} y={89} shape={BTN(20, 22, 9)} tone="piano" iconScale={0.9} />
+      <Btn c={c} name="unlock" x={48} y={116} shape={BTN(20, 22, 9)} tone="piano" iconScale={0.9} />
+      <Btn c={c} name="lock" x={48} y={143} shape={BTN(20, 22, 9)} tone="piano" iconScale={0.9} />
+      <Led c={c} x={48} y={164} w={8} h={1.6} />
+      {/* chrome key-ring eyelet in the tail */}
+      <circle cx={48} cy={185} r={5.2} fill={c.url('bezel')} />
+      <circle cx={48} cy={185} r={3.2} fill="#000" />
+      <circle cx={48} cy={185} r={5.2} fill="none" stroke={c.url('spec')} strokeWidth={0.6} />
     </>
   );
 }
