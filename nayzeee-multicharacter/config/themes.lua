@@ -360,4 +360,76 @@ Config.LobbyThemes = {
             },
         },
     },
+
+    -- 9 ────────────────────────────────────────────────────────────────────────────────────────────
+    -- IN-FLIGHT: the lobby IS the helicopter. It flies a loop over the city with you sitting in the open door;
+    -- Deploy = you jump, skydive, pull the chute, and arrive on the ground at your spawn already landed.
+    skydive = {
+        order = 9, label = 'Infil · Skydive', icon = 'wind', category = 'tactical',
+        description = 'Riding the door of an infil chopper over Los Santos. Jump when ready.',
+        palette = { '#a9c3d9', '#2f4a63', '#070b10' },
+        main = vec4(-1650.0, -1450.0, 380.0, 50.0),               -- where the helicopter starts (over the ocean off Del Perro)
+        weather = 'CLEAR', hour = 18, minute = 50,
+        mood = 'golden_hour', moods = { 'golden_hour', 'moody_dusk', 'clean_studio' },
+        pets = false,                                             -- no pets in the chopper
+
+        -- The helicopter keeps flying this loop (crew pilot) while you're in the lobby
+        flight = {
+            vehicle  = 1,
+            speed    = 16.0,                                      -- m/s
+            altitude = 380.0,
+            route    = {
+                vec3(-1650.0, -1450.0, 380.0),
+                vec3(-950.0,  -1350.0, 380.0),
+                vec3(-700.0,  -800.0,  380.0),
+                vec3(-1350.0, -650.0,  380.0),
+            },
+        },
+        vehicles = {
+            { model = 'valkyrie', offset = vec3(0.0, 0.0, 0.0), heading = 0.0, airborne = true, lights = true,
+              crew = { { model = 's_m_y_pilot_01', seat = -1 }, { model = 's_m_y_pilot_01', seat = 0 } } },
+        },
+
+        -- Characters ride ATTACHED to the helicopter (vehicle-local offsets: right, forward, up from the heli's centre).
+        -- Sitting in the left door with legs out like a Warzone infil. Tune with /mc_lobby skydive.
+        seats = {
+            [1] = { attach = { vehicle = 1, offset = vec3(-1.05,  0.45, 0.05), rotation = vec3(0.0, 0.0,  90.0) },
+                    anim = { dict = 'amb@prop_human_seat_chair@male@generic@base', clip = 'base', flag = 1 } },
+            [2] = { attach = { vehicle = 1, offset = vec3(-1.05, -0.35, 0.05), rotation = vec3(0.0, 0.0,  90.0) },
+                    anim = { dict = 'amb@prop_human_seat_chair@male@generic@base', clip = 'base', flag = 1 } },
+            [3] = { attach = { vehicle = 1, offset = vec3( 1.05,  0.45, 0.05), rotation = vec3(0.0, 0.0, -90.0) },
+                    anim = { dict = 'amb@prop_human_seat_chair@male@generic@base', clip = 'base', flag = 1 } },
+            [4] = { attach = { vehicle = 1, offset = vec3( 1.05, -0.35, 0.05), rotation = vec3(0.0, 0.0, -90.0) },
+                    anim = { dict = 'amb@prop_human_seat_chair@male@generic@base', clip = 'base', flag = 1 } },
+        },
+
+        -- In flight every camera is attached to the helicopter: offsets are vehicle-local
+        cameras = {
+            attach = 'vehicle1',
+            start = { offset = vec3(-9.0, 6.0, 2.5),  lookAt = vec3(0.0, 0.0, 0.0),  fov = 50.0 },
+            squad = { offset = vec3(-4.6, 0.4, 0.7),  lookAt = vec3(-0.9, 0.1, 0.2), fov = 48.0 },
+            body  = { offset = vec3(-3.0, 0.9, 0.4),  lookAt = vec3(-1.0, 0.45, 0.1), fov = 40.0 },
+            face  = { offset = vec3(-2.1, 0.75, 0.75), lookAt = vec3(-1.05, 0.45, 0.6), fov = 34.0 },
+        },
+        lights = { scale = 0.8 },
+        ambience = { preset = 'skydive' },
+        departure = {
+            duration = 13000, fadeAt = 11400, fadeTime = 1000,
+            camera = {
+                { attach = 'vehicle1', offset = vec3(-3.4, 1.2, 0.9), lookAt = vec3(-1.05, 0.45, 0.2), fov = 44.0, time = 0 },
+                { attach = 'main',     offset = vec3(0.0, -4.2, 1.8), lookAt = vec3(0.0, 0.0, 0.0),   fov = 58.0, time = 1400 },
+                { attach = 'main',     offset = vec3(0.0, -6.5, 3.5), lookAt = vec3(0.0, 0.0, -1.0),  fov = 62.0, time = 5000 },
+            },
+            steps = {
+                { at = 0,    ['do'] = 'goodbye' },                -- squad gives a nod / wave
+                { at = 0,    ['do'] = 'holster' },
+                { at = 0,    ['do'] = 'sound', name = 'Whoosh_1s_L_to_R', set = 'MP_LOBBY_SOUNDS' },
+                { at = 800,  ['do'] = 'jump' },                   -- detach + push off the door + freefall (TaskSkyDive)
+                { at = 1300, ['do'] = 'squadJump', spacing = 450 },
+                { at = 7600, ['do'] = 'parachute' },              -- chute opens, camera keeps chasing
+            },
+            -- Played on the ground the moment you arrive (skipped if the anim is missing on your build)
+            arrival = { anim = { dict = 'move_fall@beastjump', clip = 'high_land_stand', flag = 0 }, time = 1600 },
+        },
+    },
 }

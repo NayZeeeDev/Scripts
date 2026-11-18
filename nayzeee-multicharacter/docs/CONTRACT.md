@@ -375,3 +375,28 @@ Other config: `Config.Moods` (array), `Config.Poses` (array), `Config.CoupleAnim
 Shared helpers in shared/utils.lua: `NZ.T, NZ.Decode, NZ.Truthy, NZ.Vec, NZ.Copy, NZ.Trim,
 NZ.Capitalize, NZ.Theme, NZ.MoodById, NZ.PoseById, NZ.CoupleById, NZ.PetById, NZ.ThemeIds,
 NZ.WeaponClass`; shared/math.lua: `NZ.Fwd, NZ.Right, NZ.Rel, NZ.RelH, NZ.Place, NZ.HeadingTo, NZ.Lerp`.
+
+---------------------------------------------------------------------------------------------
+## 10. In-flight themes (theme `skydive`)
+
+A theme with `flight` is a moving lobby:
+* `vehicles[flight.vehicle]` with `airborne = true` is spawned at `main` + altitude, engine on,
+  `SetHeliBladesFullSpeed`, not frozen; its crew pilot loops `flight.route` (TaskHeliMission goto the next
+  point when within ~60 m, speed `flight.speed`). The thread lives only while the lobby is open.
+  `SetFocusEntity(heli)` so the city streams under it; on teardown `ClearFocus`.
+* `theme.seats[slot]` (instead of `slots`): actors are `AttachEntityToEntity(ped, heli, 0, offset, rotation,
+  false, false, false, false, 2, true)` and play `seats[slot].anim` (sitting). Weapons/props/poses still apply on top
+  only if the pose is upper-body (flag 49) — otherwise the seat anim wins. `pets = false` → no pet.
+* `cameras.attach = 'vehicle1'`: every camera offset/lookAt is VEHICLE-local; cams use `AttachCamToEntity`
+  + `PointCamAtEntity(cam, heli, lookAt)` (or PointCamAtCoord recomputed). Camera points in `departure.camera`
+  may set `attach = 'vehicle1'|'main'` the same way (chase cam on the falling ped).
+* Lights follow the live position/heading of the main actor every frame (true for every theme).
+* Ground snapping is skipped for attached actors.
+* New departure steps: `jump` (detach main, give `GADGET_PARACHUTE`, small push away from the door
+  (ApplyForceToEntity / SetEntityVelocity), `TaskSkyDive(ped, true)`), `squadJump` (same for squad actors,
+  `spacing` ms apart), `parachute` (`ForcePedToOpenParachute`, or `TaskParachute(ped, true, false)`).
+* `departure.arrival = { anim = {dict, clip, flag}, time }` → after `Spawn.Enter` teleports the player and
+  BEFORE the fade-in, play that anim on the player ped (if the dict loads), clear it after `time` ms.
+  Works for any theme.
+* Spawn selector previews move the camera away: on confirm, refocus the heli (SetFocusEntity) and wait
+  ~600 ms before the cutscene.
