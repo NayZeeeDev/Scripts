@@ -1179,53 +1179,170 @@ function renderActivity() {
 }
 
 // ═══════════════ PERMISSIONS ═══════════════
+// Icon, one-line explanation and "sensitive" flag for every permission key (texts are translatable)
+const PERM_INFO = () => ({
+    view_received: ['inbox', t('perm.desc.view_received', 'See invoices billed to the society')],
+    view_sent: ['send', t('perm.desc.view_sent', 'See every invoice the society issued')],
+    create: ['plus', t('perm.desc.create', 'Bill citizens and societies as the society')],
+    cancel: ['ban', t('perm.desc.cancel', 'Cancel society invoices that are still unpaid'), true],
+    print: ['printer', t('perm.desc.print', 'Print paper copies of invoices')],
+    refund: ['refresh', t('perm.desc.refund', 'Refund paid invoices from the society account'), true],
+    disputes: ['alert', t('perm.desc.disputes', 'Accept or reject disputed invoices')],
+    templates_view: ['eye', t('perm.desc.templates_view', 'Use templates when creating invoices')],
+    templates_create: ['plus', t('perm.desc.templates_create', 'Add new templates and items')],
+    templates_edit: ['edit', t('perm.desc.templates_edit', 'Rename, reprice and reorder items')],
+    templates_delete: ['trash', t('perm.desc.templates_delete', 'Remove templates and their items'), true],
+    overview: ['grid', t('perm.desc.overview', 'See the society dashboard and balance')],
+    activity: ['history', t('perm.desc.activity', 'Read the society activity log')],
+    permissions: ['userkey', t('perm.desc.permissions', 'Edit groups and move employees between them'), true],
+    pay: ['card', t('perm.desc.pay', 'Pay invoices with society money'), true],
+    inspect: ['search', t('perm.desc.inspect', 'Look up the billing history of people and societies')],
+    register: ['register', t('perm.desc.register', 'Ring customers up at cash registers')],
+});
+const SECTION_INFO = () => ({
+    invoices: ['file', 'blue', t('perm.sdesc.invoices', 'Seeing, sending and handling invoices')],
+    templates: ['copy', 'violet', t('perm.sdesc.templates', 'Saved items used when billing')],
+    management: ['building', 'teal', t('perm.sdesc.management', 'Money, logs, people and tools')],
+});
+const ACC_LABEL = () => ({ full: t('perm.full', 'Full Access'), high: t('perm.high', 'High Access'), normal: t('perm.normal', 'Normal Access'), limited: t('perm.limited', 'Limited Access') });
+const permKeys = (Pm) => Pm.sections.flatMap((s) => s.perms.map((p) => p.key));
+const permCount = (Pm, perms) => permKeys(Pm).filter((k) => perms && perms[k]).length;
+const toggleSw = (on, act, attrs = '', dis = false) => `<button class="sw ${on ? 'on' : ''}" data-act="${act}" ${attrs} ${dis ? 'disabled' : ''} role="switch" aria-checked="${on}"><i></i></button>`;
+function ring(pctVal, size = 46) {
+    const r = (size - 6) / 2, c = 2 * Math.PI * r;
+    return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="rt"/>
+        <circle cx="${size / 2}" cy="${size / 2}" r="${r}" class="rv" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - pctVal / 100)}"/></svg>`;
+}
+
 async function pagePermissions(fresh) {
     if (!S.perms || fresh) {
-        setPage(`<div class="card pad">${skel(3, 50)}</div><div class="card pad">${skel(4, 40)}</div>`);
+        setPage(`<div class="pm-wrap"><div class="card pad">${skel(5, 56)}</div><div class="card pad">${skel(6, 44)}</div></div>`);
         const d = await call('perms:get');
         if (!d || S.page !== 'permissions') return;
         const keep = S.perms || {};
-        S.perms = Object.assign(d, { member: keep.member || '', memberGroup: '', editing: keep.editing || null, draft: null });
+        S.perms = Object.assign(d, { editing: keep.editing || null, draft: null, tab: keep.tab || 'perms', addMember: '', memberSearch: '' });
     }
+    const Pm = S.perms;
+    if (!Pm.groups.find((g) => g.id === Pm.editing)) { Pm.editing = (Pm.groups[0] || {}).id || null; Pm.draft = null; }
     renderPermissions();
 }
+
 function renderPermissions() {
     const Pm = S.perms;
-    const member = Pm.members.find((x) => x.identifier === Pm.member);
-    const groupOpts = Pm.groups.map((g) => ({ value: g.id, label: g.label }));
     const editing = Pm.groups.find((g) => g.id === Pm.editing);
     if (editing && !Pm.draft) Pm.draft = Object.assign({}, editing.perms);
-    const accLabel = { full: t('perm.full', 'Full Access'), high: t('perm.high', 'High Access'), normal: t('perm.normal', 'Normal Access'), limited: t('perm.limited', 'Limited Access') };
-    setPage(`<div class="card"><div class="pbar">
-            <div><span class="lbl">${t('perm.select_employee', 'Select Employee')}</span>${dd('pmMember', { value: Pm.member, search: true, placeholder: t('perm.pick_employee', 'Select an employee'),
-                options: Pm.members.map((x) => ({ value: x.identifier, label: x.name + (x.isMe ? ` (${t('label.you', 'you')})` : ''), sub: `${x.gradeLabel || ''} · ${(Pm.groups.find((g) => g.id === x.group) || {}).label || x.group}`, dot: x.online })),
-                onChange: (v) => { Pm.member = v; const mm = Pm.members.find((x) => x.identifier === v); Pm.memberGroup = mm ? mm.group : ''; renderPermissions(); } })}</div>
-            <div><span class="lbl">${t('perm.current_group', 'Current Group')}</span>${dd('pmGroup', { value: Pm.memberGroup || (member ? member.group : ''), options: groupOpts, disabled: !member, placeholder: t('perm.pick_group', 'Select a group'), onChange: (v) => { Pm.memberGroup = v; renderPermissions(); } })}</div>
-            <div><span class="lbl">${t('perm.action', 'Action')}</span><button class="btn soft" data-act="pmApply" ${member && Pm.memberGroup && Pm.memberGroup !== member.group ? '' : 'disabled'}>${ic('save')}${t('perm.apply', 'Apply Group')}</button></div></div></div>
-        <div class="card"><div class="card-h"><span class="lbl" style="letter-spacing:.08em;text-transform:uppercase;font-size:10px;color:var(--ink-3)">${t('perm.groups', 'Groups')}</span>
-            <div class="r"><button class="ibtn sm" data-act="gScroll" data-d="-1">${ic('chevl')}</button><button class="ibtn sm" data-act="gScroll" data-d="1">${ic('chevr')}</button></div></div>
-            <div class="card-b"><div class="gscroll" id="gscroll">${Pm.groups.map((g) => `<button class="gcard ${Pm.editing === g.id ? 'on' : ''}" data-act="pmEdit" data-id="${esc(g.id)}">${ticon(g.icon, g.color, true)}
-                <div><b>${esc(g.label)}</b><span class="acc-badge acc-${esc(g.access)}">${esc(accLabel[g.access] || g.access)}</span></div></button>`).join('')}
-                <button class="gcard add" data-act="pmNewGroup">${ic('plus')}${t('perm.new_group', 'New group')}</button></div></div></div>
-        <div class="card tcard"><div class="card-h"><span class="lbl" style="letter-spacing:.08em;text-transform:uppercase;font-size:10px;color:var(--ink-3)">${t('perm.permissions', 'Permissions')}</span>
-            ${editing ? `<div class="r"><button class="ibtn sm" data-act="pmGroupSettings">${ic('gear')}</button></div>` : ''}</div>
-            <div class="card-b" style="flex:1;min-height:0;overflow-y:auto">${editing ? `<div class="grid-3">${Pm.sections.map((s) => {
-                const on = s.perms.filter((p) => Pm.draft[p.key]).length;
-                return `<div class="psec"><div class="psec-h"><b>${esc(t('perm.section.' + s.id, s.label))}</b><span>${on}/${s.perms.length}</span></div>
-                    <div class="psec-meter"><i style="width:${Math.round((on / Math.max(1, s.perms.length)) * 100)}%"></i></div>
-                    ${s.perms.map((p) => `<button class="pcheck" data-act="pmToggle" data-k="${esc(p.key)}"><span class="cbx ${Pm.draft[p.key] ? 'on' : ''}">${ic('check')}</span>${esc(t('perm.key.' + p.key, p.label))}</button>`).join('')}</div>`;
-            }).join('')}</div>` : emptyState('lock', t('perm.select_group', 'Select a group to view permissions'), t('perm.select_group_sub', 'Choose a group from the list above to manage permissions'))}</div>
-            <div class="pfoot">${t('perm.editing', 'Editing Group')}: <b>${esc(editing ? editing.label : t('label.none', 'None'))}</b>
-                <div class="r">${editing && !editing.builtin ? `<button class="btn red" data-act="pmDeleteGroup">${ic('trash')}${t('btn.delete', 'Delete')}</button>` : ''}
-                <button class="btn soft" data-act="pmSave" ${editing ? '' : 'disabled'}>${ic('save')}${t('perm.save', 'Save Changes')}</button></div></div></div>`);
+    const total = permKeys(Pm).length;
+    const membersOf = (id) => Pm.members.filter((m) => m.group === id);
+
+    const groupList = Pm.groups.map((g, i) => {
+        const n = permCount(Pm, g.id === Pm.editing ? Pm.draft : g.perms);
+        const mem = membersOf(g.id).length;
+        return `<button class="pg-item ${g.id === Pm.editing ? 'on' : ''}" data-act="pmEdit" data-id="${esc(g.id)}" style="--i:${i}">
+            ${ticon(g.icon, g.color, true)}
+            <div class="pg-txt"><div class="pg-top"><b>${esc(g.label)}</b>${g.builtin ? `<span class="pg-def" title="${t('perm.default_group', 'Default group')}">${ic('lock')}</span>` : ''}</div>
+                <span class="acc-badge acc-${esc(g.access)}">${esc(ACC_LABEL()[g.access] || g.access)}</span>
+                <div class="pg-meta"><span>${ic('users')}${mem}</span><span>${ic('check')}${n}/${total}</span></div>
+                <div class="pg-meter"><i style="width:${Math.round((n / Math.max(1, total)) * 100)}%"></i></div></div></button>`;
+    }).join('');
+
+    let editor;
+    if (!editing) {
+        editor = emptyState('lock', t('perm.select_group', 'Select a group to view permissions'), t('perm.select_group_sub', 'Choose a group from the list to manage permissions'));
+    } else {
+        const on = permCount(Pm, Pm.draft);
+        const dirty = permKeys(Pm).filter((k) => !!Pm.draft[k] !== !!editing.perms[k]).length;
+        const mem = membersOf(editing.id);
+        const head = `<div class="pe-head">
+            <div class="pe-icon c-${esc(TEMPLATE_COLORS.includes(editing.color) ? editing.color : 'gray')}">${ic(editing.icon)}</div>
+            <div class="pe-title"><div><h3>${esc(editing.label)}</h3><span class="acc-badge acc-${esc(editing.access)}">${esc(ACC_LABEL()[editing.access] || editing.access)}</span></div>
+                <p>${editing.builtin ? t('perm.builtin_sub', 'Default group') : t('perm.custom_sub', 'Custom group')} · ${t('perm.members_n', '{n} member(s)', { n: mem.length })} · ${t('perm.perms_n', '{n} of {t} permissions', { n: on, t: total })}</p></div>
+            <div class="pe-tools">
+                <div class="seg sm">${[['perms', 'userkey', t('perm.tab_perms', 'Permissions')], ['members', 'users', t('perm.tab_members', 'Members') + ` <em>${mem.length}</em>`]].map(([v, icn, l]) => `<button class="${Pm.tab === v ? 'on' : ''}" data-act="pmTab" data-v="${v}">${ic(icn)}${l}</button>`).join('')}</div>
+                <button class="ibtn" data-act="pmGroupSettings" title="${t('perm.group_settings', 'Group settings')}">${ic('gear')}</button>
+                ${editing.builtin ? '' : `<button class="ibtn danger" data-act="pmDeleteGroup" title="${t('btn.delete', 'Delete')}">${ic('trash')}</button>`}
+            </div></div>`;
+
+        let body;
+        if (Pm.tab === 'members') {
+            const q = (Pm.memberSearch || '').toLowerCase();
+            const addable = Pm.members.filter((m) => m.group !== editing.id && !m.locked);
+            const list = mem.filter((m) => !q || String(m.name).toLowerCase().includes(q));
+            body = `<div class="pm-addbar">
+                    <label class="search">${ic('search')}<input data-input="pmMemberSearch" placeholder="${t('perm.search_members', 'Search members...')}" value="${esc(Pm.memberSearch || '')}"></label>
+                    <div class="pm-add">${dd('pmAdd', { value: Pm.addMember, search: true, placeholder: t('perm.add_employee', 'Add an employee to this group'), empty: t('perm.none_to_add', 'Everyone is already in this group'),
+                        options: addable.map((x) => ({ value: x.identifier, label: x.name + (x.isMe ? ` (${t('label.you', 'you')})` : ''), sub: `${x.gradeLabel || ''} · ${(Pm.groups.find((g) => g.id === x.group) || {}).label || x.group}`, dot: x.online })),
+                        onChange: (v) => { Pm.addMember = v; renderPermissions(); } })}
+                    <button class="btn pri" data-act="pmAddMember" ${Pm.addMember ? '' : 'disabled'}>${ic('plus')}${t('perm.add', 'Add')}</button></div></div>
+                <div class="pm-members">${list.length ? list.map((m, i) => `<div class="pm-mem" style="--i:${i}">
+                        <div class="pm-av">${avatar(m.name)}<span class="dot ${m.online ? 'on' : ''}"></span></div>
+                        <div class="pm-mtxt"><b>${esc(m.name)}${m.isMe ? ` <span class="badge mute">${t('label.you', 'you')}</span>` : ''}</b>
+                            <span>${esc(m.gradeLabel || t('perm.grade_n', 'Grade {n}', { n: m.grade }))} · ${m.online ? t('perm.online', 'Online') : t('perm.offline', 'Offline')}</span></div>
+                        ${m.locked ? `<span class="badge warn">${ic('lock')}${t('perm.locked', 'Boss · always this group')}</span>`
+                            : `<span class="badge ${m.assigned ? 'acc' : 'mute'}">${m.assigned ? t('perm.assigned', 'Assigned') : t('perm.by_grade', 'By grade')}</span>
+                               <div class="pm-move">${dd('pmMv_' + i, { value: m.group, options: Pm.groups.map((g) => ({ value: g.id, label: g.label, icon: g.icon, color: g.color })), onChange: (v) => A.pmAssign(m.identifier, v) })}</div>`}
+                    </div>`).join('') : emptyState('users', q ? t('perm.no_match', 'No members match') : t('perm.no_members', 'Nobody is in this group yet'), q ? '' : t('perm.no_members_sub', 'Add an employee above, or move someone here from another group.'))}</div>`;
+        } else {
+            const pctOn = Math.round((on / Math.max(1, total)) * 100);
+            const sensitiveOn = permKeys(Pm).filter((k) => Pm.draft[k] && (PERM_INFO()[k] || [])[2]).length;
+            if (!Pm.sections.find((x) => x.id === Pm.section)) Pm.section = (Pm.sections[0] || {}).id;
+            const sec = Pm.sections.find((x) => x.id === Pm.section);
+            const secCount = (x) => x.perms.filter((p) => Pm.draft[p.key]).length;
+            const nav = `<div class="pe-nav">
+                    <div class="pe-summary"><div class="pe-ring">${ring(pctOn)}<b>${pctOn}%</b></div>
+                        <div class="pe-stxt"><b>${t('perm.enabled_short', '{n} of {t} enabled', { n: on, t: total })}</b>
+                            <span>${sensitiveOn ? `<span class="warn-t">${ic('alert')}${t('perm.sensitive_n', '{n} sensitive', { n: sensitiveOn })}</span>` : t('perm.none_sensitive', 'No sensitive permissions')}</span></div></div>
+                    <div class="pe-quick"><button class="btn line sm" data-act="pmAll" data-v="1">${ic('check')}${t('perm.select_all', 'Select all')}</button>
+                        <button class="btn line sm" data-act="pmAll" data-v="0">${ic('x')}${t('perm.clear_all', 'Clear all')}</button></div>
+                    <div class="pe-nlabel">${t('perm.sections', 'Sections')}</div>
+                    ${Pm.sections.map((x, si) => {
+                        const n = secCount(x); const [sIcon, sTone] = SECTION_INFO()[x.id] || ['file', 'gray'];
+                        return `<div class="pn ${x.id === Pm.section ? 'on' : ''}" data-act="pmSec" data-s="${esc(x.id)}" style="--i:${si}">
+                            <div class="tile sm ${sTone}">${ic(sIcon)}</div>
+                            <div class="pn-t"><b>${esc(t('perm.section.' + x.id, x.label))}</b><span>${t('perm.n_of', '{n} of {t}', { n, t: x.perms.length })}</span>
+                                <div class="ps-meter"><i style="width:${Math.round((n / Math.max(1, x.perms.length)) * 100)}%"></i></div></div>
+                            ${toggleSw(n === x.perms.length, 'pmSection', `data-s="${esc(x.id)}" title="${t('perm.toggle_section', 'Turn the whole section on or off')}"`)}</div>`;
+                    }).join('')}
+                    <div class="pe-hint">${ic('info')}<span>${t('perm.summary_hint', 'Changes apply to everyone in this group when you save')}</span></div></div>`;
+            const [sIcon, sTone, sDesc] = SECTION_INFO()[sec.id] || ['file', 'gray', ''];
+            const sn = secCount(sec);
+            const list = `<div class="pe-list"><div class="ps-h"><div class="tile ${sTone}">${ic(sIcon)}</div>
+                        <div class="ps-t"><b>${esc(t('perm.section.' + sec.id, sec.label))}</b><span>${esc(sDesc)}</span></div>
+                        <div class="ps-r"><span class="ps-n">${sn}/${sec.perms.length}</span><span class="ps-all">${t('perm.all', 'All')}</span>${toggleSw(sn === sec.perms.length, 'pmSection', `data-s="${esc(sec.id)}"`)}</div></div>
+                    <div class="ps-list">${sec.perms.map((p, pi) => {
+                        const [pIcon, pDesc, sens] = PERM_INFO()[p.key] || ['check', ''];
+                        const changed = !!Pm.draft[p.key] !== !!editing.perms[p.key];
+                        return `<div class="pr ${Pm.draft[p.key] ? 'on' : ''} ${changed ? 'changed' : ''}" data-act="pmToggle" data-k="${esc(p.key)}" style="--i:${pi}">
+                            <span class="pr-ic">${ic(pIcon)}</span>
+                            <div class="pr-t"><b>${esc(t('perm.key.' + p.key, p.label))}${sens ? `<em class="sens">${ic('alert')}${t('perm.sensitive', 'Sensitive')}</em>` : ''}${changed ? `<em class="chg">${t('perm.changed', 'Changed')}</em>` : ''}</b><span>${esc(pDesc)}</span></div>
+                            ${toggleSw(!!Pm.draft[p.key], 'pmToggle', `data-k="${esc(p.key)}"`)}</div>`;
+                    }).join('')}</div></div>`;
+            body = `<div class="pe-split">${nav}${list}</div>`;
+        }
+        editor = `${head}<div class="pe-body ${Pm.tab === 'members' ? '' : 'flush'}">${body}</div>
+            <div class="pe-foot ${dirty ? 'dirty' : ''}">
+                <span class="pe-state">${dirty ? `<span class="dot pending"></span>${t('perm.unsaved', '{n} unsaved change(s)', { n: dirty })}` : `<span class="dot on"></span>${t('perm.saved_state', 'All changes saved')}`}</span>
+                <div class="r"><button class="btn line" data-act="pmDiscard" ${dirty ? '' : 'disabled'}>${t('perm.discard', 'Discard')}</button>
+                <button class="btn ${dirty ? 'pri' : 'soft'}" data-act="pmSave" ${dirty ? '' : 'disabled'}>${ic('save')}${t('perm.save', 'Save Changes')}</button></div></div>`;
+    }
+
+    setPage(`<div class="pm-wrap">
+        <div class="card pm-groups"><div class="ch"><div><h3>${t('perm.groups', 'Groups')}</h3><p>${t('perm.groups_sub', '{n} groups · {m} employees', { n: Pm.groups.length, m: Pm.members.length })}</p></div>
+            <button class="btn soft sm" data-act="pmNewGroup">${ic('plus')}${t('perm.new', 'New')}</button></div>
+            <div class="pg-list">${groupList}</div></div>
+        <div class="card pm-editor">${editor}</div></div>`);
 }
+
 function groupModal(g) {
-    const state = { label: g ? g.label : '', icon: g ? g.icon : 'users', color: g ? g.color : 'gray', access: g ? g.access : 'normal' };
-    const m = openModal(`<div class="modal w600">${mh(g ? t('perm.group_settings', 'Group settings') : t('perm.new_group', 'New group'), '', 'userkey')}<div class="mb" id="gmB"></div>
-        <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk">${t('btn.save', 'Save')}</button></div></div>`);
+    const state = { label: g ? g.label : '', icon: g ? g.icon : 'users', color: g ? g.color : 'teal', access: g ? g.access : 'normal' };
+    const m = openModal(`<div class="modal w600">${mh(g ? t('perm.group_settings', 'Group settings') : t('perm.new_group', 'New group'), g ? esc(g.label) : t('perm.new_group_sub', 'Pick a name, icon and colour, then choose its permissions'), 'userkey')}<div class="mb" id="gmB"></div>
+        <div class="mf"><button class="btn line" data-act="mClose">${t('btn.cancel', 'Cancel')}</button><button class="btn pri" data-act="mOk">${ic('save')}${t('btn.save', 'Save')}</button></div></div>`);
+    const accDesc = { full: t('perm.accd.full', 'Everything, including people and money'), high: t('perm.accd.high', 'Most tools, including refunds and paying'), normal: t('perm.accd.normal', 'Day-to-day billing'), limited: t('perm.accd.limited', 'Registers and templates only') };
     const render = () => {
-        $('#gmB', m.el).innerHTML = `<div class="row2"><div class="field"><span class="lbl">${t('perm.group_name', 'Group name')}</span><input class="input" data-input="gmLabel" maxlength="40" value="${esc(state.label)}" autofocus></div>
-            <div class="field"><span class="lbl">${t('perm.access', 'Access level')}</span><div class="seg">${['full', 'high', 'normal', 'limited'].map((a) => `<button class="${state.access === a ? 'on' : ''}" data-act="gmAccess" data-v="${a}">${esc(t('perm.acc.' + a, a))}</button>`).join('')}</div></div></div>
+        $('#gmB', m.el).innerHTML = `<div class="gm-preview"><div class="pe-icon c-${esc(state.color)}">${ic(state.icon)}</div>
+                <div><b>${esc(state.label || t('perm.group_name', 'Group name'))}</b><span class="acc-badge acc-${esc(state.access)}">${esc(ACC_LABEL()[state.access])}</span></div></div>
+            <div class="field"><span class="lbl">${t('perm.group_name', 'Group name')}</span><input class="input" data-input="gmLabel" maxlength="40" value="${esc(state.label)}" placeholder="${t('perm.group_name_ph', 'e.g. Shift leads')}" autofocus></div>
+            <div class="field"><span class="lbl">${t('perm.access', 'Access level')} <em class="hint">${t('perm.access_hint', 'the badge colour; permissions are set separately')}</em></span>
+                <div class="gm-acc">${['full', 'high', 'normal', 'limited'].map((a) => `<button class="${state.access === a ? 'on' : ''}" data-act="gmAccess" data-v="${a}"><span class="acc-badge acc-${a}">${esc(ACC_LABEL()[a])}</span><small>${esc(accDesc[a])}</small></button>`).join('')}</div></div>
             <div class="row2"><div class="field"><span class="lbl">${t('tpl.icon', 'Icon')}</span><div class="icon-grid">${TEMPLATE_ICONS.map((n) => `<button class="${state.icon === n ? 'on' : ''}" data-act="gmIcon" data-v="${n}">${ic(n)}</button>`).join('')}</div></div>
             <div class="field"><span class="lbl">${t('tpl.color', 'Color')}</span><div class="swatches">${TEMPLATE_COLORS.map((c) => `<button class="c-${c} ${state.color === c ? 'on' : ''}" data-act="gmColor" data-v="${c}"></button>`).join('')}</div></div></div>`;
     };
@@ -1236,7 +1353,7 @@ function groupModal(g) {
         if (!res) return;
         m.close();
         const editing = S.perms.editing;
-        Object.assign(S.perms, res, { draft: null, editing: g ? editing : (res.groups[res.groups.length - 1] || {}).id });
+        Object.assign(S.perms, res, { draft: null, tab: 'perms', editing: g ? editing : (res.groups[res.groups.length - 1] || {}).id });
         renderPermissions();
     };
 }
@@ -1625,14 +1742,37 @@ const A = {
     },
     actCat: (d) => { closePop(); S.act.category = d.v; S.act.page = 1; pageActivity(); },
     // permissions
-    pmApply: async () => {
+    pmAssign: async (identifier, group) => {
         const Pm = S.perms;
-        const res = await call('perms:assign', { identifier: Pm.member, group: Pm.memberGroup });
-        if (!res) return;
-        Object.assign(Pm, res); Pm.memberGroup = ''; toast(t('toast.group_applied', 'Group applied'), '', 'success'); renderPermissions();
+        const res = await call('perms:assign', { identifier, group });
+        if (!res) { renderPermissions(); return; }
+        const who = (Pm.members.find((x) => x.identifier === identifier) || {}).name || '';
+        const g = (Pm.groups.find((x) => x.id === group) || {}).label || group;
+        Object.assign(Pm, res); Pm.addMember = '';
+        toast(t('toast.group_applied', 'Group applied'), t('toast.group_applied_body', '{name} is now in {group}', { name: who, group: g }), 'success');
+        renderPermissions();
     },
-    pmEdit: (d) => { S.perms.editing = d.id; S.perms.draft = null; renderPermissions(); },
+    pmAddMember: () => { const Pm = S.perms; if (Pm.addMember && Pm.editing) A.pmAssign(Pm.addMember, Pm.editing); },
+    pmTab: (d) => { S.perms.tab = d.v; renderPermissions(); },
+    pmSec: (d) => { S.perms.section = d.s; renderPermissions(); },
+    pmEdit: (d) => {
+        const Pm = S.perms; if (Pm.editing === d.id) return;
+        const g = Pm.groups.find((x) => x.id === Pm.editing);
+        const dirty = g && Pm.draft && permKeys(Pm).some((k) => !!Pm.draft[k] !== !!g.perms[k]);
+        const go2 = () => { Pm.editing = d.id; Pm.draft = null; Pm.addMember = ''; renderPermissions(); };
+        if (!dirty) return go2();
+        confirmBox({ title: t('perm.unsaved_title', 'Unsaved changes'), text: t('perm.unsaved_text', 'Switching groups discards the changes you made to {group}.', { group: g.label }), ok: t('perm.discard', 'Discard'), danger: true })
+            .then((ok) => { if (ok) go2(); });
+    },
     pmToggle: (d) => { const dr = S.perms.draft; if (!dr) return; dr[d.k] = !dr[d.k]; renderPermissions(); },
+    pmSection: (d) => {
+        const Pm = S.perms; const sec = Pm.sections.find((x) => x.id === d.s); if (!sec || !Pm.draft) return;
+        const all = sec.perms.every((p) => Pm.draft[p.key]);
+        sec.perms.forEach((p) => { Pm.draft[p.key] = !all; });
+        renderPermissions();
+    },
+    pmAll: (d) => { const Pm = S.perms; if (!Pm.draft) return; permKeys(Pm).forEach((k) => { Pm.draft[k] = d.v === '1'; }); renderPermissions(); },
+    pmDiscard: () => { S.perms.draft = null; renderPermissions(); },
     pmSave: async () => {
         const Pm = S.perms; const g = Pm.groups.find((x) => x.id === Pm.editing); if (!g) return;
         const res = await call('perms:saveGroup', { group: { id: g.id, label: g.label, icon: g.icon, color: g.color, access: g.access, perms: Pm.draft } });
@@ -1644,9 +1784,8 @@ const A = {
     pmDeleteGroup: async () => {
         if (!await confirmBox({ title: t('btn.delete', 'Delete'), text: t('confirm.group_delete', 'Delete this group? Its members go back to their default group.'), danger: true, ok: t('btn.delete', 'Delete') })) return;
         const res = await call('perms:deleteGroup', { id: S.perms.editing });
-        if (res) { Object.assign(S.perms, res, { editing: null, draft: null }); renderPermissions(); }
+        if (res) { Object.assign(S.perms, res, { editing: (res.groups[0] || {}).id || null, draft: null, tab: 'perms' }); renderPermissions(); }
     },
-    gScroll: (d) => { const el = $('#gscroll'); if (el) el.scrollLeft += (+d.d) * 220; },
     gmAccess: (d) => { const m = topModal(); if (m && m.gm) { m.gm.access = d.v; m.render(); } },
     gmIcon: (d) => { const m = topModal(); if (m && m.gm) { m.gm.icon = d.v; m.render(); } },
     gmColor: (d) => { const m = topModal(); if (m && m.gm) { m.gm.color = d.v; m.render(); } },
@@ -1755,7 +1894,8 @@ const INPUTS = {
     ciNotes: (v) => { const m = topModal(); if (m && m.ci) m.ci.notes = v; },
     tmName: (v) => { const m = topModal(); if (m && m.tm) { m.tm.name = v; const c = $('.preview-chip', m.el); if (c) c.lastChild.textContent = v || t('tpl.name_ph', 'Ex: Business Licenses'); } },
     tmIconQ: (v) => { const m = topModal(); if (m && m.tm) { m.tm.q = v; m.render(true); const i = $('[data-input="tmIconQ"]', m.el); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } } },
-    gmLabel: (v) => { const m = topModal(); if (m && m.gm) m.gm.label = v; },
+    pmMemberSearch: debounce((v) => { if (!S.perms) return; S.perms.memberSearch = v; renderPermissions(); const el = $('[data-input="pmMemberSearch"]'); if (el) { el.focus(); el.setSelectionRange(v.length, v.length); } }, 200),
+    gmLabel: (v) => { const m = topModal(); if (m && m.gm) { m.gm.label = v; const b = $('.gm-preview b', m.el); if (b) b.textContent = v || t('perm.group_name', 'Group name'); } },
     posSearch: (v) => { S.pos.search = v; renderPosMenu(); },
 };
 
@@ -1892,13 +2032,21 @@ const Mock = (() => {
         { id: 3, name: 'Extras & After-sales', icon: 'sparkle', color: 'violet', items: [{ id: 'f', label: 'Custom Paint', amount: 2200 }] },
         { id: 'g1', name: 'Services', icon: 'briefcase', color: 'gray', items: [{ id: 'i1', label: 'Labour (1 hour)', amount: 150 }], global: true },
     ];
+    const P = (label, ...keys) => keys.map(([key, l]) => ({ key, label: l }));
     const perms = { society: 'Nine Films', sections: [
-        { id: 'invoices', label: 'Invoices', perms: [{ key: 'view_received', label: 'View received invoices' }, { key: 'view_sent', label: 'View sent invoices' }, { key: 'create', label: 'Create invoices' }, { key: 'cancel', label: 'Cancel invoices' }, { key: 'print', label: 'Print invoices' }] },
-        { id: 'templates', label: 'Templates', perms: [{ key: 'templates_view', label: 'View templates' }, { key: 'templates_create', label: 'Create templates' }, { key: 'templates_edit', label: 'Edit templates' }, { key: 'templates_delete', label: 'Delete templates' }] },
-        { id: 'management', label: 'Management', perms: [{ key: 'overview', label: 'View overview & balance' }, { key: 'activity', label: 'View activity logs' }, { key: 'permissions', label: 'Manage permissions' }, { key: 'pay', label: 'Pay invoices' }, { key: 'inspect', label: 'Inspect players & societies' }] }],
-        groups: [{ id: 'manager', label: 'Manager', access: 'full', icon: 'shield', color: 'blue', perms: ctx.society.perms, builtin: true }, { id: 'finance', label: 'Finance', access: 'high', icon: 'chevrons', color: 'cyan', perms: { view_received: true, pay: true }, builtin: true },
-            { id: 'sales', label: 'Business Sales', access: 'normal', icon: 'chevron', color: 'violet', perms: { create: true }, builtin: true }, { id: 'showroom', label: 'Showroom Sales', access: 'limited', icon: 'users', color: 'amber', perms: { register: true } }],
-        members: [{ identifier: 'char1:abc', name: 'Joe Doe1g', grade: 2, gradeLabel: 'Salesman', online: true, group: 'sales' }, { identifier: 'char1:def', name: 'Mia Chen', grade: 3, gradeLabel: 'Manager', online: false, group: 'manager' }] };
+        { id: 'invoices', label: 'Invoices', perms: P('', ['view_received', 'View received invoices'], ['view_sent', 'View sent invoices'], ['create', 'Create invoices'], ['cancel', 'Cancel invoices'], ['print', 'Print invoices'], ['refund', 'Refund invoices'], ['disputes', 'Resolve disputes']) },
+        { id: 'templates', label: 'Templates', perms: P('', ['templates_view', 'View templates'], ['templates_create', 'Create templates'], ['templates_edit', 'Edit templates'], ['templates_delete', 'Delete templates']) },
+        { id: 'management', label: 'Management', perms: P('', ['overview', 'View overview & balance'], ['activity', 'View activity logs'], ['permissions', 'Manage permissions'], ['pay', 'Pay invoices from the society account'], ['inspect', 'Inspect players & societies'], ['register', 'Use cash registers']) }],
+        groups: [{ id: 'manager', label: 'Manager', access: 'full', icon: 'shield', color: 'blue', perms: ctx.society.perms, builtin: true },
+            { id: 'finance', label: 'Finance', access: 'high', icon: 'chart', color: 'cyan', perms: { view_received: true, view_sent: true, create: true, cancel: true, print: true, refund: true, disputes: true, templates_view: true, overview: true, activity: true, pay: true, inspect: true, register: true }, builtin: true },
+            { id: 'sales', label: 'Business Sales', access: 'normal', icon: 'briefcase', color: 'violet', perms: { view_sent: true, create: true, print: true, templates_view: true, register: true }, builtin: true },
+            { id: 'showroom', label: 'Showroom Sales', access: 'limited', icon: 'car', color: 'amber', perms: { templates_view: true, register: true } }],
+        members: [{ identifier: 'me', name: 'Jordan Vale', grade: 4, gradeLabel: 'Owner', online: true, group: 'manager', isMe: true, locked: true },
+            { identifier: 'char1:def', name: 'Mia Chen', grade: 3, gradeLabel: 'Manager', online: false, group: 'manager', locked: true },
+            { identifier: 'char1:ghi', name: 'Tyrone Banks', grade: 2, gradeLabel: 'Accountant', online: true, group: 'finance', assigned: true },
+            { identifier: 'char1:abc', name: 'Joe Doe', grade: 1, gradeLabel: 'Salesman', online: true, group: 'sales' },
+            { identifier: 'char1:jkl', name: 'Sofia Turner', grade: 1, gradeLabel: 'Salesman', online: false, group: 'sales', assigned: true },
+            { identifier: 'char1:mno', name: 'Noah Evans', grade: 0, gradeLabel: 'Trainee', online: true, group: 'showroom', assigned: true }] };
     const ok = (data) => ({ ok: true, data });
     const page = (rows, p) => ({ rows: rows.slice(((p.page || 1) - 1) * 7, (p.page || 1) * 7), total: rows.length, page: p.page || 1, pageSize: 7, counts: { pending: 5, partial: 1, overdue: 1, disputed: 1, paid: 23, cancelled: 2 } });
     const detail = (id) => { const i = [...received, ...sent, ...dash.alerts].find((x) => x.id === id) || received[0]; return Object.assign({}, i, { payOptions: isOpen(i) && i.direction === 'received' ? { bank: true, cash: true } : null, canCancel: i.direction === 'sent' && isOpen(i), canPrint: true, canDispute: i.direction === 'received' && isOpen(i), payments: i.amountPaid ? [{ payer: 'Mia Chen', amount: i.amountPaid, tip: 0, method: 'bank', kind: 'payment', createdAt: now - 3 * H }] : [] }); };
@@ -1908,7 +2056,9 @@ const Mock = (() => {
         'templates:list': () => ok({ templates, canCreate: true, canEdit: true, canDelete: true }),
         'activity:list': () => ok({ rows: [{ timestamp: now - 26 * H, player: 'Nine Films', action: 'template_created', data: { name: 'Extras & After-sales' } }, { timestamp: now - 26 * H, player: 'Nine Films', action: 'item_added', data: { name: "Car's Plates", template: 'Paperwork & Fees' } },
             { timestamp: now - 27 * H, player: 'Nine Films', action: 'invoice_paid', data: { target: 'Joe Doe1g', amount: 107000 } }, { timestamp: now - 28 * H, player: 'Jordan Vale', action: 'invoice_created', data: { target: 'Mia Chen', ref: 'PDM-K2', amount: 5000 } }], total: 10, page: 1, pageSize: 7 }),
-        'perms:get': () => ok(perms), 'inspect:search': () => ok([{ id: 'I6NH41BE', name: 'Joe Doe1g', online: true, serverId: 12 }]),
+        'perms:get': () => ok(perms),
+        'perms:assign': (p) => { const m = perms.members.find((x) => x.identifier === p.identifier); if (m) { m.group = p.group; m.assigned = true; } return ok(JSON.parse(JSON.stringify(perms))); },
+        'perms:saveGroup': (p) => { const g = perms.groups.find((x) => x.id === p.group.id); if (g) Object.assign(g, p.group); else perms.groups.push(Object.assign({}, p.group, { id: 'g' + perms.groups.length })); return ok(JSON.parse(JSON.stringify(perms))); }, 'inspect:search': () => ok([{ id: 'I6NH41BE', name: 'Joe Doe1g', online: true, serverId: 12 }]),
         'inspect:profile': (p) => ok(Object.assign(page([...received.slice(0, 3).map((r) => Object.assign({}, r, { direction: 'received' })), ...sent.slice(1, 3)], p), { subject: { type: 'citizen', id: 'I6NH41BE', name: 'Joe Doe1g', identifier: 'I6NH41BE' }, stats: { total: 36, outstanding: 13100, paid: 122680 }, canClear: true })),
         'admin:registers': () => ok([{ id: 'r1', label: 'PDM Front Desk', society: 'cardealer', societyLabel: 'Nine Films', coords: { x: -56.2, y: -1097.4, z: 26.4 }, radius: 2, source: 'config' },
             { id: 'r2', label: 'Burgershot Counter 2', society: 'burgershot', societyLabel: 'Burgershot', coords: { x: 196.12, y: -852.3, z: 31.02 }, radius: 1, heading: 160, model: 'prop_till_01', source: 'db' }]),
@@ -1928,6 +2078,7 @@ const Mock = (() => {
             if (q.get('modal') === 'create') createInvoice();
             if (q.get('modal') === 'ref') payByReference('PDM-91K7QZ');
             if (q.get('modal') === 'tpl') templateModal(null);
+            if (q.get('modal') === 'group') setTimeout(() => groupModal(null), 300);
             if (q.get('rail')) openRail(+q.get('rail'));
         },
     };
