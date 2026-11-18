@@ -195,7 +195,8 @@ function render() {
       <div class="apps">${['youtube', 'tiktok', 'twitch', 'kick', 'soundcloud', 'vimeo', 'pluto'].map((k) => `<button data-k="app:${k}">${logo(k, 15)}<span>${esc(bname(k))}</span></button>`).join('')}<button class="sr" data-k="search">Search</button></div>
     </div>
     <div class="cast"><label>Cast a link to this screen</label><input id="castUrl" placeholder="YouTube, Twitch, Kick, .mp4, .m3u8…" spellcheck="false">
-      <div class="row"><button class="btn line" data-cast="queue">Add to queue</button><button class="btn teal" data-cast="play">Play now</button></div></div>`;
+      <div class="row"><button class="btn line" data-cast="queue">Add to queue</button><button class="btn teal" data-cast="play">Play now</button></div>
+      <p style="font-size:10.5px;color:var(--ink-3);margin-top:8px;font-weight:300">Type a channel number (e.g. 12) and press Play now to tune it.</p></div>`;
   if (focus !== null) { const i = $('#castUrl'); i.value = focus; i.focus(); }
 }
 
@@ -211,6 +212,12 @@ document.addEventListener('click', async (e) => {
   if (cast) {
     const url = $('#castUrl').value.trim();
     if (!url) return;
+    if (/^\d{1,4}$/.test(url)) {
+      const t = await post('control', { id: S.sel, action: 'tune', data: +url });
+      toast(t && t.ok ? 'Tuned to channel ' + url : 'There is no channel ' + url);
+      $('#castUrl').value = '';
+      return refresh();
+    }
     const r = await post('control', { id: S.sel, action: cast.dataset.cast, data: { url } });
     toast(r && r.ok ? (cast.dataset.cast === 'play' ? 'Playing on the screen.' : 'Added to the queue.') : 'That link could not be played.');
     if (r && r.ok) $('#castUrl').value = '';

@@ -335,6 +335,9 @@ function panelView() {
             <button class="cbtn" data-act="ctl" data-a="stop" title="Stop">${I.stop}</button>
             <span class="sep"></span>
             <button class="cbtn ${t.loop ? 'on' : ''}" data-act="ctl" data-a="loop" title="Repeat">${I.loop}</button>
+            ${(d.channels || []).length ? `<span class="sep"></span><button class="cbtn" data-act="chan" data-dir="-1" title="Channel down">${I.down}</button>
+              <span class="ch-num" title="Channel">${t.channel ? 'CH ' + ((d.channels[t.channel - 1] || {}).number || t.channel) : 'CH'}</span>
+              <button class="cbtn" data-act="chan" data-dir="1" title="Channel up">${I.up}</button>` : ''}
             <div class="vol"><button class="cbtn" data-act="ctl" data-a="mute">${t.muted ? I.mute : I.vol}</button>
               <div class="rng"><input type="range" min="0" max="100" value="${Math.round((t.volume || 0) * 100)}" data-input="volume"><span>${t.muted ? '—' : Math.round((t.volume || 0) * 100)}</span></div></div>
           </div>
@@ -537,6 +540,7 @@ const PanelActs = {
   setting: (el) => ctl('setting', { key: el.dataset.k, value: el.dataset.val }),
   settingBool: (el) => ctl('setting', { key: el.dataset.k, value: el.dataset.val === '1' }),
   loopSw: () => ctl('loop'),
+  chan: (el) => ctl('channel', +el.dataset.dir),
   sleep: (el) => ctl('sleep', +el.dataset.m),
   rename: () => { const v = $('#rename').value.trim(); if (v) post('manage', { id: P.tv.id, op: 'rename', data: v }); },
   remotePlace: () => { closePanel(false); post('remotePlace', { id: P.tv.id }); },
@@ -604,7 +608,7 @@ function renderRemote() {
         <span><span class="key">← ↑ → ↓</span>Navigate</span><span><span class="key">↵</span>OK</span>
         <span><span class="key">⌫</span>Back</span><span><span class="key">H</span>Home</span>
         <span><span class="key">+ −</span>Volume</span><span><span class="key">Space</span>Play / pause</span>
-        <span><span class="key">PgUp/Dn</span>Channel</span><span><span class="key">K</span>Keyboard</span>
+        <span><span class="key">PgUp/Dn</span>Channel</span><span><span class="key">K</span>Type a CH number</span>
       </div></div>
       <div class="rm-actions">
         <button class="btn-line btn-sm" data-rk="panel">${I.grid}Media panel</button>

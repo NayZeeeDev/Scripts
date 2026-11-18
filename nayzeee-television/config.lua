@@ -327,5 +327,6 @@ Config.Text = {
     linked           = 'Screens linked — they now mirror each other',
     unlinked         = 'Screen unlinked',
     sleep_set        = 'Sleep timer: %s',
+    no_channel       = 'There is no channel with that number',
     plex_web         = 'Plex\'s website can\'t play on TVs. Use the Live tab for Plex channels, or the Plex app for your own server.',
 }

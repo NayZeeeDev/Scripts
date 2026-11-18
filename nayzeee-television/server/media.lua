@@ -205,9 +205,12 @@ function Media.play(tv, url, title, opts)
     if type(opts.thumb) == 'string' and not desc.thumb and opts.thumb:match('^https?://') then desc.thumb = opts.thumb end
     if type(opts.duration) == 'number' and opts.duration > 0 and not desc.duration then desc.duration = opts.duration end
     local key = Utils.id(6) -- one key for every linked screen, so they can share a picture
+    local chIdx = 0
+    for i, c in ipairs(Channels.list) do if c.url == desc.url then chIdx = i break end end
     apply(tv, function(t)
         Media.start(t, desc, { title = title, by = opts.by, key = key })
-    end, { 'media', 'history', 'power' })
+        t.channel = chIdx -- 0 = not on a channel; CH ▲ then starts at channel 1
+    end, { 'media', 'history', 'power', 'channel' })
     return true
 end
 
@@ -343,14 +346,19 @@ function Media.powerOff(tv)
     end
 end
 
+function Media.tune(tv, idx)
+    local ch = Channels.list[idx]
+    if not ch then return false end
+    return Media.play(tv, ch.url, ch.name, { by = 'CH ' .. (ch.number or idx) })
+end
+
 function Media.channel(tv, dir)
-    local list = Channels.list
-    if #list == 0 then return false end
-    local idx = ((tv.channel or 0) + dir - 1) % #list + 1
-    local ch = list[idx]
-    local ok = Media.play(tv, ch.url, ch.name, { by = 'CH ' .. (ch.number or idx) })
-    if ok then apply(tv, function(t) t.channel = idx end, { 'channel' }) end
-    return ok
+    local n = #Channels.list
+    if n == 0 then return false end
+    local cur = tv.channel or 0
+    local idx
+    if cur == 0 then idx = dir == -1 and n or 1 else idx = (cur + dir - 1) % n + 1 end
+    return Media.tune(tv, idx)
 end
 
 -- ─── RPC: control ──────────────────────────────────────────────
@@ -414,6 +422,15 @@ Actions.stop    = function(_, tv) Media.stop(tv) return true, 'stopped' end
 Actions.next    = function(_, tv) Media.next(tv, false) return true end
 Actions.prev    = function(_, tv) Media.prev(tv) return true end
 Actions.channel = function(_, tv, dir) return Media.channel(tv, dir == -1 and -1 or 1) end
+--- jump straight to a channel number (typed on the remote / phone)
+Actions.tune = function(_, tv, num)
+    num = tonumber(num)
+    if not num then return false end
+    for i, c in ipairs(Channels.list) do
+        if (c.number or i) == num then return Media.tune(tv, i) end
+    end
+    return false, 'no_channel'
+end
 
 Actions.loop = function(_, tv, v)
     local on = v
@@ -512,7 +529,7 @@ local function blockedTitle(title)
 end
 Media.blockedTitle = blockedTitle
 
-local SPAMMY = { play = true, queue = true, qPlay = true, channel = true, next = true, prev = true }
+local SPAMMY = { play = true, queue = true, qPlay = true, channel = true, tune = true, next = true, prev = true }
 local lastChange = {}
 AddEventHandler('playerDropped', function() lastChange[source] = nil end)
 
@@ -529,7 +546,7 @@ RPC.control = function(src, id, action, data)
     end
     if (action == 'play' or action == 'queue') and type(data) == 'table' and blockedTitle(data.title) then return false, 'blocked_url' end
     local res, msg = fn(src, tv, data)
-    if res and (action == 'play' or action == 'qPlay' or action == 'channel') and Config.Logs.LogMedia and tv.media then
+    if res and (action == 'play' or action == 'qPlay' or action == 'channel' or action == 'tune') and Config.Logs.LogMedia and tv.media then
         Logs.add('media', src, 'Played ' .. (tv.media.title or Utils.fallbackTitle(tv.media)), tv.media.url, tv)
     end
     return res, msg

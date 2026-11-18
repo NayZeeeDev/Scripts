@@ -911,6 +911,14 @@ function computeResults(mine) {
 function onTyped(text, mine) {
   S.lastInput = Date.now();
   hideAmbient();
+  const digits = String(text || '').trim();
+  if (/^\d{1,4}$/.test(digits) && (S.channels || []).length) {
+    if (mine) action({ action: 'control', name: 'tune', data: +digits });
+    $('#ocNum').textContent = digits; $('#ocName').textContent = 'Tuning…';
+    $('#osdCh').classList.remove('hidden');
+    clearTimeout(chTimer); chTimer = setTimeout(() => $('#osdCh').classList.add('hidden'), 2500);
+    return;
+  }
   S.query = String(text || '').slice(0, 256);
   if (S.ui.page !== 'search') openSearch(S.ui.src);
   computeResults(mine);
@@ -1160,7 +1168,8 @@ function showVolume() {
 
 let chTimer = 0;
 function showChannel() {
-  const c = S.channels[(S.tv.channel || 1) - 1];
+  if (!S.tv.channel) return; // not on a channel (a normal video / link)
+  const c = S.channels[S.tv.channel - 1];
   if (!c) return;
   $('#ocNum').textContent = c.number || S.tv.channel;
   $('#ocName').textContent = c.name;
