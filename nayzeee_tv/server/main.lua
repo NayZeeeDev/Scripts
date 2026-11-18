@@ -158,6 +158,9 @@ RPC.boot = function(src)
         tvs = out,
         now = TV.now(),
         calibration = TV.calibration,
+        channels = Channels.list,
+        plex = Channels.plexEnabled(),
+        search = (ServerConfig.YouTubeApiKey or '') ~= '',
         admin = Perms.isAdmin(src),
         me = src,
     }
@@ -174,13 +177,16 @@ end
 AddEventHandler('nztv:bridgeReady', function()
     Storage.init()
     TV.calibration = Storage.loadCalibration()
-    local n = 0
+    local n, loaded = 0, {}
     for _, rec in ipairs(Storage.loadScreens()) do
         if rec.coords then
-            local tv = TV.create(rec)
+            loaded[#loaded + 1] = TV.create(rec)
             n = n + 1
-            startDefaultMedia(tv)
         end
+    end
+    -- autoplay once every screen exists, and only from a group's leader
+    for _, tv in ipairs(loaded) do
+        if not tv.group or Media.leader(tv) == tv then startDefaultMedia(tv) end
     end
     print(('^2[nayzeee_tv]^7 loaded ^5%d^7 screens'):format(n))
     TriggerClientEvent('nztv:client:reboot', -1)

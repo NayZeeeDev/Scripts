@@ -91,8 +91,22 @@ const I = {
 };
 const KIND = {
   youtube: { label: 'YouTube', icon: 'yt' }, twitch: { label: 'Twitch', icon: 'tw' }, kick: { label: 'Kick', icon: 'kk' },
-  hls: { label: 'Stream', icon: 'tw' }, video: { label: 'Video', icon: 'film' }, audio: { label: 'Audio', icon: 'music' }, image: { label: 'Image', icon: 'image' },
+  hls: { label: 'Live stream', icon: 'tw' }, video: { label: 'Video', icon: 'film' }, audio: { label: 'Audio', icon: 'music' }, image: { label: 'Image', icon: 'image' },
 };
+const BRANDS = window.BRANDS || {};
+['tiktok', 'vimeo', 'soundcloud', 'streamable', 'medal', 'instagram', 'dailymotion', 'reddit', 'rumble', 'drive', 'plex', 'pluto'].forEach((k) => {
+  if (!KIND[k]) KIND[k] = { label: BRANDS[k] ? BRANDS[k].name : k, icon: 'film' };
+});
+/* transparent platform logo (brand colour by default) */
+function logo(kind, brand, size, color) {
+  const b = brand && BRANDS[brand] ? brand : BRANDS[kind] ? kind : null;
+  if (!b) return I[(KIND[kind] || KIND.video).icon].replace('<svg ', `<svg width="${size || 16}" height="${size || 16}" `);
+  const c = color || (['tiktok', 'dailymotion'].includes(b) ? '#fff' : BRANDS[b].color);
+  return window.brandSvg(b, size || 16, c);
+}
+const klabel = (kind, brand) => (brand && BRANDS[brand] ? BRANDS[brand].name : (KIND[kind] || KIND.video).label);
+/* every platform the TVs can play, shown as a logo strip */
+const PLATFORMS = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud', 'streamable', 'medal', 'instagram', 'dailymotion', 'reddit', 'rumble', 'drive', 'pluto', 'plex'];
 
 /* link detection — mirrors shared/utils.lua for instant feedback */
 function detect(raw) {
@@ -102,6 +116,18 @@ function detect(raw) {
   if (/(youtube\.com|youtu\.be)/i.test(u)) return { kind: 'youtube', label: /[?&]list=/.test(u) && !/[?&]v=/.test(u) ? 'YouTube playlist' : /\/live\//.test(u) ? 'YouTube live' : 'YouTube video' };
   if (/twitch\.tv/i.test(u)) return { kind: 'twitch', label: /\/videos\//.test(u) ? 'Twitch VOD' : /clip/.test(u) ? 'Twitch clip' : 'Twitch live channel' };
   if (/kick\.com/i.test(u)) return { kind: 'kick', label: 'Kick live channel' };
+  if (/tiktok\.com/i.test(u)) return { kind: 'tiktok', label: 'TikTok video' };
+  if (/vimeo\.com/i.test(u)) return { kind: 'vimeo', label: 'Vimeo video' };
+  if (/soundcloud\.com/i.test(u)) return { kind: 'soundcloud', label: /\/sets\//.test(u) ? 'SoundCloud playlist' : 'SoundCloud track' };
+  if (/streamable\.com/i.test(u)) return { kind: 'streamable', label: 'Streamable clip' };
+  if (/medal\.tv/i.test(u)) return { kind: 'medal', label: 'Medal clip' };
+  if (/instagram\.com\/(p|reel|reels|tv)\//i.test(u)) return { kind: 'instagram', label: 'Instagram post' };
+  if (/dailymotion\.com|dai\.ly/i.test(u)) return { kind: 'dailymotion', label: 'Dailymotion video' };
+  if (/reddit\.com\/.*comments|v\.redd\.it|redd\.it/i.test(u)) return { kind: 'reddit', label: 'Reddit video' };
+  if (/rumble\.com/i.test(u)) return { kind: 'rumble', label: 'Rumble video' };
+  if (/drive\.google\.com/i.test(u)) return { kind: 'drive', label: 'Google Drive video' };
+  if (/pluto\.tv/i.test(u) && /\.m3u8/i.test(u)) return { kind: 'hls', brand: 'pluto', label: 'Pluto TV channel' };
+  if (/X-Plex-Token|:32400/i.test(u)) return { kind: 'plex', label: 'Plex' };
   const ext = (u.split(/[?#]/)[0].match(/\.(\w+)$/) || [])[1];
   if (!ext || !/^https?:\/\//i.test(u)) return null;
   const e = ext.toLowerCase();
@@ -258,27 +284,27 @@ function restoreFocus(f) {
 
 function urlBar(id = 'purl') {
   const det = detect(P.url);
-  return `<div><div class="url-bar"><div class="src-ic ${det ? 'ok' : ''}">${det ? I[KIND[det.kind].icon] : I.link}</div>
-      <input id="${id}" data-input="url" placeholder="Paste a YouTube, Twitch, Kick, .mp4 or .m3u8 link${P.d.search ? ' — or search YouTube' : ''}" value="${esc(P.url)}" spellcheck="false">
+  return `<div><div class="url-bar"><div class="src-ic ${det ? 'ok' : ''}">${det ? logo(det.kind, det.brand, 18) : I.link}</div>
+      <input id="${id}" data-input="url" placeholder="Paste a link from YouTube, TikTok, Twitch, Kick, Vimeo, SoundCloud…${P.d.search ? ' — or search YouTube' : ''}" value="${esc(P.url)}" spellcheck="false">
       ${P.d.search && P.url && !det ? `<button class="btn-line btn-sm" data-act="search">${I.search}Search</button>` : ''}
       <button class="btn-line btn-sm" data-act="queueUrl">${I.queue}Queue</button>
       <button class="btn-teal btn-sm" data-act="playUrl">${I.play}Play</button></div>
-    <p class="url-hint">${det ? `Detected <b>${esc(det.label)}</b> — plays in sync for everyone nearby` : P.url ? 'Not a supported link yet' : 'Everyone near the screen sees and hears the same moment — even if they arrive late.'}</p></div>`;
+    <p class="url-hint">${det ? `Detected <b>${esc(det.label)}</b> — plays in sync for everyone nearby` : P.url ? 'Not a supported link yet' : 'Everyone near the screen sees and hears the same moment — even if they arrive late.'}</p>
+    <div class="works"><span>Works with</span>${PLATFORMS.filter((k) => k !== 'plex' || P.d.plex).map((k) => `<i title="${esc(BRANDS[k] ? BRANDS[k].name : k)}">${logo(k, k, 15)}</i>`).join('')}<span>+ mp4 · m3u8 · mp3 · images</span></div></div>`;
 }
 
 function mcard(it, opts = {}) {
-  const k = KIND[it.kind] || KIND.video;
-  return `<div class="mcard"><div class="mc-art" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : I[k.icon]}
+  return `<div class="mcard"><div class="mc-art" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? `<span class="mc-logo">${logo(it.kind, it.brand, 13)}</span>` : logo(it.kind, it.brand, 28)}
       ${it.live ? '<span class="chip red">● Live</span>' : ''}${opts.num ? `<span class="mc-num">${opts.num}</span>` : ''}
       <div class="mc-act"><button data-act="queueItem" data-url="${esc(it.url)}" data-title="${esc(it.title || '')}" title="Add to queue">${I.queue}</button>
         <button data-act="playItem" data-url="${esc(it.url)}" data-title="${esc(it.title || '')}" title="Play now">${I.play}</button></div></div>
-    <div class="mc-t"><b>${esc(it.title || it.url)}</b><span>${esc(it.sub || k.label)}</span></div></div>`;
+    <div class="mc-t"><b>${esc(it.title || it.url)}</b><span>${esc(it.sub || klabel(it.kind, it.brand))}</span></div></div>`;
 }
 
 function rowItem(it, i, acts) {
-  const k = KIND[it.kind] || KIND.video;
-  return `<div class="row">${i != null ? `<span class="idx">${i}</span>` : ''}<div class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : I[k.icon]}</div>
-    <div class="row-txt"><b>${esc(it.title || it.url)}</b><span>${esc(k.label)}${it.by ? ' · ' + esc(it.by) : ''}</span></div><div class="row-act">${acts}</div></div>`;
+  const prog = it.pos && it.dur ? `<div class="row-prog"><i style="width:${clamp(it.pos / it.dur, 0, 1) * 100}%"></i></div>` : '';
+  return `<div class="row">${i != null ? `<span class="idx">${i}</span>` : ''}<div class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : logo(it.kind, it.brand, 18)}${prog}</div>
+    <div class="row-txt"><b>${esc(it.title || it.url)}</b><span class="row-src">${logo(it.kind, it.brand, 11)}${esc(klabel(it.kind, it.brand))}${it.by ? ' · ' + esc(it.by) : ''}${it.pos && it.dur ? ' · ' + fmt(it.dur - it.pos) + ' left' : ''}</span></div><div class="row-act">${acts}</div></div>`;
 }
 
 function panelView() {
@@ -290,14 +316,14 @@ function panelView() {
       return `<div class="head"><div><h1>Now Playing</h1><p>${t.power ? 'The screen is on the home screen.' : 'The screen is in standby — playing something turns it on.'}</p></div></div>
         <div class="empty">${I.tv}<b>Nothing is playing</b><span>Paste a link below, browse your history, or use the remote to pick something on the TV.</span></div>${urlBar()}`;
     }
-    const k = KIND[m.kind] || KIND.video;
+    const k = { label: klabel(m.kind, m.brand) };
     const dur = m.duration || 0;
     return `<div class="head"><div><h1>Now Playing</h1><p>Synced for everyone in range of <b style="color:var(--white);font-weight:500">${esc(t.label)}</b>.</p></div>
         <div class="head-act"><button class="btn-ghost" data-act="fav" data-url="${esc(m.url)}" data-title="${esc(m.title || '')}" data-thumb="${esc(m.thumb || '')}" data-kind="${esc(m.kind)}">${isFav(m.url) ? I.starF : I.star}${isFav(m.url) ? 'Saved' : 'Favorite'}</button></div></div>
       <div class="np" style="--np-bg:url('${esc(m.thumb || '')}')">
-        <div class="np-art" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}>${m.thumb ? '' : I[k.icon]}${m.live ? '<span class="chip red live-b">● Live</span>' : ''}</div>
+        <div class="np-art" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}>${m.thumb ? '' : logo(m.kind, m.brand, 40)}${m.live ? '<span class="chip red live-b">● Live</span>' : ''}</div>
         <div class="np-info">
-          <div class="np-top"><span class="chip">${esc(k.label)}</span>${m.paused ? '<span class="chip grey">Paused</span>' : ''}<span class="by">${m.by ? 'Started by ' + esc(m.by) : ''}${m.items ? ` · ${m.index}/${m.items.length} in playlist` : ''}</span></div>
+          <div class="np-top"><span class="chip brand-chip">${logo(m.kind, m.brand, 12)}${esc(k.label)}</span>${m.paused ? '' : '<span class="eq"><i></i><i></i><i></i><i></i></span>'}${m.paused ? '<span class="chip grey">Paused</span>' : ''}<span class="by">${m.by ? 'Started by ' + esc(m.by) : ''}${m.items ? ` · ${m.index}/${m.items.length} in playlist` : ''}</span></div>
           <h3>${esc(m.title || k.label)}</h3>
           <div class="seek"><div class="seek-bar ${m.live ? 'live' : ''}" id="seekBar" data-act="seek"><i id="seekFill"></i>${m.live ? '' : '<em id="seekKnob"></em>'}</div>
             <div class="seek-t"><span id="seekPos">${m.live ? 'LIVE' : fmt(mediaPos(m))}</span><span id="seekDur">${m.live ? '' : dur ? fmt(dur) : '--:--'}</span></div></div>
@@ -320,11 +346,13 @@ function panelView() {
 
   if (v === 'browse') {
     const chans = d.channels || [], lib = d.library || [];
-    return `<div class="head"><div><h1>Browse</h1><p>YouTube videos, playlists and live streams, Twitch, Kick, direct video and HLS links, images and server media.</p></div></div>
+    if (d.plex && !P.plexLoaded) loadPlex();
+    return `<div class="head"><div><h1>Browse</h1><p>YouTube, TikTok, Twitch, Kick, Vimeo, SoundCloud, Streamable, Medal, Instagram, Dailymotion, Reddit, Rumble, Google Drive, live-TV channels${P.d.plex ? ', your Plex library' : ''}, direct video, HLS, audio, images and server media.</p></div></div>
       ${urlBar()}
       ${P.searching ? '<div class="note">Searching YouTube…</div>' : ''}
       ${P.results.length ? `<section><div class="grp" style="margin:0 0 10px">Results for “${esc(P.q)}”</div><div class="mgrid">${P.results.map((r) => mcard({ ...r, sub: r.channel })).join('')}</div></section>` : ''}
-      ${chans.length ? `<section><div class="grp" style="margin:0 0 10px">Channels</div><div class="mgrid">${chans.map((c, i) => mcard({ url: c.url, title: c.name, kind: detect(c.url) ? detect(c.url).kind : 'video', live: /twitch|kick/.test(c.url), sub: 'CH ' + (c.number || i + 1), thumb: c.thumb }, { num: c.number || i + 1 })).join('')}</div></section>` : ''}
+      ${d.plex ? `<section><div class="grp" style="margin:0 0 10px">${logo('plex', 'plex', 14)}&nbsp;Plex — recently added</div>${P.plex && P.plex.length ? `<div class="mgrid">${P.plex.map((r) => mcardPlex(r)).join('')}</div>` : `<div class="mgrid">${'<div class="mcard skel-card"><div class="mc-art sk"></div><div class="mc-t"><div class="sk" style="height:9px;width:70%"></div><div class="sk" style="height:7px;width:40%;margin-top:6px"></div></div></div>'.repeat(4)}</div>`}</section>` : ''}
+      ${chans.length ? `<section><div class="grp" style="margin:0 0 10px">Channels</div><div class="mgrid">${chans.slice(0, 60).map((c, i) => mcard({ url: c.url, title: c.name, kind: detect(c.url) ? detect(c.url).kind : 'hls', brand: c.brand, live: true, sub: (c.group ? c.group + ' · ' : '') + 'CH ' + (c.number || i + 1), thumb: c.thumb }, { num: c.number || i + 1 })).join('')}</div></section>` : ''}
       ${lib.length ? `<section><div class="grp" style="margin:0 0 10px">Server library</div><div class="mgrid">${lib.map((f) => mcard({ url: 'local:' + f.file, title: f.title || f.file, sub: f.subtitle || 'Server media', thumb: f.thumb, kind: detect('https://x/' + f.file) ? detect('https://x/' + f.file).kind : 'video' })).join('')}</div></section>` : ''}
       ${!chans.length && !lib.length && !P.results.length ? `<div class="empty">${I.search}<b>Paste any link to start</b><span>Tip: YouTube playlists play in order and keep everyone on the same video.</span></div>` : ''}`;
   }
@@ -349,7 +377,7 @@ function panelView() {
       ${h.length ? `<div class="p-body" style="padding:0">${h.map((e) => rowItem(e, null,
         `<button class="icon-btn ${isFav(e.url) ? 'on' : ''}" data-act="fav" data-url="${esc(e.url)}" data-title="${esc(e.title || '')}" data-thumb="${esc(e.thumb || '')}" data-kind="${esc(e.kind || '')}" title="Favorite">${isFav(e.url) ? I.starF : I.star}</button>
          <button class="icon-btn" data-act="queueItem" data-url="${esc(e.url)}" data-title="${esc(e.title || '')}" title="Queue">${I.queue}</button>
-         <button class="icon-btn" data-act="playItem" data-url="${esc(e.url)}" data-title="${esc(e.title || '')}" title="Play">${I.play}</button>`)).join('')}</div>`
+         <button class="icon-btn" data-act="playItem" data-url="${esc(e.url)}" data-title="${esc(e.title || '')}" data-start="${e.pos || ''}" title="${e.pos ? 'Resume at ' + fmt(e.pos) : 'Play'}">${I.play}</button>`)).join('')}</div>`
         : `<div class="empty">${I.history}<b>Nothing played yet</b><span>Everything played on this screen shows up here.</span></div>`}`;
   }
 
@@ -401,6 +429,8 @@ function panelView() {
       </div>
       <section class="panel"><div class="p-pad">
         ${d.isAdmin ? `<div class="opt"><div class="opt-t"><b>ACE permission</b><small>Players with this ace can always control it</small></div><input class="inp" id="permAce" value="${esc(p.ace || '')}" placeholder="nayzeee_tv.cinema" style="width:220px"></div>` : ''}
+        ${(p.allowed || []).length ? `<div class="opt"><div class="opt-t"><b>Allowed players</b><small>Can always control this screen</small></div>
+          <div class="chips-in" style="justify-content:flex-end;max-width:60%">${p.allowed.map((a) => `<span class="pchip">${esc(a.name)}<button data-act="disallow" data-key="${esc(a.key)}">${I.x}</button></span>`).join('')}</div></div>` : ''}
         <div class="opt"><div class="opt-t"><b>Allow a player</b><small>Give one person access by server ID</small></div>
           <div style="display:flex;gap:8px"><input class="inp" id="allowId" placeholder="ID" style="width:80px"><button class="btn-line btn-sm" data-act="allow">${I.plus}Allow</button></div></div>
       </div></section>`;
@@ -414,6 +444,16 @@ function panelView() {
         : `<div class="empty">${I.chain}<b>No screens nearby</b><span>Screens you own within 60m show up here.</span></div>`}`;
   }
   return '';
+}
+
+async function loadPlex() {
+  P.plexLoaded = true;
+  const r = await post('plex', { op: 'recent' });
+  P.plex = (r && r.items) || [];
+  if (P.open && P.view === 'browse') renderPanel();
+}
+function mcardPlex(r) {
+  return mcard({ url: r.url, title: r.title, sub: r.sub, thumb: r.thumb, kind: 'plex', brand: 'plex' }).replace('data-act="playItem"', `data-act="playItem" data-thumb="${esc(r.thumb || '')}" data-dur="${r.duration || ''}"`);
 }
 
 const isFav = (url) => (P.d && (P.d.favorites || []).some((f) => f.url === url));
@@ -442,10 +482,10 @@ function progressLoop() {
   step();
 }
 
-async function playUrl(url, title, queue) {
+async function playUrl(url, title, queue, extra) {
   url = (url || '').trim();
   if (!url) return;
-  const r = await ctl(queue ? 'queue' : 'play', { url, title: title || undefined });
+  const r = await ctl(queue ? 'queue' : 'play', Object.assign({ url, title: title || undefined }, extra || {}));
   if (r && r.ok && !queue) { P.url = ''; P.view = 'now'; renderPanel(); }
   if (r && r.ok && queue) { P.url = ''; renderPanel(); }
 }
@@ -480,7 +520,7 @@ const PanelActs = {
   playUrl: () => playUrl(P.url),
   queueUrl: () => playUrl(P.url, null, true),
   search: doSearch,
-  playItem: (el) => playUrl(el.dataset.url, el.dataset.title),
+  playItem: (el) => playUrl(el.dataset.url, el.dataset.title, false, { start: +el.dataset.start || undefined, thumb: el.dataset.thumb || undefined, duration: +el.dataset.dur || undefined }),
   queueItem: (el) => playUrl(el.dataset.url, el.dataset.title, true),
   fav: toggleFav,
   unfav: async (el) => { const r = await post('favorite', { op: 'remove', item: { url: el.dataset.url } }); if (r && r.list) { P.d.favorites = r.list; renderPanel(); } },
@@ -510,7 +550,8 @@ const PanelActs = {
     const ace = $('#permAce');
     post('manage', { id: P.tv.id, op: 'perms', data: { public: !!P.perms.public, jobs: P.perms.jobs || {}, gangs: P.perms.gangs || {}, ace: ace ? ace.value.trim() : undefined } });
   },
-  allow: () => { const id = parseInt($('#allowId').value, 10); if (id) post('manage', { id: P.tv.id, op: 'allow', data: id }); },
+  allow: async () => { const id = parseInt($('#allowId').value, 10); if (id) { await post('manage', { id: P.tv.id, op: 'allow', data: id }); refreshPanel(); } },
+  disallow: async (el) => { await post('manage', { id: P.tv.id, op: 'disallow', data: el.dataset.key }); refreshPanel(); },
   linkSel: (el) => { const id = el.dataset.id; P.linkSel.has(id) ? P.linkSel.delete(id) : P.linkSel.add(id); renderPanel(); },
   link: async () => { await post('manage', { id: P.tv.id, op: 'link', data: [...P.linkSel] }); refreshPanel(); },
   unlink: async () => { await post('manage', { id: P.tv.id, op: 'unlink' }); refreshPanel(); },
@@ -582,9 +623,9 @@ function renderRemote() {
         <div><div class="rocker"><button data-rk="ctl:channel:1">${I.up}</button><i></i><button data-rk="ctl:channel:-1">${I.down}</button></div><div class="rocker-l">CH</div></div>
       </div>
       <div class="apps-keys">
-        ${rk('key:app:youtube', '', 'app yt', 'YouTube')}${rk('key:app:twitch', '', 'app tw', 'Twitch')}
-        ${rk('key:app:kick', '', 'app kk', 'Kick')}${rk('key:search', '', 'app sr', 'Search')}
+        ${['youtube', 'tiktok', 'twitch', 'kick', 'soundcloud', 'vimeo'].map((b) => `<button class="rk app brand" data-rk="key:app:${b}" title="${esc(BRANDS[b] ? BRANDS[b].name : b)}">${logo(b, b, 15)}<span>${esc(BRANDS[b] ? BRANDS[b].name : b)}</span></button>`).join('')}
       </div>
+      <div class="rm-row" style="margin-top:2px">${rk('key:search', I.search, 'small', 'Search')}${rk('key:app:pluto', logo('pluto', 'pluto', 17), 'small', 'Live TV')}${rk('key:app:library', I.grid, 'small', 'Library')}</div>
       <div class="rm-brand"><b>${esc((window.__brand && window.__brand.name) || 'NAYZEEE')}</b></div>
     </div>
   </div>`;
@@ -935,6 +976,15 @@ document.addEventListener('click', (e) => {
   if (aa && AdminActs[aa.dataset.aact]) AdminActs[aa.dataset.aact](aa, e);
 });
 
+// never rebuild the panel under a slider that is being dragged
+const dragging = () => document.activeElement && document.activeElement.type === 'range' && pointerDown;
+let pointerDown = false;
+document.addEventListener('pointerdown', () => { pointerDown = true; });
+document.addEventListener('pointerup', () => {
+  pointerDown = false;
+  if (P.dirty) { P.dirty = false; renderPanel(); }
+});
+
 let volTimer = 0;
 document.addEventListener('input', (e) => {
   const t = e.target;
@@ -945,7 +995,7 @@ document.addEventListener('input', (e) => {
     if (bar) {
       const ic = bar.querySelector('.src-ic');
       ic.classList.toggle('ok', !!det);
-      ic.innerHTML = det ? I[KIND[det.kind].icon] : I.link;
+      ic.innerHTML = det ? logo(det.kind, det.brand, 18) : I.link;
       const hint = bar.parentElement.querySelector('.url-hint');
       if (hint) hint.innerHTML = det ? `Detected <b>${esc(det.label)}</b> — plays in sync for everyone nearby` : P.url ? (P.d.search ? 'Press Enter to search YouTube' : 'Not a supported link yet') : 'Paste a link';
     }
@@ -1023,7 +1073,9 @@ window.addEventListener('message', (e) => {
       if (P.open && P.tv && P.tv.id === d.id) {
         setClock(d.now);
         for (const k in d.patch) P.tv[k] = d.patch[k] === false && (k === 'media' || k === 'group') ? null : d.patch[k];
-        renderPanel();
+        const keys = Object.keys(d.patch);
+        if (keys.every((k) => k === 'ui')) break; // TV OS navigation only — nothing in the panel changes
+        if (dragging()) P.dirty = true; else renderPanel();
       }
       break;
     case 'remote':
@@ -1075,7 +1127,8 @@ if (!IN_GAME) {
     settings: { picture: 'standard', fit: 'contain', ambient: true, osd: true },
     media: { key: 'k', kind: 'youtube', url: 'https://youtu.be/x', title: 'Midnight Drive — 3 Hour Synthwave Mix for Late Night Cruising', by: 'Maya Reyes', startedAt: now - 1394000, duration: 10800, paused: false },
     queue: [{ url: 'https://twitch.tv/x', title: 'Late Night Racing League — Finals', kind: 'twitch', by: 'Theo Kane' }, { url: 'https://x/a.mp4', title: 'Vinewood Premiere Trailer', kind: 'video', by: 'John Doe' }],
-    history: [{ url: 'https://youtu.be/x', title: 'Midnight Drive — 3 Hour Synthwave Mix', kind: 'youtube', by: 'Maya Reyes' }, { url: 'https://kick.com/x', title: 'city_radio', kind: 'kick', by: 'Sam Brooks' }],
+    history: [{ url: 'https://youtu.be/x', title: 'Midnight Drive — 3 Hour Synthwave Mix', kind: 'youtube', by: 'Maya Reyes', pos: 1394, dur: 10800 }, { url: 'https://www.tiktok.com/@x/video/1', title: 'Pier sunset drift compilation', kind: 'tiktok', by: 'Theo Kane' },
+      { url: 'https://soundcloud.com/a/b', title: 'Vinewood Nights (Live Set)', kind: 'soundcloud', by: 'Sam Brooks', pos: 600, dur: 3600 }, { url: 'https://kick.com/x', title: 'city_radio', kind: 'kick', by: 'Sam Brooks' }],
   };
   const data = { tv, canManage: true, isOwner: true, isAdmin: false, me: 'John Doe', search: true, favorites: [{ url: 'https://youtu.be/x', title: 'Midnight Drive — 3 Hour Synthwave Mix', kind: 'youtube' }],
     library: [{ file: 'intro.mp4', title: 'City Intro' }], channels: [{ number: 1, name: 'City News', url: 'https://www.twitch.tv/citynews' }, { number: 2, name: 'Lo-fi Radio', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk' }],

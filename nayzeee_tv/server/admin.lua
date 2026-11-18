@@ -77,15 +77,18 @@ Admin.update = function(src, d)
             ace = (d.perms.ace ~= '' and d.perms.ace) or nil, allowed = tv.perms and tv.perms.allowed or {},
         }
     end
+    local fields = { 'label', 'range', 'defaultUrl', 'autoplay', 'locked', 'perms' }
+    -- geometry only goes out when the screen actually moved (it respawns the prop)
     if type(d.coords) == 'table' then
         tv.coords = { x = d.coords.x + 0.0, y = d.coords.y + 0.0, z = d.coords.z + 0.0 }
         tv.heading = (d.heading or tv.heading) + 0.0
         if d.pitch then tv.pitch = d.pitch + 0.0 end
         if d.roll then tv.roll = d.roll + 0.0 end
         if d.wall then tv.wall = d.wall end
+        for _, k in ipairs({ 'coords', 'heading', 'pitch', 'roll', 'wall' }) do fields[#fields + 1] = k end
     end
     TV.save(tv)
-    TV.patch(tv, { 'label', 'range', 'defaultUrl', 'autoplay', 'locked', 'perms', 'coords', 'heading', 'pitch', 'roll', 'wall' })
+    TV.patch(tv, fields)
     return true, 'saved'
 end
 
@@ -112,15 +115,17 @@ Admin.lock = function(_, id)
     tv.locked = not tv.locked
     TV.patch(tv, { 'locked' })
     TV.save(tv)
-    return tv.locked
+    return true, 'saved'
 end
 
 Admin.power = function(_, id)
     local tv = TV.get(id)
     if not tv then return false end
-    tv.power = not tv.power
-    TV.patch(tv, { 'power' })
-    return tv.power
+    for _, t in ipairs(TV.members(tv)) do
+        t.power = not tv.power
+        TV.patch(t, { 'power' })
+    end
+    return true
 end
 
 Admin.play = function(src, d)

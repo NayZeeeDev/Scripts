@@ -66,12 +66,12 @@ RegisterNUICallback('phone:list', function(_, cb)
             out[#out + 1] = {
                 id = tv.id, label = tv.label, dist = math.floor(d * 10) / 10, power = tv.power, volume = tv.volume, muted = tv.muted,
                 locked = tv.locked, style = tv.style, loop = tv.loop,
-                media = m and { title = m.title or Utils.fallbackTitle(m), kind = m.kind, thumb = m.thumb, live = m.live, paused = m.paused,
+                media = m and { title = m.title or Utils.fallbackTitle(m), kind = m.kind, brand = m.brand, thumb = m.thumb, live = m.live, paused = m.paused,
                     startedAt = m.startedAt, pausedAt = m.pausedAt, duration = m.duration } or false,
                 remoteLost = tv.remote ~= nil and tv.remoteHolder ~= nil and tv.remoteHolder ~= NZ.me,
             }
         end
     end
     table.sort(out, function(a, b) return a.dist < b.dist end)
-    cb({ tvs = out, now = NZ.serverNow(), channels = Config.Channels, brand = Config.Brand })
+    cb({ tvs = out, now = NZ.serverNow(), channels = NZ.channels, brand = Config.Brand })
 end)

@@ -102,6 +102,12 @@ RegisterNUICallback('search', function(data, cb)
     cb({ results = type(res) == 'table' and res or {} })
 end)
 
+RegisterNUICallback('plex', function(data, cb)
+    local res, msg = NZ.rpc('plex', data.op, data.data)
+    if res == false and msg then NZ.notify(_L(msg), 'error') end
+    cb({ items = type(res) == 'table' and res or {} })
+end)
+
 RegisterNUICallback('manage', function(data, cb)
     local tv = tvOf(data)
     if not tv then return cb({ ok = false }) end
@@ -164,7 +170,7 @@ local function osRelay(tv, payload) NZ.rpc('osData', tv.id, payload) end
 NZ.on('osAction', function(tv, a)
     if type(a) ~= 'table' then return end
     if a.action == 'play' or a.action == 'queue' then
-        NZ.call('control', tv.id, a.action, { url = a.url, title = a.title })
+        NZ.call('control', tv.id, a.action, { url = a.url, title = a.title, start = a.start, thumb = a.thumb, duration = a.duration })
     elseif a.action == 'control' then
         NZ.call('control', tv.id, a.name, a.data)
     elseif a.action == 'keyboard' then
@@ -178,6 +184,10 @@ NZ.on('osAction', function(tv, a)
         else
             osRelay(tv, { kind = 'search', q = a.q, results = res })
         end
+    elseif a.action == 'plex' then
+        local res, msg = NZ.rpc('plex', 'recent')
+        if res == false then osRelay(tv, { kind = 'searchError', text = msg and _L(msg) or 'Plex is unavailable' })
+        else osRelay(tv, { kind = 'plex', results = res }) end
     elseif a.action == 'panel' then
         Remote.closeUi()
         Panel.open(tv)

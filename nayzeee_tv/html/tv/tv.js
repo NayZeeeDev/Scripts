@@ -34,7 +34,26 @@ const I = {
   loop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/></svg>',
 };
 const KIND_ICON = { youtube: 'yt', twitch: 'tw', kick: 'kk', hls: 'tw', video: 'film', audio: 'music', image: 'image' };
-const KIND_LABEL = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick', hls: 'Stream', video: 'Video', audio: 'Audio', image: 'Image' };
+const KIND_LABEL = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick', hls: 'Live stream', video: 'Video', audio: 'Audio', image: 'Image',
+  tiktok: 'TikTok', vimeo: 'Vimeo', soundcloud: 'SoundCloud', streamable: 'Streamable', medal: 'Medal', instagram: 'Instagram',
+  dailymotion: 'Dailymotion', reddit: 'Reddit', rumble: 'Rumble', drive: 'Google Drive', plex: 'Plex' };
+const BRANDS = window.BRANDS || {};
+const brandKey = (kind, brand) => (brand && BRANDS[brand] ? brand : BRANDS[kind] ? kind : null);
+/* platform logo (transparent brand mark) — falls back to a line icon */
+function kicon(kind, brand, size) {
+  const b = brandKey(kind, brand);
+  return b ? window.brandSvg(b, size || 24) : I[KIND_ICON[kind] || 'film'];
+}
+const klabel = (kind, brand) => { const b = brandKey(kind, brand); return (b && BRANDS[b].name) || KIND_LABEL[kind] || 'Media'; };
+/* app tiles: brand gradient + logo colour */
+const TILE = {
+  youtube: ['#ff3b3b', '#c40d0d', '#fff'], tiktok: ['#1d2024', '#030303', '#fff'], twitch: ['#a970ff', '#6420d6', '#fff'],
+  kick: ['#17191b', '#050606', '#53FC19'], vimeo: ['#3fcaf5', '#0e8fbd', '#fff'], soundcloud: ['#ff7a2f', '#e04400', '#fff'],
+  plex: ['#22272b', '#0b0c0d', '#EBAF00'], pluto: ['#fff45a', '#e2d300', '#111'], medal: ['#1d2024', '#050607', '#FFC21A'],
+  streamable: ['#3aa6ff', '#0b6fd0', '#fff'], instagram: ['#f9a03f', '#d62976', '#fff', '#7a2ae2'], dailymotion: ['#262a2e', '#050606', '#fff'],
+  reddit: ['#ff6a2f', '#d63a00', '#fff'], rumble: ['#98d65a', '#5f9a2c', '#fff'], drive: ['#f4f6f8', '#d3d9df', '#4285F4'],
+};
+const tileStyle = (k) => { const t = TILE[k]; if (!t) return ''; return `background:linear-gradient(155deg,${t[0]},${t[3] ? t[1] + ',' + t[3] : t[1]});color:${t[2]}`; };
 document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = I[el.dataset.icon] || ''; });
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -104,9 +123,14 @@ function loadYT() {
 let twApi = null;
 const loadTW = () => (twApi = twApi || loadScript('https://player.twitch.tv/js/embed/v1.js'));
 
+const PLEX_SESSION = 'nztv' + Math.random().toString(36).slice(2, 10);
 function mediaUrl(m) {
   if (m.src === 'local') return `https://cfx-nui-${S.res}/html/media/${encodeURIComponent(m.file)}`;
   if (m.kind === 'kick' && m.hls) return m.hls;
+  if (m.kind === 'streamable' && m.direct) return m.direct;
+  if (m.kind === 'reddit') return m.hls;
+  // every TV needs its own Plex transcode session
+  if (m.kind === 'plex' && /transcode\/universal/.test(m.url)) return `${m.url}&session=${PLEX_SESSION}&X-Plex-Session-Identifier=${PLEX_SESSION}&X-Plex-Client-Identifier=${PLEX_SESSION}`;
   return m.url;
 }
 
@@ -208,19 +232,130 @@ class TwitchAdapter {
   destroy() { this.dead = true; this.div.remove(); }
 }
 
-/* Kick embed (used when the channel could not be resolved to HLS) */
-class EmbedAdapter {
-  constructor(m, src) {
-    this.m = m; this.ready = true; this.noSync = true;
-    this.f = document.createElement('iframe');
-    this.f.allow = 'autoplay; encrypted-media';
-    this.f.src = src;
-    playerEl.appendChild(this.f);
-    setTimeout(() => setBuffer(false), 1500);
+/* Vimeo — full control through Vimeo's player API */
+let vimeoApi = null;
+const loadVimeo = () => (vimeoApi = vimeoApi || loadScript('https://player.vimeo.com/api/player.js'));
+class VimeoAdapter {
+  constructor(m) {
+    this.m = m; this.t = 0; this.vol = S.audio.volume; this.seekLead = 0.4; this.paused = true;
+    this.div = document.createElement('div');
+    playerEl.appendChild(this.div);
+    loadVimeo().then(() => this.create()).catch(() => osdToast('Vimeo could not be reached'));
   }
-  time() { return 0; } seek() {} play() {} pause() {}
-  setVolume(v) { this.f.style.visibility = v <= 0.002 && S.tv && S.tv.muted ? 'hidden' : 'visible'; }
-  destroy() { this.f.remove(); }
+  create() {
+    if (this.dead) return;
+    const m = this.m;
+    const o = { autoplay: true, controls: false, muted: false, dnt: true, title: false, byline: false, portrait: false, keyboard: false, pip: false };
+    if (m.hash) o.url = `https://vimeo.com/${m.id}/${m.hash}`; else o.id = Number(m.id);
+    this.p = new Vimeo.Player(this.div, o);
+    this.p.ready().then(() => {
+      this.ready = true;
+      this.setVolume(this.vol);
+      this.p.setCurrentTime(expectedPos(this.m)).catch(() => {});
+      if (!this.m.paused) this.play();
+      this.p.getDuration().then((d) => { if (d > 0) report('duration', d); }).catch(() => {});
+      this.p.getVideoTitle().then((t) => { if (t) report('title', t); }).catch(() => {});
+      syncCheck();
+    }).catch(() => osdToast('This Vimeo video cannot be embedded'));
+    this.p.on('timeupdate', (d) => { this.t = d.seconds; });
+    this.p.on('play', () => { this.paused = false; setBuffer(false); });
+    this.p.on('pause', () => { this.paused = true; });
+    this.p.on('bufferstart', () => setBuffer(true));
+    this.p.on('bufferend', () => setBuffer(false));
+    this.p.on('ended', () => report('ended'));
+  }
+  time() { return this.t; }
+  seek(t) { if (this.ready) { this.t = t; this.p.setCurrentTime(t).catch(() => {}); } }
+  play() { if (this.ready && this.paused) { this.paused = false; this.p.play().catch(() => { this.paused = true; }); } }
+  pause() { if (this.ready && !this.paused) { this.paused = true; this.p.pause().catch(() => {}); } }
+  setVolume(v) { this.vol = v; if (this.ready) this.p.setVolume(clamp(v, 0, 1)).catch(() => {}); }
+  destroy() { this.dead = true; try { if (this.p) this.p.destroy(); } catch (e) {} this.div.remove(); }
+}
+
+/* SoundCloud — the widget API gives play / pause / seek / volume */
+let scApi = null;
+const loadSC = () => (scApi = scApi || loadScript('https://w.soundcloud.com/player/api.js'));
+class SoundCloudAdapter {
+  constructor(m) {
+    this.m = m; this.t = 0; this.seekLead = 0.3; this.paused = true;
+    this.f = document.createElement('iframe');
+    this.f.allow = 'autoplay';
+    this.f.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(m.url)}&auto_play=true&visual=true&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&buying=false&sharing=false&download=false`;
+    playerEl.appendChild(this.f);
+    loadSC().then(() => this.bind()).catch(() => osdToast('SoundCloud could not be reached'));
+  }
+  bind() {
+    if (this.dead) return;
+    const W = window.SC.Widget, E = W.Events;
+    this.w = W(this.f);
+    this.w.bind(E.READY, () => {
+      this.ready = true;
+      this.setVolume(S.audio.volume);
+      this.w.getDuration((ms) => { if (ms > 0) report('duration', ms / 1000); });
+      this.w.getCurrentSound((snd) => { if (snd && snd.title) report('title', (snd.user && snd.user.username ? snd.user.username + ' — ' : '') + snd.title); });
+      this.w.seekTo(expectedPos(this.m) * 1000);
+      if (!this.m.paused) this.play();
+      syncCheck();
+    });
+    this.w.bind(E.PLAY_PROGRESS, (e) => { this.t = e.currentPosition / 1000; });
+    this.w.bind(E.PLAY, () => { this.paused = false; setBuffer(false); });
+    this.w.bind(E.PAUSE, () => { this.paused = true; });
+    this.w.bind(E.FINISH, () => report('ended'));
+  }
+  time() { return this.t; }
+  seek(t) { if (this.ready) { this.t = t; this.w.seekTo(t * 1000); } }
+  play() { if (this.ready && this.paused) { this.paused = false; this.w.play(); } }
+  pause() { if (this.ready && !this.paused) { this.paused = true; this.w.pause(); } }
+  setVolume(v) { if (this.ready) this.w.setVolume(Math.round(clamp(v, 0, 1) * 100)); }
+  destroy() { this.dead = true; this.f.remove(); }
+}
+
+/* Platform embeds that cannot be remote-controlled (TikTok, Medal, Instagram, Dailymotion, Rumble, Drive, Kick fallback).
+   startSync: the embed takes a start time, so late joiners land on the right moment and seeks reload it.
+   click: the embed needs a tap to start — the TV taps it.
+   Volume can't be set on these, so the picture/sound unloads when you are out of earshot and comes back when you return. */
+const EMBEDS = {
+  tiktok: { url: (m) => `https://www.tiktok.com/player/v1/${m.id}?autoplay=1&loop=0&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0&closed_caption=0`, tiktok: true },
+  medal: { url: (m) => `https://medal.tv/clip/${encodeURIComponent(m.id)}?autoplay=1&mute=0&loop=0&controls=0` },
+  instagram: { url: (m) => `https://www.instagram.com/${m.ptype === 'reel' ? 'reel' : 'p'}/${encodeURIComponent(m.id)}/embed/`, click: [0.5, 0.42] },
+  dailymotion: { url: (m, p) => `https://www.dailymotion.com/embed/video/${encodeURIComponent(m.id)}?autoplay=1&mute=0&start=${p}&queue-enable=false&ui-start-screen-info=0&sharing-enable=false&ui-logo=0`, startSync: true },
+  rumble: { url: (m, p) => `https://rumble.com/embed/${encodeURIComponent(m.embed)}/?autoplay=2&start=${p}`, startSync: true },
+  drive: { url: (m) => `https://drive.google.com/file/d/${encodeURIComponent(m.id)}/preview`, click: [0.5, 0.5] },
+  streamable: { url: (m, p) => `https://streamable.com/e/${encodeURIComponent(m.id)}?autoplay=1&nocontrols=1&t=${p}`, startSync: true },
+  kick: { url: (m) => `https://player.kick.com/${encodeURIComponent(m.channel)}?autoplay=true&muted=false` },
+};
+class EmbedAdapter {
+  constructor(m, o) {
+    this.m = m; this.o = o; this.ready = true; this.on = false;
+    this.noSync = !o.startSync; this.driftLimit = 6;
+    if (!m.paused) this.load(o.startSync ? expectedPos(m) : 0);
+  }
+  load(pos) {
+    this.kill();
+    const f = document.createElement('iframe');
+    f.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+    f.src = this.o.url(this.m, Math.floor(pos));
+    playerEl.appendChild(f);
+    this.f = f; this.on = true; this.base = pos; this.t0 = performance.now();
+    setTimeout(() => setBuffer(false), 1800);
+    if (this.o.click) {
+      const [x, y] = this.o.click;
+      setTimeout(() => { if (this.f === f) report('click', { x, y }); }, 2600);
+    }
+  }
+  kill() { if (this.f) this.f.remove(); this.f = null; this.on = false; }
+  time() { return this.on ? this.base + (performance.now() - this.t0) / 1000 : expectedPos(this.m); }
+  seek(t) { if (this.o.startSync && !this.silenced) this.load(t); }
+  play() { if (!this.on && !this.silenced) this.load(this.o.startSync ? expectedPos(this.m) : 0); }
+  pause() { if (this.on) this.kill(); }
+  update(m) { this.m = m; }
+  post(type) { try { this.f.contentWindow.postMessage({ type, 'x-tiktok-player': true }, '*'); } catch (e) {} }
+  setVolume(v) {
+    if (this.o.tiktok && this.f) this.post(v < 0.02 ? 'mute' : 'unMute');
+    if (v < 0.015 && this.on && !this.o.tiktok) { this.silenced = true; this.kill(); }
+    else if (v > 0.03 && this.silenced) { this.silenced = false; if (!this.m.paused || this.m.live) this.load(this.o.startSync ? expectedPos(this.m) : 0); }
+  }
+  destroy() { this.kill(); }
 }
 
 /* <video>/<audio> + hls.js with a WebAudio chain for muffling and stereo */
@@ -249,7 +384,7 @@ class HtmlAdapter {
     this.attach();
   }
   attach() {
-    const isHls = this.m.kind === 'hls' || (this.m.kind === 'kick' && this.m.hls) || /\.m3u8(\?|$)/i.test(this.src);
+    const isHls = this.m.kind === 'hls' || this.m.kind === 'reddit' || (this.m.kind === 'kick' && this.m.hls) || /\.m3u8(\?|$)/i.test(this.src);
     if (isHls && window.Hls && Hls.isSupported()) {
       this.hls = new Hls({ lowLatencyMode: !!this.m.live, backBufferLength: 30, maxBufferLength: 30 });
       this.hls.on(Hls.Events.LEVEL_LOADED, (_, d) => { if (d.details && d.details.live) this.liveHls = true; });
@@ -337,7 +472,11 @@ function makeAdapter(m) {
   switch (m.kind) {
     case 'youtube': return new YouTubeAdapter(m);
     case 'twitch': return new TwitchAdapter(m);
-    case 'kick': return m.hls ? new HtmlAdapter(m) : new EmbedAdapter(m, `https://player.kick.com/${encodeURIComponent(m.channel)}?autoplay=true&muted=false`);
+    case 'kick': return m.hls ? new HtmlAdapter(m) : new EmbedAdapter(m, EMBEDS.kick);
+    case 'vimeo': return new VimeoAdapter(m);
+    case 'soundcloud': return new SoundCloudAdapter(m);
+    case 'streamable': return m.direct ? new HtmlAdapter(m) : new EmbedAdapter(m, EMBEDS.streamable);
+    case 'tiktok': case 'medal': case 'instagram': case 'dailymotion': case 'rumble': case 'drive': return new EmbedAdapter(m, EMBEDS[m.kind]);
     case 'image': return new ImageAdapter(m);
     default: return new HtmlAdapter(m);
   }
@@ -420,7 +559,8 @@ function mediaChanged(initial) {
 /* drift correction — keeps every viewer frame-close to the server clock */
 function syncCheck() {
   const a = S.adapter, m = S.tv && S.tv.media;
-  if (!a || !m || !a.ready || a.noSync || m.live || !S.tv.power) return;
+  if (!a || !m || !a.ready || m.live || !S.tv.power) return;
+  if (a.noSync) { if (m.paused) a.pause(); else a.play(); return; }
   const exp = expectedPos(m);
   if (m.duration && exp > m.duration) return;
   const diff = exp - a.time();
@@ -430,7 +570,7 @@ function syncCheck() {
     return;
   }
   a.play();
-  if (Math.abs(diff) > S.sync.SeekDrift) {
+  if (Math.abs(diff) > (a.driftLimit || S.sync.SeekDrift)) {
     a.seek(exp + (a.seekLead || 0));
     if (a.setRate) a.setRate(1);
   } else if (a.setRate) {
@@ -442,20 +582,29 @@ setInterval(syncCheck, 1000);
 function applyAudio() { if (S.adapter && S.adapter.setVolume) S.adapter.setVolume(S.audio.volume); }
 
 /* ═══════════════ TV OS ═══════════════ */
-const APPS = [
-  { id: 'youtube', label: 'YouTube', cls: 'ap-yt', icon: 'yt' },
-  { id: 'twitch', label: 'Twitch', cls: 'ap-tw', icon: 'tw' },
-  { id: 'kick', label: 'Kick', cls: 'ap-kk', icon: 'kk' },
+/* streaming apps use their real logo on a brand-coloured tile */
+const BRAND_APPS = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud', 'plex', 'pluto', 'medal', 'streamable', 'instagram', 'dailymotion', 'reddit', 'rumble', 'drive'];
+const LINK_ONLY = { tiktok: 1, vimeo: 1, soundcloud: 1, medal: 1, streamable: 1, instagram: 1, dailymotion: 1, reddit: 1, rumble: 1, drive: 1 };
+let APPS = [];
+function buildApps() {
+  APPS = BRAND_APPS.filter((k) => k !== 'plex' || S.plex).map((k) => ({ id: k, label: (BRANDS[k] && BRANDS[k].name) || k, brand: k })).concat(BASE_APPS);
+}
+const BASE_APPS = [
   { id: 'web', label: 'Web Video', cls: 'ap-web', icon: 'link' },
   { id: 'library', label: 'Library', cls: 'ap-lib', icon: 'library' },
   { id: 'queue', label: 'Up Next', cls: 'ap-q', icon: 'queue' },
   { id: 'channels', label: 'Channels', cls: 'ap-ch', icon: 'tv' },
   { id: 'settings', label: 'Settings', cls: 'ap-set', icon: 'settings' },
 ];
-const SEARCH_SRC = [
-  { id: 'youtube', label: 'YouTube', icon: 'yt' }, { id: 'twitch', label: 'Twitch', icon: 'tw' },
-  { id: 'kick', label: 'Kick', icon: 'kk' }, { id: 'web', label: 'Link', icon: 'link' },
-];
+buildApps();
+let SEARCH_SRC = [];
+function buildSources() {
+  SEARCH_SRC = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud'].concat(S.plex ? ['plex'] : [])
+    .map((k) => ({ id: k, label: BRANDS[k] ? BRANDS[k].name : k, brand: k })).concat([{ id: 'web', label: 'Any link' }]);
+  // a link-only app opened from the grid gets its own chip
+  if (S.ui && S.ui.src && !SEARCH_SRC.some((x) => x.id === S.ui.src) && BRANDS[S.ui.src]) SEARCH_SRC.splice(SEARCH_SRC.length - 1, 0, { id: S.ui.src, label: BRANDS[S.ui.src].name, brand: S.ui.src });
+}
+buildSources();
 const SETTINGS = [
   { key: 'picture', label: 'Picture mode', sub: 'Colour and contrast of the picture', values: ['standard', 'vivid', 'cinema', 'warm', 'game'] },
   { key: 'fit', label: 'Picture size', sub: 'How video fills the screen', values: ['contain', 'cover', 'stretch'] },
@@ -469,16 +618,18 @@ const VAL_LABEL = { standard: 'Standard', vivid: 'Vivid', cinema: 'Cinema', warm
 const RAIL_PAGE = { home: 3, search: 1, list: 4 };
 
 function mediaCard(e, extra) {
-  return Object.assign({ type: 'media', url: e.url, title: e.title || e.url, sub: e.sub || (KIND_LABEL[e.kind] || 'Video') + (e.by ? ' · ' + e.by : ''), thumb: e.thumb, kind: e.kind, live: e.live }, extra || {});
+  return Object.assign({ type: 'media', url: e.url, title: e.title || e.url, sub: e.sub || klabel(e.kind, e.brand) + (e.by ? ' · ' + e.by : ''),
+    thumb: e.thumb, kind: e.kind, brand: e.brand, live: e.live, by: e.by, pos: e.pos, dur: e.dur }, extra || {});
 }
+const minsLeft = (pos, dur) => { const m = Math.max(1, Math.round((dur - pos) / 60)); return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm left' : m + ' min left'; };
 
 function homeRows() {
   const t = S.tv, tab = S.ui.tab;
   if (tab === 1) {
-    const ch = (S.channels || []).map((c, i) => ({ type: 'media', url: c.url, title: c.name, sub: 'Channel ' + (c.number || i + 1), num: c.number || i + 1, live: /twitch|kick/i.test(c.url), thumb: c.thumb, kind: /youtu/i.test(c.url) ? 'youtube' : /twitch/i.test(c.url) ? 'twitch' : /kick/i.test(c.url) ? 'kick' : 'video', ch: i + 1 }));
+    const ch = (S.channels || []).map((c, i) => ({ type: 'media', url: c.url, title: c.name, sub: (c.group ? c.group + ' · ' : '') + 'Channel ' + (c.number || i + 1), num: c.number || i + 1, live: /twitch|kick|m3u8/i.test(c.url) || !!c.brand, thumb: c.thumb, brand: c.brand, kind: /youtu/i.test(c.url) ? 'youtube' : /twitch/i.test(c.url) ? 'twitch' : /kick/i.test(c.url) ? 'kick' : 'video', ch: i + 1 }));
     const fe = (S.featured || []).filter((f) => f.url).map((f) => ({ type: 'media', url: f.url, title: f.title, sub: f.subtitle, thumb: f.image }));
     return [
-      { title: 'Channels', sub: 'CH ▲ ▼ on your remote', items: ch.length ? ch : [{ type: 'empty', label: 'No channels set up on this server' }] },
+      { title: 'Channels', sub: ch.length ? ch.length + ' channels · CH ▲ ▼ on your remote' : 'CH ▲ ▼ on your remote', items: ch.length ? ch : [{ type: 'empty', label: 'No channels set up on this server' }] },
       { title: 'Featured', items: fe.length ? fe : [{ type: 'empty', label: 'Nothing featured right now' }] },
     ];
   }
@@ -489,9 +640,11 @@ function homeRows() {
       { title: 'Up Next', sub: q.length ? q.length + ' queued' : '', items: q.length ? q : [{ type: 'empty', label: 'The queue is empty' }] },
     ];
   }
-  const h = (t.history || []).map((e) => mediaCard(e));
+  const m = t.media;
+  const h = (t.history || []).filter((e) => !m || e.url !== m.url).map((e) => mediaCard(e));
+  if (m) h.unshift({ type: 'media', now: true, url: m.url, title: m.title || klabel(m.kind, m.brand), sub: klabel(m.kind, m.brand), thumb: m.kind === 'image' ? null : m.thumb, kind: m.kind, brand: m.brand, live: m.live, by: m.by });
   return [
-    { title: 'Continue Watching', items: h.length ? h : [{ type: 'empty', label: 'Things you watch show up here' }] },
+    { title: m ? 'Now Playing & Continue Watching' : 'Continue Watching', items: h.length ? h : [{ type: 'empty', label: 'Things you watch show up here' }] },
     { title: 'Apps', apps: true, items: APPS.map((a) => Object.assign({ type: 'app' }, a)) },
   ];
 }
@@ -638,13 +791,16 @@ function railSelect(i, mine) {
 function openSearch(src) {
   const ui = S.ui;
   ui.page = 'search'; ui.zone = 'sbox'; ui.src = src || ui.src || 'youtube';
+  buildSources();
   ui.idx.chips = Math.max(0, SEARCH_SRC.findIndex((s) => s.id === ui.src));
   computeResults();
 }
 function openList(which) { S.ui.page = 'list'; S.ui.list = which; S.ui.zone = 'list'; S.ui.idx.list = 0; }
 
 function openApp(id, mine) {
-  if (id === 'youtube' || id === 'twitch' || id === 'kick' || id === 'web') openSearch(id);
+  if (id === 'pluto') { S.ui.page = 'home'; S.ui.tab = 1; S.ui.idx.tabs = 1; S.ui.zone = 'row0'; resetRows(); return; }
+  if (id === 'plex') { openSearch('plex'); S.results = []; S.searchMsg = 'Loading your Plex library…'; if (mine) action({ action: 'plex' }); return; }
+  if (BRANDS[id] || id === 'web') openSearch(id);
   else if (id === 'library' || id === 'queue' || id === 'settings') openList(id);
   else if (id === 'channels') { S.ui.page = 'home'; S.ui.tab = 1; S.ui.idx.tabs = 1; S.ui.zone = 'row0'; resetRows(); }
 }
@@ -654,7 +810,7 @@ function playItem(it, mine) {
   if (m && m.url === it.url) { S.ui.page = 'player'; return; }
   if (!mine) return;
   if (it.qi) action({ action: 'control', name: 'qPlay', data: it.qi });
-  else action({ action: 'play', url: it.url, title: it.title });
+  else action({ action: 'play', url: it.url, title: it.title, start: it.pos || undefined, thumb: it.thumb, duration: it.plexDur });
 }
 
 function activate(z, i, mine) {
@@ -675,6 +831,7 @@ function activate(z, i, mine) {
     if (mine) action({ action: 'keyboard', value: S.query, hint: ui.src === 'youtube' ? 'Search YouTube or paste a link' : ui.src === 'web' ? 'Paste a video or stream link' : 'Channel name or link' });
   } else if (z === 'chips') {
     ui.src = SEARCH_SRC[i].id;
+    if (ui.src === 'plex') { S.results = []; S.searchMsg = 'Loading your Plex library…'; if (mine) action({ action: 'plex' }); return; }
     computeResults(mine);
   } else if (z === 'results') {
     const it = S.results[i];
@@ -695,6 +852,9 @@ function activate(z, i, mine) {
   }
 }
 
+const LINK_HOSTS = { youtube: /youtu\.?be/i, twitch: /twitch\.tv/i, kick: /kick\.com/i, tiktok: /tiktok\.com/i, vimeo: /vimeo\.com/i,
+  soundcloud: /soundcloud\.com/i, streamable: /streamable\.com/i, medal: /medal\.tv/i, instagram: /instagram\.com/i,
+  dailymotion: /dailymotion\.com|dai\.ly/i, reddit: /redd\.?it/i, rumble: /rumble\.com/i, drive: /drive\.google/i };
 const looksUrl = (t) => /^(https?:\/\/|local:|[\w-]+\.[a-z]{2,}\/)/i.test(t.trim());
 
 function computeResults(mine) {
@@ -702,7 +862,8 @@ function computeResults(mine) {
   S.searchMsg = '';
   if (!q) { S.results = []; return; }
   if (looksUrl(q)) {
-    S.results = [{ type: 'media', url: q, title: 'Play this link', sub: q, kind: /youtu/i.test(q) ? 'youtube' : /twitch/i.test(q) ? 'twitch' : /kick\.com/i.test(q) ? 'kick' : 'video' }];
+    const k = Object.keys(LINK_HOSTS).find((key) => LINK_HOSTS[key].test(q)) || 'video';
+    S.results = [{ type: 'media', url: q, title: 'Play this ' + (k === 'video' ? 'link' : klabel(k) + ' link'), sub: q, kind: k }];
   } else if (src === 'twitch') {
     const ch = q.replace(/\s+/g, '').toLowerCase();
     S.results = [{ type: 'media', url: 'https://www.twitch.tv/' + ch, title: ch, sub: 'Twitch channel', live: true, kind: 'twitch', thumb: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${ch}-640x360.jpg` }];
@@ -711,6 +872,10 @@ function computeResults(mine) {
     S.results = [{ type: 'media', url: 'https://kick.com/' + ch, title: ch, sub: 'Kick channel', live: true, kind: 'kick' }];
   } else if (src === 'web') {
     S.results = []; S.searchMsg = 'Paste a full link to a video, stream or image.';
+  } else if (LINK_ONLY[src]) {
+    S.results = []; S.searchMsg = `Paste a ${klabel(src)} link — press OK on the search box.`;
+  } else if (src === 'plex') {
+    S.searchMsg = S.results.length ? '' : 'Pick something from your library';
   } else {
     S.results = []; S.searchMsg = 'Searching YouTube…';
     if (mine) action({ action: 'search', q });
@@ -730,7 +895,11 @@ function onTyped(text, mine) {
 
 function onOsData(d) {
   if (!d) return;
-  if (d.kind === 'search' && d.q === S.query.trim()) {
+  if (d.kind === 'plex') {
+    S.results = (d.results || []).map((r) => ({ type: 'media', url: r.url, title: r.title, sub: r.sub, thumb: r.thumb, kind: 'plex', brand: 'plex', dur: r.duration, plexDur: r.duration }));
+    S.searchMsg = S.results.length ? '' : 'Your Plex library is empty';
+    if (S.results.length && S.ui.page === 'search' && S.ui.src === 'plex') { S.ui.zone = 'results'; S.ui.idx.results = 0; }
+  } else if (d.kind === 'search' && d.q === S.query.trim()) {
     S.results = (d.results || []).map((r) => ({ type: 'media', url: r.url, title: r.title, sub: r.channel, thumb: r.thumb, kind: 'youtube' }));
     S.searchMsg = S.results.length ? '' : 'No results for “' + d.q + '”';
     if (S.results.length && S.ui.page === 'search') { S.ui.zone = 'results'; S.ui.idx.results = 0; }
@@ -745,23 +914,67 @@ function bg(el, url) { el.style.backgroundImage = url ? `url("${url}")` : ''; el
 
 function cardHtml(it, focus) {
   if (it.type === 'empty') return `<div class="card empty ${focus ? 'focus' : ''}"><span>${esc(it.label)}</span></div>`;
-  if (it.type === 'app') return `<div class="app ${focus ? 'focus' : ''}"><i class="${it.cls}">${I[it.icon]}</i><b>${esc(it.label)}</b></div>`;
+  if (it.type === 'app') return appHtml(it, focus);
+  const style = it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : '';
+  if (it.now) {
+    const m = S.tv.media;
+    const pct = m && m.duration ? clamp(expectedPos(m) / m.duration, 0, 1) * 100 : (m && m.live ? 100 : 0);
+    return `<div class="card now ${it.thumb ? '' : 'art'} ${focus ? 'focus' : ''}" ${style}>
+      <span class="c-now"><span class="eq ${m && m.paused ? 'paused' : ''}"><i></i><i></i><i></i></span>${m && m.live ? 'Live now' : m && m.paused ? 'Paused' : 'Now playing'}</span>
+      <div class="c-meta"><b>${esc(it.title)}</b><span>${esc(it.sub || '')}${it.by ? ' · ' + esc(it.by) : ''}</span></div>
+      <div class="c-prog ${m && m.live ? 'live' : ''}"><i data-np-prog style="width:${pct}%"></i></div></div>`;
+  }
   const live = it.live ? '<span class="c-badge live">● Live</span>' : '';
-  const kind = it.num ? `<span class="c-num">${it.num}</span>` : `<span class="c-kind">${I[KIND_ICON[it.kind] || 'film']}</span>`;
-  const playing = S.tv.media && S.tv.media.url === it.url ? '<span class="c-badge">▶ Playing</span>' : '';
-  return `<div class="card ${it.thumb ? '' : 'art'} ${focus ? 'focus' : ''}" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>
-    ${kind}${live || playing}<div class="c-meta"><b>${esc(it.title)}</b><span>${esc(it.sub || '')}</span></div></div>`;
+  const kind = it.num ? `<span class="c-num">${it.num}</span>` : `<span class="c-kind">${kicon(it.kind, it.brand)}</span>`;
+  const prog = it.pos && it.dur ? `<span class="c-left">${minsLeft(it.pos, it.dur)}</span><div class="c-prog"><i style="width:${clamp(it.pos / it.dur, 0, 1) * 100}%"></i></div>` : '';
+  return `<div class="card ${it.thumb ? '' : 'art'} ${it.ch ? 'chan' : ''} ${focus ? 'focus' : ''}" ${style}>
+    ${kind}${live}<div class="c-meta"><b>${esc(it.title)}</b><span>${esc(it.sub || '')}</span></div>${prog}</div>`;
+}
+
+function appHtml(it, focus) {
+  const inner = it.brand ? `<i class="brand" style="${tileStyle(it.brand)}">${window.brandSvg(it.brand, 70)}</i>` : `<i class="${it.cls}">${I[it.icon]}</i>`;
+  return `<div class="app ${focus ? 'focus' : ''} ${it.brand === 'tiktok' ? 'tt' : ''}">${inner}<b>${esc(it.label)}</b></div>`;
+}
+
+/* details line under the focused row, like a real smart TV */
+function detailHtml(it) {
+  if (!it || it.type === 'empty') return '';
+  if (it.type === 'app') {
+    const desc = { youtube: 'Videos, live streams and playlists', twitch: 'Live channels, VODs and clips', kick: 'Live channels', web: 'Any video, stream or image link',
+      library: 'Media stored on this server', queue: 'What plays next on this screen', channels: 'Preset channels — CH ▲ ▼ on the remote', settings: 'Picture, repeat and screen options' }[it.id] || '';
+    return `<div class="row-detail"><b>${esc(it.label)}</b><div class="rd-meta"><span>${esc(desc)}</span><span class="sep"></span><span class="ok">Press OK to open</span></div></div>`;
+  }
+  const parts = [`<span class="pill">${kicon(it.kind, it.brand)}${esc(klabel(it.kind, it.brand))}</span>`];
+  if (it.now) parts.push(`<span class="ok">${S.tv.media && S.tv.media.paused ? 'Paused' : 'Playing on this screen'}</span>`);
+  else if (it.live) parts.push('<span class="ok">Live now</span>');
+  else if (it.pos && it.dur) parts.push(`<span class="ok">Resume at ${fmt(it.pos)}</span><span class="sep"></span><span>${minsLeft(it.pos, it.dur)}</span>`);
+  else if (it.qi) parts.push(`<span class="ok">#${it.qi} in the queue</span>`);
+  if (it.by) parts.push(`<span class="sep"></span><span>${esc(it.by)}</span>`);
+  if (it.ch) parts.push(`<span class="sep"></span><span>CH ${it.num}</span>`);
+  return `<div class="row-detail"><b>${esc(it.title)}</b><div class="rd-meta">${parts.join('')}</div></div>`;
 }
 
 function heroData() {
   const m = S.tv.media;
   if (m) {
-    return { chip: m.live ? 'Live' : m.paused ? 'Paused' : 'Now Playing', live: !!m.live, title: m.title || KIND_LABEL[m.kind] || 'Now playing',
-      sub: (KIND_LABEL[m.kind] || 'Media') + (m.by ? ' · started by ' + m.by : ''), btn: 'Resume', img: m.kind === 'image' ? null : m.thumb };
+    return { chip: m.live ? 'Live' : m.paused ? 'Paused' : 'Now Playing', live: !!m.live, title: m.title || klabel(m.kind, m.brand),
+      sub: klabel(m.kind, m.brand) + (m.by ? ' · started by ' + m.by : ''), btn: 'Resume', img: m.kind === 'image' ? null : m.thumb };
   }
   const f = S.featured.length ? S.featured[S.heroIdx % S.featured.length] : null;
   if (f) return { chip: 'Featured', title: f.title, sub: f.subtitle || '', btn: f.url ? 'Watch Now' : 'Browse', img: f.image };
   return { chip: S.brand.os || 'NAYZEEE OS', title: 'Welcome home', sub: 'Pick something to watch with your remote', btn: 'Browse', img: null };
+}
+
+function heroMeta() {
+  const m = S.tv.media;
+  if (!m) return '';
+  const out = [`<span class="hm hm-src">${kicon(m.kind, m.brand)}${esc(klabel(m.kind, m.brand))}</span>`];
+  out.push(`<span class="hm hm-ok">${m.live ? 'Live' : m.paused ? 'Paused' : 'In sync with everyone nearby'}</span>`);
+  if (m.duration) out.push(`<span class="sep"></span><span class="hm">${fmt(m.duration)}</span>`);
+  if (m.items) out.push(`<span class="sep"></span><span class="hm">${m.index} of ${m.items.length}</span>`);
+  if (S.tv.loop) out.push(`<span class="sep"></span><span class="hm">${I.loop.replace('<svg', '<svg width="22" height="22"')}Repeat</span>`);
+  out.push(`<span class="hm hm-q">${(S.tv.settings || {}).picture === 'cinema' ? 'CINEMA' : 'HD'}</span>`);
+  return out.join('');
 }
 
 function render() {
@@ -798,7 +1011,9 @@ function render() {
   so.classList.toggle('hidden', !ui.sources);
   if (ui.sources) {
     const si = idx('sources');
-    $('#srcList').innerHTML = APPS.slice(0, -1).map((a, i) => `<div class="src ${i === si ? 'focus' : ''}"><i class="${a.cls}">${I[a.icon]}</i>${esc(a.label)}</div>`).join('');
+    $('#srcList').innerHTML = APPS.slice(0, -1).map((a, i) => `<div class="src ${i === si ? 'focus' : ''}">${a.brand ? `<i style="${tileStyle(a.brand)}">${window.brandSvg(a.brand, 30)}</i>` : `<i class="${a.cls}">${I[a.icon]}</i>`}${esc(a.label)}</div>`).join('');
+    const box = $('#srcList'), fEl = box.children[si];
+    if (fEl) box.style.transform = `translateY(${-Math.max(0, fEl.offsetTop - 520)}px)`;
   }
 }
 
@@ -811,6 +1026,7 @@ function renderHome() {
   $('#heroTitle').textContent = h.title;
   $('#heroSub').textContent = h.sub;
   $('#heroBtn').textContent = h.btn;
+  $('#heroMeta').innerHTML = heroMeta();
   document.querySelector('.hero-btn').classList.toggle('focus', ui.zone === 'hero');
   document.querySelectorAll('.tab').forEach((el, i) => {
     el.classList.toggle('cur', i === ui.tab);
@@ -823,10 +1039,11 @@ function renderHome() {
     const visible = r.apps ? 7 : 3;
     const shift = Math.max(0, (ui.zone === z ? idx(z) : (ui.idx[z] || 0)) - visible + 2) * step;
     return `<div class="row"><h4>${esc(r.title)}${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</h4>
-      <div class="row-track" style="transform:translateX(${-shift}px)">${r.items.map((it, i) => cardHtml(it, i === fi)).join('')}</div></div>`;
+      <div class="row-track" style="transform:translateX(${-shift}px)">${r.items.map((it, i) => cardHtml(it, i === fi)).join('')}</div>
+      ${fi >= 0 && ri > 0 ? detailHtml(r.items[fi]) : ''}</div>`;
   }).join('');
   const rowIndex = ui.zone.startsWith('row') ? +ui.zone.slice(3) : 0;
-  $('#rows').style.transform = `translateY(${rowIndex > 0 ? -330 : 0}px)`;
+  $('#rows').style.transform = `translateY(${rowIndex > 0 ? -430 : 0}px)`;
   document.querySelector('.hero').style.opacity = rowIndex > 0 ? '0' : '1';
   document.querySelector('.tabs').style.opacity = rowIndex > 0 ? '0' : '1';
 }
@@ -837,7 +1054,7 @@ function renderSearch() {
   $('#searchPh').classList.toggle('hidden', !!S.query);
   document.querySelector('.search-box').classList.toggle('focus', ui.zone === 'sbox');
   $('#searchSources').innerHTML = SEARCH_SRC.map((s, i) =>
-    `<div class="chip ${ui.src === s.id ? 'cur' : ''} ${ui.zone === 'chips' && idx('chips') === i ? 'focus' : ''}">${esc(s.label)}</div>`).join('');
+    `<div class="chip ${ui.src === s.id ? 'cur' : ''} ${ui.zone === 'chips' && idx('chips') === i ? 'focus' : ''}">${s.brand ? window.brandSvg(s.brand, 26) : I.link}${esc(s.label)}</div>`).join('');
   const fi = ui.zone === 'results' ? idx('results') : -1;
   $('#searchResults').innerHTML = S.results.map((it, i) => cardHtml(it, i === fi)).join('');
   const rowShift = fi >= 8 ? Math.floor((fi - 4) / 4) * 256 : 0;
@@ -860,7 +1077,7 @@ function renderList() {
       return `<div class="li ${i === fi ? 'focus' : ''}"><div class="li-th">${I[it.key === 'loop' ? 'loop' : it.key === 'about' ? 'tv' : 'settings']}</div>
         <div class="li-t"><b>${esc(it.label)}</b><span>${esc(it.sub)}</span></div><div class="li-v">${esc(val)}${I.chev}</div></div>`;
     }
-    return `<div class="li ${i === fi ? 'focus' : ''}"><div class="li-th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : I[KIND_ICON[it.kind] || 'film']}</div>
+    return `<div class="li ${i === fi ? 'focus' : ''}"><div class="li-th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : kicon(it.kind, it.brand)}</div>
       <div class="li-t"><b>${esc(it.title)}</b><span>${esc(it.sub || '')}</span></div><div class="li-v">${it.qi ? '#' + it.qi : ''}${I.play}</div></div>`;
   }).join('') : `<div class="li"><div class="li-t"><b>${ui.list === 'queue' ? 'Nothing queued' : 'Nothing here yet'}</b><span>${ui.list === 'queue' ? 'Add videos from the media panel or your phone' : 'Ask an admin to add files to the library'}</span></div></div>`;
 }
@@ -875,10 +1092,10 @@ function showInfo(ms) {
   el.classList.remove('hidden');
   $('#oiThumb').style.backgroundImage = m.thumb ? `url("${m.thumb}")` : 'linear-gradient(150deg,#141b1c,#07090a)';
   const chip = $('#oiChip');
-  chip.textContent = m.live ? '● Live' : (KIND_LABEL[m.kind] || 'Media');
+  chip.textContent = m.live ? '● Live' : klabel(m.kind, m.brand);
   chip.classList.toggle('live', !!m.live);
   $('#oiLabel').textContent = S.tv.label + (m.by ? ' · ' + m.by : '');
-  $('#oiTitle').textContent = m.title || KIND_LABEL[m.kind] || 'Now playing';
+  $('#oiTitle').textContent = m.title || klabel(m.kind, m.brand);
   clearTimeout(infoTimer);
   if (ms) infoTimer = setTimeout(hideInfo, ms);
   cancelAnimationFrame(infoRaf);
@@ -907,7 +1124,8 @@ function showVolume() {
   el.classList.remove('hidden');
   el.classList.toggle('muted', !!S.tv.muted);
   $('#ovIcon').innerHTML = S.tv.muted || v === 0 ? I.mute : I.vol;
-  $('#ovFill').style.width = (S.tv.muted ? 0 : v) + '%';
+  const lit = Math.round(v / 5);
+  $('#ovSeg').innerHTML = Array.from({ length: 20 }, (_, i) => `<i class="${i < lit ? 'on' : ''} ${i === lit - 1 ? 'tip' : ''}"></i>`).join('');
   $('#ovNum').textContent = S.tv.muted ? '—' : v;
   clearTimeout(volTimer);
   volTimer = setTimeout(() => el.classList.add('hidden'), 2200);
@@ -934,10 +1152,16 @@ function osdToast(text) {
 }
 
 /* ─────────────── ambient / clock / boot / power ─────────────── */
+setInterval(() => {
+  const m = S.tv && S.tv.media, el = document.querySelector('[data-np-prog]');
+  if (el && m && m.duration) el.style.width = clamp(expectedPos(m) / m.duration, 0, 1) * 100 + '%';
+}, 1000);
+
 function tickClock() {
   const d = new Date();
   const hm = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   $('#tbClock').textContent = hm;
+  $('#tbDate').textContent = d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
   $('#ambTime').textContent = hm;
   $('#ambDate').textContent = d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
 }
@@ -977,8 +1201,9 @@ function powerOff() {
   stage.classList.add('powering-off');
   hideInfo(); hideAmbient();
   setTimeout(() => {
-    stage.classList.add('off');
     stage.classList.remove('powering-off');
+    if (S.tv && S.tv.power) return; // switched back on during the animation
+    stage.classList.add('off');
     destroyAdapter();
   }, 650);
 }
@@ -1039,6 +1264,8 @@ window.addEventListener('message', (e) => {
       if (d.res) S.res = d.res;
       S.brand = d.brand || S.brand; S.featured = d.featured || []; S.channels = d.channels || []; S.library = d.library || [];
       if (d.sync) S.sync = d.sync;
+      S.plex = !!d.plex; S.search = !!d.search;
+      buildApps(); buildSources();
       S.query = ''; S.results = []; S.searchMsg = '';
       S.ui = { page: 'home', tab: 0, zone: 'tabs', idx: {}, railIdx: 3, prevZone: 'tabs', src: 'youtube', sources: false, list: 'library' };
       destroyAdapter();
@@ -1058,6 +1285,10 @@ window.addEventListener('message', (e) => {
     case 'unload': unload(); break;
   }
 });
+
+// tell the client this browser is listening (it holds messages until then)
+fetch(`https://${S.res}/tv:ready`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ slot: new URLSearchParams(location.search).get('slot') }) }).catch(() => {});
 
 /* ─────────────── browser preview (?demo) ─────────────── */
 if (/[?&]demo/.test(location.search)) {

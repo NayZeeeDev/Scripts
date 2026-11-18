@@ -92,11 +92,22 @@ Config.Media = {
     YouTube   = true,
     Twitch    = true,
     Kick      = true,
+    -- more platforms (see README → Platforms for what each one can do)
+    TikTok      = true,
+    Vimeo       = true,
+    SoundCloud  = true,
+    Streamable  = true,
+    Medal       = true,
+    Instagram   = true,   -- best effort: Instagram's embed needs a tap, the TV taps it for you
+    Dailymotion = true,
+    Reddit      = true,
+    Rumble      = true,
+    GoogleDrive = true,
     Direct    = true,   -- .mp4 / .webm / .ogg / .mp3 / .m3u8
     Images    = true,   -- .png / .jpg / .gif / .webp (venue boards, menus, posters)
     Local     = true,   -- files in html/media (see Config.Library)
 
-    YouTubeApiKey = '', -- optional: enables on-TV YouTube search. Leave empty to play links only.
+    -- the YouTube API key, Plex and channel playlists live in config_server.lua (never sent to players)
     KickResolve   = true, -- try to resolve Kick channels to HLS for full audio control (falls back to embed)
 
     Blacklist = { },    -- domains that can never be played e.g. { 'example.com' }

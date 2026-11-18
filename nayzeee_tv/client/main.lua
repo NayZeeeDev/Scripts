@@ -3,6 +3,7 @@
 NZ = {
     tvs = {},           -- id → tv (public data + client runtime fields prefixed with _)
     calibration = {},
+    channels = {},      -- live channels (config + M3U playlists), sent by the server
     calibPreview = {},  -- model → screen (admin calibrator live preview)
     offset = 0,         -- server clock offset (ms)
     admin = false,
@@ -101,12 +102,13 @@ end
 
 -- ─── registry sync ────────────────────────────────────────────
 local function despawn(tv)
-    if tv._entity and tv.kind == 'prop' and DoesEntityExist(tv._entity) then
-        DeleteEntity(tv._entity)
-    end
-    if tv._entity then NZ.emit('despawned', tv) end
+    local ent = tv._entity
     tv._entity = nil
     tv._screen = nil
+    tv._roomKey = nil
+    -- listeners (targets, browsers) clean up while the entity still exists
+    if ent ~= nil then NZ.emit('despawned', tv, ent) end
+    if ent and ent ~= 0 and tv.kind == 'prop' and DoesEntityExist(ent) then DeleteEntity(ent) end
 end
 
 local function boot()
@@ -117,6 +119,9 @@ local function boot()
     NZ.admin = data.admin == true
     NZ.me = data.me or NZ.me
     NZ.calibration = data.calibration or {}
+    NZ.channels = data.channels or {}
+    NZ.plex = data.plex == true
+    NZ.search = data.search == true
     for _, tv in ipairs(data.tvs) do NZ.tvs[tv.id] = tv end
     calibrateClock()
     NZ.ready = true
@@ -132,6 +137,11 @@ CreateThread(function()
         Wait(Config.Sync.ClockResync)
         calibrateClock()
     end
+end)
+
+RegisterNetEvent('nztv:channels', function(list)
+    NZ.channels = list or {}
+    NZ.emit('channels', NZ.channels)
 end)
 
 RegisterNetEvent('nztv:add', function(tv)
@@ -205,6 +215,24 @@ local function spawn(tv)
     NZ.emit('spawned', tv)
 end
 
+--[[ Objects created by scripts inside an MLO are not attached to a room, which
+     makes them render unlit or vanish at some angles. Once the player is in
+     the same interior we pin the TV to the room the player is standing in
+     (they are within 25 m of it, so it is almost always the same room). ]]
+local function pinToRoom(tv)
+    local ent = tv._entity
+    if not ent or ent == 0 then return end
+    local int = GetInteriorAtCoords(tv.coords.x, tv.coords.y, tv.coords.z)
+    if int == 0 then tv._roomKey = false return end
+    local ped = PlayerPedId()
+    if GetInteriorFromEntity(ped) ~= int then return end
+    local room = GetRoomKeyFromEntity(ped)
+    if room == 0 then return end
+    ForceRoomForEntity(ent, int, room)
+    tv._roomKey = room
+    tv._screen = nil
+end
+
 NZ.nearest = { tv = nil, dist = 9999.0 }
 
 CreateThread(function()
@@ -220,7 +248,12 @@ CreateThread(function()
                 local streamDist = math.max(Config.Render.StreamDistance, (tv.range or 20.0) + Config.Render.RenderPadding)
                 if d < streamDist then
                     if not tv._entity then spawn(tv)
-                    elseif tv.kind ~= 'wall' and not DoesEntityExist(tv._entity) then tv._entity = nil end
+                    elseif tv.kind ~= 'wall' and not DoesEntityExist(tv._entity) then
+                        -- MLO streamed out or another script deleted it: forget it and find / spawn again
+                        despawn(tv)
+                    elseif tv.kind == 'prop' and tv._roomKey == nil and d < 25.0 then
+                        pinToRoom(tv)
+                    end
                 elseif d > streamDist + 10.0 and tv._entity then
                     despawn(tv)
                 end

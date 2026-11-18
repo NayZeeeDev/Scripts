@@ -15,11 +15,13 @@ shared_scripts {
 }
 
 server_scripts {
+    'config_server.lua',
     'bridge/server.lua',
     'server/storage.lua',
     'server/permissions.lua',
     'server/main.lua',
     'server/media.lua',
+    'server/channels.lua',
     'server/admin.lua',
     'server/items.lua',
 }
@@ -42,6 +44,7 @@ files {
     'html/ui/*',
     'html/tv/*',
     'html/tv/vendor/*',
+    'html/brand/*',
     'html/phone/*',
     'html/media/*',
 }

@@ -60,11 +60,103 @@ local function resolveKick(desc)
     end
 end
 
+local function enc(str)
+    return (str:gsub('[^%w%-_%.~]', function(c) return ('%%%02X'):format(c:byte()) end))
+end
+
+local UA = { ['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) nayzeee_tv/1.0', ['Accept'] = 'application/json' }
+
+local function getJson(url, timeout)
+    local res = httpGet(url, UA, timeout or 3500)
+    if res.status ~= 200 or not res.body then return nil end
+    local ok, data = pcall(json.decode, res.body)
+    return ok and type(data) == 'table' and data or nil
+end
+
+local function https(u)
+    if type(u) ~= 'string' or u == '' then return nil end
+    if u:sub(1, 2) == '//' then return 'https:' .. u end
+    return u
+end
+
+--- Best-effort lookups: titles, thumbnails, durations and direct files.
+--- Every one of these can fail (rate limits, private posts); playback still works without them.
+local Resolve = {}
+
+Resolve.tiktok = function(d)
+    local data = getJson('https://www.tiktok.com/oembed?url=' .. enc(d.url))
+    if not data then return end
+    d.title = data.title ~= '' and data.title or d.title
+    d.thumb = data.thumbnail_url or d.thumb
+    d.author = data.author_name
+    if not d.id and type(data.html) == 'string' then d.id = data.html:match('data%-video%-id="(%d+)"') end
+end
+
+Resolve.vimeo = function(d)
+    local data = getJson('https://vimeo.com/api/oembed.json?url=' .. enc(d.url))
+    if not data then return end
+    d.title, d.thumb, d.author = data.title, data.thumbnail_url, data.author_name
+    if tonumber(data.duration) and tonumber(data.duration) > 0 then d.duration = tonumber(data.duration) end
+end
+
+Resolve.soundcloud = function(d)
+    local data = getJson('https://soundcloud.com/oembed?format=json&url=' .. enc(d.url))
+    if not data then return end
+    d.title, d.thumb, d.author = data.title, data.thumbnail_url, data.author_name
+end
+
+Resolve.streamable = function(d)
+    local data = getJson('https://api.streamable.com/videos/' .. d.id)
+    if not data then return end
+    d.title = (data.title and data.title ~= '') and data.title or d.title
+    d.thumb = https(data.thumbnail_url) or d.thumb
+    local f = data.files and (data.files.mp4 or data.files['mp4-mobile'])
+    if f and f.url then
+        d.direct = https(f.url)  -- plays as a normal video file: full sync, muffling and stereo
+        if tonumber(f.duration) then d.duration = tonumber(f.duration) end
+    end
+end
+
+Resolve.dailymotion = function(d)
+    local data = getJson('https://api.dailymotion.com/video/' .. d.id .. '?fields=title,duration,thumbnail_720_url,owner.screenname')
+    if not data then return end
+    d.title, d.thumb = data.title, data.thumbnail_720_url or d.thumb
+    if tonumber(data.duration) and tonumber(data.duration) > 0 then d.duration = tonumber(data.duration) end
+end
+
+Resolve.reddit = function(d)
+    if d.vid or not d.post then return end
+    local data = getJson('https://www.reddit.com/comments/' .. d.post .. '.json?raw_json=1', 4500)
+    local post = data and data[1] and data[1].data and data[1].data.children and data[1].data.children[1] and data[1].data.children[1].data
+    if not post then return end
+    if post.crosspost_parent_list and post.crosspost_parent_list[1] then post = post.crosspost_parent_list[1] end
+    d.title = post.title
+    local rv = post.secure_media and post.secure_media.reddit_video or (post.media and post.media.reddit_video)
+    if rv then
+        d.hls = rv.hls_url or rv.fallback_url
+        if tonumber(rv.duration) then d.duration = tonumber(rv.duration) end
+    end
+    if post.preview and post.preview.images and post.preview.images[1] then d.thumb = post.preview.images[1].source and post.preview.images[1].source.url end
+end
+
+Resolve.rumble = function(d)
+    local data = getJson('https://rumble.com/api/Media/oembed.json?url=' .. enc(d.url))
+    if not data then return end
+    d.title, d.thumb = data.title, data.thumbnail_url
+    if tonumber(data.duration) and tonumber(data.duration) > 0 then d.duration = tonumber(data.duration) end
+    if not d.embed and type(data.html) == 'string' then d.embed = data.html:match('rumble%.com/embed/([%w]+)') end
+end
+
 --- Build a playable media descriptor from a link.
 function Media.describe(url)
     local desc, err = Utils.parseMedia(url)
     if not desc then return nil, err end
     if desc.kind == 'kick' then resolveKick(desc) end
+    if Resolve[desc.kind] then pcall(Resolve[desc.kind], desc) end
+    -- links we could not turn into something playable
+    if desc.kind == 'tiktok' and not desc.id then return nil, 'invalid_url' end
+    if desc.kind == 'rumble' and not desc.embed then return nil, 'invalid_url' end
+    if desc.kind == 'reddit' and not desc.hls then return nil, 'invalid_url' end
     if desc.src == 'local' then
         for _, l in ipairs(Config.Library) do
             if l.file == desc.file then desc.title = l.title desc.thumb = l.thumb end
@@ -73,10 +165,27 @@ function Media.describe(url)
     return desc
 end
 
+--- Remember how far the outgoing video got, so Continue Watching can resume it.
+local function rememberProgress(t, now)
+    local old = t.media
+    if not old or old.live or not old.duration or old.duration <= 0 then return end
+    local pos = Media.position(old, now)
+    for _, h in ipairs(t.history) do
+        if h.url == old.url then
+            -- finished (or nearly) → start over next time
+            h.pos = (pos < old.duration - 20) and math.floor(pos) or nil
+            h.dur = math.floor(old.duration)
+            break
+        end
+    end
+end
+Media.rememberProgress = rememberProgress
+
 function Media.start(t, desc, opts)
     local now = TV.now()
+    rememberProgress(t, now)
     local m = Utils.copy(desc)
-    m.key       = Utils.id(6)
+    m.key       = (opts and opts.key) or Utils.id(6)
     m.title     = (opts and opts.title) or desc.title
     m.startedAt = now - math.floor((desc.start or 0) * 1000)
     m.paused    = false
@@ -84,22 +193,26 @@ function Media.start(t, desc, opts)
     m.index     = opts and opts.index or (desc.items and 1 or nil)
     t.media = m
     t.power = true
-    pushHistory(t, { url = desc.url, title = m.title or Utils.fallbackTitle(m), thumb = m.thumb, kind = m.kind, by = m.by, at = os.time() })
+    pushHistory(t, { url = desc.url, title = m.title or Utils.fallbackTitle(m), thumb = m.thumb, kind = m.kind, by = m.by, at = os.time(), live = m.live })
 end
 
 function Media.play(tv, url, title, opts)
     opts = opts or {}
     local desc, err = Media.describe(url)
     if not desc then return false, err end
-    local wasOff = not tv.power
+    if type(opts.start) == 'number' and opts.start > 0 and not desc.live then desc.start = opts.start end
+    if type(opts.thumb) == 'string' and not desc.thumb and opts.thumb:match('^https?://') then desc.thumb = opts.thumb end
+    if type(opts.duration) == 'number' and opts.duration > 0 and not desc.duration then desc.duration = opts.duration end
+    local key = Utils.id(6) -- one key for every linked screen, so they can share a picture
     apply(tv, function(t)
-        Media.start(t, desc, { title = title, by = opts.by })
+        Media.start(t, desc, { title = title, by = opts.by, key = key })
     end, { 'media', 'history', 'power' })
-    return true, nil, wasOff
+    return true
 end
 
 function Media.stop(tv)
-    apply(tv, function(t) t.media = nil end, { 'media' })
+    local now = TV.now()
+    apply(tv, function(t) rememberProgress(t, now) t.media = nil end, { 'media', 'history' })
 end
 
 function Media.pause(tv)
@@ -141,7 +254,7 @@ function Media.next(tv, fromEnd)
     local leader = Media.leader(tv)
     local m = leader.media
     if m and m.items and m.index and m.index < #m.items then
-        local idx = m.index + 1
+        local idx, key = m.index + 1, Utils.id(6)
         apply(tv, function(t)
             local mm = t.media
             if not mm then return end
@@ -149,7 +262,7 @@ function Media.next(tv, fromEnd)
             mm.id = m.items[idx]
             mm.thumb = 'https://i.ytimg.com/vi/' .. mm.id .. '/hqdefault.jpg'
             mm.title, mm.duration, mm.start = nil, nil, 0
-            mm.key = Utils.id(6)
+            mm.key = key
             mm.startedAt = TV.now()
             mm.paused = false
         end, { 'media' })
@@ -159,16 +272,21 @@ function Media.next(tv, fromEnd)
         local entry = table.remove(leader.queue, 1)
         local desc = Media.describe(entry.url)
         if desc then
+            local key = Utils.id(6)
             apply(tv, function(t)
                 if t ~= leader then table.remove(t.queue, 1) end
-                Media.start(t, desc, { title = entry.title, by = entry.by })
+                Media.start(t, desc, { title = entry.title, by = entry.by, key = key })
             end)
             return true
         end
     end
     if fromEnd and m and leader.loop then
+        local key, now = Utils.id(6), TV.now()
         apply(tv, function(t)
-            if t.media then t.media.startedAt = TV.now() t.media.paused = false t.media.key = Utils.id(6) end
+            if t.media then
+                t.media.startedAt, t.media.paused, t.media.key = now, false, key
+                if t.media.items then t.media.index = 1 t.media.id = t.media.items[1] t.media.title, t.media.duration = nil, nil end
+            end
         end, { 'media' })
         return true
     end
@@ -183,14 +301,14 @@ function Media.prev(tv)
     local m = leader.media
     if not m then return end
     if m.items and m.index and m.index > 1 and Media.position(m) < 5 then
-        local idx = m.index - 1
+        local idx, key = m.index - 1, Utils.id(6)
         apply(tv, function(t)
             local mm = t.media
             if not mm then return end
             mm.index, mm.id = idx, m.items[idx]
             mm.thumb = 'https://i.ytimg.com/vi/' .. mm.id .. '/hqdefault.jpg'
             mm.title, mm.duration = nil, nil
-            mm.key = Utils.id(6)
+            mm.key = key
             mm.startedAt = TV.now()
             mm.paused = false
         end, { 'media' })
@@ -203,8 +321,9 @@ function Media.ended(tv)
     -- a looping single item with an empty queue restarts
     local leader = Media.leader(tv)
     if leader.loop and #leader.queue == 0 and not (leader.media and leader.media.items) then
+        local key, now = Utils.id(6), TV.now()
         apply(tv, function(t)
-            if t.media then t.media.startedAt = TV.now() t.media.key = Utils.id(6) end
+            if t.media then t.media.startedAt, t.media.paused, t.media.key = now, false, key end
         end, { 'media' })
         return
     end
@@ -212,7 +331,7 @@ function Media.ended(tv)
 end
 
 function Media.channel(tv, dir)
-    local list = Config.Channels
+    local list = Channels.list
     if #list == 0 then return false end
     local idx = ((tv.channel or 0) + dir - 1) % #list + 1
     local ch = list[idx]
@@ -239,13 +358,21 @@ Actions.power = function(src, tv, v)
         t.power = on and true or false
         TV.patch(t, { 'power' })
     end
-    if not on then Media.pause(tv) elseif tv.media and tv.media.paused then Media.resume(tv) end
+    if not on then
+        if tv.media and not tv.media.paused and not tv.media.live then
+            Media.pause(tv)
+            for _, t in ipairs(TV.members(tv)) do if t.media then t.media.powerPaused = true end end
+        end
+    elseif tv.media and tv.media.paused and tv.media.powerPaused then
+        for _, t in ipairs(TV.members(tv)) do if t.media then t.media.powerPaused = nil end end
+        Media.resume(tv)
+    end
     return true
 end
 
 Actions.play = function(src, tv, data)
     if type(data) ~= 'table' or type(data.url) ~= 'string' then return false, 'invalid_url' end
-    local ok, err = Media.play(tv, data.url, data.title, { by = Bridge.name(src) })
+    local ok, err = Media.play(tv, data.url, data.title, { by = Bridge.name(src), start = tonumber(data.start), thumb = data.thumb, duration = tonumber(data.duration) })
     return ok, err
 end
 
@@ -264,6 +391,7 @@ Actions.pause  = function(_, tv) Media.pause(tv) return true end
 Actions.resume = function(_, tv) Media.resume(tv) return true end
 Actions.toggle = function(_, tv)
     if not tv.media then return false end
+    tv.media.powerPaused = nil
     if tv.media.paused then Media.resume(tv) else Media.pause(tv) end
     return true
 end
@@ -298,8 +426,9 @@ Actions.volStep = function(src, tv, d)
 end
 
 Actions.mute = function(_, tv)
+    local target = not tv.muted
     for _, t in ipairs(TV.members(tv)) do
-        t.muted = not tv.muted
+        t.muted = target
         TV.patch(t, { 'muted' })
     end
     return true
@@ -464,12 +593,12 @@ end
 -- ─── YouTube search (optional API key) ─────────────────────────
 local searchCache = {}
 RPC.search = function(src, q)
-    if Config.Media.YouTubeApiKey == '' then return false, 'search_disabled' end
+    if (ServerConfig.YouTubeApiKey or '') == '' then return false, 'search_disabled' end
     if type(q) ~= 'string' or #q < 2 or #q > 100 then return false end
     local key = q:lower()
     if searchCache[key] and searchCache[key].t > os.time() then return searchCache[key].r end
     local url = ('https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=18&safeSearch=moderate&q=%s&key=%s')
-        :format((q:gsub('[^%w ]', function(c) return ('%%%02X'):format(c:byte()) end):gsub(' ', '+')), Config.Media.YouTubeApiKey)
+        :format((q:gsub('[^%w ]', function(c) return ('%%%02X'):format(c:byte()) end):gsub(' ', '+')), ServerConfig.YouTubeApiKey)
     local res = httpGet(url, nil, 5000)
     if res.status ~= 200 then return false end
     local ok, data = pcall(json.decode, res.body)
@@ -502,16 +631,21 @@ RPC.panel = function(src, id)
         isAdmin = Perms.isAdmin(src),
         favorites = Storage.getFavorites(Bridge.identifier(src)),
         me = Bridge.name(src),
-        search = Config.Media.YouTubeApiKey ~= '',
+        search = (ServerConfig.YouTubeApiKey or '') ~= '',
         library = Config.Library,
-        channels = Config.Channels,
+        channels = Channels.list,
+        plex = Channels.plexEnabled(),
     }
     if manage then
-        out.perms = tv.perms
+        local p = tv.perms or {}
+        local allowed = {}
+        for ident, name in pairs(p.allowed or {}) do allowed[#allowed + 1] = { key = ident, name = name } end
+        table.sort(allowed, function(a, b) return tostring(a.name) < tostring(b.name) end)
+        out.perms = { public = p.public, jobs = p.jobs or {}, gangs = p.gangs or {}, ace = p.ace, allowed = allowed }
         local nearby = {}
         local c = vector3(tv.coords.x, tv.coords.y, tv.coords.z)
         for _, t in pairs(TV.list) do
-            if t ~= tv and #(c - vector3(t.coords.x, t.coords.y, t.coords.z)) < 60.0 and (Perms.isAdmin(src) or t.owner == tv.owner) then
+            if t ~= tv and #(c - vector3(t.coords.x, t.coords.y, t.coords.z)) < 60.0 and (Perms.isAdmin(src) or (tv.owner ~= nil and t.owner == tv.owner)) then
                 nearby[#nearby + 1] = { id = t.id, label = t.label, group = t.group, linked = t.group ~= nil and t.group == tv.group }
             end
         end
@@ -542,16 +676,29 @@ RPC.manage = function(src, id, op, data)
         tv.perms = p
         TV.patch(tv, { 'perms' })
     elseif op == 'allow' and type(data) == 'number' then
-        if not GetPlayerName(data) then return false end
+        if not GetPlayerName(data) then return false, 'player_offline' end
         tv.perms.allowed = tv.perms.allowed or {}
         tv.perms.allowed[Bridge.identifier(data)] = Bridge.name(data)
+    elseif op == 'disallow' and type(data) == 'string' then
+        if tv.perms.allowed then tv.perms.allowed[data] = nil end
     elseif op == 'link' and type(data) == 'table' then
         local group = tv.group or ('g' .. Utils.id(6))
-        tv.group = group
-        local n = 1
-        for _, otherId in ipairs(data) do
+        local wanted = {}
+        for _, otherId in ipairs(data) do wanted[otherId] = true end
+        -- screens that were in this group but are no longer ticked leave it
+        if tv.group then
+            for _, o in pairs(TV.list) do
+                if o ~= tv and o.group == tv.group and not wanted[o.id] then
+                    o.group = nil
+                    TV.patch(o, { 'group' })
+                    TV.save(o)
+                end
+            end
+        end
+        local n = 0
+        for otherId in pairs(wanted) do
             local o = TV.get(otherId)
-            if o and o ~= tv and (Perms.isAdmin(src) or o.owner == tv.owner) then
+            if o and o ~= tv and (Perms.isAdmin(src) or (tv.owner ~= nil and o.owner == tv.owner)) then
                 o.group = group
                 o.media, o.queue, o.loop, o.power = Utils.copy(tv.media), Utils.copy(tv.queue), tv.loop, tv.power
                 TV.patch(o, { 'group', 'media', 'queue', 'loop', 'power' })
@@ -559,9 +706,10 @@ RPC.manage = function(src, id, op, data)
                 n = n + 1
             end
         end
+        tv.group = n > 0 and group or nil
         TV.patch(tv, { 'group' })
         TV.save(tv)
-        return true, 'linked'
+        return true, n > 0 and 'linked' or 'unlinked'
     elseif op == 'unlink' then
         tv.group = nil
         TV.patch(tv, { 'group' })

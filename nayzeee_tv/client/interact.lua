@@ -28,8 +28,8 @@ NZ.on('spawned', function(tv)
     end
 end)
 
-NZ.on('despawned', function(tv)
-    if tv._targeted and tv._entity and tv._entity ~= 0 then Bridge.removeEntityTarget(tv._entity) end
+NZ.on('despawned', function(tv, ent)
+    if tv._targeted and ent and ent ~= 0 and DoesEntityExist(ent) then Bridge.removeEntityTarget(ent) end
     tv._targeted = nil
 end)
 
@@ -61,9 +61,13 @@ CreateThread(function()
             local pc = GetEntityCoords(ped)
             local promptFor
 
-            -- remote props first
-            local remoteTv = Remote.nearestProp(pc)
-            if remoteTv then
+            -- holding a remote: G opens it, H puts it down (handled in remote.lua)
+            local held = Remote.holding and NZ.tvs[Remote.holding]
+            local remoteTv = not held and Remote.nearestProp(pc)
+            if held then
+                promptFor = { id = held.id, mode = 'held', title = 'Remote in hand', sub = held.label,
+                    keys = { { key = 'G', label = _L('prompt_remote') }, { key = 'H', label = 'Put down' } } }
+            elseif remoteTv then
                 sleep = 0
                 promptFor = { id = remoteTv.id, mode = 'remote', title = remoteTv.label, sub = 'TV remote',
                     keys = { { key = 'E', label = _L('prompt_take_remote') } } }

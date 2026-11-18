@@ -92,7 +92,10 @@ svg{display:block}
 .vol .pill i{width:1px;height:22px;background:var(--line)}
 .vol .pill span{font-size:9px;color:var(--ink-3);letter-spacing:.12em;font-weight:600;padding:0 4px}
 .apps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
-.apps button{height:36px;border-radius:18px;font-size:11px;font-weight:700;background:var(--inset);border:1px solid var(--line-soft)}
+.apps button{height:38px;border-radius:19px;font-size:10px;font-weight:600;background:var(--inset);border:1px solid var(--line-soft);color:#c9cfd2;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 6px;overflow:hidden}
+.apps button span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.apps button svg{flex:none}
+.chip{gap:6px}
 .apps .yt{color:#ff5a5a}.apps .tw{color:#b48aff}.apps .kk{color:#62e870}.apps .sr{color:var(--teal-hi)}
 
 .cast{margin-top:16px;padding:12px;border-radius:16px;background:var(--panel);border:1px solid var(--line-soft)}
@@ -114,8 +117,11 @@ svg{display:block}
   <div class="scroll" id="view"></div>
   <div class="toast hidden" id="toast"></div>
 </div>
+<script src="../brand/logos.js"></script>
 <script>
 'use strict';
+const logo = (k, size, color) => (window.BRANDS && window.BRANDS[k] ? window.brandSvg(k, size || 14, color || (['tiktok', 'dailymotion'].includes(k) ? '#fff' : window.BRANDS[k].color)) : '');
+const bname = (k) => (window.BRANDS && window.BRANDS[k] ? window.BRANDS[k].name : k);
 const RES = (location.hostname.match(/^cfx-nui-(.+)$/) || [])[1] || 'nayzeee_tv';
 const IN_GAME = /^cfx-nui-/.test(location.hostname);
 const $ = (s) => document.querySelector(s);
@@ -167,7 +173,7 @@ function render() {
     $('#top').innerHTML = `<div class="mark"></div><div><h1>SmartView</h1><p>${S.tvs.length} screen${S.tvs.length === 1 ? '' : 's'} nearby</p></div>`;
     $('#view').innerHTML = (S.tvs.some((t) => t.remoteLost) ? `<div class="lost">Someone walked off with a remote? <b>Control the screen from here</b> — same buttons, same sync.</div>` : '') +
       (S.tvs.length ? S.tvs.map((t) => `<button class="tv" data-open="${esc(t.id)}"><div class="th" ${t.media && t.media.thumb ? `style="background-image:url('${esc(t.media.thumb)}')"` : ''}>${t.media && t.media.thumb ? '' : I.tv}</div>
-        <div class="t"><b>${esc(t.label)}</b><span><i class="dot ${t.power ? '' : 'off'}"></i>${t.power ? (t.media ? esc(t.media.title) : 'Home screen') : 'Standby'}</span></div><em>${t.dist}m</em></button>`).join('')
+        <div class="t"><b>${esc(t.label)}</b><span><i class="dot ${t.power ? '' : 'off'}"></i>${t.power ? (t.media ? logo(t.media.brand || t.media.kind, 11) + ' ' + esc(t.media.title) : 'Home screen') : 'Standby'}</span></div><em>${t.dist}m</em></button>`).join('')
         : `<div class="empty">${I.tv}<b>No screens nearby</b><span>Walk within range of a TV, cinema screen or monitor to control it.</span></div>`);
     return;
   }
@@ -177,7 +183,7 @@ function render() {
   $('#top').innerHTML = `<button class="back" data-back>${I.back}</button><div style="min-width:0"><h1 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(tv.label)}</h1><p><i class="dot ${tv.power ? '' : 'off'}"></i>${tv.power ? 'Connected' : 'Standby'} · ${tv.dist}m away${tv.locked ? ' · locked' : ''}</p></div>`;
   const focus = document.activeElement && document.activeElement.id === 'castUrl' ? $('#castUrl').value : null;
   $('#view').innerHTML = `
-    <div class="np"><div class="art" ${m && m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}>${m ? (m.live ? '<span class="chip red">● Live</span>' : `<span class="chip">${esc(m.kind)}</span>`) : ''}</div>
+    <div class="np"><div class="art" ${m && m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}>${m ? `<span class="chip ${m.live ? 'red' : ''}">${logo(m.brand || m.kind, 12)}${m.live ? '● Live · ' : ''}${esc(bname(m.brand || m.kind))}</span>` : ''}</div>
       <div class="meta"><b>${m ? esc(m.title) : 'Nothing playing'}</b><span>${m ? (m.paused ? 'Paused' : 'Playing') : 'Use the pad to browse the TV'} · volume ${tv.muted ? 'muted' : Math.round((tv.volume || 0) * 100) + '%'}</span>
         ${m ? `<div class="bar ${m.live ? 'live' : ''}"><i style="width:${pct}%"></i></div><div class="times"><span>${m.live ? 'LIVE' : fmt(pos)}</span><span>${m.duration ? fmt(m.duration) : ''}</span></div>` : ''}</div></div>
     <div class="pad">
@@ -186,7 +192,7 @@ function render() {
       <div class="prow"><button class="k" data-k="back">${I.ret}</button><button class="k" data-k="home">${I.home}</button><button class="k" data-k="info" style="font-size:12px;font-weight:700">i</button></div>
       <div class="vol"><div class="pill"><button data-c="volStep" data-v="-1">${I.minus}</button><i></i><span>VOL</span><i></i><button data-c="volStep" data-v="1">${I.plus}</button></div>
         <div class="pill"><button data-c="channel" data-v="-1">${I.down}</button><i></i><span>CH</span><i></i><button data-c="channel" data-v="1">${I.up}</button></div></div>
-      <div class="apps"><button class="yt" data-k="app:youtube">YouTube</button><button class="tw" data-k="app:twitch">Twitch</button><button class="kk" data-k="app:kick">Kick</button><button class="sr" data-k="search">Search</button></div>
+      <div class="apps">${['youtube', 'tiktok', 'twitch', 'kick', 'soundcloud', 'vimeo', 'pluto'].map((k) => `<button data-k="app:${k}">${logo(k, 15)}<span>${esc(bname(k))}</span></button>`).join('')}<button class="sr" data-k="search">Search</button></div>
     </div>
     <div class="cast"><label>Cast a link to this screen</label><input id="castUrl" placeholder="YouTube, Twitch, Kick, .mp4, .m3u8…" spellcheck="false">
       <div class="row"><button class="btn line" data-cast="queue">Add to queue</button><button class="btn teal" data-cast="play">Play now</button></div></div>`;
@@ -218,7 +224,7 @@ refresh();
 
 function demo(name) {
   if (name === 'phone:list') return { now: 100000, brand: {}, tvs: [
-    { id: 'a', label: 'Living Room TV', dist: 3.2, power: true, volume: 0.6, media: { title: 'Midnight Drive — Synthwave Mix', kind: 'youtube', startedAt: 100000 - 754000, duration: 10800 }, remoteLost: true },
+    { id: 'a', label: 'Living Room TV', dist: 3.2, power: true, volume: 0.6, media: { title: 'Midnight Drive — Synthwave Mix', kind: 'youtube', brand: 'youtube', startedAt: 100000 - 754000, duration: 10800 }, remoteLost: true },
     { id: 'b', label: 'Bedroom CRT', dist: 9.8, power: false, volume: 0.4, media: false },
   ] };
   return { ok: true };

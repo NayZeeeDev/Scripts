@@ -8,7 +8,8 @@ Everything is styled in the NAYZEEE UI (black · white · teal `#08afa2` · red 
 | | |
 |---|---|
 | **NAYZEEE OS** | Every screen runs its own smart-TV interface: boot animation, home screen with an expanding left rail, hero banner, *For You / Live / Apps* tabs, Continue Watching, app tiles, search, library, queue, settings, an ambient clock screensaver, volume / channel / now-playing overlays. CRT and arcade models get scanlines and the classic collapse-to-a-line power-off. |
-| **Sources** | YouTube videos, Shorts, live streams and playlists · Twitch channels, VODs and clips · Kick channels · direct `.mp4/.webm/.mp3` · HLS `.m3u8` · images (menus, posters) · files in `html/media`. |
+| **Sources** | YouTube · TikTok · Twitch · Kick · Vimeo · SoundCloud · Streamable · Medal · Instagram · Dailymotion · Reddit · Rumble · Google Drive · Pluto TV and other live-TV channel playlists (M3U) · your own Plex server · direct `.mp4/.webm/.mp3` · HLS `.m3u8` · images · files in `html/media`. See **Platforms** below for what each one supports. |
+| **Own screen per TV** | Every TV has its own browser and its own texture, so two TVs of the same model play different things. The exception is linked screens: they share one browser because they show the same feed, which keeps them frame-identical and costs one browser for the whole group. |
 | **Sync** | The server owns a clock. Every screen corrects drift every 2.5 s (hard seek above 1.25 s; small playback-rate nudges for direct/HLS media). Players who crash, relog or walk in late join at the exact current moment. Queues, loops and playlists advance on the server even when nobody is near. |
 | **3D audio** | Volume falls off with distance (configurable rolloff). Walls muffle the sound, and so does being in another room of an interior. For direct, HLS and local media it pans left/right with your camera and applies a real low-pass filter. YouTube, Twitch and Kick embeds can only change volume. |
 | **Linked screens** | Mirror one feed to many screens (bars, clubs, casinos, stadiums). Only the loudest linked screen near you plays sound, so there is no echo. |
@@ -19,12 +20,51 @@ Everything is styled in the NAYZEEE UI (black · white · teal `#08afa2` · red 
 | **Admin menu** | Dashboard (screens, on air, people watching, link groups), searchable screen table (teleport, play, power, lock, stop, move, edit, delete), Create (157-prop picker, wall-screen designer, claim an existing MLO prop), link groups, live **Calibrator**, and a prop library that shows which models exist in your game build. |
 | **Items** | One usable item per TV model. Players place it with a ghost preview that snaps to walls, then place the remote. Picking it up gives the item back. |
 
+## Platforms
+
+| Platform | How it plays | Late joiners land on the right moment | Pause / seek follow the room | Distance volume | Wall muffling + stereo |
+|---|---|---|---|---|---|
+| YouTube (videos, Shorts, live, playlists) | official player API | ✅ | ✅ | ✅ | — |
+| Twitch (channels, VODs) | official player API | ✅ | ✅ (VODs) | ✅ | — |
+| Vimeo | official player API | ✅ | ✅ | ✅ | — |
+| SoundCloud (tracks) | official widget API | ✅ | ✅ | ✅ | — |
+| Streamable | resolved to the video file | ✅ | ✅ | ✅ | ✅ |
+| Reddit video | resolved to HLS | ✅ | ✅ | ✅ | ✅ |
+| Kick | resolved to HLS (falls back to embed) | ✅ | live | ✅ | ✅ |
+| Pluto TV / M3U channels | HLS | live | live | ✅ | ✅ |
+| Plex (your server) | HLS transcode or direct file | ✅ | ✅ | ✅ | ✅ |
+| Direct mp4 / webm / mp3 / m3u8, server media | native | ✅ | ✅ | ✅ | ✅* |
+| Dailymotion, Rumble | embed with start time | ✅ | reloads at the new time | sound cuts out of range | — |
+| TikTok | official embed player | starts from 0 | pause only | mute out of range | — |
+| Medal | embed | starts from 0 | pause only | sound cuts out of range | — |
+| Instagram (posts, reels) | embed; the TV taps play for you | starts from 0 | pause only | sound cuts out of range | — |
+| Google Drive (shared videos) | preview embed; the TV taps play | starts from 0 | pause only | sound cuts out of range | — |
+
+\* Needs the host to send CORS headers. Without them the file still plays, with distance volume only.
+
+**Not possible: Tubi.** Tubi's video is DRM-protected and its site refuses to load inside other pages, so no in-game browser screen can play it. The same applies to Netflix, Disney+, Hulu, Prime Video, Max and Spotify. Facebook and X videos mostly need a signed-in session, so they aren't included.
+
+**Embeds** (TikTok, Medal, Instagram, Drive, Dailymotion, Rumble) don't let other pages control their volume or report when they end. Clips from these platforms only advance the queue when someone presses Next.
+
+Logos live in `html/brand/`. They come from Simple Icons (CC0). Medal, Streamable and Pluto TV aren't in that set, so they use simple stand-in marks in their brand colours; drop the official SVGs in to replace them. Logos are trademarks of their owners and are only used to show where a video comes from.
+
+### Pluto TV and other live-TV channels
+
+Add M3U playlists you have the rights to use to `ServerConfig.ChannelPlaylists` in `config_server.lua`. Every channel appears in the TV's **Live** tab and on CH ▲▼, with its logo and group. Playlists are re-read every few hours, because live-TV links expire. A single Pluto TV `…pluto.tv/…/master.m3u8` link also plays directly and is tagged as Pluto TV.
+
+### Plex
+
+Fill in `ServerConfig.Plex` in `config_server.lua`: the URL, a public URL players can reach, and a token. Plex then appears as an app on every TV and as *Recently added* in the media panel's Browse page.
+
+**Use a Plex Home managed user token, not your own.** The token is part of the stream link every nearby player's game loads. Give that managed user access to only the libraries you want in game.
+
 ## Install
 
 1. Drop `nayzeee_tv` into your resources and `ensure nayzeee_tv` **after** your framework, inventory, target and phone.
 2. Give admins access: `add_ace group.admin nayzeee_tv.admin allow`. Groups listed in `Config.AdminGroups` count as admin too.
-3. Storage is automatic. With `oxmysql` running, the tables are created on first start. Without it, data is written to `data/*.json`.
-4. Add the items (below), restart, then run `/tvadmin`.
+3. Put secrets (YouTube API key, Plex token, channel playlists) in **`config_server.lua`**. It's server-only: players never download it, unlike `config.lua`.
+4. Storage is automatic. With `oxmysql` running, the tables are created on first start. Without it, data is written to `data/*.json`.
+5. Add the items (below), restart, then run `/tvadmin`.
 
 ### Items — qb-core / qbx (`qb-core/shared/items.lua` style)
 
@@ -86,7 +126,8 @@ exports.nayzeee_tv:StopScreen(id)
 
 - `Config.Render.MaxScreens` — how many screens can show video at once per player (each one is a browser). 6 is a good default; lower it on low-end servers.
 - `Config.Audio` — rolloff, wall/room muffling, stereo, linked-screen single source.
-- `Config.Media.YouTubeApiKey` — optional; turns on YouTube search on the TV and in the panel.
+- `ServerConfig.YouTubeApiKey` (in `config_server.lua`) — optional; turns on YouTube search on the TV and in the panel.
+- `Config.Media.<Platform> = false` — turn any platform off.
 - `Config.Featured` / `Config.Channels` / `Config.Library` — the TV home screen hero, the CH ▲▼ presets and the server media list.
 - `Config.PlayerScreens` — persistence, per-player limit, whether new TVs are public.
 - `Config.Remote` — prop model, marker look, hold animation and range.

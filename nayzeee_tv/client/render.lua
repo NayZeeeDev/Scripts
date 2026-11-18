@@ -102,7 +102,8 @@ function Render.geometry(tv)
         bl = W(c - ax.r * (w / 2) - up * (h / 2))
         br = W(c + ax.r * (w / 2) - up * (h / 2))
         center = (tl + br) / 2
-        local e1, e2 = tr - tl, bl - tl
+        -- (bl - tl) × (tr - tl) points out of the picture, towards the viewer
+        local e1, e2 = bl - tl, tr - tl
         local cx = vector3(e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x)
         n = cx / math.max(#cx, 0.0001)
     end
@@ -112,6 +113,13 @@ function Render.geometry(tv)
 end
 
 -- ═══════════════ DUI pool ═══════════════
+--[[
+    Every screen gets its OWN browser and texture — nothing is shared with
+    other TVs of the same model. The one exception is a link group: linked
+    screens with the same aspect ratio share one browser, because they show
+    the same picture anyway. That keeps them frame-identical and saves a
+    browser per extra screen (a bar with 6 linked TVs costs 1 browser).
+]]
 local function sendSlot(slot, msg)
     if slot.ready then
         SendDuiMessage(slot.dui, json.encode(msg))
@@ -129,7 +137,8 @@ local function createSlot(i, hd)
     local handle = GetDuiHandle(dui)
     local txd = CreateRuntimeTxd(txdName)
     CreateRuntimeTextureFromDuiHandle(txd, 'screen', handle)
-    return { i = i, dui = dui, txd = txdName, w = res[1], h = res[2], hd = hd, ready = false, queue = {}, tv = nil, audio = {} }
+    return { i = i, dui = dui, txd = txdName, w = res[1], h = res[2], hd = hd, ready = false, queue = {}, tv = nil, key = nil,
+        audio = {}, created = GetGameTimer() }
 end
 
 local function destroySlot(slot)
@@ -145,103 +154,128 @@ local function tvPayload(tv)
     }
 end
 
-local function bindSlot(slot, tv)
-    slot.tv = tv.id
+local function bindSlot(slot, tv, key)
+    slot.tv, slot.key = tv.id, key
     slot.audio = {}
-    Render.active[tv.id] = slot
     sendSlot(slot, {
         type = 'init', tv = tvPayload(tv), now = NZ.serverNow(), me = NZ.me,
-        brand = Config.Brand, featured = Config.Featured, channels = Config.Channels, library = Config.Library,
+        brand = Config.Brand, featured = Config.Featured, channels = NZ.channels, library = Config.Library,
         res = RES, sync = Config.Sync,
         w = slot.w, h = slot.h,
         booting = tv._onAt ~= nil and (GetGameTimer() - tv._onAt) < 1500,
+        plex = NZ.plex, search = NZ.search, slot = slot.i,
     })
 end
 
 local function releaseSlot(slot)
-    if slot.tv then Render.active[slot.tv] = nil end
-    slot.tv = nil
+    slot.tv, slot.key = nil, nil
     sendSlot(slot, { type = 'unload' })
+end
+
+--- linked screens with the same aspect share one picture
+local function shareKey(tv)
+    if tv.group then return ('%s:%.2f:%s'):format(tv.group, tv.aspect or 1.78, tostring(tv.hd == true)) end
+    return tv.id
 end
 
 --- Pick which screens get a browser: powered, in range, nearest first.
 local function assign()
+    local now = GetGameTimer()
     local want = {}
     for _, tv in pairs(NZ.tvs) do
-        local fading = tv._offAt and (GetGameTimer() - tv._offAt) < 900
+        local fading = tv._offAt and (now - tv._offAt) < 900
         if (tv.power or fading) and tv._entity and tv._dist and tv._dist <= (tv.range or 20.0) + Config.Render.RenderPadding then
             want[#want + 1] = tv
         end
     end
     table.sort(want, function(a, b) return a._dist < b._dist end)
 
-    local keep = {}
-    for i = 1, math.min(#want, Config.Render.MaxScreens) do keep[want[i].id] = want[i] end
-
-    -- release what is no longer wanted
-    for _, slot in pairs(Render.slots) do
-        if slot.tv and not keep[slot.tv] then releaseSlot(slot) end
+    local owners, members, count = {}, {}, 0
+    for _, tv in ipairs(want) do
+        local k = shareKey(tv)
+        if owners[k] then
+            members[tv.id] = k
+        elseif count < Config.Render.MaxScreens then
+            count = count + 1
+            owners[k] = tv
+            members[tv.id] = k
+        end
     end
 
-    -- bind new screens
-    for id, tv in pairs(keep) do
-        if not Render.active[id] then
+    -- release browsers nobody needs any more
+    local byKey = {}
+    for _, slot in pairs(Render.slots) do
+        if slot.key and owners[slot.key] then
+            byKey[slot.key] = slot
+            -- the primary walked out of range but its group is still visible: hand over silently
+            if not members[slot.tv] then slot.tv = owners[slot.key].id end
+        elseif slot.key then
+            releaseSlot(slot)
+        end
+    end
+
+    -- bind browsers to new screens
+    for k, tv in pairs(owners) do
+        if not byKey[k] then
             local hd = tv.hd == true
             local free
             for _, slot in pairs(Render.slots) do
-                if not slot.tv and slot.hd == hd then free = slot break end
+                if not slot.key and slot.hd == hd then free = slot break end
             end
             if not free then
-                local count = 0
-                for _ in pairs(Render.slots) do count = count + 1 end
-                if count < Config.Render.MaxScreens then
-                    local idx = count + 1
+                local n = 0
+                for _ in pairs(Render.slots) do n = n + 1 end
+                if n < Config.Render.MaxScreens then
+                    local idx = n + 1
                     while Render.slots[idx] do idx = idx + 1 end
                     free = createSlot(idx, hd)
                     Render.slots[idx] = free
                 else
-                    -- recycle an idle slot of the other resolution
-                    for k, slot in pairs(Render.slots) do
-                        if not slot.tv then
+                    -- recycle an idle browser of the other resolution
+                    for idx, slot in pairs(Render.slots) do
+                        if not slot.key then
                             destroySlot(slot)
-                            free = createSlot(k, hd)
-                            Render.slots[k] = free
+                            free = createSlot(idx, hd)
+                            Render.slots[idx] = free
                             break
                         end
                     end
                 end
             end
-            if free then bindSlot(free, tv) end
+            if free then
+                bindSlot(free, tv, k)
+                byKey[k] = free
+            end
         end
     end
+
+    local active = {}
+    for id, k in pairs(members) do active[id] = byKey[k] end
+    Render.active = active
 end
+Render.assign = assign
 
 NZ.on('scan', assign)
 NZ.on('boot', function()
-    for _, slot in pairs(Render.slots) do if slot.tv then releaseSlot(slot) end end
+    for _, slot in pairs(Render.slots) do if slot.key then releaseSlot(slot) end end
+    Render.active = {}
 end)
 
 NZ.on('patch', function(tv, patch)
     if patch.power == true then tv._onAt, tv._offAt = GetGameTimer(), nil
     elseif patch.power == false then tv._offAt = GetGameTimer() SetTimeout(950, assign) end
     local slot = Render.active[tv.id]
-    if slot then
+    -- a shared browser only follows its primary screen (linked members get identical patches)
+    if slot and slot.tv == tv.id then
         local p = {}
         for k, v in pairs(patch) do p[k] = v end
         sendSlot(slot, { type = 'patch', patch = p, now = NZ.serverNow() })
     end
-    if patch.power ~= nil then assign() end
+    if patch.power ~= nil or patch.group ~= nil then assign() end
 end)
 
-NZ.on('removed', function(tv)
-    local slot = Render.active[tv.id]
-    if slot then releaseSlot(slot) end
-end)
-
-NZ.on('despawned', function(tv)
-    local slot = Render.active[tv.id]
-    if slot then releaseSlot(slot) end
-end)
+NZ.on('removed', function() assign() end)
+NZ.on('despawned', function() assign() end)
 
 -- TV OS remote keys / typed text relayed from the server
 RegisterNetEvent('nztv:key', function(id, key, by, seq)
@@ -261,7 +295,7 @@ CreateThread(function()
         Wait(Config.Sync.Interval)
         local now = NZ.serverNow()
         for _, slot in pairs(Render.slots) do
-            if slot.tv then sendSlot(slot, { type = 'clock', now = now }) end
+            if slot.key and slot.ready then SendDuiMessage(slot.dui, json.encode({ type = 'clock', now = now })) end
         end
     end
 end)
@@ -269,9 +303,9 @@ end)
 -- ═══════════════ drawing ═══════════════
 local function camPosition() return GetFinalRenderedCamCoord() end
 
-local function drawQuad(txd, s, flip)
+local function drawQuad(txd, s)
     local tl, tr, bl, br = s.tl, s.tr, s.bl, s.br
-    -- both windings so the picture shows regardless of the engine's cull order
+    -- both windings so the picture shows whatever the engine's cull order is
     DrawSpritePoly(tl.x, tl.y, tl.z, bl.x, bl.y, bl.z, br.x, br.y, br.z, 255, 255, 255, 255, txd, 'screen', 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0)
     DrawSpritePoly(tl.x, tl.y, tl.z, br.x, br.y, br.z, tr.x, tr.y, tr.z, 255, 255, 255, 255, txd, 'screen', 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0)
     DrawSpritePoly(tl.x, tl.y, tl.z, br.x, br.y, br.z, bl.x, bl.y, bl.z, 255, 255, 255, 255, txd, 'screen', 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0)
@@ -284,18 +318,19 @@ CreateThread(function()
     local gc = Config.Render.GlowColor
     while true do
         local any = false
-        for _, slot in pairs(Render.slots) do
-            if slot.tv and slot.ready then
-                local tv = NZ.tvs[slot.tv]
-                local s = tv and (tv.power or (tv._offAt and GetGameTimer() - tv._offAt < 800)) and Render.geometry(tv)
+        local now = GetGameTimer()
+        local cam = camPosition()
+        for id, slot in pairs(Render.active) do
+            local tv = NZ.tvs[id]
+            if tv and slot.ready and slot.key then
+                local s = (tv.power or (tv._offAt and now - tv._offAt < 800)) and Render.geometry(tv)
                 if s then
                     any = true
-                    local cam = camPosition()
                     local front = ((cam.x - s.center.x) * s.n.x + (cam.y - s.center.y) * s.n.y + (cam.z - s.center.z) * s.n.z) > 0
                     if front or Config.Render.DoubleSided then drawQuad(slot.txd, s) end
-                    if Config.Render.Glow and front and slot.glow then
+                    if Config.Render.Glow and front and (tv._glow or 0) > 0 then
                         local p = s.center + s.n * math.min(1.2, 0.35 + s.w * 0.25)
-                        DrawLightWithRange(p.x, p.y, p.z, gc[1], gc[2], gc[3], math.min(14.0, 1.6 + s.w * 1.4), Config.Render.GlowIntensity * slot.glow)
+                        DrawLightWithRange(p.x, p.y, p.z, gc[1], gc[2], gc[3], math.min(14.0, 1.6 + s.w * 1.4), Config.Render.GlowIntensity * tv._glow)
                     end
                 end
             end
@@ -309,7 +344,8 @@ CreateThread(function()
                 DrawLine(s.tr.x, s.tr.y, s.tr.z, s.br.x, s.br.y, s.br.z, 8, 175, 162, 255)
                 DrawLine(s.br.x, s.br.y, s.br.z, s.bl.x, s.bl.y, s.bl.z, 8, 175, 162, 255)
                 DrawLine(s.bl.x, s.bl.y, s.bl.z, s.tl.x, s.tl.y, s.tl.z, 8, 175, 162, 255)
-                local e = s.center + s.n * 0.25
+                DrawLine(s.tl.x, s.tl.y, s.tl.z, s.br.x, s.br.y, s.br.z, 8, 175, 162, 90)
+                local e = s.center + s.n * 0.3
                 DrawLine(s.center.x, s.center.y, s.center.z, e.x, e.y, e.z, 229, 72, 77, 255)
             end
         end
@@ -317,27 +353,44 @@ CreateThread(function()
     end
 end)
 
--- DUI readiness
+-- browser readiness: the page says hello once its script runs (fallback: a timer)
+RegisterNUICallback('tv:ready', function(data, cb)
+    cb(1)
+    local slot = data and Render.slots[tonumber(data.slot)]
+    if slot then slot.pageReady = true end
+end)
+
 CreateThread(function()
     while true do
         local waiting = false
         for _, slot in pairs(Render.slots) do
             if slot.dui and not slot.ready then
                 waiting = true
-                if IsDuiAvailable(slot.dui) then
+                local avail = IsDuiAvailable(slot.dui)
+                if avail and (slot.pageReady or GetGameTimer() - slot.created > 2500) then
                     slot.ready = true
-                    Wait(150)
                     for _, msg in ipairs(slot.queue) do SendDuiMessage(slot.dui, json.encode(msg)) end
                     slot.queue = {}
                 end
             end
         end
-        Wait(waiting and 100 or 500)
+        Wait(waiting and 50 or 500)
     end
 end)
 
 -- ═══════════════ 3D audio ═══════════════
 local occl = {} -- tvId → { t, wall, room }
+
+--- Which interior room a screen is in (props we spawn are pinned to it in main.lua).
+local function tvRoom(tv, s)
+    local int = GetInteriorAtCoords(s.center.x, s.center.y, s.center.z)
+    local room = tv._roomKey
+    if not room and tv.kind == 'existing' and tv._entity and tv._entity ~= 0 then
+        local r = GetRoomKeyFromEntity(tv._entity)
+        if r ~= 0 then room = r end
+    end
+    return int, room
+end
 
 local function occlusion(tv, s, cam)
     local o = occl[tv.id]
@@ -345,18 +398,18 @@ local function occlusion(tv, s, cam)
     if o and now - o.t < 450 then return o end
     o = o or {}
     o.t = now
+    local ped = PlayerPedId()
     local target = s.center + s.n * 0.35
-    local ray = StartExpensiveSynchronousShapeTestLosProbe(cam.x, cam.y, cam.z, target.x, target.y, target.z, 1, PlayerPedId(), 4)
+    local ray = StartExpensiveSynchronousShapeTestLosProbe(cam.x, cam.y, cam.z, target.x, target.y, target.z, 1, ped, 4)
     local _, hit = GetShapeTestResult(ray)
     o.wall = hit == 1
 
-    local ped = PlayerPedId()
     local myInt = GetInteriorFromEntity(ped)
-    local tvInt = (tv._entity and tv._entity ~= 0) and GetInteriorFromEntity(tv._entity) or GetInteriorAtCoords(s.center.x, s.center.y, s.center.z)
+    local tvInt, tvRoomKey = tvRoom(tv, s)
     if myInt ~= tvInt then
-        o.room = true
-    elseif myInt ~= 0 and tv._entity and tv._entity ~= 0 then
-        o.room = GetRoomKeyFromEntity(ped) ~= GetRoomKeyFromEntity(tv._entity)
+        o.room = true                       -- one of you is outside, or in another building
+    elseif myInt ~= 0 and tvRoomKey then
+        o.room = GetRoomKeyFromEntity(ped) ~= tvRoomKey
     else
         o.room = false
     end
@@ -372,12 +425,13 @@ CreateThread(function()
         local rot = GetFinalRenderedCamRot(2)
         local rz = math.rad(rot.z)
         local right = vector3(math.cos(rz), math.sin(rz), 0.0)
-        local groups = {}
+        local best = {}   -- slot → loudest member { vol, lp, pan }
+        local groups = {} -- group → loudest slot (linked screens that could not share a browser)
 
-        for _, slot in pairs(Render.slots) do
-            local tv = slot.tv and NZ.tvs[slot.tv]
-            local s = tv and Render.geometry(tv)
-            if s and slot.ready then
+        for id, slot in pairs(Render.active) do
+            local tv = NZ.tvs[id]
+            local s = tv and slot.ready and Render.geometry(tv)
+            if s then
                 busy = true
                 local d = #(cam - s.center)
                 local R = tv.range or 20.0
@@ -400,26 +454,29 @@ CreateThread(function()
                     pan = Utils.clamp((dir.x * right.x + dir.y * right.y) * 0.85, -0.85, 0.85)
                 end
 
-                slot._vol, slot._lp, slot._pan = vol, lowpass, pan
-                slot.glow = (tv.media and not (tv.media.paused)) and Utils.clamp(1.0 - d / (R + 10.0), 0.15, 1.0) or 0.0
+                tv._glow = (tv.media and not tv.media.paused) and Utils.clamp(1.0 - d / (R + 10.0), 0.15, 1.0) or 0.0
 
-                if A.GroupSingleSource and tv.group then
-                    local g = groups[tv.group]
-                    if not g or vol > g._vol then groups[tv.group] = slot end
+                local b = best[slot]
+                if not b or vol > b.vol then best[slot] = { vol = vol, lp = lowpass, pan = pan, group = tv.group } end
+            end
+        end
+
+        if A.GroupSingleSource then
+            for slot, b in pairs(best) do
+                if b.group then
+                    local g = groups[b.group]
+                    if not g or b.vol > best[g].vol then groups[b.group] = slot end
                 end
             end
         end
 
-        for _, slot in pairs(Render.slots) do
-            if slot.tv and slot.ready and slot._vol then
-                local tv = NZ.tvs[slot.tv]
-                local vol = slot._vol
-                if A.GroupSingleSource and tv and tv.group and groups[tv.group] ~= slot then vol = 0.0 end
-                local a = slot.audio
-                if not a.v or math.abs(a.v - vol) > 0.008 or a.lp ~= slot._lp or math.abs((a.pan or 0) - slot._pan) > 0.04 then
-                    a.v, a.lp, a.pan = vol, slot._lp, slot._pan
-                    SendDuiMessage(slot.dui, json.encode({ type = 'audio', volume = vol, lowpass = slot._lp, pan = slot._pan }))
-                end
+        for slot, b in pairs(best) do
+            local vol = b.vol
+            if A.GroupSingleSource and b.group and groups[b.group] ~= slot then vol = 0.0 end
+            local a = slot.audio
+            if not a.v or math.abs(a.v - vol) > 0.008 or a.lp ~= b.lp or math.abs((a.pan or 0) - b.pan) > 0.04 then
+                a.v, a.lp, a.pan = vol, b.lp, b.pan
+                SendDuiMessage(slot.dui, json.encode({ type = 'audio', volume = vol, lowpass = b.lp, pan = b.pan }))
             end
         end
         Wait(busy and A.UpdateRate or 500)
@@ -437,7 +494,19 @@ RegisterNUICallback('tv:report', function(data, cb)
     if type(data) ~= 'table' then return end
     local tv = data.tv and NZ.tvs[data.tv]
     if not tv then return end
-    if data.kind == 'ui' then
+    if data.kind == 'click' then
+        -- every viewer's own browser needs the tap, so this stays on this client
+        local slot = Render.active[tv.id]
+        local d = data.data or {}
+        if slot and slot.dui and type(d.x) == 'number' and type(d.y) == 'number' then
+            local x, y = math.floor(d.x * slot.w), math.floor(d.y * slot.h)
+            SendDuiMouseMove(slot.dui, x, y)
+            Wait(30)
+            SendDuiMouseDown(slot.dui, 'left')
+            Wait(60)
+            SendDuiMouseUp(slot.dui, 'left')
+        end
+    elseif data.kind == 'ui' then
         NZ.rpc('uiState', tv.id, data.data)
     elseif data.kind == 'action' then
         NZ.emit('osAction', tv, data.data)

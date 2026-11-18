@@ -136,6 +136,93 @@ function Utils.parseMedia(raw)
         return { kind = 'kick', src = 'kick', channel = channel:lower(), live = true, url = url, title = channel }
     end
 
+    local M = Config.Media
+    local function on(flag) return flag ~= false end
+
+    -- TikTok — tiktok.com/@user/video/ID · vm.tiktok.com/CODE · tiktok.com/t/CODE (short links resolved on the server)
+    if host == 'tiktok.com' or host == 'm.tiktok.com' or host == 'vm.tiktok.com' or host == 'vt.tiktok.com' then
+        if not on(M.TikTok) then return nil, 'blocked_url' end
+        local id = url:match('/video/(%d+)') or url:match('/player/v1/(%d+)') or url:match('/embed/v2/(%d+)')
+        if not id and not (host:find('^v[mt]%.') or url:find('/t/')) then return nil, 'invalid_url' end
+        return { kind = 'tiktok', src = 'tiktok', id = id, url = url, short = id == nil }
+    end
+
+    -- Vimeo — vimeo.com/ID[/HASH] · player.vimeo.com/video/ID?h=HASH
+    if host == 'vimeo.com' or host == 'player.vimeo.com' then
+        if not on(M.Vimeo) then return nil, 'blocked_url' end
+        local id = url:match('vimeo%.com/video/(%d+)') or url:match('vimeo%.com/(%d+)') or url:match('vimeo%.com/channels/[%w_-]+/(%d+)')
+        if not id then return nil, 'invalid_url' end
+        local hash = query(url, 'h') or url:match('vimeo%.com/%d+/(%x+)')
+        return { kind = 'vimeo', src = 'vimeo', id = id, hash = hash, url = url, start = parseTime((url:match('#t=([%w]+)'))) }
+    end
+
+    -- SoundCloud — tracks and sets
+    if host == 'soundcloud.com' or host == 'm.soundcloud.com' or host == 'on.soundcloud.com' then
+        if not on(M.SoundCloud) then return nil, 'blocked_url' end
+        if not url:match('soundcloud%.com/[%w_-]+/[%w_-]+') and host ~= 'on.soundcloud.com' then return nil, 'invalid_url' end
+        return { kind = 'soundcloud', src = 'soundcloud', url = (url:gsub('m%.soundcloud%.com', 'soundcloud.com')), set = url:find('/sets/') ~= nil }
+    end
+
+    -- Streamable — streamable.com/CODE · streamable.com/e/CODE
+    if host == 'streamable.com' then
+        if not on(M.Streamable) then return nil, 'blocked_url' end
+        local code = url:match('streamable%.com/[eo]/([%w]+)') or url:match('streamable%.com/([%w]+)')
+        if not code then return nil, 'invalid_url' end
+        return { kind = 'streamable', src = 'streamable', id = code, url = url }
+    end
+
+    -- Medal — medal.tv/games/GAME/clips/ID/… · medal.tv/clip/ID
+    if host == 'medal.tv' then
+        if not on(M.Medal) then return nil, 'blocked_url' end
+        local id = url:match('/clips?/([%w_-]+)')
+        if not id then return nil, 'invalid_url' end
+        return { kind = 'medal', src = 'medal', id = id, url = url }
+    end
+
+    -- Instagram — posts, reels, IGTV
+    if host == 'instagram.com' then
+        if not on(M.Instagram) then return nil, 'blocked_url' end
+        local typ, code = url:match('instagram%.com/(%a+)/([%w_-]+)')
+        if typ == 'reels' then typ = 'reel' end
+        if not code or (typ ~= 'p' and typ ~= 'reel' and typ ~= 'tv') then return nil, 'invalid_url' end
+        return { kind = 'instagram', src = 'instagram', id = code, ptype = typ, url = url }
+    end
+
+    -- Dailymotion — dailymotion.com/video/ID · dai.ly/ID
+    if host == 'dailymotion.com' or host == 'dai.ly' then
+        if not on(M.Dailymotion) then return nil, 'blocked_url' end
+        local id = url:match('/video/([%w]+)') or url:match('dai%.ly/([%w]+)')
+        if not id then return nil, 'invalid_url' end
+        return { kind = 'dailymotion', src = 'dailymotion', id = id, url = url, start = parseTime(query(url, 'start')),
+            thumb = 'https://www.dailymotion.com/thumbnail/video/' .. id }
+    end
+
+    -- Reddit — posts with video, v.redd.it links (played as HLS)
+    if host == 'reddit.com' or host == 'old.reddit.com' or host == 'v.redd.it' or host == 'redd.it' then
+        if not on(M.Reddit) then return nil, 'blocked_url' end
+        local vid = host == 'v.redd.it' and url:match('v%.redd%.it/([%w]+)') or nil
+        local post = url:match('/comments/([%w]+)') or (host == 'redd.it' and url:match('redd%.it/([%w]+)'))
+        if not vid and not post then return nil, 'invalid_url' end
+        return { kind = 'reddit', src = 'reddit', vid = vid, post = post, url = url,
+            hls = vid and ('https://v.redd.it/' .. vid .. '/HLSPlaylist.m3u8') or nil }
+    end
+
+    -- Rumble — rumble.com/vXXXX-title.html · rumble.com/embed/ID
+    if host == 'rumble.com' then
+        if not on(M.Rumble) then return nil, 'blocked_url' end
+        local embed = url:match('rumble%.com/embed/([%w]+)')
+        if not embed and not url:match('rumble%.com/v[%w]+') then return nil, 'invalid_url' end
+        return { kind = 'rumble', src = 'rumble', embed = embed, url = url }
+    end
+
+    -- Google Drive — shared video files
+    if host == 'drive.google.com' then
+        if not on(M.GoogleDrive) then return nil, 'blocked_url' end
+        local id = url:match('/file/d/([%w_-]+)') or query(url, 'id')
+        if not id then return nil, 'invalid_url' end
+        return { kind = 'drive', src = 'drive', id = id, url = url }
+    end
+
     -- Direct files / streams
     if not Config.Media.Direct then return nil, 'blocked_url' end
     if Config.Media.Whitelist then
@@ -147,7 +234,11 @@ function Utils.parseMedia(raw)
     end
 
     local e = ext(url)
-    if e == 'm3u8' then return { kind = 'hls', src = 'direct', url = url, live = nil } end
+    if e == 'm3u8' then
+        local brand = (host:find('pluto%.tv$') and 'pluto') or ((url:find('X%-Plex%-Token') or url:find(':32400')) and 'plex') or nil
+        return { kind = brand == 'plex' and 'plex' or 'hls', src = 'direct', url = url, brand = brand, live = brand == 'pluto' or nil }
+    end
+    if url:find('X%-Plex%-Token') then return { kind = 'plex', src = 'direct', url = url, brand = 'plex' } end
     if VIDEO[e] then return { kind = 'video', src = 'direct', url = url } end
     if AUDIO[e] then return { kind = 'audio', src = 'direct', url = url } end
     if IMAGE[e] then
@@ -163,6 +254,9 @@ function Utils.fallbackTitle(m)
     if m.title and m.title ~= '' then return m.title end
     if m.kind == 'twitch' then return m.channel or (m.video and ('Twitch VOD ' .. m.video)) or 'Twitch clip' end
     if m.kind == 'kick' then return m.channel end
+    local named = { tiktok = 'TikTok video', vimeo = 'Vimeo video', soundcloud = 'SoundCloud track', streamable = 'Streamable clip',
+        medal = 'Medal clip', instagram = 'Instagram post', dailymotion = 'Dailymotion video', reddit = 'Reddit video', rumble = 'Rumble video', drive = 'Google Drive video' }
+    if named[m.kind] then return named[m.kind] end
     if m.src == 'local' then return m.file end
     if m.kind == 'youtube' then return m.list and not m.id and 'YouTube playlist' or 'YouTube video' end
     local file = (m.url or ''):match('([^/?#]+)[?#]?[^/]*$')

@@ -170,8 +170,13 @@ CreateThread(function()
         if Remote.holding then
             sleep = 0
             local ped = PlayerPedId()
-            if not Remote.uiOpen then
-                if not IsEntityPlayingAnim(ped, R.Hold.Dict, R.Hold.Clip, 3) and not IsPedInAnyVehicle(ped, false) then playHoldAnim() end
+            if IsEntityDead(ped) or IsPedInAnyVehicle(ped, false) or IsPedSwimming(ped) then
+                -- you can't hold a remote like that: it goes back to where it lives
+                local id = Remote.holding
+                Remote.release(true)
+                CreateThread(function() NZ.rpc('remoteDrop', id) end)
+            elseif not Remote.uiOpen then
+                if not IsEntityPlayingAnim(ped, R.Hold.Dict, R.Hold.Clip, 3) then playHoldAnim() end
                 if IsControlJustReleased(0, Config.Interact.Keys.Remote) then
                     local tv = NZ.tvs[Remote.holding]
                     if tv then Remote.openUi(tv, true) end
@@ -191,7 +196,7 @@ function Remote.openUi(tv, physical)
     SetNuiFocus(true, true)
     SendNUIMessage({
         type = 'remote', show = true, tv = Panel.lite(tv), now = NZ.serverNow(), physical = Remote.physical,
-        channels = Config.Channels, brand = Config.Brand,
+        channels = NZ.channels, brand = Config.Brand,
     })
 end
 
