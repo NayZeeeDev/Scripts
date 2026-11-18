@@ -94,6 +94,7 @@ export interface ThemeDef {
 
 export interface UiConfig {
   version?: string;
+  veil?: boolean;
   locale?: Record<string, unknown>;
   ui: {
     serverName?: string; tagline?: string; logo?: string;

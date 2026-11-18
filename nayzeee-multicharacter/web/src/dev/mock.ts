@@ -159,7 +159,7 @@ async function handler(name: string, d: any): Promise<unknown> {
   await sleep(60);
   switch (name) {
     case 'ready': return cfg;
-    case 'startContinue': setTimeout(() => { emit('lobby', payload()); pushAudio(); }, 450); return true;
+    case 'startContinue': setTimeout(() => { emit('lobby', payload()); pushAudio(); }, 2300); return true; // glide (3200) - interfaceLead (900)
     case 'select': {
       selected = d.slot;
       const c = charOf(selected);
@@ -286,6 +286,9 @@ export function afterBoot() {
   const view = q.get('view') || 'start';
   startPlates();
   go(view);
+  // Lift the boot veil like Lua's Main.Reveal (?veil=<ms>, default: slow reveal on the title screen)
+  const veilMs = Number(q.get('veil') ?? (view === 'start' ? 1800 : 0));
+  setTimeout(() => emit('veil', { on: false, ms: veilMs }), 150);
   const st = useStore.getState();
   const section = q.get('section');
   if (section) setTimeout(() => st.setSection(section as any), 50);

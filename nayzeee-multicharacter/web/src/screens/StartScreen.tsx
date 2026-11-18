@@ -12,7 +12,14 @@ export default function StartScreen() {
   const d = useStore((s) => s.start) || {};
   const { W, H } = useStage();
   const [leaving, setLeaving] = useState(false);
+  const revealed = useStore((st) => !st.veil.on);
   const sent = useRef(false);
+  const revealedRef = useRef(revealed);
+  revealedRef.current = revealed;
+
+  // Entrance choreography: everything waits under the veil, then plays in order as it lifts
+  const enter = (cls: string, delay: number, exit = 't-exit-fade') =>
+    ({ className: cx(revealed ? cls : 't-hold', exit), style: revealed ? { animationDelay: `${delay}ms` } : undefined });
 
   const name = d.serverName || cfg.ui.serverName || 'NAYZEEE';
   const tagline = d.tagline || cfg.ui.tagline || '';
@@ -23,7 +30,7 @@ export default function StartScreen() {
   const version = d.version || cfg.version;
 
   const go = () => {
-    if (sent.current) return;
+    if (sent.current || !revealedRef.current) return;
     sent.current = true;
     cue('confirm');
     setLeaving(true);
@@ -67,11 +74,14 @@ export default function StartScreen() {
   ].map((p) => p.join(',')).join(' ');
 
   return (
-    <div className={cx('absolute inset-0 transition-opacity duration-500', leaving ? 'opacity-0' : 'a-fade')} onClick={go}>
+    <div className={cx('absolute inset-0 overflow-hidden', leaving && 't-leave')} onClick={go}>
       {/* vignette — transparent centre, dark edges only */}
-      <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 75% 70% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,.25) 55%, rgba(3,4,5,.88) 100%)' }} />
+      <div {...enter('t-fade', 0)}>
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 75% 70% at 50% 50%, rgba(0,0,0,0) 0%, rgba(0,0,0,.25) 55%, rgba(3,4,5,.88) 100%)' }} />
+      </div>
 
       {/* skewed glass plate */}
+      <div {...enter('t-plate', 120, 't-exit-plate')} >
       <svg className="absolute inset-0 pointer-events-none" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
         <defs>
           <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
@@ -94,9 +104,11 @@ export default function StartScreen() {
         <polygon points={pts(0)} fill="url(#plateGlow)" />
         <polygon points={pts(22)} fill="none" stroke="#fff" strokeOpacity=".06" strokeWidth="1" />
       </svg>
+      </div>
 
       {/* connected as */}
-      <div className="absolute micro text-[11px] text-fg-2 a-down" style={{ left: px + pw * 0.12, top: py + ph * 0.13 }}>
+      <div className="absolute micro text-[11px] text-fg-2" style={{ left: px + pw * 0.12, top: py + ph * 0.13 }}>
+      <div {...enter('t-up', 1700)}>
         <div className="flex items-center gap-2">
           <span className="w-[6px] h-[6px] rounded-full bg-ok shadow-[0_0_8px_rgba(61,220,132,.9)]" />
           {subtitle && d.playerName
@@ -105,10 +117,12 @@ export default function StartScreen() {
         </div>
         <div className="text-[8px] text-fg-3 mt-[6px] tracking-[.2em]">{t('start_status')}_C{String(new Date().getDate()).padStart(2, '0')}</div>
       </div>
+      </div>
 
       {/* wordmark */}
       <div className="absolute left-0 right-0 flex justify-center" style={{ top: H / 2 - 150 }}>
-      <div className="text-center a-zoom">
+      <div className="text-center">
+        <div {...enter('t-word', 250, 't-exit-word')}>
         {logo ? (
           <img src={logo} alt="" className="mx-auto max-h-[180px] max-w-[520px] object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,.6)]" />
         ) : (
@@ -116,11 +130,12 @@ export default function StartScreen() {
             {name}
           </div>
         )}
+        </div>
         {tagline && (
           <div className="flex items-center justify-center gap-4 mt-5">
-            <span className="h-px w-16 bg-gradient-to-r from-transparent to-white/40" />
-            <span className="micro text-[13px] tracking-[.5em] text-fg-2">{tagline}</span>
-            <span className="h-px w-16 bg-gradient-to-l from-transparent to-white/40" />
+            <span {...enter('t-line-l', 950)}><span className="block h-px w-16 bg-gradient-to-r from-transparent to-white/40" /></span>
+            <span {...enter('t-fade', 1050)}><span className="micro text-[13px] tracking-[.5em] text-fg-2">{tagline}</span></span>
+            <span {...enter('t-line-r', 950)}><span className="block h-px w-16 bg-gradient-to-l from-transparent to-white/40" /></span>
           </div>
         )}
       </div>
@@ -128,14 +143,18 @@ export default function StartScreen() {
 
       {/* prompt */}
       <div className="absolute left-0 right-0 text-center" style={{ top: H / 2 + 120 }}>
+        <div {...enter('t-up', 1450)}>
         <div className="a-pulse inline-flex items-center label text-[17px] tracking-[.32em] text-fg text-shadow cursor-pointer">
           {renderPrompt()}
+        </div>
         </div>
       </div>
 
       {/* socials */}
       {socials.length > 0 && (
-        <div className="absolute top-9 right-10 flex gap-2 a-down" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-9 right-10" onClick={(e) => e.stopPropagation()}>
+        <div {...enter('t-up', 1900)}>
+        <div className="flex gap-2">
           {socials.map((s) => (
             <div
               key={s.label}
@@ -148,13 +167,20 @@ export default function StartScreen() {
             </div>
           ))}
         </div>
+        </div>
+        </div>
       )}
 
       {/* footer */}
-      <div className="absolute bottom-7 left-10 micro text-[9px] text-fg-4 flex items-center gap-3">
+      {leaving && <div className="t-sweep" />}
+      <div className="absolute bottom-7 left-10 micro text-[9px] text-fg-4">
+      <div {...enter('t-fade', 2100)}>
+      <div className="flex items-center gap-3">
         {version && <span className="text-fg-3">v{version}</span>}
         <span className="w-px h-3 bg-white/15" />
         <span>NZM_LOBBY // {Math.round(W)}x{Math.round(H)}</span>
+      </div>
+      </div>
       </div>
     </div>
   );

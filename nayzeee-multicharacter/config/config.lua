@@ -90,6 +90,15 @@ Config.StartScreen = {
     subtitle = 'Connected as %s',              -- %s = FiveM player name
     orbit    = true,                           -- slow camera orbit around the lobby behind the title
     music    = '',                             -- optional audio url played on the start screen (empty = theme ambience)
+
+    -- Loading screen -> title transition. Your loading screen should NOT close itself: add
+    --   loadscreen_manual_shutdown 'yes'
+    -- to its fxmanifest so it stays up while the lobby builds. If it closes early anyway, a black veil covers it.
+    revealTime    = 1800,                      -- ms the black veil takes to dissolve over the scene
+    pushInTime    = 4800,                      -- ms slow camera push-in onto the title shot
+    pushBack      = 0.45,                      -- how far back the push-in starts (fraction of the camera distance)
+    pushUp        = 1.1,                       -- metres higher the push-in starts
+    interfaceLead = 900,                       -- after ENTER, lobby panels slide in this many ms before the camera lands
 }
 
 -- ███████╗██╗      ██████╗ ████████╗███████╗

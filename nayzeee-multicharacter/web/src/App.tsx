@@ -9,6 +9,7 @@ import Spawn from './screens/Spawn';
 import Cutscene from './screens/Cutscene';
 import Overlays from './screens/Overlays';
 import Plates from './screens/Plates';
+import { FreezeFrame, Veil } from './screens/Transitions';
 
 const DevTools = IS_MOCK ? lazy(() => import('./dev/DevTools')) : null;
 
@@ -62,10 +63,11 @@ export default function App() {
       : 'radial-gradient(ellipse at 50% 70%, #2a3238 0%, #12161a 55%, #07090a 100%)', 'important');
   }, []);
 
-  if (!ready) return DevTools ? <Suspense fallback={null}><DevTools /></Suspense> : null;
+  if (!ready) return <>{<Veil />}{DevTools && <Suspense fallback={null}><DevTools /></Suspense>}</>;
 
   return (
     <>
+      <FreezeFrame />
       <Stage>
         <div className={cx('absolute inset-0', perf && 'perf')}>
           {view === 'lobby' && <Plates />}
@@ -77,6 +79,7 @@ export default function App() {
           {view !== 'none' && <Overlays />}
         </div>
       </Stage>
+      <Veil />
       {DevTools && <Suspense fallback={null}><DevTools /></Suspense>}
     </>
   );

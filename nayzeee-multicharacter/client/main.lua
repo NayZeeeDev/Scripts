@@ -6,7 +6,7 @@ if not NAYZEEE_LOCK_OK then return end
     Main.mode: closed | busy | boot | start | lobby | create | spawn | cutscene
 ]]
 
-Main = {
+Main = { veil = true,
     open = false, mode = 'closed', busy = false, nuiReady = false,
     chars = {}, bySlot = {}, byId = {}, info = {}, selected = nil, squad = nil, pending = nil,
     camera = Config.Camera.defaultMode or 'squad', preview = {},
@@ -181,7 +181,9 @@ function Main.Present(slot, force, keepPreview)
     local lobby = Main.mode == 'lobby' or Main.mode == 'create'
 
     if force or themeId ~= Scene.id or not Scene.loaded then
-        local fade = not IsScreenFadedOut()
+        -- Rebuild under a frozen frame of the current scene (crossfade), or fade through black if capture isn't available
+        local frozen = lobby and not IsScreenFadedOut() and U.Freeze()
+        local fade = not frozen and not IsScreenFadedOut()
         if fade then U.FadeOut(350) end
         Scene.Load(themeId, mood)
         if c then Actors.Show(c, squad) else Actors.Ghost('m', false) end
@@ -189,7 +191,8 @@ function Main.Present(slot, force, keepPreview)
         Lights.Start()
         if Main.mode ~= 'start' and Main.mode ~= 'boot' then Audio.Theme(Scene.id) end
         if lobby then Cam.Mode(Main.camera, 0) end
-        if fade then Wait(150) U.FadeIn(500) end
+        if frozen then Wait(200) U.Unfreeze(1000)
+        elseif fade then Wait(150) U.FadeIn(500) end
     else
         if mood ~= Lights.moodId then Lights.SetMood(mood) end
         if c then Actors.SwapMain(c, squad) else Actors.Ghost('m', false) end
@@ -399,8 +402,10 @@ function Main.Boot(relog)
     if not data or data.error or data.loaded then
         Main.open, Main.mode, Main.busy = false, 'closed', false
         if data and data.error then print(('^1[nzm] boot failed: %s^0'):format(data.error)) end
+        Main.veil = false
         ClientBridge.LoadingScreenOff()
         ClientBridge.Hud(true)
+        U.Veil(false, 0)
         U.FadeIn(300)
         return
     end
@@ -412,7 +417,6 @@ function Main.Boot(relog)
     Main.mode = 'boot'
     Main.Present(Main.AutoSlot(), true)
     Plates.Start()
-    ClientBridge.LoadingScreenOff()
     Main.busy = false
     if Config.StartScreen.enabled and not relog then
         Start.Show()
@@ -421,20 +425,43 @@ function Main.Boot(relog)
     end
 end
 
-function Main.OpenLobby(fromStart)
-    Main.mode = 'lobby'
+-- Loading screen -> lobby hand-off. The UI veil (black) covers the swap, the scene starts rendering underneath,
+-- then the veil dissolves over the live camera. Also used after /relog (screen already black).
+function Main.Reveal(ms)
     Main.WaitNui()
+    U.Veil(true, 0)
+    Wait(80)
+    ClientBridge.LoadingScreenOff()
+    if IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(0) end
+    Wait(150)                                   -- a few frames of the scene render under the veil
+    Main.veil = false
+    U.Veil(false, ms or 1600)
+end
+
+local function sendLobby()
     U.Send('settings', Settings.data)
     U.Send('lobby', Main.Payload())
     U.Send('squad', Main.SquadNui(Main.squad))
+end
+
+function Main.OpenLobby(fromStart)
+    Main.mode = 'lobby'
+    Main.WaitNui()
     Audio.Theme(Scene.id)
     SetNuiFocus(true, true)
     if fromStart then
-        Cam.Mode(Main.camera, Config.Camera.introTime or 3200)
+        -- The camera glides from the title shot into the lobby; the UI leads it, sliding in before the glide lands
+        local glide = Config.Camera.introTime or 3200
+        local lead = math.min(Config.StartScreen.interfaceLead or 900, glide)
+        CreateThread(function()
+            Wait(glide - lead)
+            if Main.mode == 'lobby' or Main.mode == 'create' then sendLobby() end
+        end)
+        Cam.Mode(Main.camera, glide)
     else
+        sendLobby()
         Cam.Mode(Main.camera, 0)
-        Wait(100)
-        U.FadeIn(900)
+        Main.Reveal(1200)
     end
     -- No character yet: straight into the creation silhouette
     if not Main.SelectedChar() and Main.selected and Main.selected <= Main.TotalSlots() then
@@ -458,6 +485,8 @@ end
 
 -- ── entry points ─────────────────────────────────────────────────────────
 CreateThread(function()
+    -- Black from the first frame: if the loading screen closes on its own, nobody sees the world before the lobby
+    DoScreenFadeOut(0)
     while not NetworkIsPlayerActive(PlayerId()) do Wait(100) end
     Wait(250)
     Main.Boot(false)

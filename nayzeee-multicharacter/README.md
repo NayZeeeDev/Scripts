@@ -28,6 +28,11 @@ Features:
    ensure nayzeee-multicharacter
    ```
 4. Tables are created automatically on first start (`sql/install.sql` is there if you prefer running it yourself).
+5. For a seamless loading screen → title transition, add this to **your loading screen's** fxmanifest, so it stays up until
+   the lobby is ready (a black cover hides the hand-off either way, but this removes the wait on black):
+   ```lua
+   loadscreen_manual_shutdown 'yes'
+   ```
 
 The UI is prebuilt in `web/dist`. You only need Node if you want to change the interface:
 ```

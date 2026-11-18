@@ -17,6 +17,30 @@ function U.Send(action, data)
     SendNUIMessage({ action = action, data = data or {} })
 end
 
+-- ── UI-owned screen transitions ──────────────────────────────────────────
+-- Veil: an opaque black layer in the UI. It covers the loading-screen hand-off (no hard cut, no world flash)
+-- and dissolves over the live scene in `ms`.
+function U.Veil(on, ms) U.Send('veil', { on = on, ms = ms or 0 }) end
+
+-- Freeze: the UI paints the current game frame (FiveM game-view texture) over everything, so a scene can be
+-- rebuilt underneath without a cut to black. Returns false when the client can't capture -> caller fades instead.
+U.freezeAck = {}
+local freezeSeq = 0
+function U.Freeze()
+    if not Main.nuiReady then return false end
+    freezeSeq = freezeSeq + 1
+    local id = freezeSeq
+    U.freezeAck[id] = nil
+    U.Send('freeze', { id = id })
+    local deadline = GetGameTimer() + 700
+    while U.freezeAck[id] == nil and GetGameTimer() < deadline do Wait(0) end
+    local ok = U.freezeAck[id] == true
+    U.freezeAck[id] = nil
+    return ok
+end
+
+function U.Unfreeze(ms) U.Send('unfreeze', { ms = ms or 900 }) end
+
 function U.FadeOut(ms)
     ms = ms or 400
     if IsScreenFadedOut() then return end

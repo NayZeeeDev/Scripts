@@ -52,17 +52,30 @@ local function orbit(def)
     end)
 end
 
+-- Same shot pulled back, higher and wider: the title opens on this and slowly pushes in
+local function introDef(def)
+    local d = {}
+    for k, v in pairs(def) do d[k] = v end
+    local S = Config.StartScreen
+    local back, up = S.pushBack or 0.45, S.pushUp or 1.1
+    if def.attach then
+        if not def.offset or not def.look then return nil end
+        d.offset = def.offset + (def.offset - def.look) * back + vec3(0.0, 0.0, up)
+    else
+        if not def.coords or not def.lookAt then return nil end
+        d.coords = def.coords + (def.coords - def.lookAt) * back + vec3(0.0, 0.0, up)
+    end
+    d.fov = (def.fov or 45.0) + 8.0
+    return d
+end
+
 function Start.Show()
     Main.mode = 'start'
-    local def = startDef()
-    if def then
-        Cam.Go(def, 0)
-        orbit(def)
-    end
-    local name = GetPlayerName(PlayerId())
     local S = Config.StartScreen
+    local def = startDef()
+    local name = GetPlayerName(PlayerId())
     Main.WaitNui()
-    Audio.Theme(Scene.id, S.music)          -- start screen music, else the theme ambience
+    -- The title mounts under the veil and plays its entrance the moment the veil starts lifting
     U.Send('start', {
         serverName = Config.UI.serverName,
         tagline    = Config.UI.tagline,
@@ -73,7 +86,18 @@ function Start.Show()
         socials    = Config.UI.socials,
     })
     SetNuiFocus(true, true)
-    U.FadeIn(900)
+    local intro = def and introDef(def)
+    if intro then Cam.Go(intro, 0) elseif def then Cam.Go(def, 0) end
+    Audio.Theme(Scene.id, S.music)          -- the UI fades the ambience up with the picture
+    Main.Reveal(S.revealTime or 1800)
+    if def and intro then
+        -- Push in to the title shot, then settle into the slow orbit
+        CreateThread(function()
+            if Cam.Go(def, S.pushInTime or 4800) and Main.mode == 'start' then orbit(def) end
+        end)
+    elseif def then
+        orbit(def)
+    end
 end
 
 function Start.Continue()

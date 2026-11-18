@@ -39,6 +39,10 @@ interface State {
   section: Section;
   modal: Modal;
   ambience: { ambience?: string | null; url?: string; theme?: string } | null;
+  /** Black UI cover for the loading-screen hand-off. On from the very first paint until Lua lifts it. */
+  veil: { on: boolean; ms: number };
+  /** Frozen game frame covering a scene rebuild: id of the capture request, fading = crossfading away */
+  freeze: { id: number; fading: boolean; ms: number } | null;
 
   boot: (cfg: UiConfig) => void;
   onMessage: (action: string, data: any) => void;
@@ -92,6 +96,8 @@ export const useStore = create<State>((set, get) => ({
   section: 'characters',
   modal: null,
   ambience: null,
+  veil: { on: true, ms: 0 },
+  freeze: null,
 
   boot: (cfg) => {
     setLocale(cfg.locale);
@@ -99,7 +105,7 @@ export const useStore = create<State>((set, get) => ({
     applyAccent(cfg);
     const settings = { ...DEFAULT_SETTINGS, ...(cfg.settings || {}) };
     audioFrom(cfg, settings);
-    set({ cfg, settings });
+    set({ cfg, settings, ...(cfg.veil === false ? { veil: { on: false, ms: 0 } } : {}) });
   },
 
   onMessage: (action, d) => {
@@ -156,7 +162,7 @@ export const useStore = create<State>((set, get) => ({
         set({ view: 'hidden', modal: null, busy: { on: false }, plates: [] });
         break;
       case 'close':
-        set({ view: 'none', modal: null, busy: { on: false }, plates: [], cutscene: false, toasts: [], section: 'characters' });
+        set({ view: 'none', modal: null, busy: { on: false }, plates: [], cutscene: false, toasts: [], section: 'characters', freeze: null, veil: { on: false, ms: 0 } });
         shutdownAudio();
         break;
       case 'audio': {
@@ -167,6 +173,15 @@ export const useStore = create<State>((set, get) => ({
         setAmbience({ ...amb, muted }, s.cfg?.themes);
         break;
       }
+      case 'veil':
+        set({ veil: { on: !!d?.on, ms: Math.max(0, Number(d?.ms) || 0) } });
+        break;
+      case 'freeze':
+        set({ freeze: { id: Number(d?.id) || 0, fading: false, ms: 0 } });
+        break;
+      case 'unfreeze':
+        if (s.freeze) set({ freeze: { ...s.freeze, fading: true, ms: Math.max(0, Number(d?.ms) || 900) } });
+        break;
       case 'settings': {
         const settings = { ...s.settings, ...(d || {}) };
         set({ settings });

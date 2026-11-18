@@ -39,6 +39,7 @@ local function uiConfig()
     local R, W, UI = Config.Registration, Config.WeaponShowcase, Config.UI
     return {
         version = NZ.Version,
+        veil    = Main.veil ~= false,                 -- false = drop the boot veil right away (e.g. resource restarted mid-game)
         locale  = (NZ.Strings and NZ.Strings.ui) or {},
         ui = {
             serverName = UI.serverName, tagline = UI.tagline, logo = UI.logo, accent = accent(), accentKey = UI.accent,
@@ -102,6 +103,12 @@ local function squadCall(name, ...)
 end
 
 -- ── callbacks ────────────────────────────────────────────────────────────
+cb('frozen', function(d)
+    local id = tonumber(d.id)
+    if id then U.freezeAck[id] = d.ok == true end
+    return true
+end)
+
 cb('ready', function()
     Main.nuiReady = true
     -- NUI reloaded (or loaded late) while the lobby is up: replay the current view

@@ -147,3 +147,45 @@ input[type=range].range::-webkit-slider-thumb {
 .lift:hover { transform: translateY(-1px); }
 
 .perf * { animation-duration: 0s !important; transition-duration: 0s !important; }
+
+/* ── screen transitions ─────────────────────────────────────────────────── */
+.veil { background: #030405; z-index: 2147483000; }
+.veil-mark {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center;
+  transition: opacity .9s ease;
+}
+.veil-bar { position: relative; width: 140px; height: 2px; margin: 18px auto 0; background: rgba(255,255,255,.08); overflow: hidden; }
+.veil-bar i {
+  position: absolute; top: 0; bottom: 0; width: 40%; background: rgb(var(--accent));
+  box-shadow: 0 0 10px rgb(var(--accent) / .8); animation: veil-run 1.4s cubic-bezier(.45,0,.2,1) infinite;
+}
+@keyframes veil-run { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+
+/* Title screen entrance (plays when the veil starts lifting) and exit (on ENTER) */
+.t-hold { opacity: 0; }
+.t-plate  { animation: t-plate 1.6s cubic-bezier(.16,.84,.24,1) both; }
+.t-word   { animation: t-word 1.9s cubic-bezier(.16,.84,.24,1) both; }
+.t-line-l { animation: t-line 1.1s cubic-bezier(.16,.84,.24,1) both; transform-origin: right center; }
+.t-line-r { animation: t-line 1.1s cubic-bezier(.16,.84,.24,1) both; transform-origin: left center; }
+.t-up     { animation: t-up .9s cubic-bezier(.16,.84,.24,1) both; }
+.t-fade   { animation: in-fade .9s ease both; }
+@keyframes t-plate { from { opacity: 0; transform: scale(1.07); } to { opacity: 1; transform: none; } }
+@keyframes t-word  { 0% { opacity: 0; transform: scale(1.12); filter: blur(18px); letter-spacing: .26em; }
+                     60% { opacity: 1; filter: blur(0); }
+                     100% { opacity: 1; transform: none; filter: blur(0); letter-spacing: .04em; } }
+@keyframes t-line  { from { opacity: 0; transform: scaleX(0); } to { opacity: 1; transform: none; } }
+@keyframes t-up    { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+.t-leave .t-exit-word  { animation: t-exit-word .8s cubic-bezier(.5,0,.75,0) both !important; }
+.t-leave .t-exit-plate { animation: t-exit-plate .7s cubic-bezier(.5,0,.75,0) both !important; }
+.t-leave .t-exit-fade  { animation: t-exit-fade .45s ease both !important; }
+@keyframes t-exit-word  { to { opacity: 0; transform: scale(1.22); filter: blur(12px); } }
+@keyframes t-exit-plate { to { opacity: 0; transform: scale(1.1); } }
+@keyframes t-exit-fade  { to { opacity: 0; } }
+.t-sweep {
+  position: absolute; top: 0; bottom: 0; width: 38%; pointer-events: none;
+  background: linear-gradient(100deg, transparent 0%, rgb(var(--accent) / .0) 30%, rgb(var(--accent) / .22) 50%, rgb(var(--accent) / 0) 70%, transparent 100%);
+  animation: t-sweep .9s cubic-bezier(.45,0,.2,1) both;
+}
+@keyframes t-sweep { from { transform: translateX(-120%) skewX(-12deg); opacity: 1; } to { transform: translateX(320%) skewX(-12deg); opacity: 0; } }
+.perf .t-word { animation-name: in-fade; }
