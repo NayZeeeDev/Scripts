@@ -222,6 +222,10 @@ function Utils.parseMedia(raw)
         return { kind = 'rumble', src = 'rumble', embed = embed, url = url }
     end
 
+    -- Plex's website (watch.plex.tv / app.plex.tv) only runs inside Plex's own player: it can't be embedded.
+    -- Its free live channels work as a channel playlist, and your own server works through ServerConfig.Plex.
+    if host == 'watch.plex.tv' or host == 'app.plex.tv' or host == 'plex.tv' then return nil, 'plex_web' end
+
     -- Direct files / streams
     if not Config.Media.Direct then return nil, 'blocked_url' end
     if Config.Media.Whitelist then
@@ -234,8 +238,10 @@ function Utils.parseMedia(raw)
 
     local e = ext(url)
     if e == 'm3u8' then
-        local brand = (host:find('pluto%.tv$') and 'pluto') or ((url:find('X%-Plex%-Token') or url:find(':32400')) and 'plex') or nil
-        return { kind = brand == 'plex' and 'plex' or 'hls', src = 'direct', url = url, brand = brand, live = brand == 'pluto' or nil }
+        local plexLive = host:find('plex%.tv$') ~= nil -- Plex's free live channels
+        local brand = (host:find('pluto%.tv$') and 'pluto') or ((plexLive or url:find('X%-Plex%-Token') or url:find(':32400')) and 'plex') or nil
+        return { kind = (brand == 'plex' and not plexLive) and 'plex' or 'hls', src = 'direct', url = url, brand = brand,
+            live = (brand == 'pluto' or plexLive) or nil }
     end
     if url:find('X%-Plex%-Token') then return { kind = 'plex', src = 'direct', url = url, brand = 'plex' } end
     if VIDEO[e] then return { kind = 'video', src = 'direct', url = url } end

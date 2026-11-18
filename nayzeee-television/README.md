@@ -53,6 +53,12 @@ Add M3U playlists you have the rights to use to `ServerConfig.ChannelPlaylists` 
 
 ### Plex
 
+There are two kinds of Plex, and they work differently:
+
+- **Free Plex live TV (watch.plex.tv channels).** Add Plex's live channels as a channel playlist in `ServerConfig.ChannelPlaylists` with `brand = 'plex'`. They show up in the Live tab with the Plex logo and play as live streams.
+- **Free Plex movies and the watch.plex.tv website.** These can't play on an in-game screen. The site refuses to load inside other pages and needs a Plex sign-in, and its on-demand films are copy-protected. Pasting a watch.plex.tv link shows a message saying so.
+- **Your own Plex Media Server.** See below.
+
 Fill in `ServerConfig.Plex` in `config_server.lua`: the URL, a public URL players can reach, and a token. Plex then appears as an app on every TV and as *Recently added* in the media panel's Browse page.
 
 **Use a Plex Home managed user token, not your own.** The token is part of the stream link every nearby player's game loads. Give that managed user access to only the libraries you want in game.

@@ -126,6 +126,8 @@ function detect(raw) {
   if (/reddit\.com\/.*comments|v\.redd\.it|redd\.it/i.test(u)) return { kind: 'reddit', label: 'Reddit video' };
   if (/rumble\.com/i.test(u)) return { kind: 'rumble', label: 'Rumble video' };
   if (/pluto\.tv/i.test(u) && /\.m3u8/i.test(u)) return { kind: 'hls', brand: 'pluto', label: 'Pluto TV channel' };
+  if (/(watch|app)\.plex\.tv/i.test(u)) return null; // Plex's website can't be embedded — see the Live tab / Plex app
+  if (/plex\.tv\/.*\.m3u8/i.test(u)) return { kind: 'hls', brand: 'plex', label: 'Plex live channel' };
   if (/X-Plex-Token|:32400/i.test(u)) return { kind: 'plex', label: 'Plex' };
   const ext = (u.split(/[?#]/)[0].match(/\.(\w+)$/) || [])[1];
   if (!ext || !/^https?:\/\//i.test(u)) return null;
@@ -288,7 +290,7 @@ function urlBar(id = 'purl') {
       ${P.d.search && P.url && !det ? `<button class="btn-line btn-sm" data-act="search">${I.search}Search</button>` : ''}
       <button class="btn-line btn-sm" data-act="queueUrl">${I.queue}Queue</button>
       <button class="btn-teal btn-sm" data-act="playUrl">${I.play}Play</button></div>
-    <p class="url-hint">${det ? `Detected <b>${esc(det.label)}</b> — plays in sync for everyone nearby` : P.url ? 'Not a supported link yet' : 'Everyone near the screen sees and hears the same moment — even if they arrive late.'}</p>
+    <p class="url-hint">${det ? `Detected <b>${esc(det.label)}</b> — plays in sync for everyone nearby` : /plex\.tv/i.test(P.url) && !/\.m3u8/i.test(P.url) ? 'Plex\'s website can\'t play on TVs — use the <b>Live</b> channels or the Plex library below' : P.url ? 'Not a supported link yet' : 'Everyone near the screen sees and hears the same moment — even if they arrive late.'}</p>
     <div class="works"><span>Works with</span>${PLATFORMS.filter((k) => k !== 'plex' || P.d.plex).map((k) => `<i title="${esc(BRANDS[k] ? BRANDS[k].name : k)}">${logo(k, k, 15)}</i>`).join('')}<span>+ mp4 · m3u8 · mp3 · images</span></div></div>`;
 }
 

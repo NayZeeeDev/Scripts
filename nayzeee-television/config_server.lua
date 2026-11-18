@@ -18,6 +18,9 @@ ServerConfig.Webhook = ''
 -- Use this for Pluto TV and other free live-TV (FAST) channel lists you have the rights to use.
 --   { name = 'Pluto TV', url = 'https://…/plutotv_us.m3u8', brand = 'pluto', max = 150, groups = { ['News'] = true } }
 ServerConfig.ChannelPlaylists = {
+    -- Examples (use lists you have the rights to use; brand picks the logo shown on the channel):
+    -- { name = 'Pluto TV',  url = 'https://…/pluto_us.m3u8', brand = 'pluto', max = 150 },
+    -- { name = 'Plex Live', url = 'https://…/plex_us.m3u8',  brand = 'plex',  max = 150, groups = { ['News'] = true, ['Movies'] = true } },
 }
 ServerConfig.ChannelRefreshHours = 6   -- live-TV stream links often expire; playlists are re-read this often
 
