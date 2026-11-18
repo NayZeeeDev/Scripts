@@ -92,6 +92,8 @@ const en = {
   save: 'Save',
   saved: 'Saved',
   prop: 'Prop',
+  no_weapon_tag: 'Unarmed',
+  couple_in_flight: 'Couple poses are not available in this scene',
   couple_need_partner: 'Link a partner to unlock couple poses',
   couple_none_desc: 'Stand on your own marks',
   preview_hint: 'Hover to preview · click to apply',

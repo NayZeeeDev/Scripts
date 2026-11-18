@@ -99,7 +99,8 @@ function Cam.Go(def, ms, opts)
 
     local cam = build(def)
     local prev = Cam.current
-    if prev and ms and ms > 0 and IsCamRendering(prev) then
+    local interp = prev and ms and ms > 0 and IsCamRendering(prev)
+    if interp then
         -- (never for attached cams: a world-static snapshot would lag behind a moving helicopter)
         if not def.attach and (IsCamInterpolating(prev) or (opts and opts.snapshot)) then
             Cam.old[#Cam.old + 1] = prev
@@ -118,7 +119,7 @@ function Cam.Go(def, ms, opts)
     end
     if dofAllowed(def) then dofLoop() else Cam.dofOn = false end
 
-    if ms and ms > 0 then
+    if interp then
         local deadline = GetGameTimer() + ms + 50
         while GetGameTimer() < deadline and Cam.seq == my do Wait(0) end
     end

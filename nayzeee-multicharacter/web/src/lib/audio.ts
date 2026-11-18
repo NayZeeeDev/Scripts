@@ -427,11 +427,11 @@ function stopMedia(fade = true) {
   } else end();
 }
 
-export interface AmbienceReq { ambience?: string | null; preset?: string; url?: string; muted?: boolean }
+export interface AmbienceReq { ambience?: string | null; preset?: string; theme?: string; url?: string; muted?: boolean }
 
 export function resolvePreset(req: AmbienceReq, themes?: { id: string; ambience?: { preset?: string; url?: string } }[]): { preset: Preset | null; url?: string } {
   const id = req.ambience || '';
-  const theme = themes?.find((x) => x.id === id);
+  const theme = themes?.find((x) => x.id === (req.theme || id));
   const url = req.url || theme?.ambience?.url || undefined;
   const valid = (s?: string): s is Preset => !!s && (PRESETS as readonly string[]).includes(s);
   let p: string | undefined = req.preset || theme?.ambience?.preset;

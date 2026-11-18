@@ -16,7 +16,16 @@ export default {
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       transitionTimingFunction: { out: 'cubic-bezier(.22,.8,.26,1)' },
+      // never transition (or emit) backdrop-filter — it renders black boxes in FiveM CEF
+      transitionProperty: {
+        DEFAULT: 'color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter',
+        all: 'color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter',
+      },
     },
+  },
+  corePlugins: {
+    backdropBlur: false, backdropBrightness: false, backdropContrast: false, backdropFilter: false, backdropGrayscale: false,
+    backdropHueRotate: false, backdropInvert: false, backdropOpacity: false, backdropSaturate: false, backdropSepia: false,
   },
   plugins: [],
 };

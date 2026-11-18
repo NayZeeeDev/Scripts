@@ -68,20 +68,22 @@ export default function Customize({ onClose }: { onClose: () => void }) {
   const squad = useStore((s) => s.squad);
   const patch = useStore((s) => s.patchCharacter);
   const partner = squad.links.find((l) => l.type === 'couple' && l.visible);
+  const themeId = useStore((s) => s.lobby?.theme);
+  const theme = cfg.themes.find((x) => x.id === themeId);
   const prefs: Prefs = char?.prefs || {};
 
   const tabs = useMemo(() => {
-    const tb: { id: Tab; label: string }[] = [{ id: 'pose', label: t('tab_pose') }];
-    if (cfg.squad?.couples !== false && partner && cfg.couplePoses?.length) tb.push({ id: 'couple', label: t('tab_couple') });
+    const tb: { id: Tab; label: string; disabled?: boolean }[] = [{ id: 'pose', label: t('tab_pose') }];
+    if (cfg.squad?.couples !== false && partner && cfg.couplePoses?.length) tb.push({ id: 'couple', label: t('tab_couple'), disabled: !!theme?.inFlight });
     if (cfg.weapon?.enabled !== false) tb.push({ id: 'weapon', label: t('tab_weapon') });
-    if (cfg.pets?.length) tb.push({ id: 'pet', label: t('tab_pet') });
+    if (cfg.petOptions?.enabled !== false && theme?.pets !== false && cfg.pets?.length) tb.push({ id: 'pet', label: t('tab_pet') });
     return tb;
-  }, [cfg, partner]);
+  }, [cfg, partner, theme]);
   const [tab, setTab] = useState<Tab>('pose');
   const [cat, setCat] = useState('all');
   const [petName, setPetName] = useState(prefs.petName || '');
   useEffect(() => setPetName(char?.prefs?.petName || ''), [char?.id]);
-  useEffect(() => { if (!tabs.find((x) => x.id === tab)) setTab('pose'); }, [tabs, tab]);
+  useEffect(() => { const cur = tabs.find((x) => x.id === tab); if (!cur || cur.disabled) setTab('pose'); }, [tabs, tab]);
 
   const saved = (k: Key): string => {
     const v = prefs[k];
@@ -110,7 +112,8 @@ export default function Customize({ onClose }: { onClose: () => void }) {
     for (const key of [...previewed.current.keys()]) {
       if (k && key !== k) continue;
       const back = savedRef.current(key);
-      if (previewed.current.get(key) !== back) post('previewPref', { slot, key, value: back });
+      // value null = Lua restores the saved value for that key
+      if (previewed.current.get(key) !== back) post('previewPref', { slot, key, value: null });
       previewed.current.delete(key);
     }
   };
@@ -164,7 +167,7 @@ export default function Customize({ onClose }: { onClose: () => void }) {
             </div>
             <div className="grid grid-cols-3 gap-[7px]">
               {poses.map((p) => (
-                <PickCard key={p.id} icon={<Icon name={p.icon} size={20} />} label={p.label} tag={p.prop ? t('prop') : undefined}
+                <PickCard key={p.id} icon={<Icon name={p.icon} size={20} />} label={p.label} tag={p.prop ? t('prop') : p.weapon === false ? t('no_weapon_tag') : undefined}
                   active={saved('pose') === p.id} onHover={() => preview('pose', p.id)} onClick={() => apply('pose', p.id)} />
               ))}
             </div>
@@ -220,7 +223,7 @@ export default function Customize({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             {ownedPets.length === 0 && <div className="text-[13px] text-fg-3 py-4 text-center">{t('no_pets')}</div>}
-            {cfg.petNames !== false && saved('pet') !== 'none' && (
+            {cfg.petOptions?.names !== false && saved('pet') !== 'none' && (
               <div className="mt-5">
                 <Micro className="text-[9px] mb-2">{t('pet_name')}</Micro>
                 <div className="flex gap-2">

@@ -103,11 +103,12 @@ export default function StartScreen() {
             ? subtitle.replace('%s', '\u0000').split('\u0000').map((part, i) => (i === 0 ? part : <span key={i}><b className="text-fg font-medium">{d.playerName}</b>{part}</span>))
             : <>{t('start_connected', '')}<b className="text-fg font-medium">{d.playerName || '—'}</b></>}
         </div>
-        <div className="text-[8px] text-fg-4 mt-[6px] tracking-[.2em]">{t('start_status')}_C{String(new Date().getDate()).padStart(2, '0')}</div>
+        <div className="text-[8px] text-fg-3 mt-[6px] tracking-[.2em]">{t('start_status')}_C{String(new Date().getDate()).padStart(2, '0')}</div>
       </div>
 
       {/* wordmark */}
-      <div className="absolute left-1/2 -translate-x-1/2 text-center a-zoom" style={{ top: H / 2 - 150 }}>
+      <div className="absolute left-0 right-0 flex justify-center" style={{ top: H / 2 - 150 }}>
+      <div className="text-center a-zoom">
         {logo ? (
           <img src={logo} alt="" className="mx-auto max-h-[180px] max-w-[520px] object-contain drop-shadow-[0_10px_40px_rgba(0,0,0,.6)]" />
         ) : (
@@ -122,6 +123,7 @@ export default function StartScreen() {
             <span className="h-px w-16 bg-gradient-to-l from-transparent to-white/40" />
           </div>
         )}
+      </div>
       </div>
 
       {/* prompt */}

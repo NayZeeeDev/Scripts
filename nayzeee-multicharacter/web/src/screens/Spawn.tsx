@@ -63,7 +63,7 @@ export default function Spawn() {
   return (
     <div className="absolute inset-0">
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'linear-gradient(0deg, rgba(4,5,6,.78) 0%, rgba(4,5,6,.35) 24%, rgba(4,5,6,0) 42%), linear-gradient(180deg, rgba(4,5,6,.55) 0%, rgba(4,5,6,0) 18%)',
+        background: 'linear-gradient(0deg, rgba(4,5,6,.86) 0%, rgba(4,5,6,.55) 22%, rgba(4,5,6,0) 46%), linear-gradient(180deg, rgba(4,5,6,.6) 0%, rgba(4,5,6,0) 20%)',
       }} />
 
       {/* title */}
@@ -94,7 +94,7 @@ export default function Spawn() {
                 className={cx('relative shrink-0 text-left cut overflow-hidden transition-all duration-300 ease-out',
                   on ? 'h-[176px] accent-glow' : 'h-[150px] ring-1 ring-white/[.08] hover:ring-white/25')}
                 style={{
-                  width: CARD_W, ['--cut' as string]: '16px', opacity: on ? 1 : Math.max(0.35, 0.85 - dist * 0.15),
+                  width: CARD_W, ['--cut' as string]: '16px', opacity: on ? 1 : Math.max(0.55, 0.92 - dist * 0.12),
                   background: on
                     ? 'radial-gradient(100% 80% at 85% 0%, rgb(var(--accent) / .45), transparent 65%), linear-gradient(165deg, rgba(24,28,30,.94), rgba(9,10,11,.94))'
                     : 'radial-gradient(100% 80% at 85% 0%, rgba(255,255,255,.08), transparent 65%), linear-gradient(165deg, rgba(20,23,25,.88), rgba(9,10,11,.88))',
@@ -118,7 +118,8 @@ export default function Spawn() {
       </div>
 
       {/* controls */}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-[44px] flex items-center gap-4 a-up">
+      <div className="absolute left-0 right-0 bottom-[44px] flex justify-center">
+      <div className="flex items-center gap-4 a-up">
         <button onMouseEnter={() => cue('hover')} onClick={() => focus(idx - 1)}
           className="w-[54px] h-[54px] grid place-items-center glass-dark rounded-full text-fg-2 hover:text-white hover:border-white/25 transition-colors">
           <ChevronLeft size={22} />
@@ -130,6 +131,7 @@ export default function Spawn() {
           className="w-[54px] h-[54px] grid place-items-center glass-dark rounded-full text-fg-2 hover:text-white hover:border-white/25 transition-colors">
           <ChevronRight size={22} />
         </button>
+      </div>
       </div>
       <Micro className="absolute left-12 bottom-[34px] text-[9px]">← → {t('key_browse')} · {t('hold')} Enter {t('key_confirm')}</Micro>
     </div>

@@ -30,8 +30,8 @@ function Busy() {
   const busy = useStore((s) => s.busy);
   if (!busy.on) return null;
   return (
-    <div className="absolute left-1/2 -translate-x-1/2 top-[86px] z-[70] a-down">
-      <div className="glass-dark rounded-full h-[38px] pl-3 pr-5 flex items-center gap-3">
+    <div className="absolute left-0 right-0 top-[86px] z-[70] flex justify-center pointer-events-none">
+      <div className="a-down glass-dark rounded-full h-[38px] pl-3 pr-5 flex items-center gap-3">
         <span className="w-[16px] h-[16px] rounded-full border-2 border-white/15 border-t-accent a-spin" />
         <span className="label text-[12px] text-fg">{busy.text || t('loading')}</span>
       </div>
@@ -164,7 +164,9 @@ function DeleteModal({ slot, onClose }: { slot: number; onClose: () => void }) {
         </div>
         {needType && (
           <>
-            <div className="micro text-[9px] text-fg-3 mt-5 mb-2">{t('delete_type', '')}<span className="text-fg normal-case tracking-normal font-body text-[12px]">{c.name}</span></div>
+            <div className="micro text-[9px] text-fg-3 mt-5 mb-2">{t('delete_type', '\u0000').split('\u0000').map((part, i) => (
+              <span key={i}>{i > 0 && <span className="text-fg normal-case tracking-normal font-body text-[12px] mx-1">{c.name}</span>}{part}</span>
+            ))}</div>
             <input autoFocus className={cx('field', v && !ok && 'err')} value={v} onChange={(e) => setV(e.target.value)} placeholder={c.name}
               onKeyDown={(e) => { if (e.key === 'Enter') go(); }} />
           </>

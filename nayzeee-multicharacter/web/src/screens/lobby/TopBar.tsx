@@ -84,7 +84,7 @@ export function Roster({ onOpenSquad }: { onOpenSquad: (tab?: 'linked' | 'reques
         </div>
         {links.map((l) => (
           <button key={l.id} onClick={() => { cue('click'); onOpenSquad('linked'); }} onMouseEnter={() => cue('hover')}
-            className="h-[32px] flex items-center gap-3 pl-3 pr-3 bg-black/35 hover:bg-white/[.06] border border-white/[.04] transition-colors text-left">
+            className="h-[32px] flex items-center gap-3 pl-3 pr-3 bg-[#0a0b0c]/65 hover:bg-[#15181a]/80 border border-white/[.05] transition-colors text-left">
             <span className="micro text-[10px] text-fg-3 w-[18px]">P{l.slot}</span>
             <Dot online={l.other.online} />
             <span className={cx('flex-1 truncate font-mono text-[13px] tracking-[.02em]', l.visible ? 'text-fg' : 'text-fg-3')}>{l.other.name}</span>

@@ -156,9 +156,10 @@ local function giveWeapon(a, w)
     local deadline = GetGameTimer() + 2000
     while not HasWeaponAssetLoaded(hash) and GetGameTimer() < deadline do Wait(0) end
     GiveWeaponToPed(ped, hash, 0, false, true)
+    -- The server may send several candidate hashes per attachment: only apply the ones this weapon takes
     for _, comp in ipairs(w.components or {}) do
         local ch = type(comp) == 'string' and (tonumber(comp) or joaat(comp)) or comp
-        if ch then GiveWeaponComponentToPed(ped, hash, ch) end
+        if ch and DoesWeaponTakeWeaponComponent(hash, ch) then GiveWeaponComponentToPed(ped, hash, ch) end
     end
     if w.tint then SetPedWeaponTintIndex(ped, hash, tonumber(w.tint) or 0) end
     SetCurrentPedWeapon(ped, hash, true)

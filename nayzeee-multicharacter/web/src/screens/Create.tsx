@@ -248,7 +248,7 @@ export default function Create() {
         <span className="display text-[40px] italic text-white text-shadow leading-none">{ui.serverName || 'NAYZEEE'}</span>
         {ui.tagline && <span className="micro text-[9px] text-fg-3 mb-[5px] tracking-[.3em]">{ui.tagline}</span>}
       </div>
-      <div className="absolute left-12 bottom-[34px] flex items-center gap-5 micro text-[9px] text-fg-3 a-fade">
+      <div className="absolute left-12 bottom-[34px] flex items-center gap-5 micro text-[9px] text-fg-2 text-shadow a-fade">
         <span className="flex items-center gap-2"><Kbd className="!h-[18px] !text-[9px]">Enter</Kbd>{t('key_confirm')}</span>
         <span className="flex items-center gap-2"><Kbd className="!h-[18px] !text-[9px]">Esc</Kbd>{t('back')}</span>
       </div>

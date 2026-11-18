@@ -85,7 +85,10 @@ export interface Social { icon: string; label: string; url?: string }
 export interface ThemeDef {
   id: string; label: string; description?: string; icon?: string; category?: string;
   palette?: [string, string, string] | string[];
-  moods?: string[];
+  mood?: string;
+  moods?: string[] | null;
+  inFlight?: boolean;
+  pets?: boolean;
   ambience?: { preset?: string; url?: string };
 }
 
@@ -94,7 +97,7 @@ export interface UiConfig {
   locale?: Record<string, unknown>;
   ui: {
     serverName?: string; tagline?: string; logo?: string;
-    accent?: string; accents?: Record<string, string[]>;
+    accent?: string | string[]; accentKey?: string; accents?: Record<string, string[]>;
     socials?: Social[]; keys?: Record<string, string>;
     scale?: number; currency?: { locale?: string; code?: string };
     dateFormat?: string; showOnline?: boolean; nameplates?: boolean;
@@ -102,10 +105,10 @@ export interface UiConfig {
   start?: { enabled?: boolean; prompt?: string; subtitle?: string; orbit?: boolean; music?: string };
   themes: ThemeDef[];
   moods: { id: string; label: string; icon?: string; swatch?: string[] }[];
-  poses: { id: string; label: string; icon?: string; category?: string; prop?: boolean }[];
+  poses: { id: string; label: string; icon?: string; category?: string; prop?: boolean; weapon?: boolean }[];
   couplePoses: { id: string; label: string; icon?: string }[];
   pets: { id: string; label: string; icon?: string; kind?: string }[];
-  petNames?: boolean;
+  petOptions?: { enabled?: boolean; names?: boolean };
   weapon: { mode?: string; allowNone?: boolean; allowAuto?: boolean; enabled?: boolean };
   registration: {
     nameMin: number; nameMax: number; minAge: number; maxAge: number;
@@ -118,9 +121,9 @@ export interface UiConfig {
   nationalities: string[];
   cameraModes: string[];
   squad: { enabled: boolean; maxLinks: number; searchMin: number; couples: boolean };
-  audio: { ambience: boolean; uiSounds: boolean };
+  audio: { ambience: boolean; uiSounds: boolean; volume?: { ui?: number; ambience?: number } };
   settings: Settings;
-  playerPick?: boolean;
+  scenePick?: boolean;
   typeToConfirm?: boolean;
 }
 

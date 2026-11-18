@@ -100,8 +100,8 @@ function CharRow({ c, active }: { c: CharacterNui; active: boolean }) {
       className={cx(
         'group relative h-[62px] flex items-center gap-3 pl-3 pr-3 cursor-pointer lift border overflow-hidden',
         active
-          ? 'border-accent/50 bg-gradient-to-r from-accent/[.22] via-accent/[.08] to-transparent shadow-[inset_0_1px_0_rgba(255,255,255,.06)]'
-          : 'border-white/[.05] bg-black/40 hover:bg-white/[.05] hover:border-white/10',
+          ? 'border-accent/50 bg-gradient-to-r from-accent/[.28] via-accent/[.12] to-[#0a0b0c]/70 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]'
+          : 'border-white/[.05] bg-[#0a0b0c]/70 hover:bg-[#15181a]/80 hover:border-white/10',
       )}
     >
       {active && <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent shadow-[0_0_12px_rgb(var(--accent))]" />}
@@ -140,11 +140,11 @@ function CharRow({ c, active }: { c: CharacterNui; active: boolean }) {
 }
 
 function EmptyRow({ slot, active }: { slot: number; active: boolean }) {
-  const create = () => { cue('confirm'); post('sound', { name: 'select' }); post('createStart', { slot }); };
+  const create = () => { cue('confirm'); post('sound', { name: 'select' }); post('select', { slot }); };
   return (
     <div onMouseEnter={() => cue('hover')} onClick={create}
       className={cx('group relative h-[62px] flex items-center gap-3 pl-3 pr-4 cursor-pointer lift border border-dashed',
-        active ? 'border-accent/60 bg-accent/10' : 'border-white/[.12] bg-black/25 hover:border-accent/50 hover:bg-accent/[.06]')}>
+        active ? 'border-accent/60 bg-accent/10' : 'border-white/[.14] bg-[#0a0b0c]/50 hover:border-accent/50 hover:bg-accent/[.08]')}>
       <div className="w-[40px] h-[40px] grid place-items-center shrink-0 rounded-full border border-white/15 text-fg-2 group-hover:text-accent-hi group-hover:border-accent/60 transition-colors">
         <Plus size={18} />
       </div>
@@ -159,7 +159,7 @@ function EmptyRow({ slot, active }: { slot: number; active: boolean }) {
 
 function LockedRow({ slot }: { slot: number }) {
   return (
-    <div className="relative h-[54px] flex items-center gap-3 pl-3 pr-4 border border-white/[.04] bg-black/30 opacity-60">
+    <div className="relative h-[54px] flex items-center gap-3 pl-3 pr-4 border border-white/[.04] bg-[#0a0b0c]/50 opacity-70">
       <div className="w-[40px] h-[40px] grid place-items-center shrink-0 text-fg-3"><Lock size={16} /></div>
       <div className="flex-1 min-w-0">
         <div className="display text-[19px] text-fg-3">{t('locked_slot')}</div>

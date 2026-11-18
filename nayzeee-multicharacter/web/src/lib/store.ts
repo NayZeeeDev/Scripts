@@ -38,7 +38,7 @@ interface State {
   settings: Settings;
   section: Section;
   modal: Modal;
-  ambience: { ambience?: string | null; url?: string; preset?: string } | null;
+  ambience: { ambience?: string | null; url?: string; theme?: string } | null;
 
   boot: (cfg: UiConfig) => void;
   onMessage: (action: string, data: any) => void;
@@ -160,7 +160,8 @@ export const useStore = create<State>((set, get) => ({
         shutdownAudio();
         break;
       case 'audio': {
-        const amb = { ambience: d?.ambience ?? null, url: d?.url, preset: d?.preset };
+        // ambience = procedural preset key ('city', 'skydive' ...), theme = theme id, url = optional audio file
+        const amb = { ambience: d?.ambience ?? null, url: d?.url || undefined, theme: d?.theme };
         set({ ambience: amb });
         const muted = typeof d?.muted === 'boolean' ? d.muted || s.settings.muted : s.settings.muted;
         setAmbience({ ...amb, muted }, s.cfg?.themes);

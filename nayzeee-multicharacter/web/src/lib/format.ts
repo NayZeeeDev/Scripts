@@ -85,15 +85,15 @@ function shade(rgb: string, f: number): string {
 }
 
 /** Resolve Config.UI.accent ('teal' key or raw hex) into [hi, base, lo] "r g b" triplets. */
-export function resolveAccent(accent?: string, accents?: Record<string, string[]>): [string, string, string] {
+export function resolveAccent(accent?: string | string[], accents?: Record<string, string[]>): [string, string, string] {
   const fallback: [string, string, string] = ['15 212 196', '8 175 162', '6 125 116'];
   if (!accent) return fallback;
-  const set = accents?.[accent];
+  const set = Array.isArray(accent) ? accent : accents?.[accent];
   if (set && set.length >= 2) {
     const base = hexToRgb(set[1]) || fallback[1];
     return [hexToRgb(set[0]) || shade(base, 0.25), base, hexToRgb(set[2] || '') || shade(base, -0.3)];
   }
-  const base = hexToRgb(accent);
+  const base = typeof accent === 'string' ? hexToRgb(accent) : null;
   if (!base) return fallback;
   return [shade(base, 0.25), base, shade(base, -0.3)];
 }

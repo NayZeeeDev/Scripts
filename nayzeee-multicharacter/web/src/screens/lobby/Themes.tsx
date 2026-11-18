@@ -114,7 +114,7 @@ export default function Themes() {
   const [hover, setHover] = useState<string | null>(null);
   const themes = cfg.themes;
   const info = themes.find((x) => x.id === (hover || active)) || themes[0];
-  const locked = cfg.playerPick === false;
+  const locked = cfg.scenePick === false;
 
   const pick = async (id: string) => {
     if (!char || locked) { cue('error'); return; }
