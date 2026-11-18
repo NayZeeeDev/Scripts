@@ -6,7 +6,7 @@ RPC = {}
 local PERSIST = {
     'id', 'label', 'model', 'kind', 'coords', 'heading', 'pitch', 'roll', 'wall', 'owner', 'ownerName', 'permanent',
     'perms', 'locked', 'group', 'range', 'aspect', 'style', 'hd', 'volume', 'settings', 'remote', 'defaultUrl',
-    'autoplay', 'loop', 'item', 'created',
+    'autoplay', 'loop', 'item', 'created', 'alwaysOn', 'carRadio',
 }
 if Config.Sync.PersistState then
     PERSIST[#PERSIST + 1] = 'history'
@@ -87,9 +87,11 @@ function TV.create(def)
         autoplay  = def.autoplay == true,
         loop      = def.loop == true,
         item      = def.item,
+        alwaysOn  = (def.alwaysOn == nil and prop and prop.alwaysOn) or def.alwaysOn == true,
+        carRadio  = (def.carRadio == nil and prop and prop.carRadio) or def.carRadio == true,
         created   = def.created or os.time(),
         -- runtime
-        power     = def.power == true,
+        power     = def.power == true or ((def.alwaysOn == nil and prop and prop.alwaysOn) or def.alwaysOn == true),
         muted     = false,
         media     = nil,
         queue     = Config.Sync.PersistState and def.queue or {},

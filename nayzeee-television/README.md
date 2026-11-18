@@ -99,6 +99,22 @@ Without a target resource, standing at a screen shows a NAYZEEE prompt: **E** me
 - **Autoplay:** give a screen a default video and turn on Autoplay. It plays after every restart.
 - **Calibrate a model:** stand in front of a screen, go to Calibrator → *Calibrate nearest screen*, then drag the sliders. A teal outline shows the picture edges and a red line shows which way it faces. Saving writes `data/calibration.json` and updates everyone instantly.
 
+## Drive-in (FM-DriveIN · Greasy Joe's Drive-In)
+
+The drive-in MLO's big screen is supported out of the box: model `mxc_drive-in_buildingscreen` with its built-in screen `drivein_screen`.
+
+1. Install and `ensure FM-DriveIN`. It's an escrowed asset pack, so it needs your Cfx account's `/assetpacks` access like any other paid map. If you want the film projector, add `mxc_drive-in_filmprojector_lapuerta_ymap.ymap` to the `stream/` folder of any map resource.
+2. Ensure `nayzeee-television` after it.
+3. Drive to the lot and run `/tvadmin` → **Create** → **Existing prop**, aim at the big screen and press **E**. Give it a default movie and turn on Autoplay if you want it running from server start.
+
+The screen comes pre-set with:
+
+- **Pixel-perfect picture:** it uses the screen's built-in render target, so no calibration is needed.
+- **Always on:** players can't switch it off; staff can.
+- **Car radio audio:** anyone in a vehicle within 120 m hears the movie at full volume, like tuning the car radio. Players on foot hear it fade with distance as usual.
+
+You can change any of these per screen in the Screen manager → Edit, or for every copy in `data/props.lua` → `Props.Venues`.
+
 ## Custom TV props
 
 Stream your `.ydr/.ytyp` from any resource, then add a line to `Props.Custom` in `data/props.lua`:

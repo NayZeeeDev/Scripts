@@ -219,6 +219,15 @@ Props.List = {
     { 'vw_prop_casino_slot_08a',    'Slot Machine 08',         'arcade' },
 }
 
+-- Screens that come with third-party MLOs (the MLO must be running on your server).
+--   rtAlways  use the built-in render target even when Config.Render.Prefer = 'overlay' (only one copy exists)
+--   alwaysOn  new screens stay on; only admins can switch them off
+--   carRadio  players in a vehicle hear it at full volume anywhere on the lot, like tuning the car radio
+Props.Venues = {
+    { 'mxc_drive-in_buildingscreen', "Drive-In Screen (Greasy Joe's)", 'cinema',
+      { rt = 'drivein_screen', rtAlways = true, range = 120.0, alwaysOn = true, carRadio = true } },
+}
+
 -- Your own streamed props go here (same format).
 Props.Custom = {
     -- { 'my_custom_tv_85in', '85" OLED Wall TV', 'custom', { range = 28.0, screen = { x = 0.0, y = -0.04, z = 1.1, w = 1.88, h = 1.06, face = '-y' } } },
@@ -242,6 +251,9 @@ local function add(entry)
         hd     = ov.hd == nil and (base.hd or false) or ov.hd,
         screen = ov.screen,
         rt     = ov.rt,                       -- built-in render target (pixel-perfect, see Config.Render.Prefer)
+        rtAlways = ov.rtAlways == true,
+        alwaysOn = ov.alwaysOn == true,
+        carRadio = ov.carRadio == true,
         tilt   = ov.tilt or base.tilt,        -- screen pitch in degrees (laptops / arcade cabinets lean back)
     }
     Props.ByModel[model] = def
@@ -253,6 +265,7 @@ local function add(entry)
 end
 
 for _, e in ipairs(Props.List) do add(e) end
+for _, e in ipairs(Props.Venues) do add(e) end
 for _, e in ipairs(Props.Custom) do add(e) end
 
 function Props.Get(modelOrHash)

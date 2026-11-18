@@ -336,6 +336,7 @@ end
 
 --- Turn a screen (and its linked group) off, pausing what was playing.
 function Media.powerOff(tv)
+    if tv.alwaysOn then tv.sleepAt = nil TV.patch(tv, { 'sleepAt' }) return end
     for _, t in ipairs(TV.members(tv)) do
         t.power, t.sleepAt = false, nil
         TV.patch(t, { 'power', 'sleepAt' })
@@ -375,6 +376,7 @@ local Actions = {}
 Actions.power = function(src, tv, v)
     local on = v
     if on == nil then on = not tv.power end
+    if not on and tv.alwaysOn and not Perms.isAdmin(src) then return false, 'always_on' end
     for _, t in ipairs(TV.members(tv)) do
         t.power = on and true or false
         TV.patch(t, { 'power' })

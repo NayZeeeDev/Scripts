@@ -682,7 +682,7 @@ const RK_SEL = { 'key:up': '.dp.up', 'key:down': '.dp.down', 'key:left': '.dp.le
 
 /* ═══════════════ ADMIN ═══════════════ */
 const A = { open: false, d: null, props: [], cats: [], tab: 'dashboard', q: '', filter: 'all', cat: 'all', pq: '', sel: null,
-  form: { label: '', range: '', defaultUrl: '', autoplay: false, loop: false, public: true, remote: true, width: 3 }, cal: null, groupSel: new Set(), edit: null, docked: false };
+  form: { label: '', range: '', defaultUrl: '', autoplay: false, loop: false, public: true, remote: true, width: 3, alwaysOn: false, carRadio: false }, cal: null, groupSel: new Set(), edit: null, docked: false };
 
 function openAdmin(msg) {
   setClock(msg.now);
@@ -826,6 +826,8 @@ function adminView() {
           <div class="opt"><div class="opt-t"><b>Repeat</b><small>Loop the default video</small></div><button class="sw ${f.loop ? 'on' : ''}" data-aact="fsw" data-k="loop"><i></i></button></div>
           <div class="opt"><div class="opt-t"><b>Public</b><small>Anyone can use the remote</small></div><button class="sw ${f.public ? 'on' : ''}" data-aact="fsw" data-k="public"><i></i></button></div>
           <div class="opt"><div class="opt-t"><b>Place a remote</b><small>Physical remote with a marker</small></div><button class="sw ${f.remote ? 'on' : ''}" data-aact="fsw" data-k="remote"><i></i></button></div>
+          <div class="opt"><div class="opt-t"><b>Always on</b><small>Players can't switch it off (cinemas, drive-ins, venue walls)</small></div><button class="sw ${f.alwaysOn ? 'on' : ''}" data-aact="fsw" data-k="alwaysOn"><i></i></button></div>
+          <div class="opt"><div class="opt-t"><b>Car radio audio</b><small>Players in a vehicle hear it at full volume anywhere in range</small></div><button class="sw ${f.carRadio ? 'on' : ''}" data-aact="fsw" data-k="carRadio"><i></i></button></div>
           <button class="btn-teal" data-aact="place" data-v="prop" ${sel ? '' : 'disabled style="opacity:.5"'}>${I.tv}Place prop</button>
           <div class="grid2"><button class="btn-line" data-aact="place" data-v="wall">${I.wall}Wall screen</button><button class="btn-line" data-aact="place" data-v="existing">${I.target}Existing prop</button></div>
         </div></section>
@@ -915,6 +917,9 @@ function editForm(s) {
         <div class="opt"><div class="opt-t"><b>Public</b></div><button class="sw ${p.public ? 'on' : ''}" id="ePublic" data-aact="esw"><i></i></button></div>
         <div class="opt"><div class="opt-t"><b>Autoplay</b></div><button class="sw ${s.autoplay ? 'on' : ''}" id="eAuto" data-aact="esw"><i></i></button></div>
         <div class="opt"><div class="opt-t"><b>Locked</b></div><button class="sw ${s.locked ? 'on' : ''}" id="eLock" data-aact="esw"><i></i></button></div></div>
+      <div class="grid2">
+        <div class="opt"><div class="opt-t"><b>Always on</b><small>Players can't switch it off</small></div><button class="sw ${s.alwaysOn ? 'on' : ''}" id="eAlways" data-aact="esw"><i></i></button></div>
+        <div class="opt"><div class="opt-t"><b>Car radio audio</b><small>Full volume in vehicles within range</small></div><button class="sw ${s.carRadio ? 'on' : ''}" id="eRadio" data-aact="esw"><i></i></button></div></div>
       <div style="display:flex;justify-content:flex-end;gap:8px"><button class="btn-line" data-aact="editClose">Cancel</button><button class="btn-teal" data-aact="editSave" data-id="${s.id}">${I.check}Save</button></div>
     </div></section>`;
 }
@@ -948,6 +953,7 @@ const AdminActs = {
     const data = {
       id: el.dataset.id, label: $('#eLabel').value.trim(), range: parseFloat($('#eRange').value) || undefined, defaultUrl: $('#eUrl').value.trim(),
       autoplay: $('#eAuto').classList.contains('on'), locked: $('#eLock').classList.contains('on'),
+      alwaysOn: $('#eAlways').classList.contains('on'), carRadio: $('#eRadio').classList.contains('on'),
       perms: { public: $('#ePublic').classList.contains('on'), jobs: parsePairs($('#eJobs').value), gangs: parsePairs($('#eGangs').value), ace: $('#eAce').value.trim() },
     };
     A.edit = null;
@@ -965,7 +971,8 @@ const AdminActs = {
     const f = A.form;
     const sel = A.props.find((p) => p.model === A.sel);
     const form = { model: A.sel, label: f.label || (sel && sel.label) || (el.dataset.v === 'wall' ? 'Wall Screen' : undefined), range: parseFloat(f.range) || undefined, width: parseFloat(f.width) || 3,
-      defaultUrl: f.defaultUrl, autoplay: f.autoplay, loop: f.loop, remote: f.remote, perms: { public: f.public, jobs: {}, gangs: {} } };
+      defaultUrl: f.defaultUrl, autoplay: f.autoplay, loop: f.loop, remote: f.remote, perms: { public: f.public, jobs: {}, gangs: {} },
+      alwaysOn: f.alwaysOn || undefined, carRadio: f.carRadio || undefined };
     A.open = false; $('#admin').innerHTML = '';
     post('adminPlace', { mode: el.dataset.v, form });
   },

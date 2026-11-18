@@ -21,7 +21,7 @@ local function row(tv)
         playing = m and (m.title or Utils.fallbackTitle(m)) or nil,
         source = m and m.kind or nil, live = m and m.live or false, paused = m and m.paused or false,
         thumb = m and m.thumb or nil, watchers = watchers(tv),
-        defaultUrl = tv.defaultUrl, autoplay = tv.autoplay, perms = tv.perms,
+        defaultUrl = tv.defaultUrl, autoplay = tv.autoplay, perms = tv.perms, alwaysOn = tv.alwaysOn, carRadio = tv.carRadio,
     }
 end
 
@@ -55,7 +55,8 @@ Admin.create = function(src, d)
         model = d.model, kind = d.kind or 'prop', coords = d.coords, heading = d.heading, pitch = d.pitch, roll = d.roll,
         wall = d.wall, label = d.label, range = tonumber(d.range), permanent = true, perms = d.perms,
         defaultUrl = d.defaultUrl ~= '' and d.defaultUrl or nil, autoplay = d.autoplay, loop = d.loop,
-        aspect = d.aspect, style = d.style, hd = d.hd, remote = d.remote, power = d.autoplay == true,
+        aspect = d.aspect, style = d.style, hd = d.hd, remote = d.remote, power = d.autoplay == true or d.alwaysOn == true,
+        alwaysOn = d.alwaysOn, carRadio = d.carRadio,
         ownerName = 'Server',
     })
     TV.spawn(tv)
@@ -72,13 +73,15 @@ Admin.update = function(src, d)
     if d.defaultUrl ~= nil then tv.defaultUrl = (d.defaultUrl ~= '' and d.defaultUrl) or nil end
     if d.autoplay ~= nil then tv.autoplay = d.autoplay == true end
     if d.locked ~= nil then tv.locked = d.locked == true end
+    if d.alwaysOn ~= nil then tv.alwaysOn = d.alwaysOn == true if tv.alwaysOn then tv.power = true end end
+    if d.carRadio ~= nil then tv.carRadio = d.carRadio == true end
     if type(d.perms) == 'table' then
         tv.perms = {
             public = d.perms.public == true, jobs = d.perms.jobs or {}, gangs = d.perms.gangs or {},
             ace = (d.perms.ace ~= '' and d.perms.ace) or nil, allowed = tv.perms and tv.perms.allowed or {},
         }
     end
-    local fields = { 'label', 'range', 'defaultUrl', 'autoplay', 'locked', 'perms' }
+    local fields = { 'label', 'range', 'defaultUrl', 'autoplay', 'locked', 'perms', 'alwaysOn', 'carRadio', 'power' }
     -- geometry only goes out when the screen actually moved (it respawns the prop)
     if type(d.coords) == 'table' then
         tv.coords = { x = d.coords.x + 0.0, y = d.coords.y + 0.0, z = d.coords.z + 0.0 }

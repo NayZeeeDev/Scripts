@@ -328,5 +328,6 @@ Config.Text = {
     unlinked         = 'Screen unlinked',
     sleep_set        = 'Sleep timer: %s',
     no_channel       = 'There is no channel with that number',
+    always_on        = 'This screen stays on — only staff can switch it off',
     plex_web         = 'Plex\'s website can\'t play on TVs. Use the Live tab for Plex channels, or the Plex app for your own server.',
 }

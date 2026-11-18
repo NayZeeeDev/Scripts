@@ -193,8 +193,16 @@ function Placement.existing()
     while true do
         Wait(0)
         disable()
-        local hit, _, _, ent = ray(60.0, 16)
+        local hit, pos, _, ent = ray(150.0, 1 + 16)
         local def = (hit and ent and ent ~= 0 and GetEntityType(ent) == 3) and Props.Get(GetEntityModel(ent)) or nil
+        -- screens built into an MLO (e.g. a drive-in) are often not returned by the ray: look for venue models near the aim point
+        if not def and hit then
+            for _, v in ipairs(Props.Venues or {}) do
+                local h = GetHashKey(v[1])
+                local found = GetClosestObjectOfType(pos.x, pos.y, pos.z, 40.0, h, false, false, false)
+                if found ~= 0 then ent, def = found, Props.Get(v[1]) break end
+            end
+        end
         if outlined and outlined ~= ent then SetEntityDrawOutline(outlined, false) outlined = nil end
         if def then
             if outlined ~= ent then

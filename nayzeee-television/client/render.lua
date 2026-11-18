@@ -373,7 +373,8 @@ CreateThread(function()
                     any = true
                     drawn = drawn + 1
                     local front = ((cam.x - s.center.x) * s.n.x + (cam.y - s.center.y) * s.n.y + (cam.z - s.center.z) * s.n.z) > 0
-                    local prop = preferRT and tv.kind ~= 'wall' and NZ.prop(tv)
+                    local prop = tv.kind ~= 'wall' and NZ.prop(tv)
+                    if prop and not (preferRT or prop.rtAlways) then prop = nil end
                     local target = prop and prop.rt and not usedRT[prop.rt] and not NZ.calibration[tv.model] and rtId(prop.rt, prop.hash)
                     if target then
                         usedRT[prop.rt] = true
@@ -482,6 +483,7 @@ CreateThread(function()
         local rot = GetFinalRenderedCamRot(2)
         local rz = math.rad(rot.z)
         local right = vector3(math.cos(rz), math.sin(rz), 0.0)
+        local inCar = IsPedInAnyVehicle(PlayerPedId(), false)
         local best = {}   -- slot → loudest member { vol, lp, pan }
         local groups = {} -- group → loudest slot (linked screens that could not share a browser)
 
@@ -498,15 +500,21 @@ CreateThread(function()
                 elseif d < R then att = (1.0 - (d - inner) / (R - inner)) ^ A.Rolloff end
 
                 local lowpass = 22000
-                local o = occlusion(tv, s, cam)
-                if o.room then att = att * A.RoomVolume lowpass = A.RoomLowpass
-                elseif o.wall then att = att * A.WallVolume lowpass = A.WallLowpass end
+                local radio = tv.carRadio and inCar and d <= R
+                if radio then
+                    -- drive-in: the movie comes through your car radio anywhere on the lot
+                    att = 1.0
+                else
+                    local o = occlusion(tv, s, cam)
+                    if o.room then att = att * A.RoomVolume lowpass = A.RoomLowpass
+                    elseif o.wall then att = att * A.WallVolume lowpass = A.WallLowpass end
+                end
 
                 local vol = att * (tv.volume or 0.5) * NZ.personal.volume
                 if tv.muted or not tv.power or NZ.personal.streamer then vol = 0.0 end
 
                 local pan = 0.0
-                if A.Stereo and d > 0.8 then
+                if A.Stereo and d > 0.8 and not radio then
                     local dir = (s.center - cam) / d
                     pan = Utils.clamp((dir.x * right.x + dir.y * right.y) * 0.85, -0.85, 0.85)
                 end

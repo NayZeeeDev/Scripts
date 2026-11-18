@@ -31,6 +31,7 @@ Locales.en = {
     plex_disabled      = 'Plex is not set up on this server.',
     plex_offline       = 'The Plex server could not be reached.',
     no_channel         = 'There is no channel with that number',
+    always_on          = 'This screen stays on — only staff can switch it off',
     plex_web           = 'Plex\'s website can\'t play on TVs. Use the Live tab for Plex channels, or the Plex app for your own server.',
     search_disabled    = 'YouTube search is not enabled on this server — paste a link instead.',
     place_hint         = 'Place screen',
