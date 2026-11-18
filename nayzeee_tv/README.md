@@ -8,7 +8,7 @@ Everything is styled in the NAYZEEE UI (black · white · teal `#08afa2` · red 
 | | |
 |---|---|
 | **NAYZEEE OS** | Every screen runs its own smart-TV interface: boot animation, home screen with an expanding left rail, hero banner, *For You / Live / Apps* tabs, Continue Watching, app tiles, search, library, queue, settings, an ambient clock screensaver, volume / channel / now-playing overlays. CRT and arcade models get scanlines and the classic collapse-to-a-line power-off. |
-| **Sources** | YouTube · TikTok · Twitch · Kick · Vimeo · SoundCloud · Streamable · Medal · Instagram · Dailymotion · Reddit · Rumble · Google Drive · Pluto TV and other live-TV channel playlists (M3U) · your own Plex server · direct `.mp4/.webm/.mp3` · HLS `.m3u8` · images · files in `html/media`. See **Platforms** below for what each one supports. |
+| **Sources** | YouTube · TikTok · Twitch · Kick · Vimeo · SoundCloud · Streamable · Medal · Instagram · Dailymotion · Reddit · Rumble · Pluto TV and other live-TV channel playlists (M3U) · your own Plex server · direct `.mp4/.webm/.mp3` · HLS `.m3u8` · images · files in `html/media`. See **Platforms** below for what each one supports. |
 | **Own screen per TV** | Every TV has its own browser and its own texture, so two TVs of the same model play different things. The exception is linked screens: they share one browser because they show the same feed, which keeps them frame-identical and costs one browser for the whole group. |
 | **Sync** | The server owns a clock. Every screen corrects drift every 2.5 s (hard seek above 1.25 s; small playback-rate nudges for direct/HLS media). Players who crash, relog or walk in late join at the exact current moment. Queues, loops and playlists advance on the server even when nobody is near. |
 | **3D audio** | Volume falls off with distance (configurable rolloff). Walls muffle the sound, and so does being in another room of an interior. For direct, HLS and local media it pans left/right with your camera and applies a real low-pass filter. YouTube, Twitch and Kick embeds can only change volume. |
@@ -38,13 +38,12 @@ Everything is styled in the NAYZEEE UI (black · white · teal `#08afa2` · red 
 | TikTok | official embed player | starts from 0 | pause only | mute out of range | — |
 | Medal | embed | starts from 0 | pause only | sound cuts out of range | — |
 | Instagram (posts, reels) | embed; the TV taps play for you | starts from 0 | pause only | sound cuts out of range | — |
-| Google Drive (shared videos) | preview embed; the TV taps play | starts from 0 | pause only | sound cuts out of range | — |
 
 \* Needs the host to send CORS headers. Without them the file still plays, with distance volume only.
 
 **Not possible: Tubi.** Tubi's video is DRM-protected and its site refuses to load inside other pages, so no in-game browser screen can play it. The same applies to Netflix, Disney+, Hulu, Prime Video, Max and Spotify. Facebook and X videos mostly need a signed-in session, so they aren't included.
 
-**Embeds** (TikTok, Medal, Instagram, Drive, Dailymotion, Rumble) don't let other pages control their volume or report when they end. Clips from these platforms only advance the queue when someone presses Next.
+**Embeds** (TikTok, Medal, Instagram, Dailymotion, Rumble) don't let other pages control their volume or report when they end. Clips from these platforms only advance the queue when someone presses Next.
 
 Logos live in `html/brand/`. They come from Simple Icons (CC0). Medal, Streamable and Pluto TV aren't in that set, so they use simple stand-in marks in their brand colours; drop the official SVGs in to replace them. Logos are trademarks of their owners and are only used to show where a video comes from.
 

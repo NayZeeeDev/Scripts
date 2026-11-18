@@ -94,7 +94,7 @@ const KIND = {
   hls: { label: 'Live stream', icon: 'tw' }, video: { label: 'Video', icon: 'film' }, audio: { label: 'Audio', icon: 'music' }, image: { label: 'Image', icon: 'image' },
 };
 const BRANDS = window.BRANDS || {};
-['tiktok', 'vimeo', 'soundcloud', 'streamable', 'medal', 'instagram', 'dailymotion', 'reddit', 'rumble', 'drive', 'plex', 'pluto'].forEach((k) => {
+['tiktok', 'vimeo', 'soundcloud', 'streamable', 'medal', 'instagram', 'dailymotion', 'reddit', 'rumble', 'plex', 'pluto'].forEach((k) => {
   if (!KIND[k]) KIND[k] = { label: BRANDS[k] ? BRANDS[k].name : k, icon: 'film' };
 });
 /* transparent platform logo (brand colour by default) */
@@ -106,7 +106,7 @@ function logo(kind, brand, size, color) {
 }
 const klabel = (kind, brand) => (brand && BRANDS[brand] ? BRANDS[brand].name : (KIND[kind] || KIND.video).label);
 /* every platform the TVs can play, shown as a logo strip */
-const PLATFORMS = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud', 'streamable', 'medal', 'instagram', 'dailymotion', 'reddit', 'rumble', 'drive', 'pluto', 'plex'];
+const PLATFORMS = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud', 'streamable', 'medal', 'instagram', 'dailymotion', 'reddit', 'rumble', 'pluto', 'plex'];
 
 /* link detection — mirrors shared/utils.lua for instant feedback */
 function detect(raw) {
@@ -125,7 +125,6 @@ function detect(raw) {
   if (/dailymotion\.com|dai\.ly/i.test(u)) return { kind: 'dailymotion', label: 'Dailymotion video' };
   if (/reddit\.com\/.*comments|v\.redd\.it|redd\.it/i.test(u)) return { kind: 'reddit', label: 'Reddit video' };
   if (/rumble\.com/i.test(u)) return { kind: 'rumble', label: 'Rumble video' };
-  if (/drive\.google\.com/i.test(u)) return { kind: 'drive', label: 'Google Drive video' };
   if (/pluto\.tv/i.test(u) && /\.m3u8/i.test(u)) return { kind: 'hls', brand: 'pluto', label: 'Pluto TV channel' };
   if (/X-Plex-Token|:32400/i.test(u)) return { kind: 'plex', label: 'Plex' };
   const ext = (u.split(/[?#]/)[0].match(/\.(\w+)$/) || [])[1];
@@ -347,7 +346,7 @@ function panelView() {
   if (v === 'browse') {
     const chans = d.channels || [], lib = d.library || [];
     if (d.plex && !P.plexLoaded) loadPlex();
-    return `<div class="head"><div><h1>Browse</h1><p>YouTube, TikTok, Twitch, Kick, Vimeo, SoundCloud, Streamable, Medal, Instagram, Dailymotion, Reddit, Rumble, Google Drive, live-TV channels${P.d.plex ? ', your Plex library' : ''}, direct video, HLS, audio, images and server media.</p></div></div>
+    return `<div class="head"><div><h1>Browse</h1><p>YouTube, TikTok, Twitch, Kick, Vimeo, SoundCloud, Streamable, Medal, Instagram, Dailymotion, Reddit, Rumble, live-TV channels${P.d.plex ? ', your Plex library' : ''}, direct video, HLS, audio, images and server media.</p></div></div>
       ${urlBar()}
       ${P.searching ? '<div class="note">Searching YouTube…</div>' : ''}
       ${P.results.length ? `<section><div class="grp" style="margin:0 0 10px">Results for “${esc(P.q)}”</div><div class="mgrid">${P.results.map((r) => mcard({ ...r, sub: r.channel })).join('')}</div></section>` : ''}

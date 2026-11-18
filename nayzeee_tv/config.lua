@@ -102,7 +102,6 @@ Config.Media = {
     Dailymotion = true,
     Reddit      = true,
     Rumble      = true,
-    GoogleDrive = true,
     Direct    = true,   -- .mp4 / .webm / .ogg / .mp3 / .m3u8
     Images    = true,   -- .png / .jpg / .gif / .webp (venue boards, menus, posters)
     Local     = true,   -- files in html/media (see Config.Library)

@@ -36,7 +36,7 @@ const I = {
 const KIND_ICON = { youtube: 'yt', twitch: 'tw', kick: 'kk', hls: 'tw', video: 'film', audio: 'music', image: 'image' };
 const KIND_LABEL = { youtube: 'YouTube', twitch: 'Twitch', kick: 'Kick', hls: 'Live stream', video: 'Video', audio: 'Audio', image: 'Image',
   tiktok: 'TikTok', vimeo: 'Vimeo', soundcloud: 'SoundCloud', streamable: 'Streamable', medal: 'Medal', instagram: 'Instagram',
-  dailymotion: 'Dailymotion', reddit: 'Reddit', rumble: 'Rumble', drive: 'Google Drive', plex: 'Plex' };
+  dailymotion: 'Dailymotion', reddit: 'Reddit', rumble: 'Rumble', plex: 'Plex' };
 const BRANDS = window.BRANDS || {};
 const brandKey = (kind, brand) => (brand && BRANDS[brand] ? brand : BRANDS[kind] ? kind : null);
 /* platform logo (transparent brand mark) — falls back to a line icon */
@@ -51,7 +51,7 @@ const TILE = {
   kick: ['#17191b', '#050606', '#53FC19'], vimeo: ['#3fcaf5', '#0e8fbd', '#fff'], soundcloud: ['#ff7a2f', '#e04400', '#fff'],
   plex: ['#22272b', '#0b0c0d', '#EBAF00'], pluto: ['#fff45a', '#e2d300', '#111'], medal: ['#1d2024', '#050607', '#FFC21A'],
   streamable: ['#3aa6ff', '#0b6fd0', '#fff'], instagram: ['#f9a03f', '#d62976', '#fff', '#7a2ae2'], dailymotion: ['#262a2e', '#050606', '#fff'],
-  reddit: ['#ff6a2f', '#d63a00', '#fff'], rumble: ['#98d65a', '#5f9a2c', '#fff'], drive: ['#f4f6f8', '#d3d9df', '#4285F4'],
+  reddit: ['#ff6a2f', '#d63a00', '#fff'], rumble: ['#98d65a', '#5f9a2c', '#fff'],
 };
 const tileStyle = (k) => { const t = TILE[k]; if (!t) return ''; return `background:linear-gradient(155deg,${t[0]},${t[3] ? t[1] + ',' + t[3] : t[1]});color:${t[2]}`; };
 document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = I[el.dataset.icon] || ''; });
@@ -310,7 +310,7 @@ class SoundCloudAdapter {
   destroy() { this.dead = true; this.f.remove(); }
 }
 
-/* Platform embeds that cannot be remote-controlled (TikTok, Medal, Instagram, Dailymotion, Rumble, Drive, Kick fallback).
+/* Platform embeds that cannot be remote-controlled (TikTok, Medal, Instagram, Dailymotion, Rumble, Kick fallback).
    startSync: the embed takes a start time, so late joiners land on the right moment and seeks reload it.
    click: the embed needs a tap to start — the TV taps it.
    Volume can't be set on these, so the picture/sound unloads when you are out of earshot and comes back when you return. */
@@ -320,7 +320,6 @@ const EMBEDS = {
   instagram: { url: (m) => `https://www.instagram.com/${m.ptype === 'reel' ? 'reel' : 'p'}/${encodeURIComponent(m.id)}/embed/`, click: [0.5, 0.42] },
   dailymotion: { url: (m, p) => `https://www.dailymotion.com/embed/video/${encodeURIComponent(m.id)}?autoplay=1&mute=0&start=${p}&queue-enable=false&ui-start-screen-info=0&sharing-enable=false&ui-logo=0`, startSync: true },
   rumble: { url: (m, p) => `https://rumble.com/embed/${encodeURIComponent(m.embed)}/?autoplay=2&start=${p}`, startSync: true },
-  drive: { url: (m) => `https://drive.google.com/file/d/${encodeURIComponent(m.id)}/preview`, click: [0.5, 0.5] },
   streamable: { url: (m, p) => `https://streamable.com/e/${encodeURIComponent(m.id)}?autoplay=1&nocontrols=1&t=${p}`, startSync: true },
   kick: { url: (m) => `https://player.kick.com/${encodeURIComponent(m.channel)}?autoplay=true&muted=false` },
 };
@@ -476,7 +475,7 @@ function makeAdapter(m) {
     case 'vimeo': return new VimeoAdapter(m);
     case 'soundcloud': return new SoundCloudAdapter(m);
     case 'streamable': return m.direct ? new HtmlAdapter(m) : new EmbedAdapter(m, EMBEDS.streamable);
-    case 'tiktok': case 'medal': case 'instagram': case 'dailymotion': case 'rumble': case 'drive': return new EmbedAdapter(m, EMBEDS[m.kind]);
+    case 'tiktok': case 'medal': case 'instagram': case 'dailymotion': case 'rumble': return new EmbedAdapter(m, EMBEDS[m.kind]);
     case 'image': return new ImageAdapter(m);
     default: return new HtmlAdapter(m);
   }
@@ -583,8 +582,8 @@ function applyAudio() { if (S.adapter && S.adapter.setVolume) S.adapter.setVolum
 
 /* ═══════════════ TV OS ═══════════════ */
 /* streaming apps use their real logo on a brand-coloured tile */
-const BRAND_APPS = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud', 'plex', 'pluto', 'medal', 'streamable', 'instagram', 'dailymotion', 'reddit', 'rumble', 'drive'];
-const LINK_ONLY = { tiktok: 1, vimeo: 1, soundcloud: 1, medal: 1, streamable: 1, instagram: 1, dailymotion: 1, reddit: 1, rumble: 1, drive: 1 };
+const BRAND_APPS = ['youtube', 'tiktok', 'twitch', 'kick', 'vimeo', 'soundcloud', 'plex', 'pluto', 'medal', 'streamable', 'instagram', 'dailymotion', 'reddit', 'rumble'];
+const LINK_ONLY = { tiktok: 1, vimeo: 1, soundcloud: 1, medal: 1, streamable: 1, instagram: 1, dailymotion: 1, reddit: 1, rumble: 1 };
 let APPS = [];
 function buildApps() {
   APPS = BRAND_APPS.filter((k) => k !== 'plex' || S.plex).map((k) => ({ id: k, label: (BRANDS[k] && BRANDS[k].name) || k, brand: k })).concat(BASE_APPS);
@@ -854,7 +853,7 @@ function activate(z, i, mine) {
 
 const LINK_HOSTS = { youtube: /youtu\.?be/i, twitch: /twitch\.tv/i, kick: /kick\.com/i, tiktok: /tiktok\.com/i, vimeo: /vimeo\.com/i,
   soundcloud: /soundcloud\.com/i, streamable: /streamable\.com/i, medal: /medal\.tv/i, instagram: /instagram\.com/i,
-  dailymotion: /dailymotion\.com|dai\.ly/i, reddit: /redd\.?it/i, rumble: /rumble\.com/i, drive: /drive\.google/i };
+  dailymotion: /dailymotion\.com|dai\.ly/i, reddit: /redd\.?it/i, rumble: /rumble\.com/i };
 const looksUrl = (t) => /^(https?:\/\/|local:|[\w-]+\.[a-z]{2,}\/)/i.test(t.trim());
 
 function computeResults(mine) {

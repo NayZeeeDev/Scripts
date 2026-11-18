@@ -215,14 +215,6 @@ function Utils.parseMedia(raw)
         return { kind = 'rumble', src = 'rumble', embed = embed, url = url }
     end
 
-    -- Google Drive — shared video files
-    if host == 'drive.google.com' then
-        if not on(M.GoogleDrive) then return nil, 'blocked_url' end
-        local id = url:match('/file/d/([%w_-]+)') or query(url, 'id')
-        if not id then return nil, 'invalid_url' end
-        return { kind = 'drive', src = 'drive', id = id, url = url }
-    end
-
     -- Direct files / streams
     if not Config.Media.Direct then return nil, 'blocked_url' end
     if Config.Media.Whitelist then
@@ -255,7 +247,7 @@ function Utils.fallbackTitle(m)
     if m.kind == 'twitch' then return m.channel or (m.video and ('Twitch VOD ' .. m.video)) or 'Twitch clip' end
     if m.kind == 'kick' then return m.channel end
     local named = { tiktok = 'TikTok video', vimeo = 'Vimeo video', soundcloud = 'SoundCloud track', streamable = 'Streamable clip',
-        medal = 'Medal clip', instagram = 'Instagram post', dailymotion = 'Dailymotion video', reddit = 'Reddit video', rumble = 'Rumble video', drive = 'Google Drive video' }
+        medal = 'Medal clip', instagram = 'Instagram post', dailymotion = 'Dailymotion video', reddit = 'Reddit video', rumble = 'Rumble video' }
     if named[m.kind] then return named[m.kind] end
     if m.src == 'local' then return m.file end
     if m.kind == 'youtube' then return m.list and not m.id and 'YouTube playlist' or 'YouTube video' end
