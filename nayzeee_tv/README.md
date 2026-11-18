@@ -45,7 +45,7 @@ Everything is styled in the NAYZEEE UI (black · white · teal `#08afa2` · red 
 
 **Embeds** (TikTok, Medal, Instagram, Dailymotion, Rumble) don't let other pages control their volume or report when they end. Clips from these platforms only advance the queue when someone presses Next.
 
-Logos live in `html/brand/`. They come from Simple Icons (CC0). Medal, Streamable and Pluto TV aren't in that set, so they use simple stand-in marks in their brand colours; drop the official SVGs in to replace them. Logos are trademarks of their owners and are only used to show where a video comes from.
+Logos live in `html/brand/` as transparent single-colour SVGs. Most come from Simple Icons (CC0). Medal, Streamable and Pluto TV were traced from their official logos into the same flat style. Logos are trademarks of their owners and are only used to show where a video comes from.
 
 ### Pluto TV and other live-TV channels
 

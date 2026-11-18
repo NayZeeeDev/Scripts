@@ -49,7 +49,7 @@ const klabel = (kind, brand) => { const b = brandKey(kind, brand); return (b && 
 const TILE = {
   youtube: ['#ff3b3b', '#c40d0d', '#fff'], tiktok: ['#1d2024', '#030303', '#fff'], twitch: ['#a970ff', '#6420d6', '#fff'],
   kick: ['#17191b', '#050606', '#53FC19'], vimeo: ['#3fcaf5', '#0e8fbd', '#fff'], soundcloud: ['#ff7a2f', '#e04400', '#fff'],
-  plex: ['#22272b', '#0b0c0d', '#EBAF00'], pluto: ['#fff45a', '#e2d300', '#111'], medal: ['#1d2024', '#050607', '#FFC21A'],
+  plex: ['#22272b', '#0b0c0d', '#EBAF00'], pluto: ['#fff45a', '#e2d300', '#111'], medal: ['#1d2024', '#050607', '#FFAD33'],
   streamable: ['#3aa6ff', '#0b6fd0', '#fff'], instagram: ['#f9a03f', '#d62976', '#fff', '#7a2ae2'], dailymotion: ['#262a2e', '#050606', '#fff'],
   reddit: ['#ff6a2f', '#d63a00', '#fff'], rumble: ['#98d65a', '#5f9a2c', '#fff'],
 };
