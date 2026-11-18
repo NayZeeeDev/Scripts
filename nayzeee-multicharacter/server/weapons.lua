@@ -96,8 +96,14 @@ end
 
 -- false = explicit "none", nil = this pref can't be used
 local function try(p, list, map)
-    if p == 'none' then return W.allowNone and false or nil end
-    if p == 'auto' then if W.allowAuto then return best(list) or false end return nil end
+    if p == 'none' then
+        if W.allowNone then return false end
+        return nil
+    end
+    if p == 'auto' then
+        if not W.allowAuto then return nil end
+        return best(list) or false
+    end
     if type(p) == 'string' then return map[p:upper()] end
     return nil
 end

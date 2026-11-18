@@ -146,7 +146,7 @@ end
 
 -- ── slots ─────────────────────────────────────────────────────────────────
 function DB.Extra(owner)
-    return tonumber(MySQL.scalar.await('SELECT extra FROM `multichar_slots` WHERE owner = ?', { owner })) or 0
+    return tonumber((MySQL.scalar.await('SELECT extra FROM `multichar_slots` WHERE owner = ?', { owner }))) or 0
 end
 
 function DB.SetExtra(owner, extra)

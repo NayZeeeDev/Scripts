@@ -84,6 +84,8 @@ Locales['en'] = {
     c_coords          = 'Copy position + camera for scene building',
     c_lobby           = 'Preview a lobby theme (admin scene editor)',
     c_slotsinfo       = 'Show slot sources for a player',
+    c_code            = 'Create a slot redeem code',
+    c_doctor          = 'Run the install doctor',
     done              = 'Done',
     not_found         = 'Not found',
 

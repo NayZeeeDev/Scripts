@@ -121,6 +121,16 @@ function Squads.Notify(...)
     end
 end
 
+-- Online state of charId changed: refresh every lobby that shows it as a linked character
+function Squads.NotifyLinked(charId)
+    if not SQ.enabled or not charId then return end
+    local others = {}
+    for _, r in ipairs(MySQL.query.await(("SELECT sender, target FROM %s WHERE (sender = ? OR target = ?) AND status = 'accepted'"):format(TABLE), { charId, charId }) or {}) do
+        others[#others + 1] = r.sender == charId and r.target or r.sender
+    end
+    if #others > 0 then Squads.Notify(table.unpack(others)) end
+end
+
 local function toast(charId, msg, kind)
     for _, src in ipairs(ownersOf(charId)) do TriggerClientEvent('nzm:client:notify', src, msg, kind or 'info') end
 end
@@ -346,7 +356,8 @@ end
 function Squads.Respond(charId, linkId, accept, src)
     return serial(function()
         local row = byId(linkId)
-        local sd, oid = row and side(row, charId)
+        local sd, oid
+        if row then sd, oid = side(row, charId) end
         if not sd then return fail('t_invalid') end
         local myName, otherName = names(charId, oid)
 
@@ -375,12 +386,13 @@ function Squads.Respond(charId, linkId, accept, src)
                 log(src, 'switch declined', myName, otherName, row.pending_type)
                 return { ok = true }
             end
+            local to = row.pending_type
             local ok, err = applySwitch(row)
             if not ok then return fail(err) end
             Squads.Notify(charId, oid)
-            toast(oid, T('t_sq_switched', myName, label(row.pending_type)), 'success')
-            log(src, 'switch', myName, otherName, row.pending_type)
-            return { ok = true, msg = T('t_sq_switched', otherName, label(row.pending_type)) }
+            toast(oid, T('t_sq_switched', myName, label(to)), 'success')
+            log(src, 'switch', myName, otherName, to)
+            return { ok = true, msg = T('t_sq_switched', otherName, label(to)) }
         end
         return fail('t_invalid')
     end)
@@ -390,7 +402,8 @@ end
 function Squads.Remove(src, charId, linkId)
     return serial(function()
         local row = byId(linkId)
-        local sd, oid = row and side(row, charId)
+        local sd, oid
+        if row then sd, oid = side(row, charId) end
         if not sd then return { ok = false } end
         MySQL.update.await(('DELETE FROM %s WHERE id = ?'):format(TABLE), { row.id })
         local myName, otherName = names(charId, oid)
@@ -406,7 +419,8 @@ function Squads.Switch(src, charId, linkId, kind)
     if kind == 'couple' and not SQ.couples then return fail('t_invalid') end
     return serial(function()
         local row = byId(linkId)
-        local sd, oid = row and side(row, charId)
+        local sd, oid
+        if row then sd, oid = side(row, charId) end
         if not sd or row.status ~= 'accepted' or row.type == kind then return fail('t_invalid') end
         local myName, otherName = names(charId, oid)
 

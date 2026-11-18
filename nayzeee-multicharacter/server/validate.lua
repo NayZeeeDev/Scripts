@@ -36,7 +36,7 @@ end
 -- Strip control chars + markup, trim, utf8-aware length cap. Returns clean string, or nil when invalid / empty.
 function Validate.Text(v, max)
     if type(v) ~= 'string' then return nil end
-    v = NZ.Trim((v:gsub('[%c<>`\\{}]', ' '):gsub('%s+', ' ')))
+    v = NZ.Trim((v:gsub('[%c<>\\{}]', ' '):gsub('%s+', ' ')))
     if v == '' then return nil end
     local len = utf8.len(v)
     if not len or len > max then return nil end

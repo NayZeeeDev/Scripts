@@ -2,7 +2,9 @@ if not NAYZEEE_LOCK_OK then return end
 
 --[[
     Scripted cameras.
-      Cam.Go(def, ms)      eased move to { coords, lookAt | rot | entity, fov, dof, focus, shake }. Blocks until done.
+      Cam.Go(def, ms)      eased move to { coords, lookAt | rot | entity, fov, dof, focus, shake }
+                           or an attached def { attach = entity, offset, look (entity-local), fov } (in-flight themes,
+                           chase cams). Blocks until done.
                            Returns false when a newer move started meanwhile (sequence guard).
       Cam.Mode(mode, ms)   lobby framing: squad | duo | body | face (theme override or automatic)
       Cam.Aerial(coords)   spawn selector preview definition
@@ -37,9 +39,15 @@ local function dofLoop()
 end
 
 local function build(def)
-    local c = def.coords
+    local c = def.coords or vec3(0.0, 0.0, 0.0)
+    if def.attach then c = GetOffsetFromEntityInWorldCoords(def.attach, def.offset.x, def.offset.y, def.offset.z) end
     local cam = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', c.x, c.y, c.z, 0.0, 0.0, 0.0, (def.fov or 45.0) + 0.0, false, 2)
-    if def.entity and DoesEntityExist(def.entity) then
+    if def.attach then
+        -- Entity-local offsets: the camera rides along (AttachCamToEntity isRelative = true rotates with the entity)
+        local o, l = def.offset, def.look or vec3(0.0, 0.0, 0.0)
+        AttachCamToEntity(cam, def.attach, o.x, o.y, o.z, true)
+        PointCamAtEntity(cam, def.attach, l.x, l.y, l.z, true)
+    elseif def.entity and DoesEntityExist(def.entity) then
         local o = def.entityOffset or vec3(0.0, 0.0, 0.0)
         PointCamAtEntity(cam, def.entity, o.x, o.y, o.z, true)
     elseif def.lookAt then
@@ -82,7 +90,9 @@ end
 
 -- opts.drift = internal drift leg (keeps the drift running)
 function Cam.Go(def, ms, opts)
-    if not def or not def.coords then return false end
+    if not def then return false end
+    if def.attach and not DoesEntityExist(def.attach) then return false end
+    if not def.attach and not def.coords then return false end
     Cam.seq = Cam.seq + 1
     local my = Cam.seq
     if not (opts and opts.drift) then Cam.driftOn = false end
@@ -90,7 +100,8 @@ function Cam.Go(def, ms, opts)
     local cam = build(def)
     local prev = Cam.current
     if prev and ms and ms > 0 and IsCamRendering(prev) then
-        if IsCamInterpolating(prev) or (opts and opts.snapshot) then
+        -- (never for attached cams: a world-static snapshot would lag behind a moving helicopter)
+        if not def.attach and (IsCamInterpolating(prev) or (opts and opts.snapshot)) then
             Cam.old[#Cam.old + 1] = prev
             prev = snapshot()
         end
@@ -117,11 +128,39 @@ function Cam.Go(def, ms, opts)
 end
 
 -- ── lobby framing ────────────────────────────────────────────────────────
+-- Entity a camera attaches to: 'vehicle1' / 'vehicle2' ... | 'main' | 'partner'
+function Cam.AttachTarget(key)
+    if not key then return nil end
+    local n = type(key) == 'string' and tonumber(key:match('^vehicle(%d+)$'))
+    if n then return (Scene.Vehicle(n)) end
+    local a = (key == 'main' and Actors.list[1]) or (key == 'partner' and Actors.list[2]) or nil
+    return a and DoesEntityExist(a.ped) and a.ped or nil
+end
+
+-- Resolves a { offset, lookAt, fov, attach } point (theme camera / departure point) into a Cam.Go def
+function Cam.Point(o, attachKey, dof)
+    local base = Scene.main
+    local ent = Cam.AttachTarget(o.attach or attachKey)
+    if ent then
+        local off, look = o.offset or vec3(0.0, -4.0, 1.0), o.lookAt or vec3(0.0, 0.0, 0.0)
+        return { attach = ent, offset = off, look = look, fov = o.fov, dof = dof, focus = #(off - look) }
+    end
+    if not base then return nil end
+    local coords = NZ.Rel(base, o.offset)
+    local look = NZ.Rel(base, o.lookAt or vec3(0.0, 0.0, 0.0))
+    return { coords = coords, lookAt = look, fov = o.fov, dof = dof, focus = #(coords - look) }
+end
+
 local function override(mode)
     local theme, base = Scene.theme, Scene.main
-    local o = theme and theme.cameras and theme.cameras[mode]
-    if not o or not base then return nil end
+    local cams = theme and theme.cameras
+    if not cams or not base then return nil end
+    local o = cams[mode]
+    -- Attached (in-flight) themes can't use automatic world framing: fall back to a sibling override
+    if not o and cams.attach then o = (mode == 'duo' and cams.body) or cams.squad or cams.body end
+    if not o then return nil end
     local m = C.modes[mode] or {}
+    if cams.attach then return Cam.Point(o, cams.attach, m.dof) end
     local coords = NZ.Rel(base, o.offset)
     local look = NZ.Rel(base, o.lookAt or vec3(0.0, 0.0, 0.0))
     return { coords = coords, lookAt = look, fov = o.fov or m.fov, dof = m.dof, focus = #(coords - look) }
@@ -183,8 +222,14 @@ local function drift(def)
     CreateThread(function()
         local right = Scene.main and NZ.Right(Scene.main.w) or vec3(1.0, 0.0, 0.0)
         local a = def
-        local b = NZ.Copy(def)
-        b.coords = def.coords + right * (d.distance or 0.22) + vec3(0.0, 0.0, (d.distance or 0.22) * 0.25)
+        local b = {}
+        for k, v in pairs(def) do b[k] = v end
+        local dist = d.distance or 0.22
+        if def.attach then
+            b.offset = def.offset + vec3(dist, 0.0, dist * 0.25)        -- entity-local sideways dolly
+        else
+            b.coords = def.coords + right * dist + vec3(0.0, 0.0, dist * 0.25)
+        end
         local toB = true
         while Cam.driftOn and Main.open do
             if Main.busy or (Main.mode ~= 'lobby' and Main.mode ~= 'create') then

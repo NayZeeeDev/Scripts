@@ -268,10 +268,21 @@ function U.Pose(ped, def, opts)
             Wait(150)
             if poseSeq[ped] ~= my or not DoesEntityExist(ped) then return end
             if playing(ped, def) then return end
-            start(ped, def, false)
+            start(ped, def, opts.keepTasks)
         end
     end)
     return true
+end
+
+-- True once the ped plays the pose (waits up to ms)
+function U.WaitPose(ped, def, ms)
+    local deadline = GetGameTimer() + (ms or 800)
+    while GetGameTimer() < deadline do
+        if not DoesEntityExist(ped) then return false end
+        if playing(ped, def) then return true end
+        Wait(50)
+    end
+    return false
 end
 
 -- Cancels pending pose retries for a ped (before handing it to another task)
