@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartView</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* NAYZEEE UI v3 — SmartView phone app */
+:root{
+  --void:#000;--base:#08090a;--panel:#0e1011;--raise:#15181a;--raise-2:#1c2023;--inset:#0b0c0d;
+  --line:rgba(255,255,255,.10);--line-soft:rgba(255,255,255,.06);--line-hair:rgba(255,255,255,.035);--lift:rgba(255,255,255,.055);
+  --white:#fff;--ink:#f2f4f5;--ink-2:#9ea5aa;--ink-3:#63696d;
+  --teal:#08afa2;--teal-hi:#0fd4c4;--teal-lo:#067d74;--teal-wash:rgba(8,175,162,.11);--teal-edge:rgba(8,175,162,.34);
+  --red:#e5484d;--red-lo:#b8262b;--red-wash:rgba(229,72,77,.11);
+  --fast:130ms cubic-bezier(.4,0,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--base);color:var(--ink);font-family:'Lexend',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;user-select:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input{font:inherit}
+svg{display:block}
+.hidden{display:none!important}
+.app{position:relative;height:100%;display:flex;flex-direction:column;background:radial-gradient(500px 340px at 80% -10%,rgba(8,175,162,.16),transparent 70%),var(--base)}
+.top{display:flex;align-items:center;gap:12px;padding:58px 20px 16px}
+.mark{position:relative;flex:none;width:34px;height:34px;background:linear-gradient(155deg,var(--teal-hi),var(--teal-lo));border-radius:7px;clip-path:polygon(0 0,100% 0,100% 56%,56% 100%,0 100%);box-shadow:0 2px 12px rgba(8,175,162,.3)}
+.mark::after{content:'';position:absolute;left:22%;top:22%;width:56%;height:22%;background:#000;opacity:.85;border-radius:1px}
+.top h1{font-size:22px;font-weight:700;letter-spacing:-.03em;color:#fff;line-height:1}
+.top p{font-size:12px;color:var(--ink-3);font-weight:300;margin-top:4px}
+.back{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--raise);border:1px solid var(--line-soft);color:var(--ink-2)}
+.back svg{width:18px;height:18px}
+.scroll{flex:1;overflow-y:auto;padding:0 16px 30px}
+.scroll::-webkit-scrollbar{width:0}
+
+.tv{display:flex;align-items:center;gap:12px;width:100%;padding:12px;margin-bottom:10px;border-radius:14px;background:var(--panel);border:1px solid var(--line-soft);box-shadow:0 1px 0 var(--lift) inset;text-align:left;transition:border-color var(--fast)}
+.tv:active{border-color:var(--teal-edge)}
+.tv .th{width:74px;height:46px;border-radius:8px;flex:none;background:var(--raise) center/cover;border:1px solid var(--line-soft);display:grid;place-items:center;color:var(--ink-3)}
+.tv .th svg{width:20px;height:20px}
+.tv .t{flex:1;min-width:0}
+.tv b{display:block;font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tv span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:3px;font-weight:300;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tv em{font-style:normal;font-size:11px;color:var(--ink-2);flex:none}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 3px var(--teal-wash);margin-right:6px;vertical-align:middle}
+.dot.off{background:var(--ink-3);box-shadow:none}
+.chip{display:inline-flex;align-items:center;font-size:9.5px;font-weight:600;letter-spacing:.04em;padding:3px 8px;border-radius:4px;color:var(--teal);background:var(--teal-wash);border:1px solid var(--teal-edge);text-transform:uppercase}
+.chip.red{color:var(--red);background:var(--red-wash);border-color:rgba(229,72,77,.34)}
+.lost{margin:0 0 14px;padding:12px 14px;border-radius:12px;background:var(--inset);border:1px solid var(--line-soft);border-left:2px solid var(--teal);font-size:12px;color:var(--ink-2);font-weight:300;line-height:1.5}
+.lost b{color:#fff;font-weight:500}
+.empty{margin-top:40px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:30px 16px;border:1px dashed var(--line);border-radius:14px}
+.empty svg{width:28px;height:28px;color:var(--ink-3)}
+.empty b{font-size:14px;color:#fff;font-weight:500}
+.empty span{font-size:12px;color:var(--ink-3);font-weight:300;line-height:1.5}
+
+/* control view */
+.np{position:relative;overflow:hidden;border-radius:16px;background:var(--panel);border:1px solid var(--line-soft);box-shadow:0 1px 0 var(--lift) inset}
+.np .art{height:170px;background:linear-gradient(150deg,#141b1c,#07090a) center/cover;position:relative}
+.np .art::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(14,16,17,1))}
+.np .art .chip{position:absolute;left:12px;top:12px;z-index:2}
+.np .meta{padding:0 14px 14px;margin-top:-30px;position:relative}
+.np .meta b{display:block;font-size:16px;font-weight:600;color:#fff;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.np .meta span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:4px;font-weight:300}
+.bar{height:4px;border-radius:9px;background:rgba(255,255,255,.1);margin-top:12px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--teal);border-radius:9px}
+.bar.live i{background:var(--red);width:100%}
+.times{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-top:6px}
+
+.pad{margin-top:16px;padding:18px 16px 16px;border-radius:22px;background:linear-gradient(180deg,#141618,#0c0e0f);border:1px solid var(--line-soft);box-shadow:0 1px 0 var(--lift) inset}
+.prow{display:flex;justify-content:space-between;align-items:center}
+.k{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:#d6dadc;background:radial-gradient(circle at 50% 30%,#25292c,#16191b 70%);box-shadow:0 3px 0 #050606,inset 0 1px 0 rgba(255,255,255,.1);transition:transform 80ms}
+.k:active{transform:translateY(2px);box-shadow:0 1px 0 #050606}
+.k svg{width:19px;height:19px}
+.k.red{color:var(--red)}
+.k.teal{background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d}
+.dpad{position:relative;width:200px;height:200px;margin:18px auto;border-radius:50%;background:radial-gradient(circle at 50% 35%,#24282b,#131517 72%);box-shadow:0 5px 0 #050606,inset 0 1px 0 rgba(255,255,255,.1)}
+.dp{position:absolute;display:grid;place-items:center;color:#c6cbce}
+.dp svg{width:20px;height:20px}
+.dp:active{color:var(--teal)}
+.dp.u{left:50%;top:8px;width:70px;height:56px;transform:translateX(-50%)}
+.dp.d{left:50%;bottom:8px;width:70px;height:56px;transform:translateX(-50%)}
+.dp.l{top:50%;left:8px;width:56px;height:70px;transform:translateY(-50%)}
+.dp.r{top:50%;right:8px;width:56px;height:70px;transform:translateY(-50%)}
+.ok{position:absolute;left:50%;top:50%;width:84px;height:84px;margin:-42px 0 0 -42px;border-radius:50%;background:radial-gradient(circle at 50% 30%,#2b3033,#191c1e 75%);
+  box-shadow:0 3px 0 #050606,0 0 0 5px rgba(0,0,0,.35);color:#9aa2a6;font-size:12px;font-weight:600;letter-spacing:.1em}
+.ok:active{transform:translateY(2px);color:var(--teal)}
+.vol{display:flex;align-items:center;gap:10px;margin-top:16px}
+.vol .pill{flex:1;display:flex;align-items:center;height:48px;border-radius:24px;background:var(--inset);border:1px solid var(--line-soft);overflow:hidden}
+.vol .pill button{flex:1;height:100%;display:grid;place-items:center;color:#d6dadc}
+.vol .pill button:active{background:rgba(255,255,255,.05);color:var(--teal)}
+.vol .pill svg{width:17px;height:17px}
+.vol .pill i{width:1px;height:22px;background:var(--line)}
+.vol .pill span{font-size:9px;color:var(--ink-3);letter-spacing:.12em;font-weight:600;padding:0 4px}
+.apps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.apps button{height:36px;border-radius:18px;font-size:11px;font-weight:700;background:var(--inset);border:1px solid var(--line-soft)}
+.apps .yt{color:#ff5a5a}.apps .tw{color:#b48aff}.apps .kk{color:#62e870}.apps .sr{color:var(--teal-hi)}
+
+.cast{margin-top:16px;padding:12px;border-radius:16px;background:var(--panel);border:1px solid var(--line-soft)}
+.cast label{display:block;font-size:11px;color:var(--ink-3);margin-bottom:8px;font-weight:300}
+.cast input{width:100%;height:42px;padding:0 12px;border-radius:10px;background:var(--inset);border:1px solid var(--line-soft);color:#fff;font-size:13px;outline:0}
+.cast input:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-wash)}
+.cast .row{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;height:40px;border-radius:10px;font-size:12.5px;font-weight:600}
+.btn.teal{background:linear-gradient(var(--teal),var(--teal-lo));color:#00201d;box-shadow:0 1px 0 rgba(255,255,255,.3) inset}
+.btn.line{border:1px solid var(--line);color:var(--ink-2);font-weight:400}
+.toast{position:absolute;left:16px;right:16px;bottom:24px;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--teal);font-size:12.5px;color:#fff;
+  box-shadow:0 10px 30px rgba(0,0,0,.6);animation:up .25s}
+@keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top" id="top"></div>
+  <div class="scroll" id="view"></div>
+  <div class="toast hidden" id="toast"></div>
+</div>
+<script>
+'use strict';
+const RES = (location.hostname.match(/^cfx-nui-(.+)$/) || [])[1] || 'nayzeee_tv';
+const IN_GAME = /^cfx-nui-/.test(location.hostname);
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (t) => { t = Math.max(0, Math.floor(t || 0)); const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+const I = {
+  tv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="m8 2.5 4 3.5 4-3.5M8 21h8"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
+  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  left: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>',
+  right: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>',
+  ret: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg>',
+  pp: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6v12l8-6z"/><rect x="14" y="6" width="2.5" height="12" rx="1"/><rect x="18.5" y="6" width="2.5" height="12" rx="1"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>',
+};
+
+const S = { tvs: [], sel: null, now: 0, at: 0, brand: {} };
+const serverNow = () => S.now + (Date.now() - S.at);
+
+async function post(name, data) {
+  if (!IN_GAME) return demo(name, data);
+  try {
+    const r = await fetch(`https://${RES}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+    const t = await r.text();
+    return t ? JSON.parse(t) : null;
+  } catch (e) { return null; }
+}
+
+let toastT = 0;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.remove('hidden'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.add('hidden'), 2600); }
+
+async function refresh() {
+  const r = await post('phone:list');
+  if (!r) return;
+  S.tvs = r.tvs || []; S.now = r.now; S.at = Date.now(); S.brand = r.brand || {};
+  render();
+}
+
+function render() {
+  const tv = S.sel && S.tvs.find((t) => t.id === S.sel);
+  if (S.sel && !tv) S.sel = null;
+  if (!S.sel) {
+    $('#top').innerHTML = `<div class="mark"></div><div><h1>SmartView</h1><p>${S.tvs.length} screen${S.tvs.length === 1 ? '' : 's'} nearby</p></div>`;
+    $('#view').innerHTML = (S.tvs.some((t) => t.remoteLost) ? `<div class="lost">Someone walked off with a remote? <b>Control the screen from here</b> — same buttons, same sync.</div>` : '') +
+      (S.tvs.length ? S.tvs.map((t) => `<button class="tv" data-open="${esc(t.id)}"><div class="th" ${t.media && t.media.thumb ? `style="background-image:url('${esc(t.media.thumb)}')"` : ''}>${t.media && t.media.thumb ? '' : I.tv}</div>
+        <div class="t"><b>${esc(t.label)}</b><span><i class="dot ${t.power ? '' : 'off'}"></i>${t.power ? (t.media ? esc(t.media.title) : 'Home screen') : 'Standby'}</span></div><em>${t.dist}m</em></button>`).join('')
+        : `<div class="empty">${I.tv}<b>No screens nearby</b><span>Walk within range of a TV, cinema screen or monitor to control it.</span></div>`);
+    return;
+  }
+  const m = tv.media;
+  const pos = m ? (m.paused ? m.pausedAt || 0 : Math.max(0, (serverNow() - m.startedAt) / 1000)) : 0;
+  const pct = m && m.duration ? Math.min(100, pos / m.duration * 100) : 0;
+  $('#top').innerHTML = `<button class="back" data-back>${I.back}</button><div style="min-width:0"><h1 style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(tv.label)}</h1><p><i class="dot ${tv.power ? '' : 'off'}"></i>${tv.power ? 'Connected' : 'Standby'} · ${tv.dist}m away${tv.locked ? ' · locked' : ''}</p></div>`;
+  const focus = document.activeElement && document.activeElement.id === 'castUrl' ? $('#castUrl').value : null;
+  $('#view').innerHTML = `
+    <div class="np"><div class="art" ${m && m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}>${m ? (m.live ? '<span class="chip red">● Live</span>' : `<span class="chip">${esc(m.kind)}</span>`) : ''}</div>
+      <div class="meta"><b>${m ? esc(m.title) : 'Nothing playing'}</b><span>${m ? (m.paused ? 'Paused' : 'Playing') : 'Use the pad to browse the TV'} · volume ${tv.muted ? 'muted' : Math.round((tv.volume || 0) * 100) + '%'}</span>
+        ${m ? `<div class="bar ${m.live ? 'live' : ''}"><i style="width:${pct}%"></i></div><div class="times"><span>${m.live ? 'LIVE' : fmt(pos)}</span><span>${m.duration ? fmt(m.duration) : ''}</span></div>` : ''}</div></div>
+    <div class="pad">
+      <div class="prow"><button class="k red" data-c="power">${I.power}</button><button class="k" data-k="settings">${I.menu}</button><button class="k" data-c="mute">${I.mute}</button><button class="k teal" data-c="toggle">${I.pp}</button></div>
+      <div class="dpad"><button class="dp u" data-k="up">${I.up}</button><button class="dp d" data-k="down">${I.down}</button><button class="dp l" data-k="left">${I.left}</button><button class="dp r" data-k="right">${I.right}</button><button class="ok" data-k="ok">OK</button></div>
+      <div class="prow"><button class="k" data-k="back">${I.ret}</button><button class="k" data-k="home">${I.home}</button><button class="k" data-k="info" style="font-size:12px;font-weight:700">i</button></div>
+      <div class="vol"><div class="pill"><button data-c="volStep" data-v="-1">${I.minus}</button><i></i><span>VOL</span><i></i><button data-c="volStep" data-v="1">${I.plus}</button></div>
+        <div class="pill"><button data-c="channel" data-v="-1">${I.down}</button><i></i><span>CH</span><i></i><button data-c="channel" data-v="1">${I.up}</button></div></div>
+      <div class="apps"><button class="yt" data-k="app:youtube">YouTube</button><button class="tw" data-k="app:twitch">Twitch</button><button class="kk" data-k="app:kick">Kick</button><button class="sr" data-k="search">Search</button></div>
+    </div>
+    <div class="cast"><label>Cast a link to this screen</label><input id="castUrl" placeholder="YouTube, Twitch, Kick, .mp4, .m3u8…" spellcheck="false">
+      <div class="row"><button class="btn line" data-cast="queue">Add to queue</button><button class="btn teal" data-cast="play">Play now</button></div></div>`;
+  if (focus !== null) { const i = $('#castUrl'); i.value = focus; i.focus(); }
+}
+
+document.addEventListener('click', async (e) => {
+  const o = e.target.closest('[data-open]');
+  if (o) { S.sel = o.dataset.open; return render(); }
+  if (e.target.closest('[data-back]')) { S.sel = null; return render(); }
+  const k = e.target.closest('[data-k]');
+  if (k) { const r = await post('key', { id: S.sel, key: k.dataset.k }); if (r && r.ok === false) toast('You cannot control this screen.'); return; }
+  const c = e.target.closest('[data-c]');
+  if (c) { await post('control', { id: S.sel, action: c.dataset.c, data: c.dataset.v ? +c.dataset.v : undefined }); return refresh(); }
+  const cast = e.target.closest('[data-cast]');
+  if (cast) {
+    const url = $('#castUrl').value.trim();
+    if (!url) return;
+    const r = await post('control', { id: S.sel, action: cast.dataset.cast, data: { url } });
+    toast(r && r.ok ? (cast.dataset.cast === 'play' ? 'Playing on the screen.' : 'Added to the queue.') : 'That link could not be played.');
+    if (r && r.ok) $('#castUrl').value = '';
+    refresh();
+  }
+});
+
+setInterval(refresh, 2000);
+setInterval(() => { if (S.sel && document.activeElement && document.activeElement.id !== 'castUrl') render(); }, 1000);
+refresh();
+
+function demo(name) {
+  if (name === 'phone:list') return { now: 100000, brand: {}, tvs: [
+    { id: 'a', label: 'Living Room TV', dist: 3.2, power: true, volume: 0.6, media: { title: 'Midnight Drive — Synthwave Mix', kind: 'youtube', startedAt: 100000 - 754000, duration: 10800 }, remoteLost: true },
+    { id: 'b', label: 'Bedroom CRT', dist: 9.8, power: false, volume: 0.4, media: false },
+  ] };
+  return { ok: true };
+}
+</script>
+</body>
+</html>

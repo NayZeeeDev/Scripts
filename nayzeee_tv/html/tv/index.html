@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NAYZEEE OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tv.css">
+</head>
+<body>
+<div id="stage" class="stage off">
+
+  <!-- media layer -->
+  <div id="player" class="player"></div>
+  <div id="audioViz" class="audio-viz hidden">
+    <div class="av-art"><div class="av-mark"></div></div>
+    <div class="av-meta"><b id="avTitle">Audio</b><span id="avSub">Now playing</span></div>
+    <canvas id="avCanvas" width="1200" height="260"></canvas>
+  </div>
+  <div id="buffer" class="buffer hidden"><i></i><span>Loading</span></div>
+
+  <!-- NAYZEEE OS -->
+  <div id="os" class="os hidden">
+    <div class="os-bg" id="osBg"></div>
+    <div class="os-shade"></div>
+
+    <aside class="rail" id="rail">
+      <div class="rail-item profile" data-rail="0"><span class="rail-ic"><span class="mark sm"></span></span><b id="railName">Guest</b></div>
+      <div class="rail-item" data-rail="1"><span class="rail-ic" data-icon="search"></span><b>Search</b></div>
+      <div class="rail-item" data-rail="2"><span class="rail-ic" data-icon="source"></span><b>Sources</b></div>
+      <div class="rail-item" data-rail="3"><span class="rail-ic" data-icon="home"></span><b>Home</b></div>
+      <div class="rail-item" data-rail="4"><span class="rail-ic" data-icon="library"></span><b>Library</b></div>
+      <div class="rail-item" data-rail="5"><span class="rail-ic" data-icon="queue"></span><b>Up Next</b></div>
+      <div class="rail-spacer"></div>
+      <div class="rail-item" data-rail="6"><span class="rail-ic" data-icon="settings"></span><b>Settings</b></div>
+    </aside>
+
+    <header class="topbar">
+      <div class="tb-label" id="tbLabel">Living Room</div>
+      <div class="tb-right"><span class="tb-wifi" data-icon="wifi"></span><b id="tbClock">00:00</b></div>
+    </header>
+
+    <!-- HOME -->
+    <section class="page" id="pageHome">
+      <div class="hero">
+        <span class="hero-chip" id="heroChip">Featured</span>
+        <h1 id="heroTitle">Welcome</h1>
+        <p id="heroSub">Press OK on your remote to browse</p>
+        <div class="hero-btn" data-zone="hero" data-i="0"><span data-icon="play"></span><b id="heroBtn">Browse</b></div>
+      </div>
+      <div class="tabs" id="tabs">
+        <div class="tab" data-zone="tabs" data-i="0">For You</div>
+        <div class="tab" data-zone="tabs" data-i="1">Live</div>
+        <div class="tab" data-zone="tabs" data-i="2">Apps</div>
+      </div>
+      <div class="rows" id="rows"></div>
+    </section>
+
+    <!-- SEARCH -->
+    <section class="page" id="pageSearch">
+      <h2 class="page-title">Search</h2>
+      <div class="search-box" data-zone="sbox" data-i="0">
+        <span data-icon="search"></span><b id="searchText"></b><i id="searchPh">Press OK to type, or paste a link</i>
+      </div>
+      <div class="chips" id="searchSources"></div>
+      <div class="results" id="searchResults"></div>
+      <div class="search-msg" id="searchMsg"></div>
+    </section>
+
+    <!-- LIST PAGES (library / queue / settings) -->
+    <section class="page" id="pageList">
+      <h2 class="page-title" id="listTitle">Library</h2>
+      <p class="page-sub" id="listSub"></p>
+      <div class="list" id="list"></div>
+    </section>
+
+    <!-- SOURCES overlay -->
+    <div class="sources hidden" id="sources">
+      <h3>Source</h3>
+      <div class="src-list" id="srcList"></div>
+    </div>
+  </div>
+
+  <!-- OSD -->
+  <div class="osd-info hidden" id="osdInfo">
+    <div class="oi-thumb" id="oiThumb"></div>
+    <div class="oi-body">
+      <div class="oi-top"><span class="oi-chip" id="oiChip">YouTube</span><span class="oi-label" id="oiLabel"></span></div>
+      <b id="oiTitle">Title</b>
+      <div class="oi-bar"><i id="oiFill"></i><em id="oiKnob"></em></div>
+      <div class="oi-times"><span id="oiPos">0:00</span><span id="oiState"></span><span id="oiDur">0:00</span></div>
+    </div>
+  </div>
+  <div class="osd-vol hidden" id="osdVol"><span data-icon="vol" id="ovIcon"></span><div class="ov-bar"><i id="ovFill"></i></div><b id="ovNum">50</b></div>
+  <div class="osd-ch hidden" id="osdCh"><b id="ocNum">1</b><span id="ocName">Channel</span></div>
+  <div class="osd-toast hidden" id="osdToast"></div>
+
+  <!-- ambient -->
+  <div class="ambient hidden" id="ambient">
+    <div class="amb-blob a"></div><div class="amb-blob b"></div><div class="amb-blob c"></div>
+    <div class="amb-clock"><b id="ambTime">00:00</b><span id="ambDate">Monday</span></div>
+    <div class="amb-brand"><span class="mark sm"></span><span id="ambBrand">NAYZEEE</span></div>
+  </div>
+
+  <!-- boot -->
+  <div class="boot hidden" id="boot">
+    <div class="boot-mark"><span class="mark xl"></span></div>
+    <div class="boot-word" id="bootWord">NAYZEEE</div>
+    <div class="boot-line"><i></i></div>
+  </div>
+
+  <div class="crt-fx" id="crtFx"></div>
+  <div class="blackout" id="blackout"></div>
+</div>
+
+<script src="vendor/hls.min.js"></script>
+<script src="tv.js"></script>
+</body>
+</html>
