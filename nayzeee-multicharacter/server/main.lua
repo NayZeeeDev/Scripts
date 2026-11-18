@@ -257,6 +257,8 @@ lib.callback.register('nzm:pref', function(src, charId, key, value)
     if Limited(src, 'pref') then return { ok = false, msg = T('t_rate') } end
     local c = s.byId[charId]
     if c.disabled then return { ok = false, msg = T('t_disabled') } end
+    -- the UI sends 'none' to clear these (JSON null does not survive the NUI bridge)
+    if (key == 'couplePose' or key == 'pet') and value == 'none' then value = nil end
 
     if key == 'favorite' then
         if type(value) ~= 'boolean' then return { ok = false, msg = T('t_invalid') } end

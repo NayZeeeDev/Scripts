@@ -132,6 +132,7 @@ export default function Themes() {
         <Micro className="text-[9px] text-accent-hi/70">SCENE_SELECT_C02</Micro>
         <div className="display text-[44px] text-fg mt-1">{t('lobby_title')}</div>
       </div>
+      {!locked && (<>
       <SectionHead className="mt-4" title={t('lobby_scene')} right={t('scenes_count', themes.length)} />
       <div className="grid grid-cols-3 gap-[7px] mt-3" onMouseLeave={() => setHover(null)}>
         {themes.map((th) => (
@@ -152,6 +153,7 @@ export default function Themes() {
           </div>
         </div>
       )}
+      </>)}
       <SectionHead className="mt-6" title={t('mood')} />
       <div className="mt-4">
         <MoodChips size={38} showLabel={false} align="start" />

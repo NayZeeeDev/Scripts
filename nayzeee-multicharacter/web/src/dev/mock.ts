@@ -11,7 +11,7 @@ const cfg: UiConfig = {
   version: '2.0.0',
   locale: { ui: {} },
   ui: {
-    serverName: 'NAYZEEE', tagline: 'Roleplay', logo: '', accent: 'teal',
+    serverName: 'NAYZEEE', tagline: 'Roleplay', logo: '', accent: ['#0fd4c4', '#08afa2', '#067d74'], accentKey: 'teal',
     accents: { teal: ['#0fd4c4', '#08afa2', '#067d74'], gold: ['#f3d58a', '#d8b35a', '#9c7a2e'], orange: ['#ff8a4c', '#f2622e', '#b8401a'], violet: ['#b79bff', '#8b6cf6', '#5d40c4'], red: ['#ff6b6f', '#e5484d', '#b8262b'] },
     socials: [{ icon: 'discord', label: 'Discord', url: 'https://discord.gg/your-server' }, { icon: 'website', label: 'Website', url: 'https://your-server.com' }, { icon: 'store', label: 'Store', url: 'https://your-store.tebex.io' }],
     keys: { deploy: 'Enter', switch: 'Q / E', camera: 'Tab', customize: 'C', back: 'Esc' },
@@ -19,15 +19,15 @@ const cfg: UiConfig = {
   },
   start: { enabled: true, prompt: 'Press ENTER to continue', subtitle: 'Connected as %s', orbit: true, music: '' },
   themes: [
-    { id: 'supercar', label: 'Supercar · City Dusk', icon: 'car', category: 'luxury', description: 'Leaning on an exotic downtown as the city lights come on.', palette: ['#ff9a4d', '#5b2a86', '#0b0d1a'], ambience: { preset: 'city' } },
-    { id: 'penthouse', label: 'Penthouse · Skyline', icon: 'building', category: 'luxury', description: 'A high-rise rooftop over the Vinewood skyline.', palette: ['#f5c56b', '#c2593a', '#14101c'], ambience: { preset: 'rooftop' } },
-    { id: 'studio', label: 'Velvet Studio', icon: 'sparkles', category: 'fashion', description: 'Pink and violet neon — made for outfits, hair and detail.', palette: ['#ff5fa2', '#7b5cff', '#120a1a'], moods: ['midnight_neon', 'clean_studio', 'moody_dusk'], ambience: { preset: 'club' } },
-    { id: 'boutique', label: 'Vinewood Boutique', icon: 'shopping-bag', category: 'fashion', description: 'Outside the flagship stores on Portola Drive.', palette: ['#e8d3b0', '#8a6f4e', '#151210'], ambience: { preset: 'street' } },
-    { id: 'beach', label: 'Del Perro Sunset', icon: 'sun', category: 'lifestyle', description: 'End of the pier, the Pacific burning orange behind you.', palette: ['#ffb36b', '#e0576b', '#1a1430'], ambience: { preset: 'ocean' } },
-    { id: 'jet', label: 'Private Jet · LSIA', icon: 'plane', category: 'luxury', description: 'Wheels up from the executive apron at LSIA.', palette: ['#d9e2ec', '#5a7184', '#0c1117'], ambience: { preset: 'airport' } },
-    { id: 'helipad', label: 'Tactical Helipad', icon: 'helicopter', category: 'tactical', description: 'Rotors idle, crew ready — La Puerta heliport.', palette: ['#8fb37a', '#3d4a35', '#0c0f0b'], ambience: { preset: 'helipad' } },
-    { id: 'garage', label: 'Street Tuner Garage', icon: 'wrench', category: 'lifestyle', description: 'Underground glow, a fresh build and the engine ticking.', palette: ['#3fe0ff', '#ff3d6e', '#090b12'], ambience: { preset: 'garage' } },
-    { id: 'skydive', label: 'Infil · Skydive', icon: 'wind', category: 'tactical', description: 'Riding the door of an infil chopper over Los Santos. Jump when ready.', palette: ['#a9c3d9', '#2f4a63', '#070b10'], moods: ['golden_hour', 'moody_dusk', 'clean_studio'], ambience: { preset: 'skydive' } },
+    { id: 'supercar', mood: 'moody_dusk', label: 'Supercar · City Dusk', icon: 'car', category: 'luxury', description: 'Leaning on an exotic downtown as the city lights come on.', palette: ['#ff9a4d', '#5b2a86', '#0b0d1a'], ambience: { preset: 'city' } },
+    { id: 'penthouse', mood: 'golden_hour', label: 'Penthouse · Skyline', icon: 'building', category: 'luxury', description: 'A high-rise rooftop over the Vinewood skyline.', palette: ['#f5c56b', '#c2593a', '#14101c'], ambience: { preset: 'rooftop' } },
+    { id: 'studio', mood: 'midnight_neon', label: 'Velvet Studio', icon: 'sparkles', category: 'fashion', description: 'Pink and violet neon — made for outfits, hair and detail.', palette: ['#ff5fa2', '#7b5cff', '#120a1a'], moods: ['midnight_neon', 'clean_studio', 'moody_dusk'], ambience: { preset: 'club' } },
+    { id: 'boutique', mood: 'golden_hour', label: 'Vinewood Boutique', icon: 'shopping-bag', category: 'fashion', description: 'Outside the flagship stores on Portola Drive.', palette: ['#e8d3b0', '#8a6f4e', '#151210'], ambience: { preset: 'street' } },
+    { id: 'beach', mood: 'golden_hour', label: 'Del Perro Sunset', icon: 'sun', category: 'lifestyle', description: 'End of the pier, the Pacific burning orange behind you.', palette: ['#ffb36b', '#e0576b', '#1a1430'], ambience: { preset: 'ocean' } },
+    { id: 'jet', mood: 'clean_studio', label: 'Private Jet · LSIA', icon: 'plane', category: 'luxury', description: 'Wheels up from the executive apron at LSIA.', palette: ['#d9e2ec', '#5a7184', '#0c1117'], ambience: { preset: 'airport' } },
+    { id: 'helipad', mood: 'moody_dusk', label: 'Tactical Helipad', icon: 'helicopter', category: 'tactical', description: 'Rotors idle, crew ready — La Puerta heliport.', palette: ['#8fb37a', '#3d4a35', '#0c0f0b'], ambience: { preset: 'helipad' } },
+    { id: 'garage', mood: 'midnight_neon', label: 'Street Tuner Garage', icon: 'wrench', category: 'lifestyle', description: 'Underground glow, a fresh build and the engine ticking.', palette: ['#3fe0ff', '#ff3d6e', '#090b12'], ambience: { preset: 'garage' } },
+    { id: 'skydive', mood: 'golden_hour', inFlight: true, pets: false, label: 'Infil · Skydive', icon: 'wind', category: 'tactical', description: 'Riding the door of an infil chopper over Los Santos. Jump when ready.', palette: ['#a9c3d9', '#2f4a63', '#070b10'], moods: ['golden_hour', 'moody_dusk', 'clean_studio'], ambience: { preset: 'skydive' } },
   ],
   moods: [
     { id: 'golden_hour', label: 'Golden Hour', icon: 'sunset', swatch: ['#ffb36b', '#e0576b'] },
@@ -42,14 +42,14 @@ const cfg: UiConfig = {
     { id: 'model2', label: 'Editorial', icon: 'camera', category: 'fashion' },
     { id: 'lean_car', label: 'Lean on Car', icon: 'car', category: 'luxury' },
     { id: 'lean_rail', label: 'Lean on Rail', icon: 'waves', category: 'lifestyle' },
-    { id: 'phone', label: 'Checking Phone', icon: 'smartphone', category: 'lifestyle', prop: true },
-    { id: 'coffee', label: 'Iced Coffee', icon: 'coffee', category: 'lifestyle', prop: true },
-    { id: 'shopping', label: 'Shopping Bags', icon: 'shopping-bag', category: 'luxury', prop: true },
-    { id: 'smoke', label: 'Smoking', icon: 'flame', category: 'lifestyle' },
+    { id: 'phone', label: 'Checking Phone', icon: 'smartphone', category: 'lifestyle', prop: true, weapon: false },
+    { id: 'coffee', label: 'Iced Coffee', icon: 'coffee', category: 'lifestyle', prop: true, weapon: false },
+    { id: 'shopping', label: 'Shopping Bags', icon: 'shopping-bag', category: 'luxury', prop: true, weapon: false },
+    { id: 'smoke', label: 'Smoking', icon: 'flame', category: 'lifestyle', weapon: false },
     { id: 'tactical', label: 'Tactical Stance', icon: 'crosshair', category: 'tactical' },
     { id: 'guard', label: 'On Guard', icon: 'shield-check', category: 'tactical' },
-    { id: 'flex', label: 'Flex', icon: 'dumbbell', category: 'lifestyle' },
-    { id: 'sit', label: 'Sit Down', icon: 'armchair', category: 'lifestyle' },
+    { id: 'flex', label: 'Flex', icon: 'dumbbell', category: 'lifestyle', weapon: false },
+    { id: 'sit', label: 'Sit Down', icon: 'armchair', category: 'lifestyle', weapon: false },
   ],
   couplePoses: [
     { id: 'embrace', label: 'Embrace', icon: 'heart' }, { id: 'kiss', label: 'Kiss', icon: 'heart-handshake' },
@@ -62,7 +62,7 @@ const cfg: UiConfig = {
     { id: 'pug', label: 'Pug', icon: 'dog', kind: 'smalldog' }, { id: 'poodle', label: 'Poodle', icon: 'dog', kind: 'smalldog' },
     { id: 'westy', label: 'Westie', icon: 'dog', kind: 'smalldog' }, { id: 'cat', label: 'Cat', icon: 'cat', kind: 'cat' },
   ],
-  petNames: true,
+  petOptions: { enabled: true, names: true },
   weapon: { mode: 'inventory', allowNone: true, allowAuto: true, enabled: true },
   registration: {
     nameMin: 2, nameMax: 16, minAge: 18, maxAge: 90,
@@ -75,9 +75,9 @@ const cfg: UiConfig = {
   nationalities: NAT,
   cameraModes: ['squad', 'duo', 'body', 'face'],
   squad: { enabled: true, maxLinks: 3, searchMin: 3, couples: true },
-  audio: { ambience: true, uiSounds: true },
+  audio: { ambience: true, uiSounds: true, volume: { ui: 0.6, ambience: 0.35 } },
   settings,
-  playerPick: true,
+  scenePick: true,
   typeToConfirm: true,
 };
 
@@ -125,7 +125,10 @@ const payload = (): LobbyPayload => {
 };
 const pushData = () => emit('data', payload());
 const pushSquad = () => { emit('squad', squad); };
-const pushAudio = () => emit('audio', { ambience: payload().theme, muted: settings.muted });
+const pushAudio = () => {
+  const th = cfg.themes.find((x) => x.id === payload().theme);
+  emit('audio', { ambience: th?.ambience?.preset ?? null, theme: th?.id, url: th?.ambience?.url ?? null, muted: settings.muted, volume: settings.ambientVolume });
+};
 
 // moving nameplates
 let plateT = 0;
@@ -163,11 +166,11 @@ async function handler(name: string, d: any): Promise<unknown> {
       if (c) {
         emit('busy', { on: true, text: 'Loading scene' });
         setTimeout(() => { pushData(); pushSquad(); pushAudio(); emit('busy', { on: false }); }, 450);
-      } else pushData();
+      } else { pushData(); setTimeout(() => emit('create', { slot: d.slot }), 300); }
       return true;
     }
-    case 'camera': camera = d.mode; return true;
-    case 'previewPref': console.debug('[mock] preview', d); return true;
+    case 'camera': camera = d.mode; setTimeout(() => emit('camera', { mode: camera }), 50); return true;
+    case 'previewPref': return true;
     case 'setPref': {
       const c = charOf(d.slot);
       if (!c) return { ok: false, msg: 'No character' };
@@ -293,7 +296,7 @@ export function afterBoot() {
 
 export function go(view: string) {
   switch (view) {
-    case 'start': emit('start', { serverName: 'NAYZEEE', playerName: 'nayzeee', prompt: 'Press ENTER to continue', socials: cfg.ui.socials }); break;
+    case 'start': emit('start', { serverName: 'NAYZEEE', tagline: 'Roleplay', playerName: 'nayzeee', subtitle: 'Connected as %s', prompt: 'Press ENTER to continue', logo: '', socials: cfg.ui.socials }); emit('audio', { ambience: 'city', theme: 'supercar', muted: settings.muted }); break;
     case 'lobby': emit('lobby', payload()); emit('select', { slot: selected }); break;
     case 'create': emit('create', { slot: 4 }); break;
     case 'spawn': handler('play', {}); break;
