@@ -255,7 +255,7 @@ button:disabled{opacity:.4;pointer-events:none}
 /* a real height, not just a minimum: the bars are a percentage of it, and a
    percentage of a height that is only a minimum resolves to nothing (every bar
    came out the same size) */
-.chart{flex:1 1 auto;height:132px;min-height:96px;display:flex;align-items:flex-end;gap:8px;padding:10px 4px 0}
+.chart{flex:1 1 auto;height:140px;min-height:104px;display:flex;align-items:flex-end;gap:8px;padding:24px 4px 0}   /* room for the peak's tag */
 .cbar{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;position:relative}
 .cbar{height:100%;justify-content:flex-end}
 .cbar .fill{width:100%;max-width:26px;border-radius:6px;background:var(--raise-2);min-height:4px;
@@ -274,7 +274,19 @@ button:disabled{opacity:.4;pointer-events:none}
 .chart.anim .cbar > span:last-child{animation:fadeUp 400ms ease both;animation-delay:calc(var(--i) * 45ms + 200ms)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-/* hover a month: its bar lights up and its figures show */
+/* the range switch and the range's totals */
+.flow-seg{display:flex;padding:2px;gap:2px;background:var(--inset);border:1px solid var(--line-soft);border-radius:var(--r-sm);flex:none}
+.flow-seg button{height:24px;padding:0 11px;border-radius:var(--r-xs);font-size:11px;color:var(--ink-3);font-weight:300;
+  transition:color var(--fast),background var(--fast),box-shadow var(--fast)}
+.flow-seg button:hover{color:var(--white)}
+.flow-seg button.on{background:var(--teal-wash);color:var(--teal);font-weight:600;box-shadow:0 0 0 1px var(--teal-edge) inset}
+.flow-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex:none}
+.flow-tot{display:flex;gap:14px;font-size:10.5px;color:var(--ink-3);font-weight:300;padding-bottom:4px}
+.flow-tot b{color:var(--white);font-weight:600;margin-left:3px}
+.flow-tot i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.flow-tot i.in{background:var(--teal)} .flow-tot i.out{background:var(--red)}
+
+/* hover a bar: it lights up and its figures show */
 .cbar{cursor:default}
 .cbar:hover .fill{background:linear-gradient(180deg,var(--teal-hi),var(--teal-lo));filter:brightness(1.15)}
 .cbar:not(.peak):hover .fill{opacity:.75}

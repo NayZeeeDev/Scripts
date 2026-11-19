@@ -774,6 +774,62 @@ function chrome() {
   if (societyNav) societyNav.classList.toggle('hidden', isATM() || accountsOfType('society').length === 0);
 }
 
+/* ── the dashboard's cashflow: by day, week or month ── */
+const FLOW = {
+  daily:   { label: 'Daily',   sub: 'Money in, day by day, over the last two weeks' },
+  weekly:  { label: 'Weekly',  sub: 'Money in, week by week, over the last twelve weeks' },
+  monthly: { label: 'Monthly', sub: 'Money in, month by month, over the last year' },
+};
+const flowKey = () => FLOW[S.flow] ? S.flow : 'monthly';
+
+/** The bars for the range picked (an older server sends one plain list of months). */
+function flowSeries() {
+  const cf = (S.data && S.data.cashflow) || [];
+  if (Array.isArray(cf)) return cf;
+  return cf[flowKey()] || cf.monthly || [];
+}
+
+function flowBars() {
+  const series = flowSeries();
+  const peak = Math.max(...series.map(m => m.income || 0), 1);
+  return series.map((m, i) => {
+    const h = Math.max(5, Math.round(((m.income || 0) / peak) * 100));
+    const isPeak = m.income === peak && peak > 0;
+    const net = (m.income || 0) - (m.spending || 0);
+    return `<div class="cbar ${isPeak ? 'peak' : ''}" style="--i:${i}">
+      ${isPeak ? `<span class="flag">${short(m.income)}</span>` : ''}
+      <div class="ctip"><b>${esc(m.full || m.label)}</b>
+        <div>In<em class="in">${money(m.income || 0)}</em></div>
+        <div>Out<em class="out">${money(m.spending || 0)}</em></div>
+        <div>Net<em class="${net >= 0 ? 'in' : 'out'}">${net >= 0 ? '+' : ''}${money(net)}</em></div></div>
+      <div class="fill" style="height:calc((100% - 20px) * ${(h / 100).toFixed(3)})"></div>
+      <span>${esc(m.label)}</span>
+    </div>`;
+  }).join('');
+}
+
+function flowTotals() {
+  const series = flowSeries();
+  const inn = series.reduce((a, m) => a + (m.income || 0), 0);
+  const out = series.reduce((a, m) => a + (m.spending || 0), 0);
+  return `<span><i class="in"></i>In <b>${short(inn)}</b></span><span><i class="out"></i>Out <b>${short(out)}</b></span>`;
+}
+
+/** Switch the range: only the chart is drawn again, and it grows in again. */
+function setFlow(key) {
+  if (!FLOW[key]) return;
+  S.flow = key;
+  document.querySelectorAll('.flow-seg button').forEach(b => b.classList.toggle('on', b.dataset.flow === key));
+  const chart = document.getElementById('flowChart');
+  if (!chart) return;
+  document.getElementById('flowSub').textContent = FLOW[key].sub;
+  document.getElementById('flowTot').innerHTML = flowTotals();
+  chart.classList.remove('anim');
+  chart.innerHTML = flowBars();
+  void chart.offsetWidth;
+  chart.classList.add('anim');
+}
+
 /* ═══════════════ PAGES ═══════════════ */
 function pageDashboard() {
   const d = S.data;
@@ -782,21 +838,6 @@ function pageDashboard() {
   const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const first = (d.player.name || '').split(' ')[0];
 
-  const peak = Math.max(...d.cashflow.map(m => m.income), 1);
-  const bars = d.cashflow.map((m, i) => {
-    const h = Math.max(5, Math.round((m.income / peak) * 100));
-    const isPeak = m.income === peak && peak > 0;
-    const net = (m.income || 0) - (m.spending || 0);
-    return `<div class="cbar ${isPeak ? 'peak' : ''}" style="--i:${i}">
-      ${isPeak ? `<span class="flag">${short(m.income)}</span>` : ''}
-      <div class="ctip"><b>${esc(m.label)}</b>
-        <div>In<em class="in">${money(m.income)}</em></div>
-        <div>Out<em class="out">${money(m.spending || 0)}</em></div>
-        <div>Net<em class="${net >= 0 ? 'in' : 'out'}">${net >= 0 ? '+' : ''}${money(net)}</em></div></div>
-      <div class="fill" style="height:calc((100% - 20px) * ${(h / 100).toFixed(3)})"></div>
-      <span>${esc(m.label)}</span>
-    </div>`;
-  }).join('');
 
   return `
     <div class="head">
@@ -822,12 +863,15 @@ function pageDashboard() {
       <div class="stack">
         <section class="panel">
           <div class="p-head">
-            <div><h2>Cashflow</h2><p>Money in over the last twelve months</p></div>
-            <div class="legend"><span><i></i>Income</span><span><i class="grey"></i>Quiet months</span></div>
+            <div><h2>Cashflow</h2><p id="flowSub">${FLOW[flowKey()].sub}</p></div>
+            <div class="flow-seg">${Object.keys(FLOW).map(k => `<button class="${flowKey() === k ? 'on' : ''}" data-act="flow" data-flow="${k}">${FLOW[k].label}</button>`).join('')}</div>
           </div>
           <div class="p-body tight">
-            <div class="num" ${S.quiet ? '' : `data-countup="${acc.balance}"`} style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--white)">${money(acc.balance)}</div>
-            <div class="chart ${S.quiet ? '' : 'anim'}">${bars}</div>
+            <div class="flow-top">
+              <div class="num" ${S.quiet ? '' : `data-countup="${acc.balance}"`} style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--white)">${money(acc.balance)}</div>
+              <div class="flow-tot" id="flowTot">${flowTotals()}</div>
+            </div>
+            <div class="chart ${S.quiet ? '' : 'anim'}" id="flowChart">${flowBars()}</div>
           </div>
         </section>
 
@@ -2271,6 +2315,9 @@ document.getElementById('view').addEventListener('click', async (e) => {
   switch (act) {
     case 'goto':
       S.page = el.dataset.page; chrome(); render(); break;
+
+    case 'flow':
+      setFlow(el.dataset.flow); break;
 
     case 'deposit':
     case 'withdraw':

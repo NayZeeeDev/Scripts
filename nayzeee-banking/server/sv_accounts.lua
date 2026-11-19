@@ -23,32 +23,73 @@ local function serialiseAccount(acc)
     }
 end
 
---- Monthly in/out for the cashflow chart (last 12 months).
-local function cashflow(accountId)
-    local rows = MySQL.query.await([[
-        SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym,
-               direction,
-               SUM(amount) AS total
-        FROM nz_bank_transactions
-        WHERE account_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-        GROUP BY ym, direction
-    ]], { accountId }) or {}
+-- ── the cashflow chart: money in and out by day, week and month ──
+--  Every bucket is keyed the same way in Lua and in SQL (a date string), so a
+--  day, week or month with nothing in it still gets its bar, at zero.
 
-    local months, order = {}, {}
-    for i = 11, 0, -1 do
-        local key = os.date('%Y-%m', os.time() - (i * 2592000))
-        months[key] = { label = os.date('%b', os.time() - (i * 2592000)), income = 0, spending = 0 }
-        order[#order + 1] = key
-    end
-    for _, r in ipairs(rows) do
-        if months[r.ym] then
-            if r.direction == 'in' then months[r.ym].income = tonumber(r.total) or 0
-            else months[r.ym].spending = tonumber(r.total) or 0 end
+local DAYS, WEEKS, MONTHS = 14, 12, 12
+
+--- Noon on a date, so stepping by days never trips over a clock change.
+local function noon(t) return os.time({ year = t.year, month = t.month, day = t.day, hour = 12 }) end
+
+local function fill(rows, buckets, index)
+    for _, r in ipairs(rows or {}) do
+        local b = buckets[index[r.k] or 0]
+        if b then
+            if r.direction == 'in' then b.income = tonumber(r.total) or 0
+            else b.spending = tonumber(r.total) or 0 end
         end
     end
+    return buckets
+end
 
+local function cashflow(accountId)
+    local today = os.date('*t')
     local out = {}
-    for _, key in ipairs(order) do out[#out + 1] = months[key] end
+
+    -- daily: the last two weeks
+    local days, dayIndex = {}, {}
+    for i = DAYS - 1, 0, -1 do
+        local t = noon(today) - i * 86400
+        days[#days + 1] = { key = os.date('%Y-%m-%d', t), label = i == 0 and 'Today' or os.date('%d', t):gsub('^0', ''),
+            full = os.date('%A %d %B', t), income = 0, spending = 0 }
+        dayIndex[days[#days].key] = #days
+    end
+    out.daily = fill(MySQL.query.await([[
+        SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS k, direction, SUM(amount) AS total
+        FROM nz_bank_transactions WHERE account_id = ? AND created_at >= ?
+        GROUP BY k, direction]], { accountId, days[1].key }), days, dayIndex)
+
+    -- weekly: twelve weeks, each starting on a Monday
+    local monday = noon(today) - ((today.wday + 5) % 7) * 86400
+    local weeks, weekIndex = {}, {}
+    for i = WEEKS - 1, 0, -1 do
+        local t = monday - i * 7 * 86400
+        local finish = t + 6 * 86400
+        weeks[#weeks + 1] = { key = os.date('%Y-%m-%d', t), label = i == 0 and 'This wk' or os.date('%d %b', t):gsub('^0', ''),
+            full = ('%s to %s'):format(os.date('%d %b', t):gsub('^0', ''), os.date('%d %b', finish):gsub('^0', '')),
+            income = 0, spending = 0 }
+        weekIndex[weeks[#weeks].key] = #weeks
+    end
+    out.weekly = fill(MySQL.query.await([[
+        SELECT DATE_FORMAT(DATE_SUB(DATE(created_at), INTERVAL WEEKDAY(created_at) DAY), '%Y-%m-%d') AS k,
+               direction, SUM(amount) AS total
+        FROM nz_bank_transactions WHERE account_id = ? AND created_at >= ?
+        GROUP BY k, direction]], { accountId, weeks[1].key }), weeks, weekIndex)
+
+    -- monthly: the last twelve months, by calendar month
+    local months, monthIndex = {}, {}
+    for i = MONTHS - 1, 0, -1 do
+        local t = os.time({ year = today.year, month = today.month - i, day = 1, hour = 12 })
+        months[#months + 1] = { key = os.date('%Y-%m', t), label = os.date('%b', t), full = os.date('%B %Y', t),
+            income = 0, spending = 0 }
+        monthIndex[months[#months].key] = #months
+    end
+    out.monthly = fill(MySQL.query.await([[
+        SELECT DATE_FORMAT(created_at, '%Y-%m') AS k, direction, SUM(amount) AS total
+        FROM nz_bank_transactions WHERE account_id = ? AND created_at >= ?
+        GROUP BY k, direction]], { accountId, months[1].key .. '-01' }), months, monthIndex)
+
     return out
 end
 
