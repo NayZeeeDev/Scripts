@@ -56,7 +56,7 @@ local function uiConfig()
         scenePick = Config.Scene.playerPick ~= false,
         weapon = { mode = W.mode, allowNone = W.allowNone ~= false, allowAuto = W.allowAuto ~= false, enabled = W.enabled ~= false },
         registration = {
-            nameMin = R.name.min, nameMax = R.name.max, minAge = R.dob.minAge, maxAge = R.dob.maxAge,
+            nameMin = R.name.min, nameMax = R.name.max, blacklist = R.name.blacklist, minAge = R.dob.minAge, maxAge = R.dob.maxAge,
             height = R.height, nationality = R.nationality, backstory = R.backstory, genders = R.genders,
         },
         nationalities = Config.Nationalities or {},
@@ -110,12 +110,13 @@ cb('frozen', function(d)
 end)
 
 cb('ready', function()
+    local config = uiConfig()          -- build first: if this errors, Lua must not think the UI is listening
     Main.nuiReady = true
     -- NUI reloaded (or loaded late) while the lobby is up: replay the current view
     if Main.open and Main.mode ~= 'busy' and Main.mode ~= 'boot' then
         CreateThread(function() Wait(100) Main.Resend() end)
     end
-    return uiConfig()
+    return config
 end)
 
 cb('startContinue', async(function() Start.Continue() end))

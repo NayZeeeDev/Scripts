@@ -17,6 +17,7 @@ local function startDef()
     end
     local d = Cam.Frame('squad')
     if not d then return nil end
+    if d.attach or not d.coords then return d end
     local fwd = NZ.Fwd(Scene.main.w)
     d.coords = d.coords + fwd * 3.5 + vec3(0.0, 0.0, 1.4)
     d.fov, d.dof = (d.fov or 44.0) + 6.0, false
@@ -76,7 +77,7 @@ function Start.Show()
     local name = GetPlayerName(PlayerId())
     Main.WaitNui()
     -- The title mounts under the veil and plays its entrance the moment the veil starts lifting
-    U.Send('start', {
+    Start.payload = {
         serverName = Config.UI.serverName,
         tagline    = Config.UI.tagline,
         playerName = name,
@@ -84,7 +85,8 @@ function Start.Show()
         logo       = Config.UI.logo,
         prompt     = S.prompt,
         socials    = Config.UI.socials,
-    })
+    }
+    U.Send('start', Start.payload)
     SetNuiFocus(true, true)
     local intro = def and introDef(def)
     if intro then Cam.Go(intro, 0) elseif def then Cam.Go(def, 0) end

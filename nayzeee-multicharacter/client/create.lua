@@ -57,11 +57,13 @@ function Create.Cancel()
         Actors.Ghost(Create.gender, false)
         Cam.Mode(Main.camera, Config.Camera.transition)
     end
+    U.Send('lobby', Main.Payload())
+    U.Send('squad', Main.SquadNui(Main.squad))
 end
 
 -- Returns { ok, errors, msg } to the NUI; on success the rest of the flow runs in a thread
 function Create.Submit(form)
-    if Main.mode ~= 'create' or Main.busy or not Create.slot then return { ok = false } end
+    if Main.mode ~= 'create' or Main.busy or not Create.slot then return { ok = false, msg = NZ.T('t_error') } end
     form = type(form) == 'table' and form or {}
     form.gender = form.gender or Create.gender
     Main.busy = true

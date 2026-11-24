@@ -207,13 +207,27 @@ end
 function Main.Select(slot)
     slot = tonumber(slot)
     if not slot or not Main.open then return end
+    local fromCreate = false
     if Main.mode == 'create' and not Main.busy then
         Create.slot, Create.prev = nil, nil
         Main.mode = 'lobby'
+        fromCreate = true
         if not Main.bySlot[slot] then Main.selected = nil end
     end
     if Main.mode ~= 'lobby' then return end
-    if Main.busy then Main.pending = slot return end
+    if Main.busy then
+        -- Another operation (theme rebuild, delete...) owns the scene: wait for it, then apply the latest pick
+        Main.pending = slot
+        if Main.selWait then return end
+        Main.selWait = true
+        local deadline = GetGameTimer() + 10000
+        while Main.busy and GetGameTimer() < deadline do Wait(50) end
+        Main.selWait = false
+        local p = Main.pending
+        Main.pending = nil
+        if p and Main.mode == 'lobby' then return Main.Select(p) end
+        return
+    end
     local c = Main.bySlot[slot]
     if not c then
         -- Empty unlocked slot -> creation silhouette; locked -> ignore
@@ -225,6 +239,10 @@ function Main.Select(slot)
     U.Send('select', { slot = slot })
     local ok, err = pcall(Main.Present, slot)
     if not ok then print(('^1[nzm] select failed: %s^0'):format(err)) end
+    if fromCreate then
+        U.Send('lobby', Main.Payload())
+        U.Send('squad', Main.SquadNui(Main.squad))
+    end
     Main.busy = false
     local p = Main.pending
     Main.pending = nil
@@ -237,6 +255,12 @@ function Main.SetCamera(mode)
     U.Send('camera', { mode = mode })
     if Main.open and not Main.busy and (Main.mode == 'lobby' or Main.mode == 'create') then
         Cam.Mode(mode, Config.Camera.transition)
+    elseif Main.open and Main.busy then
+        CreateThread(function()
+            local deadline = GetGameTimer() + 10000
+            while Main.busy and Main.open and GetGameTimer() < deadline do Wait(50) end
+            if Main.camera == mode and not Main.busy and (Main.mode == 'lobby' or Main.mode == 'create') then Cam.Mode(mode, Config.Camera.transition) end
+        end)
     end
 end
 
@@ -244,6 +268,10 @@ end
 local function applyPref(key, c)
     if not Main.open or Main.SelectedId() ~= c.id then return end
     if key == 'theme' then
+        local deadline = GetGameTimer() + 15000
+        while Main.busy and GetGameTimer() < deadline do Wait(50) end
+        c = Main.byId[c.id] or c
+        if not Main.open or Main.SelectedId() ~= c.id or Main.busy then return end
         if Main.ThemeFor(c) ~= Scene.id then
             Main.busy = true
             Main.Present(c.slot, true)
@@ -302,7 +330,21 @@ end
 function Main.Play(slot)
     local c = Main.bySlot[tonumber(slot)]
     if not c or Main.mode ~= 'lobby' or Main.busy then return end
+    if c.slot ~= Main.selected then return U.Send('select', { slot = Main.selected }) end
     Main.busy = true
+    -- an unsaved hover preview must not ride into the departure
+    if next(Main.preview) or next(Actors.preview) then
+        local pv = Main.preview
+        local hadPet = Actors.preview.pet ~= nil
+        Main.preview, Actors.preview = {}, {}
+        if pv.theme and Main.ThemeFor(c) ~= Scene.id then
+            pcall(Main.Present, c.slot, true)
+        else
+            if pv.mood then Lights.SetMood(Main.MoodFor(c, Scene.id)) end
+            pcall(Actors.Refresh)
+            if hadPet then pcall(Actors.SpawnPet) end
+        end
+    end
     U.Send('busy', { on = true })
     local res = lib.callback.await('nzm:play', false, c.id)
     if not res or not res.ok then
@@ -310,7 +352,6 @@ function Main.Play(slot)
         U.Send('busy', { on = false })
         return U.Send('toast', { type = 'error', text = res and res.msg or NZ.T('t_error') })
     end
-    Audio.Play('deploy')
     Appearance.ApplyPlayer(res.skin or c.skin, res.model or c.model, res.gender or c.gender)
     Scene.ParkPlayer()            -- SetPlayerModel spawned a new, visible ped
     U.Send('busy', { on = false })
@@ -459,6 +500,7 @@ function Main.OpenLobby(fromStart)
         end)
         Cam.Mode(Main.camera, glide)
     else
+        U.Veil(true, 0)
         sendLobby()
         Cam.Mode(Main.camera, 0)
         Main.Reveal(1200)
@@ -480,6 +522,11 @@ function Main.Resend()
     elseif Main.mode == 'create' and Create.slot then
         U.Send('lobby', Main.Payload())
         U.Send('create', { slot = Create.slot })
+    elseif Main.mode == 'start' and Start.payload then
+        U.Send('veil', { on = Main.veil ~= false, ms = 0 })
+        U.Send('start', Start.payload)
+    elseif Main.mode == 'spawn' and Spawn.list then
+        U.Send('spawn', { options = Spawn.list, selected = Spawn.list[1] and Spawn.list[1].id })
     end
 end
 
@@ -493,7 +540,10 @@ CreateThread(function()
 end)
 
 RegisterNetEvent('nzm:client:open', function()
-    CreateThread(function() Main.Boot(true) end)
+    CreateThread(function()
+        if Editor and Editor.active then Editor.Stop() end
+        Main.Boot(true)
+    end)
 end)
 
 RegisterNetEvent('nzm:client:relogPrepare', function()

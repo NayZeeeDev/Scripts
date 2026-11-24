@@ -11,7 +11,7 @@ if not NAYZEEE_LOCK_OK then return end
 Spawn = { options = nil, byId = {}, charId = nil, isNew = false, aerial = false, arrival = nil, busy = false }
 
 function Spawn.Clear()
-    Spawn.options, Spawn.byId, Spawn.charId, Spawn.aerial, Spawn.busy = nil, {}, nil, false, false
+    Spawn.options, Spawn.byId, Spawn.charId, Spawn.aerial, Spawn.busy, Spawn.list = nil, {}, nil, false, false, nil
 end
 
 -- Lobby fully released: entities, cams, lights, timecycle, audio, threads (0.00 resmon from here on)
@@ -121,9 +121,13 @@ local function handoff(charId, isNew)
         U.Send('hide', {})
         U.FadeOut(400)
     end
+    local airborne = Scene.flying
     releaseLobby()
     lib.callback.await('nzm:handoff', false)
+    -- in-flight lobby: the player was riding the helicopter ~380 m up; put them on the ground first
+    if airborne then Spawn.Teleport(Config.Creation.coords) end
     U.ShowPlayer()
+    ClientBridge.Hud(true)
     U.Send('close', {})
     Spawn.Clear()
     Main.Reset()
@@ -138,17 +142,13 @@ function Spawn.Begin(charId, options, mode, isNew)
     if mode ~= 'selector' or not options or #options == 0 then
         local res = lib.callback.await('nzm:spawn', false, mode == 'first' and 'first' or 'last')
         if res and res.isNew ~= nil then Spawn.isNew = res.isNew == true end
-        if not res or not res.coords then
-            Main.busy = false
-            if Main.open then Main.mode = 'lobby' end
-            U.Send('busy', { on = false })
-            return U.Send('toast', { type = 'error', text = NZ.T('t_error') })
-        end
-        return depart(res.coords)
+        -- The character is already loaded server-side: never strand the player, fall back to the arrival point
+        return depart((res and res.coords) or Config.Spawn.firstSpawn)
     end
 
     Spawn.options = options
     local list = {}
+    Spawn.list = list
     for i, o in ipairs(options) do
         Spawn.byId[o.id] = o
         list[i] = { id = o.id, kind = o.kind, label = o.label, desc = o.desc, icon = o.icon }
@@ -162,7 +162,7 @@ end
 
 function Spawn.Hover(id)
     local o = Spawn.byId[id]
-    if not o or not o.coords or Main.mode ~= 'spawn' then return end
+    if not o or not o.coords or Main.mode ~= 'spawn' or Spawn.busy then return end
     local c = o.coords
     Spawn.aerial = true
     SetFocusPosAndVel(c.x, c.y, c.z + 60.0, 0.0, 0.0, 0.0)   -- stream the preview area, not the lobby

@@ -36,6 +36,7 @@ function U.Freeze()
     while U.freezeAck[id] == nil and GetGameTimer() < deadline do Wait(0) end
     local ok = U.freezeAck[id] == true
     U.freezeAck[id] = nil
+    if not ok then U.Send('unfreeze', { ms = 0 }) end   -- cancels a capture that answers late
     return ok
 end
 
