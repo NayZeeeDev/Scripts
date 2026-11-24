@@ -69,11 +69,15 @@ export function MoodChips({ size = 34, showLabel = true, align = 'end' }: { size
   const shown = cfg.moods.find((m) => m.id === (hover || mood));
 
   const pick = async (id: string) => {
-    if (!char || id === mood) return;
+    if (!char || id === mood || cfg.scenePick === false) return;
     cue('click');
     const st = useStore.getState();
+    const prev = st.lobby?.mood;
     if (st.lobby) useStore.setState({ lobby: { ...st.lobby, mood: id } });
-    await savePref(selected, 'mood', id);
+    if (!(await savePref(selected, 'mood', id))) {
+      const now = useStore.getState().lobby;
+      if (now && now.mood === id) useStore.setState({ lobby: { ...now, mood: prev as string } });
+    }
   };
 
   return (
@@ -122,8 +126,12 @@ export default function Themes() {
     cue('confirm');
     post('sound', { name: 'select' });
     const st = useStore.getState();
+    const prev = st.lobby?.theme;
     if (st.lobby) useStore.setState({ lobby: { ...st.lobby, theme: id } });
-    await savePref(selected, 'theme', id);
+    if (!(await savePref(selected, 'theme', id))) {
+      const now = useStore.getState().lobby;
+      if (now && now.theme === id) useStore.setState({ lobby: { ...now, theme: prev as string } });
+    }
   };
 
   return (

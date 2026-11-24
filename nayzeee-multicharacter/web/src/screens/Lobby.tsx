@@ -186,7 +186,7 @@ export default function Lobby() {
       </div>
 
       {/* bottom right: mood */}
-      {section !== 'lobby' && cfg.moods?.length > 0 && (
+      {section !== 'lobby' && cfg.scenePick !== false && cfg.moods?.length > 0 && (
         <div className="absolute right-9 bottom-[34px] a-up">
           <MoodChips />
         </div>

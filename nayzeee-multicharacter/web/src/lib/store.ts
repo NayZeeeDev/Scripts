@@ -58,6 +58,8 @@ interface State {
 }
 
 let toastId = 1;
+let settingsT: number | undefined;
+let settingsSeq = 0;
 
 function applyAccent(cfg: UiConfig) {
   const [hi, base, lo] = resolveAccent(cfg.ui?.accent, cfg.ui?.accents);
@@ -211,9 +213,14 @@ export const useStore = create<State>((set, get) => ({
     set({ settings });
     audioFrom(get().cfg, settings);
     if ('muted' in patch && get().ambience) setAmbience({ ...get().ambience!, muted: settings.muted }, get().cfg?.themes);
-    post<Settings>('settings', { settings }).then((r) => {
-      if (r && typeof r === 'object' && 'scale' in r) set({ settings: { ...get().settings, ...r } });
-    });
+    // Debounced (sliders fire every tick); only the reply to the latest save is applied
+    window.clearTimeout(settingsT);
+    settingsT = window.setTimeout(() => {
+      const seq = ++settingsSeq;
+      post<Settings>('settings', { settings: get().settings }).then((r) => {
+        if (seq === settingsSeq && r && typeof r === 'object' && 'scale' in r) set({ settings: { ...get().settings, ...r } });
+      });
+    }, 150);
   },
 
   selectSlot: (slot) => {

@@ -30,7 +30,10 @@ export default function Spawn() {
   const hoverT = useRef<number>();
   const cur = options[idx];
 
+  useEffect(() => () => window.clearTimeout(hoverT.current), []);
+
   const focus = (i: number, sound = true) => {
+    if (busy) return;
     const n = (i + options.length) % options.length;
     if (n === idx) return;
     setIdx(n);
@@ -52,10 +55,11 @@ export default function Spawn() {
 
   const confirm = async () => {
     if (!cur || busy) return;
+    window.clearTimeout(hoverT.current);
     setBusy(true);
     post('sound', { name: 'deploy' });
     const r = await post<{ ok: boolean }>('spawnConfirm', { id: cur.id });
-    if (r && r.ok === false) { setBusy(false); cue('error'); }
+    if (!r || r.ok === false) { setBusy(false); cue('error'); }
   };
 
   const offset = W / 2 - CARD_W / 2 - idx * (CARD_W + GAP);

@@ -161,7 +161,7 @@ export default function Create() {
 
   const validate = (): Errors => {
     const e: Errors = {};
-    const nameRe = /^[\p{L}][\p{L}\s'-]*$/u;
+    const nameRe = /^[A-Za-z][A-Za-z\s'-]*$/; // same rule as the server (server/validate.lua)
     for (const k of ['firstname', 'lastname'] as const) {
       const v = f[k].trim();
       if (!v) e[k] = t('v_required');

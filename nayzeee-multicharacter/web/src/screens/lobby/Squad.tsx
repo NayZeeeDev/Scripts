@@ -202,7 +202,7 @@ function Find() {
       <div className="relative">
         <Search size={16} className="absolute left-[14px] top-1/2 -translate-y-1/2 text-fg-3" />
         <input ref={inputRef} className="field !pl-[40px]" placeholder={t('search_ph')} value={q} onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Escape') (e.target as HTMLInputElement).blur(); }} />
+          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); (e.target as HTMLInputElement).blur(); } }} />
         {loading && <span className="absolute right-[14px] top-1/2 -translate-y-1/2 w-[14px] h-[14px] rounded-full border-2 border-white/15 border-t-accent a-spin" />}
       </div>
       <div className="micro text-[8px] text-fg-4 mt-2">

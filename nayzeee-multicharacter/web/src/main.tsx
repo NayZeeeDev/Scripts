@@ -18,10 +18,12 @@ import type { UiConfig } from './lib/types';
 // Queue Lua messages until the `ready` reply (UiConfig) has been applied.
 const queue: NuiMessage[] = [];
 let live = false;
+let dead = false;
 
 window.addEventListener('message', (e: MessageEvent) => {
   const msg = e.data as NuiMessage;
   if (!msg || typeof msg.action !== 'string') return;
+  if (dead) return;
   if (!live) { queue.push(msg); return; }
   useStore.getState().onMessage(msg.action, msg.data);
 });
@@ -37,7 +39,13 @@ async function boot() {
     if (r && typeof r === 'object' && Array.isArray((r as UiConfig).themes)) cfg = r as UiConfig;
     else await new Promise((res) => setTimeout(res, 1000));
   }
-  if (!cfg) return;
+  if (!cfg) {
+    // Lua never answered with a config: never leave the boot veil over the game, and stop buffering messages
+    useStore.setState({ veil: { on: false, ms: 0 } });
+    queue.length = 0;
+    dead = true;
+    return;
+  }
   useStore.getState().boot(cfg);
   live = true;
   while (queue.length) {

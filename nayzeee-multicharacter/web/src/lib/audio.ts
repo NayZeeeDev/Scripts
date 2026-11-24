@@ -401,7 +401,13 @@ function build(preset: Preset): Running {
   };
 }
 
+let xfade: number | undefined;
+let xfadeOld: Running | null = null;
+
 function stopProcedural(fade = true) {
+  // a pending crossfade must not start its preset after a stop (or keep the old one alive)
+  if (xfade !== undefined) { window.clearTimeout(xfade); xfade = undefined; }
+  if (xfadeOld) { xfadeOld.stop(); xfadeOld = null; }
   const r = running;
   running = null;
   runningKey = '';
@@ -461,12 +467,15 @@ export function setAmbience(req: AmbienceReq, themes?: ThemeLike[]) {
   const c = wake();
   if (!c || !ambBus) return;
   stopMedia();
-  const old = running;
+  // a newer change supersedes a crossfade that's still pending
+  if (xfade !== undefined) { window.clearTimeout(xfade); xfade = undefined; }
+  const old = running || xfadeOld;
   running = null;
   if (old) {
     // crossfade: fade out the shared bus, rebuild, fade back in
+    xfadeOld = old;
     fadeBus(0, 0.8);
-    window.setTimeout(() => { old.stop(); start(preset!); }, 850);
+    xfade = window.setTimeout(() => { xfade = undefined; old.stop(); xfadeOld = null; start(preset!); }, 850);
   } else start(preset!);
   runningKey = key;
 }
