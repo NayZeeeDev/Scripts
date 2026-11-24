@@ -497,7 +497,7 @@ local function guard(src, charId, limit)
 end
 
 lib.callback.register('nzm:squad:get', function(src, charId)
-    if not guard(src, charId) then return { links = {}, incoming = {}, outgoing = {} } end
+    if not guard(src, charId, 'squadGet') then return { links = {}, incoming = {}, outgoing = {} } end
     return Squads.Get(charId)
 end)
 

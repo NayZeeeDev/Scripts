@@ -17,8 +17,10 @@ end
 -- ── player: relog ─────────────────────────────────────────────────────────
 local rc = Config.Relog.command
 if rc.enabled then
-    lib.addCommand(rc.name, { help = T('c_relog'), restricted = rc.ace or false }, function(src)
-        if src > 0 then Relog(src, false) end
+    lib.addCommand(rc.name, { help = T('c_relog') }, function(src)
+        if src <= 0 then return end
+        if rc.ace and not IsPlayerAceAllowed(src, rc.ace) then return end
+        Relog(src, false)
     end)
 end
 
@@ -93,6 +95,9 @@ local function toggle(disabled)
         if not Validate.Id(args.charid) then return reply(src, T('not_found'), 'error') end
         DB.Ensure(args.charid, Characters.OwnerOf(args.charid) or 'unknown')
         DB.Set(args.charid, 'disabled', disabled)
+        for _, s in pairs(Sessions) do
+            if s.byId and s.byId[args.charid] then s.byId[args.charid].disabled = disabled end
+        end
         Squads.Notify(args.charid)
         Logs.Send('admin', src, { { 'Action', disabled and 'disable' or 'enable' }, { 'Character', args.charid } })
         reply(src, T('done'), 'success')

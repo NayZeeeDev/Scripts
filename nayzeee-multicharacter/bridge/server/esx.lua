@@ -126,12 +126,14 @@ local function waitPlayer(src, ms)
 end
 
 function Bridge.Load(src, char)
-    if ESX.GetPlayerFromId(src) then return true end
+    local x = ESX.GetPlayerFromId(src)
+    if x then return x.identifier == char.id end          -- already loaded: only OK if it's this character
     TriggerEvent('esx:onPlayerJoined', src, PREFIX .. char.slot)
     return waitPlayer(src)
 end
 
 function Bridge.Create(src, slot, data)
+    if ESX.GetPlayerFromId(src) then return false end      -- a character is still loaded: onPlayerJoined would do nothing
     local owner = Bridge.Owner(src)
     TriggerEvent('esx:onPlayerJoined', src, PREFIX .. slot, {
         firstname   = data.firstname,

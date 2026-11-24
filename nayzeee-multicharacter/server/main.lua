@@ -167,6 +167,7 @@ end
 -- ── session start ─────────────────────────────────────────────────────────
 lib.callback.register('nzm:boot', function(src)
     if not Bridge.Ready then return { loaded = false, error = 'no_framework' } end
+    if Limited(src, 'boot') then return { loaded = false, error = 'rate' } end
     local deadline = GetGameTimer() + 30000
     while not Bridge.Ready() do
         if GetGameTimer() > deadline then return { loaded = false, error = 'framework_timeout' } end
@@ -177,11 +178,20 @@ lib.callback.register('nzm:boot', function(src)
     local owner = Bridge.Owner(src)
     if not owner then return { loaded = false, error = 'no_license' } end
 
-    -- Already loaded (resource restart mid-session): keep playing
+    -- A boot while a load / create / spawn is still running would orphan that session (double login)
+    local cur = Sessions[src]
+    if cur and (cur.stage == 'loading' or cur.stage == 'creating' or cur.stage == 'relogging') then
+        return { loaded = false, error = 'busy' }
+    end
+
+    -- Already loaded (resource restart mid-session): keep playing, and never leave them in the private bucket
     if Bridge.IsLoaded(src) then
         local s = Sessions[src]
         if not s or s.stage ~= 'select' then
-            Sessions[src] = s or { owner = owner, stage = 'playing', active = Bridge.ActiveId(src), loadedAt = os.time() }
+            s = s or { owner = owner, active = Bridge.ActiveId(src), loadedAt = os.time() }
+            s.stage = 'playing'
+            Sessions[src] = s
+            Buckets.World(src)
             return { loaded = true }
         end
     end
@@ -197,6 +207,7 @@ end)
 lib.callback.register('nzm:refresh', function(src)
     local s = Sessions[src]
     if not s or s.stage ~= 'select' then return nil end
+    if Limited(src, 'refresh') then return nil end
     return payload(src, false)
 end)
 
@@ -284,6 +295,7 @@ lib.callback.register('nzm:play', function(src, charId)
     -- freshly created character asking for its spawn options (already logged in by nzm:create)
     if s.stage == 'loaded' and s.isNew and s.active == charId then
         local opts, mode = spawnOptions(src, s, true)
+        s.spawnMode = mode
         return { ok = true, spawn = opts, mode = mode }
     end
 
@@ -291,7 +303,7 @@ lib.callback.register('nzm:play', function(src, charId)
     if Limited(src, 'play') then return { ok = false, msg = T('t_rate') } end
     local c = s.byId and s.byId[charId]
     if not c then return { ok = false, msg = T('t_error') } end
-    if c.disabled then return { ok = false, msg = T('t_disabled') } end
+    if c.disabled or NZ.Truthy((DB.Get(charId) or {}).disabled) then return { ok = false, msg = T('t_disabled') } end
     if c.locked then return { ok = false, msg = T('t_slot_locked') } end
     if Sessions.Playing(charId) then return { ok = false, msg = T('t_relog_busy') } end
 
@@ -309,6 +321,7 @@ lib.callback.register('nzm:play', function(src, charId)
     Squads.NotifyLinked(charId)
 
     local opts, mode = spawnOptions(src, s, false)
+    s.spawnMode = mode
     return { ok = true, spawn = opts, mode = mode, skin = c.skin, model = c.model, gender = c.gender }
 end)
 
@@ -332,16 +345,21 @@ lib.callback.register('nzm:create', function(src, slot, form)
         return { ok = false, msg = T('t_error') }
     end
 
-    DB.Ensure(charId, s.owner)
-    DB.Set(charId, 'nationality', data.nationality)
-    if data.backstory then DB.Set(charId, 'backstory', data.backstory) end
-    DB.Set(charId, 'lastPlayed', os.time())
-
+    -- The framework has loaded the new character: commit the session before anything else can fail
     s.active, s.loadedAt, s.isNew = charId, os.time(), true
     s.raw[charId] = { id = charId, slot = slot, firstname = data.firstname, lastname = data.lastname, gender = data.gender,
                       job = { name = 'unemployed' } }
-    giveStarter(src, s, data)
     s.stage = 'loaded'
+
+    local wrote, werr = pcall(function()
+        DB.Ensure(charId, s.owner)
+        DB.Set(charId, 'nationality', data.nationality)
+        if data.backstory then DB.Set(charId, 'backstory', data.backstory) end
+        DB.Set(charId, 'lastPlayed', os.time())
+    end)
+    if not wrote then print(('^1[nzm] create: saving lobby data failed: %s^0'):format(werr)) end
+    local gave, gerr = pcall(giveStarter, src, s, data)
+    if not gave then print(('^1[nzm] create: starter items failed: %s^0'):format(gerr)) end
 
     Logs.Send('created', src, {
         { 'Character', data.firstname .. ' ' .. data.lastname }, { 'ID', charId }, { 'Slot', slot },
@@ -349,6 +367,7 @@ lib.callback.register('nzm:create', function(src, slot, form)
     })
 
     local opts, mode = spawnOptions(src, s, true)
+    s.spawnMode = mode
     return { ok = true, msg = T('t_created'), charId = charId, gender = data.gender, spawn = opts, mode = mode }
 end)
 
@@ -359,9 +378,13 @@ lib.callback.register('nzm:spawn', function(src, optionId)
     local s = Sessions[src]
     if not s or s.stage ~= 'loaded' then return nil end
     local coords
+    local mode, opts = s.spawnMode, s.spawnOpts or {}
+    -- 'first' / 'last' only when that is what this character was actually offered
     if optionId == 'first' then
+        if not (s.isNew or mode == 'first' or opts.first) then return nil end
         coords = Config.Spawn.firstSpawn
     elseif optionId == 'last' or optionId == nil then
+        if not (mode == 'last' or mode == 'custom' or opts.last or s.isNew) then return nil end
         coords = (not s.isNew and Bridge.Position(s.active)) or Config.Spawn.firstSpawn
     elseif type(optionId) == 'string' and s.spawnOpts and s.spawnOpts[optionId] then
         coords = s.spawnOpts[optionId].coords
@@ -496,10 +519,12 @@ function Relog(src, force)
     s.stage = 'relogging'
     TriggerClientEvent('nzm:client:relogPrepare', src)
     Wait(700)
+    if not GetPlayerName(src) or Sessions[src] ~= s then return false end   -- dropped meanwhile
     flushPlaytime(s)
     local name = s.raw and s.raw[s.active] and charName(s.raw[s.active]) or s.active
     local previous = s.active
     pcall(Bridge.Logout, src)
+    if not GetPlayerName(src) then return false end
     Logs.Send('relog', src, { { 'From', name or '-' }, { 'Forced', force and 'yes' or 'no' } })
     Sessions[src] = nil
     Weapons.Forget(previous)
@@ -509,9 +534,16 @@ function Relog(src, force)
     return true
 end
 
+-- Relog POINT (client/relog.lua): only valid while standing at one of the configured points
 RegisterNetEvent('nzm:server:relog', function()
     local src = source
-    if Config.Relog.command.ace and not IsPlayerAceAllowed(src, Config.Relog.command.ace) then return end
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return end
+    local pos, near = GetEntityCoords(ped), false
+    for _, p in ipairs(Config.Relog.points or {}) do
+        if #(pos - vector3(p.coords.x, p.coords.y, p.coords.z)) <= (Config.Relog.distance or 1.6) + 3.0 then near = true break end
+    end
+    if not near then return end
     Relog(src, false)
 end)
 
@@ -537,7 +569,10 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= NZ.Resource then return end
-    for _, s in pairs(Sessions) do flushPlaytime(s) end
+    for src, s in pairs(Sessions) do
+        flushPlaytime(s)
+        if s.stage ~= 'playing' then Buckets.World(src) end
+    end
 end)
 
 -- Flush playtime every 5 minutes so crashes lose little

@@ -79,6 +79,9 @@ ServerConfig.RateLimit = {
     redeem = 10000,
     pref   = 350,
     squad  = 1500,
+    squadGet = 200,       -- squad list fetch (character switching)
+    boot     = 2000,      -- lobby open
+    refresh  = 1500,
 }
 
 -- Resources that must NOT run next to this one (checked by the install doctor)

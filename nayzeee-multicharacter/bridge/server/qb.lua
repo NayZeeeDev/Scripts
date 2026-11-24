@@ -182,7 +182,8 @@ function Bridge.Delete(src, charId)
     end
     local ok = pcall(function()
         if qbx then exports.qbx_core:DeleteCharacter(charId)
-        else QB.core.Player.DeleteCharacter(src, charId) end
+        elseif src and src > 0 then QB.core.Player.DeleteCharacter(src, charId)
+        else error('console delete') end                    -- console / admin: raw delete below
     end)
     if not ok then
         MySQL.update.await('DELETE FROM `players` WHERE `citizenid` = ?', { charId })

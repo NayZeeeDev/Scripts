@@ -75,11 +75,13 @@ end
 Validate.Age = age
 
 -- Accepts dobY/dobM/dobD or dob = 'YYYY-MM-DD'
+local function int(v) return math.tointeger(tonumber(v)) end
+
 local function dobParts(form)
-    if form.dobY then return tonumber(form.dobY), tonumber(form.dobM), tonumber(form.dobD) end
+    if form.dobY then return int(form.dobY), int(form.dobM), int(form.dobD) end
     if type(form.dob) == 'string' then
         local y, m, d = form.dob:match('^(%d%d%d%d)%-(%d%d?)%-(%d%d?)$')
-        return tonumber(y), tonumber(m), tonumber(d)
+        return int(y), int(m), int(d)
     end
 end
 
@@ -137,6 +139,7 @@ function Validate.Registration(form)
         local b = NZ.Trim(type(form.backstory) == 'string' and form.backstory or ''):gsub('[%c<>]', ' ')
         if b == '' then
             if R.backstory.required then errors.backstory = 'v_required' end
+        elseif not utf8.len(b) then errors.backstory = 'v_letters'
         elseif #b < R.backstory.min then errors.backstory = 'v_min'
         elseif #b > math.min(R.backstory.max, 600) then errors.backstory = 'v_max'
         else out.backstory = b end
