@@ -16,7 +16,13 @@ if not NAYZEEE_LOCK_OK then return end
     (flag 49) pose / weapon hold is layered on top, anything else loses to the seat anim. No couple pose there.
 ]]
 
-Actors = { list = {}, pet = nil, char = nil, squad = nil, preview = {}, walking = false, seq = 0 }
+Actors = { list = {}, pet = nil, char = nil, squad = nil, preview = {}, walking = false, seq = 0, weaponAssets = {} }
+
+-- Weapon models streamed for showcase weapons: released with the lobby
+function Actors.ReleaseWeaponAssets()
+    for hash in pairs(Actors.weaponAssets) do RemoveWeaponAsset(hash) end
+    Actors.weaponAssets = {}
+end
 
 local SQUAD_DEFAULT = {
     [2] = { offset = vec3(0.95, 0.15, 0.0), heading = -8.0 },
@@ -72,7 +78,7 @@ Actors.Place = place
 local function human(model, gender, skin, slot, kind)
     local mark = Actors.Mark(slot)
     local ped = U.Ped(Appearance.Model(model, gender), mark)
-    if skin then Appearance.ApplyPed(ped, skin) else Appearance.Default(ped, gender) end
+    if not (skin and Appearance.ApplyPed(ped, skin)) then Appearance.Default(ped, gender) end
     local a = { ped = ped, slot = slot, kind = kind, mark = mark, seat = seatOf(slot) }
     place(a)
     return a
@@ -153,6 +159,7 @@ local function giveWeapon(a, w)
     local hash = joaat(w.name)
     if not IsWeaponValid(hash) then return nil end
     RequestWeaponAsset(hash, 31, 0)          -- weapon model must be streamed or the ped holds nothing
+    Actors.weaponAssets[hash] = true
     local deadline = GetGameTimer() + 2000
     while not HasWeaponAssetLoaded(hash) and GetGameTimer() < deadline do Wait(0) end
     GiveWeaponToPed(ped, hash, 0, false, true)
@@ -188,7 +195,8 @@ function Actors.ApplyPose(a)
     Actors.Strip(a)
     local pose = poseFor(a)
     local w = a.kind ~= 'ghost' and weaponFor(a) or nil
-    local armed = w and (not pose or pose.weapon ~= false)
+    local chosen = a.kind ~= 'ghost' and NZ.PoseById(pref(a, 'pose'))
+    local armed = w and (not chosen or chosen.weapon ~= false)
     local holds = Config.WeaponShowcase.holds or {}
 
     if a.seat then
@@ -245,7 +253,7 @@ function Actors.Refresh(mainOnly)
         place(main)
         Actors.Strip(main)
         Actors.Strip(partner)
-        Couple.Play(main.ped, partner.ped, cp.id)
+        if not Couple.Play(main.ped, partner.ped, cp.id) then cp = nil end   -- missing dict etc: solo poses instead
     end
     for slot, a in pairs(Actors.list) do
         if not (cp and (slot == 1 or slot == 2)) and (not mainOnly or slot == 1 or (slot == 2 and partner and partner.kind == 'couple')) then

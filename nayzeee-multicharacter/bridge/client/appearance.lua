@@ -16,10 +16,11 @@ Appearance = {}
 
 local function started(res) return GetResourceState(res) == 'started' end
 
--- The illenium-style resource running on this server, if any
-local ILLENIUM = nil
-for _, r in ipairs({ 'nayzeee-appearance', 'illenium-appearance', 'fivem-appearance' }) do
-    if GetResourceState(r) ~= 'missing' then ILLENIUM = r break end
+-- The illenium-style resource RUNNING on this server, if any (checked at use: a stopped one doesn't count)
+local function illenium()
+    for _, r in ipairs({ 'nayzeee-appearance', 'illenium-appearance', 'fivem-appearance' }) do
+        if started(r) then return r end
+    end
 end
 
 -- ── format detection ──────────────────────────────────────────────────────
@@ -141,17 +142,22 @@ function Appearance.ApplyPed(ped, skin)
     if not skin or not DoesEntityExist(ped) then return end
     local fmt = formatOf(skin)
     if fmt == 'illenium' then
-        if ILLENIUM and started(ILLENIUM) then
+        local res = illenium()
+        if res then
             local copy = {}
             for k, v in pairs(skin) do if k ~= 'model' then copy[k] = v end end
-            if pcall(function() exports[ILLENIUM]:setPedAppearance(ped, copy) end) then return end
+            if pcall(function() exports[res]:setPedAppearance(ped, copy) end) then return true end
         end
         applyIllenium(ped, skin)
+        return true
     elseif fmt == 'skinchanger' then
         applySkinchanger(ped, skin)
+        return true
     elseif fmt == 'qb' and started('qb-clothing') then
         TriggerEvent('qb-clothing:client:loadPlayerClothing', skin, ped)
+        return true
     end
+    return false                                   -- unknown format: caller falls back to a default look
 end
 
 -- Dress the player before they enter the world
@@ -166,12 +172,17 @@ function Appearance.ApplyPlayer(skin, model, gender)
     if not skin then return end
 
     local fmt = formatOf(skin)
-    if fmt == 'illenium' and ILLENIUM and started(ILLENIUM) then
-        local ok = pcall(function() exports[ILLENIUM]:setPlayerAppearance(skin) end)
+    local res = fmt == 'illenium' and illenium()
+    if res then
+        local ok = pcall(function() exports[res]:setPlayerAppearance(skin) end)
         if ok then return end
     end
     if fmt == 'skinchanger' and started('skinchanger') then
-        TriggerEvent('skinchanger:loadSkin', skin)
+        -- skinchanger may swap the model on a later tick: wait for it so the caller hides the FINAL ped
+        local p = promise.new()
+        TriggerEvent('skinchanger:loadSkin', skin, function() p:resolve(true) end)
+        SetTimeout(5000, function() p:resolve(false) end)
+        Citizen.Await(p)
         return
     end
     Appearance.ApplyPed(PlayerPedId(), skin)
@@ -184,7 +195,8 @@ function Appearance.OpenEditor(isNew, gender, done)
     ResetEntityAlpha(ped)
     SetPedAoBlobRendering(ped, true)
 
-    if ILLENIUM and started(ILLENIUM) then
+    local ILLENIUM = illenium()
+    if ILLENIUM then
         local cfg = { ped = true, headBlend = true, faceFeatures = true, headOverlays = true, components = true, props = true, tattoos = true, enableExit = false }
         local ok = pcall(function()
             exports[ILLENIUM]:startPlayerCustomization(function(appearance)

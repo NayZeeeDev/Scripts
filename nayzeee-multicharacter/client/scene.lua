@@ -284,6 +284,7 @@ function Scene.Teardown(rebuilding)
     if not rebuilding then Cam.Stop() end
     Lights.Stop()
     U.ReleaseAnims()
+    if Actors and Actors.ReleaseWeaponAssets then Actors.ReleaseWeaponAssets() end
     if Scene.interior and Scene.interior ~= 0 then UnpinInterior(Scene.interior) end
     ClearTimecycleModifier()
     ClearFocus()

@@ -212,6 +212,8 @@ end
 Steps.walkTo = function(s)
     local ped = target(s)
     if not free(ped) then return end
+    U.StopPose(ped)
+    U.ClearProps(ped)                                        -- never walk off holding the phone
     local to = rel(s.to)
     local from = GetEntityCoords(ped)
     ClearPedTasks(ped)
@@ -226,9 +228,11 @@ Steps.anim = function(s, my)
     local def = (s.pose and NZ.PoseById(s.pose)) or (s.dict and { dict = s.dict, clip = s.clip, flag = s.flag or 49 }) or s.anim
     if not def then return end
     local mine = claim(ped)
-    U.Pose(ped, def)
+    local t0 = GetGameTimer()
+    -- #6 a ped already seated / attached keeps its task (ClearPedTasksImmediately would warp it out)
+    U.Pose(ped, def, { keepTasks = IsPedInAnyVehicle(ped, false) or IsEntityAttached(ped) })
     if not s.time then return end
-    Wait(s.time)
+    Wait(math.max(0, s.time - (GetGameTimer() - t0)))      -- dict loading counts toward `time`
     if alive(my) and DoesEntityExist(ped) and Cutscene.tasks[ped] == mine then
         U.StopPose(ped)
         U.ClearProps(ped)
@@ -236,11 +240,12 @@ Steps.anim = function(s, my)
     end
 end
 
-Steps.ptfx = function(s)
+Steps.ptfx = function(s, my)
     local asset = s.asset or 'core'
     RequestNamedPtfxAsset(asset)
     local deadline = GetGameTimer() + 2000
     while not HasNamedPtfxAssetLoaded(asset) and GetGameTimer() < deadline do Wait(0) end
+    if not alive(my) then RemoveNamedPtfxAsset(asset) return end   -- cutscene already over
     if not HasNamedPtfxAssetLoaded(asset) then return end
     Cutscene.assets[asset] = true
     local o, scale = s.offset or vec3(0.0, 0.0, 0.0), (s.scale or 1.0) + 0.0
