@@ -116,7 +116,7 @@ local function personalBalance(identifier)
 end
 
 staff('players', function(src, query)
-    query = tostring(query or ''):sub(1, 48):match('^%s*(.-)%s*$')
+    query = Bank.cut(tostring(query or ''), 48):match('^%s*(.-)%s*$')
     local live = online()
     local rows, seen = {}, {}
 
@@ -351,7 +351,7 @@ end)
 local KINDS = { personal = true, savings = true, shared = true, society = true }
 
 staff('accounts', function(src, query, kind)
-    query = tostring(query or ''):sub(1, 40)
+    query = Bank.cut(tostring(query or ''), 40)
     local like = '%' .. query .. '%'
     local where, args = '(account_number LIKE ? OR label LIKE ? OR owner LIKE ?)', { like, like, like }
     if KINDS[kind] then
@@ -471,6 +471,14 @@ staff('setting', function(src, path, value, reset)
         if v == nil then return fail('That value does not fit this setting.') end
         over[path] = v
     end
+
+    -- settings that only make sense in order
+    local function value(p) if over[p] ~= nil then return over[p] end return NZManager.defaults[p] end
+    for _, pair in ipairs({ { 'Credit.min', 'Credit.max', 'The lowest credit score has to be below the highest.' },
+                            { 'Overdraft.minLimit', 'Overdraft.limit', 'The smallest overdraft line cannot be above the line itself.' } }) do
+        local lo, hi = tonumber(value(pair[1])), tonumber(value(pair[2]))
+        if lo and hi and lo > hi then return fail(pair[3]) end
+    end
     NZManager.save(over)
 
     local after = NZManager.plain(NZManager.get(path))
@@ -570,8 +578,23 @@ local function saveBranches(src, rows, counters, action, target)
     return { ok = true, data = branchesPayload() }
 end
 
---- Add a branch (index nil) or change one: name, teller model, where they stand.
-staff('branchSave', function(src, index, row)
+--- Is branch `index` still the one the admin was looking at? Another admin may
+--- have removed or moved one since their list loaded, which shifts every index.
+local function sameBranch(index, want)
+    if type(want) ~= 'table' then return true end
+    local b = Config.Banks[index]
+    if not b then return false end
+    return b.label == want.label and math.abs(b.coords.x - (tonumber(want.x) or 1e9)) < 0.6
+        and math.abs(b.coords.y - (tonumber(want.y) or 1e9)) < 0.6
+end
+
+local function changed()
+    return { ok = false, msg = 'That branch was changed by someone else meanwhile; the list is fresh now, try again.',
+             data = branchesPayload() }
+end
+
+--- Add a branch (index 0) or change one: name, teller model, where they stand.
+staff('branchSave', function(src, index, row, want)
     if type(row) ~= 'table' then return fail('Nothing to save.') end
     local clean = {
         label = Bank.cut(tostring(row.label or 'Bank'):match('^%s*(.-)%s*$'), 40),
@@ -585,6 +608,7 @@ staff('branchSave', function(src, index, row)
     local rows = NZManager.banksPlain()
     index = tonumber(index)
     if index and index < 1 then index = nil end   -- 0: a new branch
+    if index and not sameBranch(index, want) then return changed() end
     if index then
         if not rows[index] then return fail('That branch is gone.') end
         rows[index] = clean
@@ -595,10 +619,11 @@ staff('branchSave', function(src, index, row)
         ('%s (%.1f, %.1f, %.1f)'):format(clean.label, clean.x, clean.y, clean.z))
 end)
 
-staff('branchDelete', function(src, index)
+staff('branchDelete', function(src, index, want)
     index = tonumber(index)
     local rows = NZManager.banksPlain()
     if not index or not rows[index] then return fail('That branch is gone.') end
+    if not sameBranch(index, want) then return changed() end
     local gone = table.remove(rows, index)
     -- each counter is filed under its branch's place in the list: move the later ones up
     local counters = {}
@@ -618,9 +643,10 @@ staff('branchesReset', function(src)
 end)
 
 --- The money counter and the cash spot on one branch's counter, from the teller.
-staff('counterSave', function(src, index, c)
+staff('counterSave', function(src, index, want, c)
     index = tonumber(index)
     if not index or not Config.Banks[index] or type(c) ~= 'table' then return fail('That branch is gone.') end
+    if not sameBranch(index, want) then return changed() end
     local function v3(t)
         if type(t) ~= 'table' then return nil end
         local x, y, z = num(t.x, -3, 3), num(t.y, -3, 3), num(t.z, -1, 2)
@@ -695,8 +721,15 @@ local function console(args)
         local amount = Bank.round(tonumber(args[3]) or 0)
         if not acc or amount <= 0 then return Console.log('warn', 'usage: bankingmanager %s <playerId|account> <amount>', action) end
         local opts = { category = 'admin', label = 'Adjustment', actorName = 'Console', force = true, noOverdraft = true }
-        local ok = action == 'give' and Bank.credit(acc.id, amount, opts) or Bank.debit(acc.id, amount, opts)
-        audit(0, action == 'give' and 'Added money' or 'Removed money', acc.account_number, Config.Currency .. amount)
+        local ok
+        if action == 'give' then
+            ok = Bank.credit(acc.id, amount, opts)
+        elseif acc.balance < amount then
+            return Console.log('warn', 'only %s%s in %s', Config.Currency, acc.balance, acc.account_number)
+        else
+            ok = Bank.debit(acc.id, amount, opts)
+        end
+        if ok then audit(0, action == 'give' and 'Added money' or 'Removed money', acc.account_number, Config.Currency .. amount) end
         Console.log(ok and 'ok' or 'error', '%s %s%s %s %s', ok and (action == 'give' and 'added' or 'removed') or 'could not move',
             Config.Currency, amount, action == 'give' and 'to' or 'from', name or acc.account_number)
     elseif action == 'check' then

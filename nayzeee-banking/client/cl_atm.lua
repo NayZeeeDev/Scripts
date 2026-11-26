@@ -251,15 +251,21 @@ end
 
 --- A server answer with a time limit, so a reply that never comes cannot
 --- leave the machine stuck as busy.
+--- A server call that gives up after Config.ATM.timeoutSeconds. The second
+--- value lets the caller deal with an answer that arrives after it gave up
+--- (set its onLate).
 local function timed(name, ...)
     local args, result, finished = table.pack(...), nil, false
+    local state = {}
     CreateThread(function()
         result = lib.callback.await(name, false, table.unpack(args, 1, args.n))
         finished = true
+        if state.gaveUp and state.onLate then state.onLate(result) end
     end)
     local limit = GetGameTimer() + (Config.ATM.timeoutSeconds or 10) * 1000
     while not finished and GetGameTimer() < limit do Wait(50) end
-    return result
+    if not finished then state.gaveUp = true end
+    return result, state
 end
 
 --- Reasons a player can't step up to a machine right now.
@@ -316,7 +322,14 @@ function Bank.useATM(targeted, cardId)
     end
 
     -- the server checks we are at the machine and keeps the card until we leave
-    local start = timed('nz_bank:atmStart', card and card.id, GetEntityCoords(entity))
+    local start, waited = timed('nz_bank:atmStart', card and card.id, GetEntityCoords(entity))
+    if not start and waited.gaveUp then
+        -- the server may still open the session (and hold the card) after we
+        -- stopped waiting: close it the moment that answer lands
+        waited.onLate = function(late)
+            if late and late.ok then lib.callback.await('nz_bank:atmEnd', false) end
+        end
+    end
     if not start or not start.ok then
         inSession = false
         return Bank.notify(L('atm_title'), start and start.msg or L('atm_no_answer'), 'error')

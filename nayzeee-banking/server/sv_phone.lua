@@ -197,7 +197,7 @@ Bank.callback('nz_bank:requestMoney', function(src, accountNumber, amount, reaso
       VALUES (?, ?, ?, ?, ?, ?, ?)
   ]], {
     target.owner, mine.id, name, name, amount,
-    (reason ~= '' and reason or 'Money request'):sub(1, 120),
+    Bank.cut(reason ~= '' and reason or 'Money request', 120),
     os.time() + ((Config.Phone.requestMinutes or Config.Bills.overdueMinutes) * 60)
   })
 

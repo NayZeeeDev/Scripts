@@ -50,7 +50,10 @@ function Bank.buildStatement(accountId, periodId, limit)
     if not acc then return nil end
 
     local from = period.seconds and (os.time() - period.seconds) or nil
-    local fromSql = from and os.date('!%Y-%m-%d %H:%M:%S', from) or nil
+    -- the start in the database's own clock, the one created_at is written in,
+    -- so the period is right whatever time zone the server runs in
+    local fromSql = from and MySQL.scalar.await([[SELECT DATE_FORMAT(NOW() - INTERVAL ? SECOND, '%Y-%m-%d %H:%i:%s')]],
+        { period.seconds }) or nil
 
     -- The balance the account carried into the period: the running
     -- balance after the last movement before it started. No rows

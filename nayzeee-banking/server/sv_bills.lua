@@ -103,7 +103,7 @@ function Bank.settleBill(identifier, billId, accountId, auto)
     local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
     local ok = Bank.debit(accountId, bill.amount, {
         category = 'bill',
-        label    = ('%s · %s'):format(bill.issuer_label, bill.reason):sub(1, 90),
+        label    = Bank.cut(('%s · %s'):format(bill.issuer_label, bill.reason), 90),
         actor    = identifier,
         actorName= xPlayer and Bank.fullName(xPlayer) or 'Auto-pay'
     })
@@ -115,7 +115,7 @@ function Bank.settleBill(identifier, billId, accountId, auto)
     if bill.issuer_id then
         local paid = Bank.credit(bill.issuer_id, bill.amount, {
             category = 'bill',
-            label    = ('Bill paid · %s'):format(bill.reason):sub(1, 90),
+            label    = Bank.cut(('Bill paid · %s'):format(bill.reason), 90),
             actor    = identifier,
             actorName= xPlayer and Bank.fullName(xPlayer) or 'Payer'
         })

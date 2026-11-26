@@ -73,6 +73,10 @@ async function mWorld(what, extra) {
 
 function mSay(res, fallback) {
   if (!res) { notify('Banking Manager', fallback || 'That did not go through.', 'error'); return false; }
+  // a branch save refused because the list changed comes back with the fresh list
+  if (!res.ok && res.data && res.data.rows && MG.page === 'branches') {
+    MG.branches = res.data; MG.branch = null; closeModal(); setTimeout(drawBranches, 0);
+  }
   if (res.msg || !res.ok) notify('Banking Manager', res.msg || fallback || 'That did not go through.', res.ok ? 'success' : 'error');
   return res.ok;
 }
@@ -602,6 +606,9 @@ async function pageBranches() {
   drawBranches();
 }
 
+/** The branch as this panel saw it: the server refuses a save if it has changed since. */
+const seen = (r) => r ? { label: r.label, x: r.x, y: r.y } : null;
+
 const distTo = (r) => MG.me ? Math.hypot(r.x - MG.me.x, r.y - MG.me.y) : null;
 const fmtDist = (m) => m == null ? '—' : m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 
@@ -917,8 +924,11 @@ function settingRow(it) {
   } else if (it.t === 'color') {
     ctl = `<span class="hex mono">${esc(v)}</span><input type="color" data-set="${esc(it.p)}" data-kind="color" value="${esc(v || '#000000')}">`;
   } else {
-    ctl = `<input type="text" data-set="${esc(it.p)}" data-kind="text" value="${esc(v)}"
-      ${it.s ? 'placeholder="Paste a new one to change it"' : ''} ${it.max ? `maxlength="${it.max}"` : ''}>`;
+    // a secret is never shown: the box stays empty and only says whether one is set
+    ctl = it.s
+      ? `<input type="text" data-set="${esc(it.p)}" data-kind="text" value=""
+          placeholder="${v ? 'Set · paste a new one to replace it' : 'Paste it here'}">`
+      : `<input type="text" data-set="${esc(it.p)}" data-kind="text" value="${esc(v)}" ${it.max ? `maxlength="${it.max}"` : ''}>`;
   }
   return `
     <div class="set-row ${changed ? 'changed' : ''}" data-row="${esc(it.p)}">
@@ -964,7 +974,7 @@ document.getElementById('mgrView').addEventListener('change', (e) => {
     if (!Number.isFinite(v)) return drawSettings();
     if (it.pct) v = v / 100;
   }
-  if (it.s && v === '••••••••') return;
+  if (it.s && String(v).trim() === '') return;   // cleared by Reset, never by an empty box
   saveSetting(it.p, v);
 });
 document.getElementById('mgrView').addEventListener('input', (e) => {
@@ -1109,7 +1119,7 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
     case 'branchSaveInfo': {
       const r = MG.branches.rows[MG.branch - 1];
       const label = document.getElementById('mgrBLabel').value, ped = document.getElementById('mgrBPed').value;
-      const res = await mPost('branchSave', r.i, { label, ped, x: r.x, y: r.y, z: r.z, w: r.w });
+      const res = await mPost('branchSave', r.i, { label, ped, x: r.x, y: r.y, z: r.z, w: r.w }, seen(r));
       if (mSay(res, 'Not saved.') && res.data) { MG.branches = res.data; notify('Banking Manager', 'Branch saved for everyone.', 'success'); drawBranches(); }
       return;
     }
@@ -1120,7 +1130,7 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
       return openModal({ title: `Teller to your spot · ${r.label}`,
         text: 'The teller stands exactly where you are and faces the way you face, so stand behind the counter looking at the customers.',
         confirm: 'Move teller', onConfirm: async () => {
-          const res = await mPost('branchSave', r.i, { label: r.label, ped: r.ped, x: me.pos.x, y: me.pos.y, z: me.pos.z, w: me.pos.w });
+          const res = await mPost('branchSave', r.i, { label: r.label, ped: r.ped, x: me.pos.x, y: me.pos.y, z: me.pos.z, w: me.pos.w }, seen(r));
           if (mSay(res, 'Not saved.') && res.data) { closeModal(); MG.branches = res.data; notify('Banking Manager', 'Teller moved for everyone.', 'success'); drawBranches(); }
         } });
     }
@@ -1140,12 +1150,12 @@ document.getElementById('mgrView').addEventListener('click', async (e) => {
         } });
     case 'resetCounter':
       return openModal({ title: 'Use the default counter?', text: 'This branch goes back to the money counter layout in Config.Teller.', confirm: 'Reset',
-        onConfirm: async () => { const res = await mPost('counterSave', Number(d.i), { reset: true }); if (mSay(res) && res.data) { closeModal(); MG.branches = res.data; drawBranches(); } } });
+        onConfirm: async () => { const res = await mPost('counterSave', Number(d.i), seen(MG.branches.rows[Number(d.i) - 1]), { reset: true }); if (mSay(res) && res.data) { closeModal(); MG.branches = res.data; drawBranches(); } } });
     case 'deleteBranch': {
       const r = MG.branches.rows[Number(d.i) - 1];
       return openModal({ title: `Remove ${r.label}?`, text: 'Its teller, blip and counter go for every player. Back to config.lua brings the original list back.',
         danger: true, confirm: 'Remove', onConfirm: async () => {
-          const res = await mPost('branchDelete', r.i);
+          const res = await mPost('branchDelete', r.i, seen(r));
           if (mSay(res) && res.data) { closeModal(); MG.branches = res.data; MG.branch = null; drawBranches(); }
         } });
     }

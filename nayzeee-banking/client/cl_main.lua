@@ -215,6 +215,15 @@ end)
 -- The bank window opened at an ATM closes on its own when the player can no
 -- longer be stood at it: dead, in a car, knocked over, or moved away. Without
 -- this every cash call would fail and the walk-away would play wherever they are.
+-- The same for a branch: shot, arrested or moved away, the window goes.
+local function farFromBranches(pos)
+    local reach = ((Config.Security and Config.Security.branchRange) or 12.0) + 3.0
+    for _, b in ipairs(Config.Banks or {}) do
+        if #(pos - vector3(b.coords.x, b.coords.y, b.coords.z)) <= reach then return false end
+    end
+    return true
+end
+
 CreateThread(function()
     while true do
         if Bank.isOpen and Bank.context == 'atm' then
@@ -227,6 +236,13 @@ CreateThread(function()
                 Bank.close()
             end
             Wait(250)
+        elseif Bank.isOpen and Bank.context == 'bank' then
+            local ped = PlayerPedId()
+            if IsEntityDead(ped) or IsPedInAnyVehicle(ped, false) or IsPedRagdoll(ped)
+                or farFromBranches(GetEntityCoords(ped)) then
+                Bank.close()
+            end
+            Wait(500)
         else
             Wait(1000)
         end
@@ -441,19 +457,31 @@ end
 CreateThread(Bank.buildBranches)
 
 -- the Banking Manager changed something a branch is built from: build them again
-local REBUILD = { Banks = true, SpawnPeds = true, ['Blip.enabled'] = true, ['Blip.name'] = true,
+local REBUILD = { Banks = true, SpawnPeds = true, TargetDistance = true, ['Blip.enabled'] = true, ['Blip.name'] = true,
     ['Blip.sprite'] = true, ['Blip.colour'] = true, ['Blip.scale'] = true, ['Teller.enabled'] = true }
+
+local rebuilding, rebuildWanted = false, false
 
 AddEventHandler('nz_bank:settingsChanged', function(changed)
     changed = changed or {}
     local again = false
     for k in pairs(changed or {}) do if REBUILD[k] then again = true break end end
     if again then
-        -- a teller scene in progress keeps its teller; the rebuild waits for it
+        -- One rebuild at a time: building waits on models, and a second one
+        -- clearing half way through the first would leave tellers nobody
+        -- tracks. A change that lands meanwhile just asks for one more pass.
+        rebuildWanted = true
+        if rebuilding then return end
+        rebuilding = true
         CreateThread(function()
-            while Bank.tellerBusy or Bank.placing do Wait(250) end
-            Bank.clearBranches()
-            Bank.buildBranches()
+            while rebuildWanted do
+                rebuildWanted = false
+                -- a teller scene in progress keeps its teller; the rebuild waits for it
+                while Bank.tellerBusy or Bank.placing do Wait(250) end
+                Bank.clearBranches()
+                Bank.buildBranches()
+            end
+            rebuilding = false
         end)
     elseif changed['Teller.banks'] or changed['Teller.machineProp'] or changed['Teller.machineHeading'] then
         if Bank.clearCounters and not Bank.placing then Bank.clearCounters() end
@@ -537,23 +565,9 @@ end)
 -- qs-inventory / the ESX usable-item route: the server hands over the item's info
 RegisterNetEvent('nz_bank:useCardItem', function(meta) Bank.useCardItem(meta) end)
 
-local LEGACY_REACH = 3.0   -- how far from a branch an untagged teller may stand and still be ours
-
---- Is this point next to a configured branch?
-local function atBranch(pos)
-    for _, bank in ipairs(Config.Banks) do
-        if #(pos - vector3(bank.coords.x, bank.coords.y, bank.coords.z)) <= LEGACY_REACH then
-            return true
-        end
-    end
-    return false
-end
-
 --- Delete the tellers this resource spawned. Tagged peds are found by
---- their state bag wherever they stand. Older ones, from before the tag
---- existed, are matched on model and on being a mission entity — but only
---- right at a branch, so another resource's bank NPC elsewhere is left alone.
---- With a radius (/bankclean) the model match reaches that far around you.
+--- their state bag wherever they stand. Older untagged ones are matched on
+--- model and on being a mission entity only by /bankclean, within its radius.
 function Bank.sweepTellers(radius)
     local me = GetEntityCoords(PlayerPedId())
     local models = {}
@@ -574,10 +588,12 @@ function Bank.sweepTellers(radius)
             local legacy = models[GetEntityModel(ped)] and IsEntityAMissionEntity(ped)
             local ours
 
+            -- an untagged look-alike is only ever taken on /bankclean: on a normal
+            -- start it could be another resource's bank NPC at the same counter
             if radius then
                 ours = (tagged or legacy) and #(pos - me) <= radius
             else
-                ours = tagged or (legacy and atBranch(pos))
+                ours = tagged
             end
 
             if ours then

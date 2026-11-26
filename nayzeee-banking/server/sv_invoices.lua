@@ -149,14 +149,14 @@ local function settle(src, accountId, bill, claim, unclaim)
 
     if not claim() then return false, 'This invoice was just paid or changed.' end
 
-    local label = ('%s · %s'):format(bill.issuer, bill.reason):sub(1, 90)
+    local label = Bank.cut(('%s · %s'):format(bill.issuer, bill.reason), 90)
     local ok = Bank.debit(accountId, bill.amount, {
         category = 'bill', label = label, actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
     })
     if not ok then unclaim() return false, 'Not enough in that account.' end
 
     local paid = Bank.credit(to, bill.amount, {
-        category = 'bill', label = ('Bill paid · %s'):format(bill.reason):sub(1, 90),
+        category = 'bill', label = Bank.cut(('Bill paid · %s'):format(bill.reason), 90),
         actor = xPlayer.identifier, actorName = Bank.fullName(xPlayer)
     })
     if not paid then
@@ -188,14 +188,14 @@ local function viaExport(src, bill, fn)
     end
 
     if Bank.expectExternal then
-        Bank.expectExternal(xPlayer.identifier, bill.amount, ('%s · %s'):format(bill.issuer, bill.reason):sub(1, 90))
+        Bank.expectExternal(xPlayer.identifier, bill.amount, Bank.cut(('%s · %s'):format(bill.issuer, bill.reason), 90))
     end
     local ok, charged = fn(xPlayer)
     -- the script said what it took (tax and all): book that figure
     if ok and charged and charged > 0 and charged ~= bill.amount then
         bill.amount = Bank.round(charged)
         if Bank.expectExternal then
-            Bank.expectExternal(xPlayer.identifier, bill.amount, ('%s · %s'):format(bill.issuer, bill.reason):sub(1, 90))
+            Bank.expectExternal(xPlayer.identifier, bill.amount, Bank.cut(('%s · %s'):format(bill.issuer, bill.reason), 90))
         end
     end
     if Bank.syncNow then Bank.syncNow(xPlayer.identifier) end

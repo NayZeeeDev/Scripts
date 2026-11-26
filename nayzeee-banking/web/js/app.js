@@ -763,12 +763,13 @@ function chrome() {
     statements: d.config.features && d.config.features.statements === false
   };
 
-  document.querySelectorAll('.nav').forEach(n => {
+  // the bank's own side nav only: the Banking Manager's sits on the same page
+  document.querySelectorAll('.frame:not(.mgr-frame) .nav').forEach(n => {
     const allowed = (!isATM() || atmPages.includes(n.dataset.page)) && !off[n.dataset.page];
     n.classList.toggle('hidden', !allowed);
     n.classList.toggle('on', n.dataset.page === S.page);
   });
-  document.querySelectorAll('.grp').forEach(g => g.classList.toggle('hidden', isATM()));
+  document.querySelectorAll('.frame:not(.mgr-frame) .grp').forEach(g => g.classList.toggle('hidden', isATM()));
 
   const societyNav = document.querySelector('[data-page="society"]');
   if (societyNav) societyNav.classList.toggle('hidden', isATM() || accountsOfType('society').length === 0);
@@ -830,6 +831,9 @@ function setFlow(key) {
   chart.classList.add('anim');
 }
 
+/* an interest rate as a percentage: 0.001 reads 0.1, not 0 */
+const ratePct = (r) => String(+((Number(r) || 0) * 100).toFixed(2));
+
 /* ═══════════════ PAGES ═══════════════ */
 function pageDashboard() {
   const d = S.data;
@@ -856,7 +860,7 @@ function pageDashboard() {
       ${statTile('bank', 'Total balance', money(acc.balance), acc.label)}
       ${statTile('out', 'Spending', money(d.summary.spending), 'This month', true)}
       ${statTile('in', 'Income', money(d.summary.income), 'This month')}
-      ${statTile('bag', 'Savings', money(d.summary.savings), (d.savings || {}).open ? `${(d.savings.rate * 100).toFixed(0)}% interest` : 'Not open')}
+      ${statTile('bag', 'Savings', money(d.summary.savings), (d.savings || {}).open ? `${ratePct(d.savings.rate)}% interest` : 'Not open')}
     </div>
 
     <div class="cols">
@@ -1474,7 +1478,7 @@ function pageSavings() {
   if (!s.open) {
     return `
       <div class="head"><div><h1>Savings</h1>
-        <p>Put money aside and earn ${(s.rate * 100).toFixed(0)}% interest on every payout.</p></div></div>
+        <p>Put money aside and earn ${ratePct(s.rate)}% interest on every payout.</p></div></div>
       <section class="panel"><div class="p-body tight">
         <div class="empty">${ICON.bag}<b>No savings account yet</b>
           <span>Interest lands automatically while the money sits untouched.</span></div>
@@ -1496,7 +1500,7 @@ function pageSavings() {
     <div class="stats" style="grid-template-columns:repeat(3,1fr)">
       ${statTile('bag', 'Savings balance', money(s.balance), 'Earning interest')}
       ${statTile('in', 'Interest earned', money(s.earned), 'Since opening')}
-      ${statTile('clock', 'Next payout', s.nextIn > 0 ? `${s.nextIn} min` : 'Any moment', `${(s.rate * 100).toFixed(0)}% each time`)}
+      ${statTile('clock', 'Next payout', s.nextIn > 0 ? `${s.nextIn} min` : 'Any moment', `${ratePct(s.rate)}% each time`)}
     </div>
 
     <div class="cols">
@@ -1511,7 +1515,7 @@ function pageSavings() {
           <div style="margin-top:16px">
             <div class="kv"><span>Total deposited</span><b>${money(s.deposited)}</b></div>
             <div class="kv"><span>Total earned</span><b class="teal">${money(s.earned)}</b></div>
-            <div class="kv"><span>Interest rate</span><b>${(s.rate * 100).toFixed(0)}%</b></div>
+            <div class="kv"><span>Interest rate</span><b>${ratePct(s.rate)}%</b></div>
           </div>
         </div>
       </section>
@@ -1522,7 +1526,7 @@ function pageSavings() {
         <div class="p-body tight">
           ${s.goal
             ? donut(goalPct, goalPct + '%', 'OF GOAL')
-            : donut(Math.min(100, s.balance > 0 ? (s.earned / s.balance) * 100 : 0), (s.rate * 100).toFixed(0) + '%', 'EARNED')}
+            : donut(Math.min(100, s.balance > 0 ? (s.earned / s.balance) * 100 : 0), ratePct(s.rate) + '%', 'EARNED')}
         </div>
       </section>
     </div>`;
@@ -2240,7 +2244,7 @@ async function loadPayroll(job) {
   // the player may have switched society while this was on its way
   const chosen = accountsOfType('society').find(a => a.id === S.societyId);
   if (chosen && chosen.owner !== job) return;
-  S.payrollData = res;
+  S.payrollData = (res && (res.mode === 'esx' || Array.isArray(res.rows))) ? res : null;
   if (S.page === 'society') {
     const view = document.getElementById('view');
     view.innerHTML = pageSociety();
@@ -3050,7 +3054,7 @@ function tradePreview() {
   const input = document.querySelector('[data-name="amount"]');
   const amount = Math.max(0, parseInt(input && input.value, 10) || 0);
   const { a, m, held } = t;
-  const fee = Math.round(amount * m.fee);
+  const fee = m.fee > 0 && amount > 0 ? Math.ceil(amount * m.fee) : 0;   // the server rounds the fee up too
   const units = a.price > 0 ? amount / a.price : 0;
 
   if (t.buying) {

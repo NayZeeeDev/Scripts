@@ -59,7 +59,7 @@ function Bank.moveCredit(identifier, delta, column, reason)
 
     if score ~= row.score then
         MySQL.insert('INSERT INTO nz_bank_credit_history (identifier, score, delta, reason) VALUES (?, ?, ?, ?)',
-            { identifier, score, score - row.score, tostring(reason or (delta > 0 and 'Score went up' or 'Score went down')):sub(1, 64) })
+            { identifier, score, score - row.score, Bank.cut(tostring(reason or (delta > 0 and 'Score went up' or 'Score went down')), 64) })
     end
 
     if column then
@@ -383,6 +383,11 @@ local function payLoanNow(identifier, loanId, amount, auto)
     local loan = MySQL.single.await('SELECT * FROM nz_bank_loans WHERE id = ? AND status = "active"', { loanId })
     if not loan then return false, 'No active loan.' end
     if loan.identifier ~= identifier then return false, 'That loan is not yours.' end
+    -- nothing left to pay (a close that failed half way): settle it, take nothing
+    if (tonumber(loan.remaining) or 0) <= 0 then
+        settleLoan(loan, ESX.GetPlayerFromIdentifier(identifier))
+        return true, 'That loan is already paid off.'
+    end
 
     amount = Bank.round(amount or loan.payment)
     if amount <= 0 then return false, 'Enter a valid amount.' end
@@ -554,6 +559,9 @@ local function collectDue(loanId)
     if not loan then return end
 
     local xPlayer = ESX.GetPlayerFromIdentifier(loan.identifier)
+
+    -- nothing left to pay: settle it rather than count a missed payment
+    if (tonumber(loan.remaining) or 0) <= 0 then settleLoan(loan, xPlayer) return end
 
     -- skip offline borrowers entirely when configured that way
     if not xPlayer and not Config.Loans.chargeOffline then

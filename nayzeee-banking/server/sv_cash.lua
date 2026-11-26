@@ -360,6 +360,15 @@ end
 
 local function owedKey(x) return 'nz_cash_due:' .. tostring(x.identifier) end
 
+-- The mirror's last figure for a player in this server session. Kept in KVP so a
+-- restart of this resource keeps it, and keyed by the server's boot (GlobalState
+-- lasts exactly as long as the server), so after a server restart nobody starts
+-- from a figure the framework and the inventory may have rolled back past.
+if not GlobalState.nzBankBoot then GlobalState.nzBankBoot = tostring(os.time()) end
+local function lastKey(src, x)
+    return ('nz_cash_last:%s:%s:%s'):format(GlobalState.nzBankBoot, tostring(src), tostring(x.identifier))
+end
+
 --- Bring the framework figure and the notes back in step, settling whatever
 --- changed on either side since the last look. One player at a time.
 local function syncNow(src)
@@ -373,6 +382,9 @@ local function syncNow(src)
     if due[src] == nil then due[src] = tonumber(GetResourceKvpString(owedKey(x)) or '') or 0 end
 
     local was = last[src]
+    -- this resource restarted while the player stayed on: pick up where it left
+    -- off, so a purchase made in between is not handed back as notes
+    if was == nil then was = tonumber(GetResourceKvpString(lastKey(src, x)) or '') end
     if was == nil then
         -- first look: a server switching notes on part way has players with a
         -- framework cash figure and no notes; that cash becomes notes, once
@@ -413,6 +425,7 @@ local function syncNow(src)
     local want = carried(src) + due[src]
     if f ~= want then setFigure(x, want) end
     last[src] = want
+    SetResourceKvpNoSync(lastKey(src, x), tostring(want))
 end
 
 local function sync(src)
@@ -444,9 +457,9 @@ CreateThread(function()
     end
 
     -- notes picked up, given, dropped or robbed: the figure follows
-    local every = math.max(1, tonumber(C.syncSeconds) or 2) * 1000
     while true do
-        Wait(every)
+        -- read every pass, so the Banking Manager's "Recount every" takes hold live
+        Wait(math.max(1, tonumber(C.syncSeconds) or 2) * 1000)
         for _, xPlayer in ipairs(ESX.GetExtendedPlayers()) do
             if xPlayer.source then sync(xPlayer.source) end
         end
@@ -555,6 +568,8 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
+    local x = Bank.getPlayer(src)
+    if x and x.identifier then DeleteResourceKvp(lastKey(src, x)) end
     last[src], writing[src], shopping[src], due[src] = nil, nil, nil, nil
 end)
 

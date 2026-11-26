@@ -72,7 +72,7 @@ local function openSavings(xPlayer)
 
     if not id or id == 0 then
         if cost > 0 then
-            Bank.credit(personal.id, cost, { category = 'fee', label = 'Savings opening fee refunded' })
+            Bank.creditOwed(personal.id, cost, { category = 'fee', label = 'Savings opening fee refunded' })
         end
         return { ok = false, msg = 'You already hold a savings account.' }
     end

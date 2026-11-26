@@ -26,7 +26,7 @@ local ICON = ('https://cfx-nui-%s/web/phone/icon.png'):format(RESOURCE)
 
 --- The same page serves every phone; ?phone= tells it which bridge to use.
 local function pageUrl(kind)
-    return ('https://cfx-nui-%s/web/phone/index.html?phone=%s'):format(RESOURCE, kind)
+    return ('https://cfx-nui-%s/web/phone/index.html?phone=%s&resource=%s'):format(RESOURCE, kind, RESOURCE)
 end
 
 local function appName() return Config.Phone.appName or APP.name end

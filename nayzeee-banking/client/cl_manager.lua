@@ -73,31 +73,55 @@ local function mover()
 end
 
 --- Somewhere on the map: with no height given, the ground is found from above.
+local moving = nil   -- { ent } while a teleport holds the player frozen behind a black screen
+
+--- Somewhere on the map. The player waits frozen at the spot until the world
+--- there has loaded, so they never drop through a floor; with no height given
+--- the ground is found from above, and if it never is they go back where they were.
 local function teleport(x, y, z, heading)
     local ent = mover()
+    local from = GetEntityCoords(ent)
+    moving = { ent = ent }
     DoScreenFadeOut(250)
     while not IsScreenFadedOut() do Wait(0) end
     FreezeEntityPosition(ent, true)
 
-    if not z then
-        for h = 950.0, 0.0, -25.0 do
-            SetEntityCoordsNoOffset(ent, x, y, h, false, false, false)
-            RequestCollisionAtCoord(x, y, h)
-            Wait(25)
-            local found, gz = GetGroundZFor_3dCoord(x, y, h, false)
-            if found then z = gz + 1.0 break end
-        end
-        z = z or 120.0
-    else
-        RequestCollisionAtCoord(x, y, z)
-        local deadline = GetGameTimer() + 3000
-        while not HasCollisionLoadedAroundEntity(ent) and GetGameTimer() < deadline do Wait(0) end
+    local function waitForWorld(atZ)
+        SetEntityCoordsNoOffset(ent, x, y, atZ, false, false, false)
+        local deadline = GetGameTimer() + 5000
+        repeat
+            RequestCollisionAtCoord(x, y, atZ)
+            Wait(50)
+        until HasCollisionLoadedAroundEntity(ent) or GetGameTimer() > deadline
     end
 
+    if not z then
+        waitForWorld(500.0)
+        for _ = 1, 2 do   -- a slow stream gets a second sweep
+            for h = 950.0, 0.0, -25.0 do
+                SetEntityCoordsNoOffset(ent, x, y, h, false, false, false)
+                RequestCollisionAtCoord(x, y, h)
+                Wait(25)
+                local found, gz = GetGroundZFor_3dCoord(x, y, h, false)
+                if found then z = gz + 1.0 break end
+            end
+            if z then break end
+        end
+        if not z then
+            SetEntityCoordsNoOffset(ent, from.x, from.y, from.z, false, false, false)
+            FreezeEntityPosition(ent, false)
+            DoScreenFadeIn(300)
+            moving = nil
+            return Bank.notify('Banking Manager', 'Could not find the ground there; pick a spot on a road or building.', 'error')
+        end
+    end
+
+    waitForWorld(z)
     SetEntityCoords(ent, x, y, z, false, false, false, false)
     if heading then SetEntityHeading(ent, heading) end
     FreezeEntityPosition(ent, false)
     DoScreenFadeIn(300)
+    moving = nil
 end
 
 local function here()
@@ -152,7 +176,12 @@ local function placing(title, keys, frame, saveKey)
     local first = true
     while saved == nil do
         for _, c in ipairs(BLOCK) do DisableControlAction(0, c, true) end
-        local rows, done = frame(first)
+        -- an error in a frame ends the tool as a cancel, never leaves it stuck on
+        local ran, rows, done = pcall(frame, first)
+        if not ran then
+            print('^1[nayzeee-banking]^7 placement tool failed: ' .. tostring(rows))
+            rows, done = nil, false
+        end
         if rows or first then hud({ title = title, keys = keys, rows = rows }) first = false end
         if done ~= nil then saved = done end
         if saved == nil and saveKey ~= false and tapped(saveKey or K.save) then saved = true end
@@ -175,8 +204,17 @@ end
 local function fmt(v) return ('%.2f'):format(v) end
 
 -- ── a teller (or where a new branch's teller will stand) ─
+local standIn = nil   -- the see-through teller the tool puts up, so a stop can take it down
+
+--- What the server checks a save against, so a list another admin changed
+--- meanwhile can never land on the wrong branch.
+local function expect(cfg)
+    return cfg and { label = cfg.label, x = cfg.coords.x, y = cfg.coords.y } or nil
+end
+
 local function placeTeller(index, label, pedModel)
     local cfg = index and Config.Banks[index]
+    if index and not cfg then return back('branches', 'That branch is gone: the list was changed.', false) end
     local me = here()
     local pos = cfg and vector4(cfg.coords.x, cfg.coords.y, cfg.coords.z, cfg.coords.w) or vector4(me.x, me.y, me.z, me.w)
     local ped = index and Bank.peds[index]
@@ -191,6 +229,8 @@ local function placeTeller(index, label, pedModel)
             SetBlockingOfNonTemporaryEvents(temp, true)
             FreezeEntityPosition(temp, true)
             SetEntityAlpha(temp, 200, false)
+            Entity(temp).state:set('nzBankTeller', true, false)
+            standIn = temp
             ped = temp
         end
     end
@@ -237,6 +277,7 @@ local function placeTeller(index, label, pedModel)
     end)
 
     if temp then DeleteEntity(temp) end
+    standIn = nil
     if not ok then
         -- put the real teller back where it was
         if not temp and ped and DoesEntityExist(ped) then
@@ -249,7 +290,7 @@ local function placeTeller(index, label, pedModel)
 
     local row = { label = label or (cfg and cfg.label) or 'Bank', ped = pedModel or (cfg and cfg.ped) or 'ig_bankman',
                   x = x, y = y, z = z, w = w }
-    local res = lib.callback.await('nz_bank:mgr:branchSave', false, index, row)
+    local res = lib.callback.await('nz_bank:mgr:branchSave', false, index, row, expect(cfg))
     back('branches', res and res.ok and (index and 'Teller moved for everyone.' or 'Branch added.') or (res and res.msg or 'Not saved.'),
         res and res.ok)
 end
@@ -298,7 +339,9 @@ local function placeCounter(index)
     if not cfg or not ped or not DoesEntityExist(ped) then
         return back('branches', 'Stand near that branch first: its teller has to be there to place the counter.', false)
     end
-    if not Bank.counterPreview then return back('branches', 'The teller counter is switched off.', false) end
+    if not Bank.counterPreview or (Config.Teller and Config.Teller.enabled == false) or not Config.SpawnPeds then
+        return back('branches', 'The teller counter is switched off (Settings > Teller counter).', false)
+    end
 
     -- the props as they stand now, from config
     local c = Bank.counterConfig(index)
@@ -380,6 +423,12 @@ local function placeCounter(index)
         return nil, done
     end, false)   -- no other save key: E is handled above
 
+    -- the machine went (the counter was switched off meanwhile): nothing sensible to save
+    if ok and not (machine and DoesEntityExist(machine)) then
+        Bank.counterPreviewEnd()
+        return back('branches', 'The money counter disappeared before it was placed; nothing was saved.', false)
+    end
+
     -- the props, measured from the teller the same way config.lua is
     local m = fromTeller(ped, machine)
     local n = notes and DoesEntityExist(notes) and fromTeller(ped, notes) or c.counter
@@ -387,7 +436,7 @@ local function placeCounter(index)
     if Bank.clearCounters then Bank.clearCounters() end
     if not ok then return back('branches', 'Nothing was moved.', true) end
 
-    local res = lib.callback.await('nz_bank:mgr:counterSave', false, index, {
+    local res = lib.callback.await('nz_bank:mgr:counterSave', false, index, expect(cfg), {
         machine = { x = m.x, y = m.y, z = m.z }, machineHeading = rel(heading),
         counter = { x = n.x, y = n.y, z = n.z },
     })
@@ -447,4 +496,11 @@ end)
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     if Bank.managerOpen or Bank.placing then SetNuiFocus(false, false) end
+    -- a stop in the middle of a teleport or a tool: nothing left frozen, black or standing
+    if moving then
+        if DoesEntityExist(moving.ent) then FreezeEntityPosition(moving.ent, false) end
+        DoScreenFadeIn(0)
+    end
+    if standIn and DoesEntityExist(standIn) then DeleteEntity(standIn) end
+    if Bank.counterPreviewEnd then pcall(Bank.counterPreviewEnd) end
 end)

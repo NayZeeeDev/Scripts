@@ -180,7 +180,7 @@ local function payEmployee(xTarget, soc, wage)
 
     if not landed then
         -- the wage went nowhere, so it goes back to the society
-        Bank.credit(soc.id, wage, { category = 'payroll', label = 'Wage returned', actorName = 'Payroll' })
+        Bank.creditOwed(soc.id, wage, { category = 'payroll', label = 'Wage returned', actorName = 'Payroll' })
         return false, 'undelivered'
     end
 

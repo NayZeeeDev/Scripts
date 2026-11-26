@@ -26,7 +26,7 @@ Immersive banking for **ESX Legacy, QBCore and Qbox** — personal, shared, soci
    ensure nayzeee-banking
    add_ace group.admin nayzeee.banking allow
    ```
-4. Open `config.lua` and set your bank locations, society jobs and log webhooks.
+4. Open `config.lua` and set your bank locations and society jobs. For Discord logs put the webhook in `server.cfg`, not config.lua (players download config.lua): `set nzbank_webhook "https://discord.com/api/webhooks/..."`, or paste it in `/bankingmanager`.
 5. Restart the server. Personal and society accounts are created automatically.
 
 On start the server console prints one block: the logo, then a **Server** section with a row per check (ox_lib, oxmysql, OneSync, framework, inventory, database, cash, billing, payroll), anything worth knowing under **Notes**, and a closing **Ready** line. A `WARN` or `FAIL` row says what is wrong and what to change. After startup every line from this resource starts with `[NayZeee Banking]` and its level.
@@ -51,15 +51,14 @@ Existing money is not migrated. If you're moving off another banking script, run
 | `Config.Accounts.transferFee` | `0.0` | Fraction taken on player-to-player transfers |
 | `Config.Accounts.societyAccess` | table | Job → grades allowed to reach the society account |
 | `Config.Cards.maxPerAccount` | `3` | Cards allowed per account |
-| `Config.Cards.express` | `2500` | Payments under this skip the PIN when express is on |
+| `Config.Cards.express` | `{ enabled = true, threshold = 2500 }` | Contactless: payments under `threshold` skip the PIN |
 | `Config.ATM.requireCard` | `true` | An active card is needed to use an ATM |
 | `Config.ATM.pinAttempts` | `3` | Wrong PINs before the card auto-blocks |
-| `Config.Savings.interestRate` | `0.02` | Paid every `payoutMinutes` |
+| `Config.Savings.interestRate` | `0.001` | Paid every `payoutMinutes` (0.1%; about 2.4% a day of uptime at 60 minutes) |
 | `Config.Loans.tiers` | table | Amount, interest, term and credit gate per tier |
 | `Config.Credit.bands` | table | Score → label shown in the UI |
 | `Config.Bills.latePenalty` | `0.15` | Added once a bill goes overdue |
 | `Config.Bills.autoPayMax` | `25000` | Bills above this always wait for the player, even with auto-pay on |
-| `Config.Scheduled.intervals` | table | Hourly / daily / weekly standing orders |
 | `Config.DirectDeposit.enabled` | `true` | Players choose bank or cash for wages |
 | `Config.Locale` | `'en'` | Which file in `locales/` the client prompts and notifications come from |
 
@@ -130,7 +129,7 @@ Credit and secured cards run a real billing cycle. Charges build a balance, a st
 | `Config.CreditCards.minPaymentFloor` | `250` | ...but never less than this |
 | `Config.CreditCards.lateFee` | `500` | Added when a statement goes unpaid |
 | `Config.CreditCards.missedBeforeFreeze` | `3` | Missed statements before the card freezes |
-| `Config.Credit.highUtilisation` | `0.80` | Running the line this hot costs score |
+| `Config.Credit.highUtilisation` | `{ threshold = 0.80, score = -6 }` | Running a line above `threshold` costs `score` at statement time |
 
 Shops, fuel pumps, rentals — anything can take a card:
 
@@ -187,7 +186,7 @@ A market lives inside the bank. Prices walk on a timer with a pull back toward t
 The Investments page explains itself: a short *How it works* panel, a detail view per asset with a 1h / 6h / 24h chart you can hover for the price at any point, its day's high, low and change, a risk rating and what kind of asset it is, your position and its profit, and a live preview of every order (units, fee, total, break-even price) before you confirm. Your portfolio shows as an allocation bar with each holding's share and return, and the last trades are listed under it.
 
 {% hint style="info" %}
-On `auto`, if `nayzeee-trading` is running it becomes the price feed and the internal walk stands down. Any other market resource can drive prices through `setMarketPrice`.
+If `nayzeee-trading` is running it becomes the price feed on its own and the internal walk stands down; when it stops, prices tick here again. Staff can set a price by hand in the Banking Manager's Market page.
 {% endhint %}
 
 ---
@@ -198,9 +197,10 @@ A shared-account owner can issue a card to one specific member from the **Shared
 
 | Setting | Default | Description |
 |---|---|---|
-| `Config.JointCards.maxPerMember` | `1` | Cards one member may hold on one account |
-| `Config.JointCards.defaultLimit` | `2500` | Starting daily limit on a member card |
-| `Config.JointCards.ownerSeesAll` | `true` | Owner can view and freeze member cards |
+| `Config.Cards.member.maxPerMember` | `1` | Cards one member may hold on one account |
+| `Config.Cards.member.limit` | `2500` | Starting daily limit on a member card |
+
+The owner always sees and can freeze the member cards on their account.
 
 Members see and can change the PIN on their own card. Everything else — limit, style, freezing, destroying — stays with the owner.
 
@@ -337,7 +337,7 @@ The screen itself has no cursor and no way to reach Lua. The client works out wh
 | `Config.ATM.screen.camera` | table | `back`, `up`, `side`, `tilt`, `fov`. Close in by default (`back = 0.70`); the player's own body is hidden from them during the session |
 | `Config.ATM.screen.camera.sensitivity` | `4.0` | Mouse speed |
 | `Config.ATM.screen.camera.lookUp` / `lookDown` / `lookSide` | `20` / `46` / `26` | Degrees of travel from the starting angle |
-| `Config.ATM.buttons.proximity` | `0.030` | How close to the middle of your view a button must be |
+| `Config.ATM.buttons.proximity` | `0.034` | How close to the middle of your view a button must be |
 
 The starting angle is **worked out from where the camera stands**, not set by hand — point it at the machine's face, a little below the glass so the keypad is in frame from the start. Move `back`, `up` or `side` and the angle follows; a hand-set one would be wrong the moment anything else changed.
 
@@ -396,6 +396,10 @@ Deposits and withdrawals only go through **at a branch the player is standing in
 |---|---|---|
 | `Config.Security.branchRange` | `12.0` | Metres from a teller in `Config.Banks` that still count as inside |
 | `Config.Security.atmRange` | `3.5` | Metres from the machine a session can start |
+
+{% hint style="warning" %}
+ATMs are props in the game world, which the server cannot see, so the machine's position comes from the player's game and the server checks the player is standing at it. A modded client could start an ATM session where there is no machine (with its own card and PIN). Branches have no such gap: their positions are in `Config.Banks` on the server.
+{% endhint %}
 
 ---
 
@@ -710,7 +714,7 @@ The resource also checks the columns it relies on when it starts. If a table was
 |---|---|---|
 | `nz_bank_transactions.counterparty` | The phone's **Recent** list | Keeps working |
 | `nz_bank_accounts.od_since` / `od_fees`, `nz_bank_settings.overdraft` | **Overdraft protection** | Keeps working |
-| `nz_bank_loans.paid_count` / `started_at` / `last_credit` | **Loan anti-churn** and credit from repayments | Keeps working |
+| `nz_bank_loans.paid_count` / `started_at` / `last_credit` / `closed_at` | **Loan anti-churn** and credit from repayments | Keeps working |
 
 No missing column can take the bank down. Each optional part of the account payload is read behind its own guard, so a feature that fails is simply left out rather than leaving players looking at an error.
 
@@ -779,7 +783,7 @@ The bank UI, the ATM screen and the phone app sit at three different depths in t
 
 | Setting | Default | Options |
 |---|---|---|
-| `Config.Inventory` | `ox_inventory` | `ox_inventory`, `qs-inventory`, `qb-inventory`, `esx` |
+| `Config.Inventory` | `ox_inventory` | `ox_inventory`, `qs-inventory`, `qb-inventory`, `framework` (the framework's own cash) |
 | `Config.Target` | `ox_target` | `ox_target`, `qb-target`, `none` (key press + marker) |
 | `Config.Society` | auto-detect | `addon_account_data`, `management_funds`, `bank_accounts`, or your own table and columns |
 | `Config.CurrencyRight` | `false` | `true` renders `1 500$` |
@@ -791,10 +795,10 @@ A wrong `Config.Inventory` value falls back to ESX money rather than eating some
 ### Branch opening hours
 
 ```lua
-Config.WorkingHours = { enabled = false, openHour = 6, closeHour = 22, atmsAlwaysOpen = true }
+Config.WorkingHours = { enabled = false, openHour = 6, closeHour = 22 }
 ```
 
-Branches close overnight, ATMs keep working. That's the point — night-time players get pushed onto cards and ATM limits instead of full banking. Windows crossing midnight work (`openHour = 22, closeHour = 6`).
+Branches close overnight, ATMs keep working. That's the point — night-time players get pushed onto cards and ATM limits instead of full banking. Windows crossing midnight work (`openHour = 22, closeHour = 6`). The hours follow the in-game clock, which only the player's game has, so they shape roleplay rather than enforce security.
 
 ### Housekeeping
 
@@ -1017,14 +1021,14 @@ TriggerEvent('nz_bank:paycheck', source, amount, 'Police')
 | ATM says you need a card | `Config.ATM.requireCard` is on and the personal account has no active card |
 | Cash doesn't move | Set `Config.Inventory` to match your setup and check `Config.MoneyItem` |
 | Wages paid twice | `Config.Payroll.mode` is `bank` and the `paycheck.lua` patch was applied on top of it — use one or the other |
-| Society balance climbs back after wages | `mirrorSociety` is off, or `esx_addonaccount` is not running |
-| Balance differs between scripts | `mirrorBank` is off, or the other script writes straight to the database |
+| Society balance climbs back after wages | `Config.Society` points at the wrong table or columns (set `autoDetect` or name them) |
+| Balance differs between scripts | The other script writes straight to the database instead of using the framework's bank money |
 | Interest never pays | `Config.Savings.requireOnline` is `true` and the owner is offline |
 | Wages never run | No amount is set on that grade, or the society account is empty |
 | Payroll shows "No access" | Your grade isn't listed in `Config.Accounts.societyAccess` |
 | Society tab vanishes on job switch | Expected with `allowInactiveJobs` off — turn it on to keep every department reachable |
 | Multi-job roster not detected | Set `Config.MultiJob.resource` and `export` by hand, or point the SQL fallback at your table |
-| Prices never move | `Config.Market.priceSource` points at a resource that isn't running |
+| Prices never move | `Config.Market.enabled` is off (prices hold while it is), or `nayzeee-trading` is running and not moving its prices |
 | Bills from another script don't arrive | Its event name differs — set it in `Config.Bridge` |
 | Credit card won't issue | The account isn't personal, the score is under `minCredit`, or a loan is in default |
 | Card won't close | It's carrying a balance and `closeRequiresZero` is on |

@@ -535,7 +535,7 @@ Config.Cards = {
 
     physicalItem = false,       -- Give an inventory item per card type
     skinImages   = true,        -- ox_inventory: each card item shows its own style, straight from
-                                -- web/images/cards/card_<item>_<skin>.png. Turn off if you add a skin without images.
+                                -- web/images/cards/<item>_<skin>.png (card_debit_teal.png). Turn off if you add a skin without images.
     stealable    = true,        -- Cards can be taken off a player by other scripts
 
     -- Contactless: payments under the threshold skip the PIN
@@ -545,7 +545,7 @@ Config.Cards = {
     member = { maxPerMember = 1, limit = 2500 },
 
     -- Card styles. A new one needs .bcard.<name> in web/css/style.css and web/phone/style.css,
-    -- and its pictures in web/images/cards/ (card_<item>_<name>.png)
+    -- and its pictures in web/images/cards/ (<item>_<name>.png, e.g. card_debit_teal.png)
     skins = { 'teal', 'noir', 'chrome', 'crimson' },
 
     -- Spend limits a player can pick from on their own card
@@ -1050,7 +1050,11 @@ Config.Admin = {
 
 Config.Logs = {
     enabled = false,
-    webhook = '',                 -- One Discord webhook for everything
+    -- Leave this empty: config.lua is downloaded by every player, so a webhook
+    -- here can be read and abused. Put it in server.cfg instead (server only):
+    --   set nzbank_webhook "https://discord.com/api/webhooks/..."
+    -- or paste it in /bankingmanager > Settings > Phone, papers & sound.
+    webhook = '',
     name    = 'NAYZEEE Banking',
     colour  = 561826,             -- Teal #08afa2
 }

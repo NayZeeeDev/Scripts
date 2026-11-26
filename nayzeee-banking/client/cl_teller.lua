@@ -115,7 +115,7 @@ CreateThread(function()
                     end
                 end
             end
-        elseif not on() and next(machines) then
+        elseif not on() and next(machines) and not Bank.placing then
             Bank.clearCounters()
         end
         Wait(1500)

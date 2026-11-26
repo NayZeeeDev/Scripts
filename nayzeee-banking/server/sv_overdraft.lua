@@ -84,12 +84,17 @@ local function sweepSavings(acc, shortfall)
     if not ok then return 0 end
 
     local landed = move - math.min(fee, move)
-    Bank.credit(acc.id, landed, {
+    local arrived = landed <= 0 or Bank.creditOwed(acc.id, landed, {
         category  = 'transfer',
         label     = 'Overdraft cover',
         actor     = acc.owner,
         actorName = 'Overdraft protection',
     })
+    if not arrived then
+        -- it never reached the account: back into savings, and nothing was covered
+        Bank.creditOwed(savings.id, move, { category = 'transfer', label = 'Overdraft cover returned' })
+        return 0
+    end
 
     if fee > 0 and landed < move then
         Bank.log('overdraft', 'Savings sweep fee',
@@ -333,13 +338,14 @@ CreateThread(function()
     -- itself off on a database that was fine all along.
     Bank.awaitSchema()
 
-    local c = cfg()
-    if not c.enabled or (c.interestRate or 0) <= 0 then return end
-
-    local every = math.max(1, c.interestMinutes or 60)
-
+    -- Read again every pass: the Banking Manager switches overdrafts on and off
+    -- and changes the rate live, so deciding once at start would either never
+    -- charge or keep charging after the feature is off.
     while true do
-        Wait(every * 60000)
+        local c = cfg()
+        Wait(math.max(1, c.interestMinutes or 60) * 60000)
+        c = cfg()
+        if not c.enabled or (c.interestRate or 0) <= 0 then goto next end
 
         local cutoff = os.time() - ((c.graceMinutes or 0) * 60)
         local ok, rows = pcall(MySQL.query.await, [[
@@ -355,5 +361,6 @@ CreateThread(function()
             local charged, err = pcall(chargeInterest, row.id, c.interestRate, cutoff)
             if not charged then Console.log('error', 'overdraft interest failed: %s', tostring(err)) end
         end
+        ::next::
     end
 end)

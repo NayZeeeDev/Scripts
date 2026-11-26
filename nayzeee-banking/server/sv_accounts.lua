@@ -254,6 +254,13 @@ local function atmView(src, payload)
         if sav then payload.accounts[2] = serialiseAccount(sav) end
     end
 
+    -- the chart and the month's figures describe the account the card is on
+    if acc.id ~= payload.primary then
+        payload.cashflow = optional('cashflow', cashflow, acc.id) or payload.cashflow
+        local okTotals, income, spending = pcall(monthTotals, acc.id)
+        if okTotals then payload.summary.income, payload.summary.spending = income, spending end
+    end
+
     payload.primary = acc.id
     payload.summary.balance = acc.balance
     return payload
@@ -322,7 +329,12 @@ Bank.callback('nz_bank:deposit', function(src, accountId, amount, fromMachine)
         actorName= Bank.fullName(xPlayer)
     })
     if not ok then
-        Bank.addCash(xPlayer, amount)
+        -- the cash is already out of their pockets: back into them, or, if it
+        -- will not fit, into the account after all, never nowhere
+        if Bank.addCash(xPlayer, amount) == false then
+            Bank.creditOwed(accountId, amount, { category = 'deposit', label = 'Deposit (cash would not fit back)' })
+            return { ok = false, msg = 'Deposit failed and the cash would not fit back, so it went into the account.' }
+        end
         return { ok = false, msg = 'Deposit failed. Cash returned.' }
     end
 
@@ -462,7 +474,7 @@ function Bank.doTransfer(fromId, toNumber, amount, actorId, actorName, label)
     -- the number and name go on the row too, so "pay them again"
     -- has something to work from later
     local tlabel = label or ('Transfer to %s'):format(target.label)
-    if fee > 0 then tlabel = ('%s (incl. %s%s fee)'):format(tlabel, Config.Currency, fee):sub(1, 90) end
+    if fee > 0 then tlabel = Bank.cut(('%s (incl. %s%s fee)'):format(tlabel, Config.Currency, fee), 90) end
     local ok, res = Bank.debit(fromId, amount + fee, {
         category = 'transfer',
         label    = tlabel,
@@ -527,7 +539,7 @@ Bank.callback('nz_bank:transfer', function(src, accountId, toNumber, amount, not
         end
     end
 
-    local label = note and note ~= '' and ('Transfer · %s'):format(tostring(note):sub(1, 48)) or nil
+    local label = note and note ~= '' and ('Transfer · %s'):format(Bank.cut(tostring(note), 48)) or nil
     local ok, msg = Bank.doTransfer(acc.id, toNumber, amount, xPlayer.identifier, Bank.fullName(xPlayer), label)
     if not ok and viaCard and viaCard.cardId then Bank.unspendOnCard(viaCard.cardId, amount) end
     if ok then Bank.touchPayee(xPlayer.identifier, tostring(toNumber or ''):upper()) end
@@ -683,8 +695,12 @@ local function closeShared(src, accountId)
         Bank.creditOwed(personal.id, acc.balance, { category = 'transfer', label = ('Closed %s'):format(acc.label) })
     end
 
-    -- money that landed while closing keeps the account open
-    local gone = MySQL.update.await('DELETE FROM nz_bank_accounts WHERE id = ? AND balance = 0', { acc.id })
+    -- money that landed while closing keeps the account open; the lock means no
+    -- deposit is half way through when the row goes
+    if not Bank.lock(acc.id) then return { ok = false, msg = 'The account is busy. Try again.' } end
+    local deleted, gone = pcall(MySQL.update.await, 'DELETE FROM nz_bank_accounts WHERE id = ? AND balance = 0', { acc.id })
+    Bank.unlock(acc.id)
+    if not deleted then return { ok = false, msg = 'The bank hit an error. Try again.' } end
     if gone == 0 then return { ok = false, msg = 'Money arrived while closing. Try again.' } end
     return { ok = true, msg = 'Account closed and the balance moved to your personal account.' }
 end
@@ -709,7 +725,7 @@ Bank.callback('nz_bank:getTransactions', function(src, accountId, page, search, 
     local where, args = 'account_id = ?', { accountId }
     if search and search ~= '' then
         where = where .. ' AND label LIKE ?'
-        args[#args + 1] = '%' .. search:sub(1, 32) .. '%'
+        args[#args + 1] = '%' .. Bank.cut(search, 32) .. '%'
     end
     if category and category ~= 'all' then
         where = where .. ' AND category = ?'
@@ -834,7 +850,12 @@ AddEventHandler('nz_bank:paycheck', function(src, amount, jobLabel)
     end
 
     if not toBank then
-        Bank.addCash(xPlayer, amount)
+        if Bank.addCash(xPlayer, amount) == false then
+            -- no room for it in cash: the wage goes to the account rather than vanishing
+            local fallback = Bank.getPersonal(xPlayer.identifier)
+            if fallback then Bank.creditOwed(fallback.id, amount, { category = 'payroll', label = 'Paycheck (no room for cash)' }) end
+            return Bank.notify(src, 'Paycheck', ('%s%s went into your account (no room for cash).'):format(Config.Currency, amount), 'inform')
+        end
         Bank.notify(src, 'Paycheck', ('%s%s in cash.'):format(Config.Currency, amount), 'success')
     end
 end)

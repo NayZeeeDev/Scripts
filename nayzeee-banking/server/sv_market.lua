@@ -289,7 +289,8 @@ function trade(src, side, assetId, spend, accountId)
             return { ok = false, msg = ('The smallest order is %s%s.'):format(Config.Currency, Config.Market.minTrade) }
         end
 
-        local fee = Bank.round(spend * Config.Market.tradeFee)
+        -- rounded up, so splitting an order into small pieces never dodges the fee
+        local fee = (Config.Market.tradeFee or 0) > 0 and math.ceil(spend * Config.Market.tradeFee) or 0
         local units = spend / m.price
 
         local heldValue = holding and (tonumber(holding.units) * m.price) or 0
@@ -335,7 +336,7 @@ function trade(src, side, assetId, spend, accountId)
 
         local units = math.min(held, target / m.price)
         local gross = units * m.price
-        local fee = Bank.round(gross * Config.Market.tradeFee)
+        local fee = (Config.Market.tradeFee or 0) > 0 and gross > 0 and math.ceil(gross * Config.Market.tradeFee) or 0
         local net = Bank.round(gross - fee)
         local basis = units * tonumber(holding.avg_price)
         local pl = Bank.round(gross - basis)

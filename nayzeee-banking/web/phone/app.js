@@ -30,7 +30,7 @@ const P = {
   busy: false
 };
 
-const RES = 'nayzeee-banking';
+const RES = new URLSearchParams(location.search).get('resource') || 'nayzeee-banking';
 
 /* no ?phone= means an older registration, which was always lb-phone */
 const PHONE = (new URLSearchParams(location.search).get('phone') || 'lb').toLowerCase();

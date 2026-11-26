@@ -85,7 +85,7 @@ NZManager.groups = {
         { p = 'ATM.withdrawFee',    t = 'number', l = 'Withdrawal fee',     pct = true, min = 0, max = 25, step = 0.1 },
         { p = 'ATM.maxWithdraw',    t = 'number', l = 'Most per withdrawal', min = 0, max = 10000000 },
         { p = 'ATM.holdCard',       t = 'bool',   l = 'Machine holds the card' },
-        { p = 'ATM.targetDistance', t = 'number', l = 'Use reach (m)',      min = 0.5, max = 6, step = 0.1 },
+        { p = 'ATM.targetDistance', t = 'number', l = 'Use reach (m)',      min = 0.5, max = 6, step = 0.1, r = true },
         { p = 'ATM.timeoutSeconds', t = 'number', l = 'Server timeout (s)', min = 3, max = 60 },
         { p = 'ATM.hideRadar',      t = 'bool',   l = 'Hide minimap at the machine' },
         { p = 'ATM.screen.enabled', t = 'bool',   l = 'In-world screen',    h = 'Off opens the regular bank window at ATMs' },
@@ -122,7 +122,7 @@ NZManager.groups = {
         { p = 'Cards.pinChangePrice',   t = 'number', l = 'PIN change price',     min = 0, max = 1000000 },
         { p = 'Cards.limitResetHours',  t = 'number', l = 'Spend limit window (h)', min = 1, max = 168 },
         { p = 'Cards.expiryMonths',     t = 'number', l = 'Card lifetime (months)', min = 1, max = 120 },
-        { p = 'Cards.physicalItem',     t = 'bool',   l = 'Cards as items' },
+        { p = 'Cards.physicalItem',     t = 'bool',   l = 'Cards as items', r = true },
         { p = 'Cards.stealable',        t = 'bool',   l = 'Cards can be stolen' },
         { p = 'Cards.express.enabled',  t = 'bool',   l = 'Contactless' },
         { p = 'Cards.express.threshold', t = 'number', l = 'Contactless up to',   min = 0, max = 1000000 },
@@ -194,7 +194,7 @@ NZManager.groups = {
         { p = 'Phone.enabled',      t = 'bool',   l = 'Phone app',          r = true },
         { p = 'Phone.business',     t = 'bool',   l = 'Business account on the phone' },
         { p = 'Phone.maxRequest',   t = 'number', l = 'Largest money request', min = 0, max = 100000000 },
-        { p = 'Paper.enabled',      t = 'bool',   l = 'Printed papers',     h = 'Receipts, statements and credit reports as items' },
+        { p = 'Paper.enabled',      t = 'bool',   l = 'Printed papers',     h = 'Receipts, statements and credit reports as items', r = true },
         { p = 'Paper.price',        t = 'number', l = 'Print price',        min = 0, max = 100000 },
         { p = 'Statements.enabled', t = 'bool',   l = 'Statements' },
         { p = 'Statements.fee',     t = 'number', l = 'Statement fee',      min = 0, max = 100000 },
@@ -264,6 +264,8 @@ function NZManager.coerce(item, v)
         if not v or v ~= v or v == math.huge or v == -math.huge then return nil end
         if item.min and v < (item.pct and item.min / 100 or item.min) then v = item.pct and item.min / 100 or item.min end
         if item.max and v > (item.pct and item.max / 100 or item.max) then v = item.pct and item.max / 100 or item.max end
+        -- no step means a whole number: hours, counts, money (7.5 o'clock breaks the opening-hours line)
+        if not item.step and not item.pct then v = math.floor(v + 0.5) end
         return v
     elseif item.t == 'select' then
         for _, o in ipairs(item.o or {}) do if o == v then return v end end

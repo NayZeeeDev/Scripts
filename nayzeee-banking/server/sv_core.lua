@@ -75,6 +75,7 @@ local REQUIRED = {
         { table = 'nz_bank_loans', column = 'paid_count'  },
         { table = 'nz_bank_loans', column = 'started_at'  },
         { table = 'nz_bank_loans', column = 'last_credit' },
+        { table = 'nz_bank_loans', column = 'closed_at' },     -- written when a loan closes
         feature = 'loan anti-churn and credit from repayments'
     },
 }
@@ -558,17 +559,22 @@ function Bank.credit(accountId, amount, opts)
     if Bank.flag(acc.frozen) and not (opts and opts.force) then Bank.unlock(accountId) return false, 'frozen' end
 
     local newBal = acc.balance + amount
-    local wrote = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
+    local wrote, changed = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
     Bank.unlock(accountId)
-    if not wrote then return false, 'db_error' end
+    -- no row changed: the account went (closed) between the read and the write
+    if not wrote or changed == 0 then return false, 'db_error' end
 
-    Bank.logTx(accountId, 'in', amount, newBal, opts)
-    Bank.pushRefresh(acc)
-
-    -- money coming in may have cleared an overdraft
-    if newBal >= 0 and acc.balance < 0 and Bank.overdraftSettle then
-        Bank.overdraftSettle(accountId)
-    end
+    -- The money has moved. Nothing after this may throw back to the caller: a
+    -- transfer whose credit "failed" here would never pay the other side.
+    local ok, err = pcall(function()
+        Bank.logTx(accountId, 'in', amount, newBal, opts)
+        Bank.pushRefresh(acc)
+        -- money coming in may have cleared an overdraft
+        if newBal >= 0 and acc.balance < 0 and Bank.overdraftSettle then
+            Bank.overdraftSettle(accountId)
+        end
+    end)
+    if not ok then Console.log('error', 'after a credit to account %s: %s', tostring(accountId), tostring(err)) end
 
     return true, newBal
 end
@@ -639,12 +645,17 @@ function Bank.debit(accountId, amount, opts)
     end
 
     local newBal = acc.balance - amount
-    local wrote = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
+    local wrote, changed = pcall(MySQL.update.await, 'UPDATE nz_bank_accounts SET balance = ? WHERE id = ?', { newBal, accountId })
     Bank.unlock(accountId)
-    if not wrote then return false, 'db_error' end
+    -- no row changed: the account went (closed) between the read and the write
+    if not wrote or changed == 0 then return false, 'db_error' end
 
-    Bank.logTx(accountId, 'out', amount, newBal, opts)
-    Bank.pushRefresh(acc)
+    -- the money has moved: bookkeeping that fails must not undo the caller's half
+    local ok, err = pcall(function()
+        Bank.logTx(accountId, 'out', amount, newBal, opts)
+        Bank.pushRefresh(acc)
+    end)
+    if not ok then Console.log('error', 'after a debit from account %s: %s', tostring(accountId), tostring(err)) end
     return true, newBal
 end
 
@@ -734,7 +745,7 @@ function Bank.pushRefresh(acc)
     -- let the ESX mirror push the new figure out straight away
     if acc.type == 'personal' then
         local fresh = Bank.getAccountById(acc.id)
-        if fresh then TriggerEvent('nz_bank:balanceChanged', acc.owner, fresh.balance) end
+        if fresh then TriggerEvent('nz_bank:balanceChanged', acc.owner, fresh.balance, Bank.flag(fresh.frozen)) end
     end
     if acc.type == 'personal' or acc.type == 'savings' then
         local xPlayer = ESX.GetPlayerFromIdentifier(acc.owner)
@@ -759,9 +770,28 @@ end
 -- ═══════════════════════════════════════════════════════════
 --  DISCORD LOGS
 -- ═══════════════════════════════════════════════════════════
+--- Where the Discord log goes. config.lua is downloaded by every player, so the
+--- webhook belongs on the server only: the Banking Manager's (kept in KVP) or a
+--- `set nzbank_webhook "..."` line in server.cfg, with config.lua last.
+local function webhook()
+    local panel = NZManager and NZManager.overrides and NZManager.overrides['Logs.webhook']
+    if type(panel) == 'string' and panel ~= '' then return panel end
+    local convar = GetConvar('nzbank_webhook', '')
+    if convar ~= '' then return convar end
+    return Config.Logs.webhook
+end
+
+do
+    local inConfig = NZManager and NZManager.defaults and NZManager.defaults['Logs.webhook']
+    if type(inConfig) == 'string' and inConfig ~= '' then
+        Console.log('warn', 'Config.Logs.webhook is in config.lua, which every player downloads: move it to server.cfg as ' ..
+            'set nzbank_webhook "your-url" (or paste it in /bankingmanager) and empty it in config.lua')
+    end
+end
+
 function Bank.log(channel, title, description, fields)
     if not Config.Logs.enabled then return end
-    local url = Config.Logs.webhook
+    local url = webhook()
     if not url or url == '' then return end
 
     local embed = {{

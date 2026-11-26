@@ -705,7 +705,7 @@ p.note{font-size:12.5px;line-height:1.55;color:var(--ink-3);margin-top:14px}
 
 /* ═══════════════ INVESTMENTS ═══════════════ */
 .cols.invest-top{grid-template-columns:1fr 340px;flex:none;align-items:start}
-.cols.even{flex:none}
+.cols.invest-top ~ .cols.even{flex:none}   /* the Investments page only; Statements keeps its height */
 .invest-help .p-body{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 .ih b{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--white)}
 .ih b svg{width:15px;height:15px;stroke-width:1.7;color:var(--teal);flex:none}

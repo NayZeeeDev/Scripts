@@ -16,7 +16,7 @@ end
 
 function Bank.logCharge(cardId, direction, amount, balanceAfter, label)
     MySQL.insert('INSERT INTO nz_bank_card_charges (card_id, direction, amount, balance_after, label) VALUES (?, ?, ?, ?, ?)',
-        { cardId, direction, Bank.round(amount), Bank.round(balanceAfter), (label or 'Charge'):sub(1, 90) })
+        { cardId, direction, Bank.round(amount), Bank.round(balanceAfter), Bank.cut(label or 'Charge', 90) })
 end
 
 function Bank.availableCredit(card)
@@ -34,6 +34,11 @@ local function chargeCardNow(cardId, amount, label)
     amount = Bank.round(amount)
     if amount <= 0 then return false, 'Invalid amount.' end
 
+    -- a frozen account stops its cards too, credit lines included
+    local linked = Bank.getAccountById(card.account_id)
+    if not linked then return false, 'Card not found.' end
+    if Bank.flag(linked.frozen) then return false, 'The account behind this card is frozen.' end
+
     -- daily limit applies to every kind of card
     local okDaily, why = Bank.spendOnCard(cardId, amount)
     if not okDaily then
@@ -44,11 +49,14 @@ local function chargeCardNow(cardId, amount, label)
         local ok = Bank.debit(card.account_id, amount, {
             category = 'card', label = label or 'Card payment', actorName = card.holder
         })
+        -- a declined payment gives its share of the daily limit back
+        if not ok then Bank.unspendOnCard(cardId, amount) end
         return ok, ok and 'Paid.' or 'Not enough in the linked account.'
     end
 
     local available = Bank.availableCredit(card)
     if amount > available then
+        Bank.unspendOnCard(cardId, amount)
         return false, ('Only %s%s of credit left on this card.'):format(Config.Currency, available)
     end
 
@@ -91,7 +99,11 @@ local function payCardNow(src, cardId, amount, accountId, auto)
 
     -- clearing the minimum before the due date is what builds the score
     if minLeft == 0 and card.min_payment > 0 then
-        MySQL.update.await('UPDATE nz_bank_cards SET missed = 0 WHERE id = ?', { cardId })
+        -- a card frozen for missed statements stays frozen until it is cleared,
+        -- not until the next minimum: the missed count is what keeps it frozen
+        if card.status ~= 'blocked' or balance <= 0 then
+            MySQL.update.await('UPDATE nz_bank_cards SET missed = 0 WHERE id = ?', { cardId })
+        end
         local acc = Bank.getAccountById(card.account_id)
         local owner = card.holder_identifier or (acc and acc.owner)
         if Bank.isCharacterId(owner) then

@@ -74,14 +74,7 @@ files {
     'web/images/*.png',
     'web/images/cards/*.png',     -- the rendered cards the bank, phone and ATM show
 
-    'web/sounds/key.ogg',
-    'web/sounds/card.ogg',
-    'web/sounds/cash.ogg',
-    'web/sounds/dispense.ogg',
-    'web/sounds/approved.ogg',
-    'web/sounds/declined.ogg',
-    'web/sounds/receipt.ogg',
-    'web/sounds/counter.ogg'
+    'web/sounds/*.ogg'            -- your own sounds dropped in here are served too (Config.Sounds.files)
 }
 
 dependencies {

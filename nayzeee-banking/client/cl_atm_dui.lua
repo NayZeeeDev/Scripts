@@ -835,6 +835,26 @@ function Bank.useATMScreen(entity, model, card, data)
     return false
   end
 
+  -- the inventory's hotbar stays out of it: the number keys are the PIN pad here
+  LocalPlayer.state:set('invBusy', true, false)
+  LocalPlayer.state:set('inv_busy', true, false)
+
+  -- Until the session loop below takes over (the card going in, the PIN
+  -- check), the player is already frozen with the camera on the glass: keep
+  -- them hidden, keep the controls off and keep watching for a death.
+  DUI.ready = false
+  CreateThread(function()
+    while DUI.active and not DUI.ready do
+      DisableAllControlActions(0)
+      local me = PlayerPedId()
+      SetEntityLocallyInvisible(me)
+      SetPlayerInvisibleLocally(PlayerId(), true)
+      if IsEntityDead(me) or IsPedInAnyVehicle(me, false) then DUI.active = false end
+      if IsPauseMenuActive() then SetPauseMenuActive(false) end
+      Wait(0)
+    end
+  end)
+
   -- one card, from the hand into the reader (an error here must not strand the camera)
   local entered, err = pcall(Bank.atmEnter, entity, model)
   if not entered then print('^1[nayzeee-banking]^7 ATM insert failed: ' .. tostring(err)) end
@@ -861,6 +881,7 @@ function Bank.useATMScreen(entity, model, card, data)
   end
 
   -- ── the loop ──
+  DUI.ready = true
   CreateThread(function()
     -- guarded: an error in a frame ends the session cleanly (camera back, card
     -- back, player free) instead of leaving everything stuck as it was
@@ -936,23 +957,28 @@ function Bank.useATMScreen(entity, model, card, data)
       end
 
       -- ── input ──
-      if not busyElsewhere then
+      -- A press can wait on the server for seconds. It runs on its own thread
+      -- so this loop keeps going meanwhile (controls off, body hidden, the
+      -- death and distance checks above), and nothing is taken while it waits.
+      if not busyElsewhere and not DUI.busy then
+        local function later(fn, arg) CreateThread(function() fn(arg) end) end
+
         if IsDisabledControlJustPressed(0, KEYS.press or 24) then
-          pressButton(DUI.hover)
+          later(pressButton, DUI.hover)
         end
 
         for digit, control in pairs(KEYS.digits or {}) do
-          if IsDisabledControlJustPressed(0, control) then pressKey(digit) end
+          if IsDisabledControlJustPressed(0, control) then later(pressKey, digit) end
         end
         for digit, control in pairs(KEYS.alternate or {}) do
-          if IsDisabledControlJustPressed(0, control) then pressKey(digit) end
+          if IsDisabledControlJustPressed(0, control) then later(pressKey, digit) end
         end
 
         if KEYS.backspace and IsDisabledControlJustPressed(0, KEYS.backspace) then
-          pressKey('del')
+          later(pressKey, 'del')
         end
         if KEYS.enter and IsDisabledControlJustPressed(0, KEYS.enter) then
-          pressKey('enter')
+          later(pressKey, 'enter')
         end
         if KEYS.cancel and IsDisabledControlJustPressed(0, KEYS.cancel) then
           DUI.active = false
@@ -985,6 +1011,8 @@ function Bank.useATMScreen(entity, model, card, data)
     handBack()
     releaseScreen()
     idleLater()
+    LocalPlayer.state:set('invBusy', false, false)
+    LocalPlayer.state:set('inv_busy', false, false)
 
     DUI.entity, DUI.model, DUI.card, DUI.payload, DUI.cfg = nil, nil, nil, nil, nil
     DUI.buttons, DUI.hover = {}, nil
@@ -1000,8 +1028,15 @@ function Bank.screenActive() return DUI.active or DUI.closing == true end
 AddEventHandler('onResourceStop', function(resource)
   if resource ~= GetCurrentResourceName() then return end
   Bank.stopping = true
+  -- only undo what a session did: unfreezing everyone on a restart would free
+  -- a player that a jail or admin script had frozen
+  local inSession = DUI.active or DUI.closing or DUI.cam ~= nil
   DUI.active = false
-  stopScene()
+  if inSession then
+    stopScene()
+    LocalPlayer.state:set('invBusy', false, false)
+    LocalPlayer.state:set('inv_busy', false, false)
+  end
   destroyDui()
 end)
 

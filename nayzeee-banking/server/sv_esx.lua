@@ -29,7 +29,19 @@ local named       = {}   -- [identifier] = { amount, label, at }: a payment we k
 function Bank.expectExternal(identifier, amount, label)
     named[identifier] = { amount = amount, label = label, at = os.time() }
 end
-local lastSociety = {}   -- [job]        = balance we last wrote into esx_addonaccount
+-- [job] = balance we last wrote into the framework's society money, kept in KVP
+-- like lastBank below, so a restart does not write over wages paid meanwhile
+local lastSociety = setmetatable({}, {
+    __index = function(t, job)
+        local v = tonumber(GetResourceKvpString('nz_mirror_soc:' .. tostring(job)))
+        rawset(t, job, v)
+        return v
+    end,
+})
+local function setLastSociety(job, v)
+    rawset(lastSociety, job, v)
+    SetResourceKvpNoSync('nz_mirror_soc:' .. tostring(job), tostring(v))
+end
 
 -- ═══════════════════════════════════════════════════════════
 --  PLAYER BANK ACCOUNT
@@ -97,8 +109,10 @@ local function syncPlayerNow(xPlayer)
 
         local ok, why
         if delta > 0 then
+            -- money that already arrived (wages, a sale): it is kept even on a
+            -- frozen account, which only stops money going out
             ok, why = Bank.credit(acc.id, delta, {
-                category = 'deposit', label = 'Deposit', actorName = 'External'
+                category = 'deposit', label = 'Deposit', actorName = 'External', force = true
             })
         else
             local n = named[identifier]
@@ -109,10 +123,8 @@ local function syncPlayerNow(xPlayer)
         end
         named[identifier] = nil
 
-        -- busy or a database error: leave the gap for the next pass. A
-        -- frozen account refusing money in is the one failure that stands,
-        -- and ESX is put back to our figure below.
-        if not ok and not (delta > 0 and why == 'frozen') then
+        -- busy or a database error: leave the gap for the next pass
+        if not ok then
             lastBank[identifier] = expected
             return
         end
@@ -123,8 +135,19 @@ local function syncPlayerNow(xPlayer)
 
     -- the frameworks refuse a negative figure (QBCore/Qbox say so, ESX may not),
     -- so an overdrawn account shows 0 there; remembering the real negative would
-    -- read the refused write as money coming in next pass
-    local pushed = math.max(acc.balance, 0)
+    -- read the refused write as money coming in next pass. A frozen account
+    -- shows 0 too: other scripts spend the framework's figure, and a freeze
+    -- has to stop them as well as this bank.
+    local pushed = Bank.flag(acc.frozen) and 0 or math.max(acc.balance, 0)
+
+    -- the framework moved again while the gap above was being booked: writing
+    -- our figure now would undo that move. Leave it for the next pass.
+    local now = xPlayer.getAccount('bank')
+    if now and (now.money or 0) ~= esxMoney then
+        lastBank[identifier] = esxMoney
+        return
+    end
+
     if esxMoney ~= pushed then
         xPlayer.setAccountMoney('bank', pushed, 'nayzeee-banking')
     end
@@ -153,7 +176,7 @@ function Bank.syncNow(identifier)
 end
 
 -- push our balance out the moment it changes rather than waiting on the loop
-AddEventHandler('nz_bank:balanceChanged', function(identifier, balance)
+AddEventHandler('nz_bank:balanceChanged', function(identifier, balance, frozen)
     local xPlayer = ESX.GetPlayerFromIdentifier(identifier)
     if not xPlayer then return end
 
@@ -169,7 +192,7 @@ AddEventHandler('nz_bank:balanceChanged', function(identifier, balance)
         return
     end
 
-    local pushed = math.max(balance, 0)
+    local pushed = frozen and 0 or math.max(balance, 0)
     xPlayer.setAccountMoney('bank', pushed, 'nayzeee-banking')
     lastBank[identifier] = pushed
 end)
@@ -325,7 +348,7 @@ local function syncSociety(job)
         local ok, why
         if delta > 0 then
             ok, why = Bank.credit(ours.id, delta, {
-                category = 'deposit', label = 'Society income', actorName = 'External'
+                category = 'deposit', label = 'Society income', actorName = 'External', force = true
             })
         else
             -- the wages are already paid out, so they are recorded even
@@ -336,16 +359,22 @@ local function syncSociety(job)
         end
 
         -- busy or a database error: keep the gap for the next pass
-        if not ok and not (delta > 0 and why == 'frozen') then return end
+        if not ok then return end
 
         ours = Bank.getSociety(job)
         if not ours then return end
+
+        -- wages paid while that was being booked: leave them for the next pass
+        local nowMoney = frameworkSociety(job)
+        if nowMoney and nowMoney ~= addonMoney then setLastSociety(job, addonMoney) return end
     end
 
-    if addonMoney ~= ours.balance then
-        setMoney(ours.balance)
+    -- a frozen society shows 0 to the framework, so boss menus cannot spend it either
+    local pushed = Bank.flag(ours.frozen) and 0 or ours.balance
+    if addonMoney ~= pushed then
+        setMoney(pushed)
     end
-    lastSociety[job] = ours.balance
+    setLastSociety(job, pushed)
 end
 
 -- ═══════════════════════════════════════════════════════════
