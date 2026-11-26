@@ -41,7 +41,9 @@ svg{display:block}
 .frame{
   position:fixed;top:24px;pointer-events:auto;z-index:5;
   background:var(--line);padding:1px;border-radius:var(--r-lg);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%);
+  /* a rounded clip, not just border-radius: FiveM's browser doesn't always round
+     off animated content, which left dark square corners on every panel */
+  clip-path:inset(0 round var(--r-lg));
   box-shadow:var(--sh-3);display:flex;max-height:calc(100vh - 48px);
 }
 .frame.left{left:26px;width:268px}
@@ -49,7 +51,7 @@ svg{display:block}
 .shell{
   position:relative;background:var(--base);overflow:hidden;
   border-radius:calc(var(--r-lg) - 1px);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 21px),calc(100% - 21px) 100%,0 100%);
+  clip-path:inset(0 round calc(var(--r-lg) - 1px));
   display:flex;flex-direction:column;flex:1 1 auto;min-height:0;width:100%;
 }
 .shell::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:80;opacity:.03;background-image:var(--noise)}

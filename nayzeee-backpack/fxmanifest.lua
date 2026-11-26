@@ -2,9 +2,9 @@ fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
 
-author 'NAYZEEE Development'
+author 'NayZeee Development'
 description 'Backpacks, purses & job bags for ox_inventory (ESX / Qbox / QBCore / standalone), props or bag clothing'
-version '1.0.0'
+version '1.0.2'
 
 shared_scripts {
     '@ox_lib/init.lua',

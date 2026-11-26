@@ -173,7 +173,7 @@
 @keyframes te-in{from{opacity:0;transform:translate(26px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
 
 .te-preview{
-  position:relative;flex:none;height:170px;margin:12px;border-radius:var(--r-md);
+  position:relative;flex:none;height:170px;margin:12px;border-radius:var(--r-md);clip-path:inset(0 round var(--r-md));
   display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;
   background:
     radial-gradient(120% 90% at 50% 0%,rgba(8,175,162,.10),transparent 60%),
