@@ -2,9 +2,9 @@ fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
 
-author 'NAYZEEE Development'
+author 'NayZeee Development'
 description 'Bag models, textures and animations for nayzeee-backpack'
-version '1.0.0'
+version '1.0.1'
 
 -- Props only, no code. Kept apart from the script so restarting
 -- nayzeee-backpack never makes players re-stream every model, and so
@@ -14,6 +14,10 @@ version '1.0.0'
 
 files {
     'stream/**/*.ytyp',
+    -- clothing bags nayzeee-backpack converts into this resource (stream/nzb_*):
+    -- their inventory pictures and the list of what was converted
+    'icons/*.png',
+    'bagmap.json',
 }
 
 -- Every .ytyp in stream/ is registered automatically, so a new bag only

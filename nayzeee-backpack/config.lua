@@ -51,8 +51,9 @@ Config.PropsResource = 'nayzeee-backpack-props'
 --   nayzeee-backpack/bags/Mew Backpack/hand_005_u.ydd
 --                                     /hand_diff_005_a_uni.ytd   <- every colour
 --
--- The props go into nayzeee-bagprops, a resource the script makes next to this
--- one and starts by itself. server.cfg needs (see INSTALL.md):
+-- The props go into `resource` below: your nayzeee-backpack-props, next to the
+-- bag props you already stream (as stream/nzb_*). The script restarts it after a
+-- conversion so new bags load. server.cfg needs (see INSTALL.md):
 --   add_unsafe_child_process_permission "nayzeee-backpack"
 --   add_ace resource.nayzeee-backpack command.refresh allow
 --   add_ace resource.nayzeee-backpack command.ensure allow
@@ -61,7 +62,7 @@ Config.PropsResource = 'nayzeee-backpack-props'
 Config.ClothingBags = {
     enabled   = true,
     folder    = 'bags',              -- inside this resource
-    resource  = 'nayzeee-bagprops',  -- made by the script: don't ensure it, don't edit it
+    resource  = 'nayzeee-backpack-props',  -- where converted bags go (only its nzb_* files are ever touched)
     item      = 'backpack',          -- the ox_inventory item every clothing bag uses (install/ox_items.lua)
     autoBuild = true,                -- convert new / changed bags on start (or /bagconvert)
 

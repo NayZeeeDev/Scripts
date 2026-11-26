@@ -4,7 +4,7 @@
 -- bagkit (tools/bagkit, run by server/bagkit.js) turns bag clothing
 --   bags/<Bag Name>/hand_000_u.ydd + hand_diff_000_a_*.ytd ...
 -- (and, if Config.ClothingBags.scanResources says so, bags other
--- resources stream as clothing) into props in nayzeee-bagprops: one
+-- resources stream as clothing) into props in Config.ClothingBags.resource: one
 -- prop per colour, a picture of each, and bagmap.json saying which
 -- bone the clothing was skinned to and where it sat. Only what's new
 -- or changed is rebuilt.
@@ -23,7 +23,7 @@ if not CC or not CC.enabled then
     return
 end
 
-local RES = CC.resource or 'nayzeee-bagprops'
+local RES = CC.resource or 'nayzeee-backpack-props'
 local SELF = GetCurrentResourceName()
 local FOLDER = CC.folder or 'bags'
 local bootPhase = true   -- until the start-up scan is done, the props resource waits

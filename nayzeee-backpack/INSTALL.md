@@ -157,10 +157,12 @@ add_ace resource.nayzeee-backpack command.restart allow
 
 - The first line lets the script run its converter (`tools/bagkit`, ready-made for
   Windows and Linux in the zip). Without it the console says the server blocks it.
-- The three `add_ace` lines let it start and restart **nayzeee-bagprops**, the
-  resource it makes next to this one for the converted props. **Don't** add
-  `ensure nayzeee-bagprops`: the script starts it itself once new bags are converted,
-  so a new bag shows up after **one** restart. Don't edit that folder.
+- The three `add_ace` lines let it restart **nayzeee-backpack-props** (set by
+  `Config.ClothingBags.resource`) after converting, so a new bag shows up after
+  **one** restart. Converted bags are written into it as `stream/nzb_*`, with
+  `stream/nzb_bags.ytyp`, `bagmap.json` and `icons/`: only those are ever changed or
+  removed, your own props in that folder are never touched. Keep
+  `ensure nayzeee-backpack-props` in server.cfg as usual.
 
 **Add a bag (every time):**
 
